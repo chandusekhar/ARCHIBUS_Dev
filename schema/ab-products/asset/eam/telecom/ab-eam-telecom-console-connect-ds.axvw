@@ -1,0 +1,220 @@
+<view version="2.0">
+    <dataSource id="abEamTelCons_connect_ds">
+        <sql dialect="generic">
+            SELECT
+                'eq' ${sql.as} asset_type,
+                eq.eq_id ${sql.as} asset_code,
+                NULL ${sql.as} asset_port,
+                eq.eq_std ${sql.as} asset_std,
+                eq.bl_id ${sql.as} bl_id,
+                eq.fl_id ${sql.as} fl_id,
+                eq.rm_id ${sql.as} rm_id,
+                (CASE WHEN eq.is_multiplexing=1 THEN '1'
+                      WHEN (EXISTS (SELECT 1 FROM eqstd WHERE eqstd.eq_std=eq.eq_std AND eqstd.is_multiplexing=1)) THEN '1'
+                      ELSE '0'
+                END) ${sql.as} is_multiplexing,
+                eq.tc_eq_id ${sql.as} tc_eq_id,
+                eq.tc_eqport_id ${sql.as} tc_eqport_id,
+                (SELECT fp_id FROM jk WHERE jk.jk_id=eq.tc_jk_id) ${sql.as} tc_fp_id,
+                eq.tc_jk_id ${sql.as} tc_jk_id,
+                eq.tc_pn_id ${sql.as} tc_pn_id,
+                eq.tc_pnport_id ${sql.as} tc_pnport_id,
+                (CASE WHEN eq.tc_jk_id IS NOT NULL THEN eq.tc_jk_id
+                    WHEN eq.tc_pn_id IS NOT NULL AND eq.tc_pnport_id IS NOT NULL THEN eq.tc_pn_id ${sql.concat} '|' ${sql.concat} eq.tc_pnport_id
+                    WHEN eq.tc_eq_id IS NOT NULL AND eq.tc_eqport_id IS NULL THEN eq.tc_eq_id
+                    WHEN eq.tc_eq_id IS NOT NULL AND eq.tc_eqport_id IS NOT NULL THEN eq.tc_eq_id ${sql.concat} '|' ${sql.concat} eq.tc_eqport_id
+                    ELSE '' END) ${sql.as} connected_to,
+                (CASE WHEN eq.tc_jk_id IS NOT NULL THEN 'jk'
+                    WHEN eq.tc_pn_id IS NOT NULL AND eq.tc_pnport_id IS NOT NULL THEN 'pn'
+                    WHEN eq.tc_eq_id IS NOT NULL OR eq.tc_eqport_id IS NOT NULL THEN 'eq'
+                    ELSE '' END) ${sql.as} connected_to_asset
+            FROM eq
+            UNION
+            SELECT
+                'jk' ${sql.as} asset_type,
+                jk.jk_id ${sql.as} asset_code,
+                NULL ${sql.as} asset_port,
+                jk.jk_std ${sql.as} asset_std,
+                jk.bl_id ${sql.as} bl_id,
+                jk.fl_id ${sql.as} fl_id,
+                jk.rm_id ${sql.as} rm_id,
+                NULL ${sql.as} is_multiplexing,
+                jk.tc_eq_id ${sql.as} tc_eq_id,
+                jk.tc_eqport_id ${sql.as} tc_eqport_id,
+                NULL ${sql.as} tc_fp_id,
+                NULL ${sql.as} tc_jk_id,
+                jk.tc_pn_id ${sql.as} tc_pn_id,
+                jk.tc_pnport_id ${sql.as} tc_pnport_id,
+                (CASE WHEN jk.tc_pn_id IS NOT NULL AND jk.tc_pnport_id IS NOT NULL THEN jk.tc_pn_id ${sql.concat} '|' ${sql.concat} jk.tc_pnport_id
+                    WHEN jk.tc_eq_id IS NOT NULL AND jk.tc_eqport_id IS NULL THEN jk.tc_eq_id
+                    WHEN jk.tc_eq_id IS NOT NULL AND jk.tc_eqport_id IS NOT NULL THEN jk.tc_eq_id ${sql.concat} '|' ${sql.concat} jk.tc_eqport_id
+                    ELSE '' END) ${sql.as} connected_to,
+                (CASE WHEN jk.tc_pn_id IS NOT NULL AND jk.tc_pnport_id IS NOT NULL THEN 'pn'
+                    WHEN jk.tc_eq_id IS NOT NULL OR jk.tc_eqport_id IS NOT NULL THEN 'eq'
+                    ELSE '' END) ${sql.as} connected_to_asset
+            FROM jk
+            UNION
+            SELECT
+                'fp' ${sql.as} asset_type,
+                fp.fp_id ${sql.as} asset_code,
+                jk.jk_id ${sql.as} asset_port,
+                fp.fp_std ${sql.as} asset_std,
+                fp.bl_id ${sql.as} bl_id,
+                fp.fl_id ${sql.as} fl_id,
+                fp.rm_id ${sql.as} rm_id,
+                NULL ${sql.as} is_multiplexing,
+                jk.tc_eq_id ${sql.as} tc_eq_id,
+                jk.tc_eqport_id ${sql.as} tc_eqport_id,
+                NULL ${sql.as} tc_fp_id,
+                NULL ${sql.as} tc_jk_id,
+                jk.tc_pn_id ${sql.as} tc_pn_id,
+                jk.tc_pnport_id ${sql.as} tc_pnport_id,
+                (CASE WHEN jk.tc_pn_id IS NOT NULL AND jk.tc_pnport_id IS NOT NULL THEN jk.tc_pn_id ${sql.concat} '|' ${sql.concat} jk.tc_pnport_id
+                    WHEN jk.tc_eq_id IS NOT NULL AND jk.tc_eqport_id IS NULL THEN jk.tc_eq_id
+                    WHEN jk.tc_eq_id IS NOT NULL AND jk.tc_eqport_id IS NOT NULL THEN jk.tc_eq_id ${sql.concat} '|' ${sql.concat} jk.tc_eqport_id
+                    ELSE '' END) ${sql.as} connected_to,
+                (CASE WHEN jk.tc_pn_id IS NOT NULL OR jk.tc_pnport_id IS NOT NULL THEN 'pn'
+                    WHEN jk.tc_eq_id IS NOT NULL OR jk.tc_eqport_id IS NOT NULL THEN 'eq'
+                    ELSE '' END) ${sql.as} connected_to_asset
+            FROM jk LEFT OUTER JOIN fp ON jk.fp_id=fp.fp_id
+            UNION
+            SELECT
+                'pnport' ${sql.as} asset_type,
+                pn.pn_id ${sql.as} asset_code,
+                pnport.port_id ${sql.as} asset_port,
+                pn.pn_std ${sql.as} asset_std,
+                pn.bl_id ${sql.as} bl_id,
+                pn.fl_id ${sql.as} fl_id,
+                pn.rm_id ${sql.as} rm_id,
+                NULL ${sql.as} is_multiplexing,
+                pnport.tc_eq_id ${sql.as} tc_eq_id,
+                pnport.tc_eqport_id ${sql.as} tc_eqport_id,
+                NULL ${sql.as} tc_fp_id,
+                NULL ${sql.as} tc_jk_id,
+                pnport.tc_pn_id ${sql.as} tc_pn_id,
+                pnport.tc_pnport_id ${sql.as} tc_pnport_id,
+                (CASE WHEN pnport.tc_pn_id IS NOT NULL AND pnport.tc_pnport_id IS NOT NULL THEN pnport.tc_pn_id ${sql.concat} '|' ${sql.concat} pnport.tc_pnport_id
+                    WHEN pnport.tc_eq_id IS NOT NULL AND pnport.tc_eqport_id IS NULL THEN pnport.tc_eq_id
+                    WHEN pnport.tc_eq_id IS NOT NULL AND pnport.tc_eqport_id IS NOT NULL THEN pnport.tc_eq_id ${sql.concat} '|' ${sql.concat} pnport.tc_eqport_id
+                    ELSE '' END) ${sql.as} connected_to,
+                (CASE WHEN pnport.tc_pn_id IS NOT NULL OR pnport.tc_pnport_id IS NOT NULL THEN 'pn'
+                    WHEN pnport.tc_eq_id IS NOT NULL OR pnport.tc_eqport_id IS NOT NULL THEN 'eq'
+                    ELSE '' END) ${sql.as} connected_to_asset
+            FROM pnport LEFT OUTER JOIN pn ON pnport.pn_id=pn.pn_id
+            UNION
+            SELECT
+                'eqport' ${sql.as} asset_type,
+                eqport.eq_id ${sql.as} asset_code,
+                eqport.port_id ${sql.as} asset_port,
+                eq.eq_std ${sql.as} asset_std,
+                eq.bl_id ${sql.as} bl_id,
+                eq.fl_id ${sql.as} fl_id,
+                eq.rm_id ${sql.as} rm_id,
+                (CASE WHEN eq.is_multiplexing=1 THEN '1'
+                      WHEN (EXISTS (SELECT 1 FROM eqstd WHERE eqstd.eq_std=eq.eq_std AND eqstd.is_multiplexing=1)) THEN '1'
+                      ELSE '0'
+                END) ${sql.as} is_multiplexing,
+                eqport.tc_eq_id ${sql.as} tc_eq_id,
+                eqport.tc_eqport_id ${sql.as} tc_eqport_id,
+                NULL ${sql.as} tc_fp_id,
+                NULL ${sql.as} tc_jk_id,
+                eqport.tc_pn_id ${sql.as} tc_pn_id,
+                eqport.tc_pnport_id ${sql.as} tc_pnport_id,
+                (CASE WHEN eqport.tc_pn_id IS NOT NULL AND eqport.tc_pnport_id IS NOT NULL THEN eqport.tc_pn_id ${sql.concat} '|' ${sql.concat} eqport.tc_pnport_id
+                    WHEN eqport.tc_eq_id IS NOT NULL AND eqport.tc_eqport_id IS NULL THEN eqport.tc_eq_id
+                    WHEN eqport.tc_eq_id IS NOT NULL AND eqport.tc_eqport_id IS NOT NULL THEN eqport.tc_eq_id ${sql.concat} '|' ${sql.concat} eqport.tc_eqport_id
+                    ELSE ''END) ${sql.as} connected_to,
+                (CASE WHEN eqport.tc_pn_id IS NOT NULL OR eqport.tc_pnport_id IS NOT NULL THEN 'pn'
+                    WHEN eqport.tc_eq_id IS NOT NULL OR eqport.tc_eqport_id IS NOT NULL THEN 'eq'
+                    ELSE '' END) ${sql.as} connected_to_asset
+            FROM eqport LEFT OUTER JOIN eq ON eqport.eq_id=eq.eq_id
+        </sql>
+        <table name="eq"/>
+        <field name="asset_type" dataType="text">
+            <title>Asset Type</title>
+        </field>
+        <field name="asset_code" dataType="text">
+            <title>Asset Code</title>
+        </field>
+        <field name="asset_port" dataType="text">
+            <title>Asset Port</title>
+        </field>
+        <field name="asset_std" dataType="text">
+            <title>Asset Standard</title>
+        </field>
+        <field name="bl_id" dataType="text">
+            <title>Building Code</title>
+        </field>
+        <field name="fl_id" dataType="text">
+            <title>Floor Code</title>
+        </field>
+        <field name="rm_id" dataType="text">
+            <title>Room Code</title>
+        </field>
+        <field name="is_multiplexing" dataType="text">
+            <title>Is Multiplexing?</title>
+        </field>
+        <field name="tc_eq_id" dataType="text">
+            <title>To Equipment Code</title>
+        </field>
+        <field name="tc_eqport_id" dataType="text">
+            <title>To Equipment Port Code</title>
+        </field>
+        <field name="tc_fp_id" dataType="text">
+            <title>To Faceplate Code</title>
+        </field>
+        <field name="tc_jk_id" dataType="text">
+            <title>To Jack Code</title>
+        </field>
+        <field name="tc_pn_id" dataType="text">
+            <title>To Panel Code</title>
+        </field>
+        <field name="tc_pnport_id" dataType="text">
+            <title>To Panel Port Code</title>
+        </field>
+        <field name="connected_to" dataType="text">
+            <title>Connected To</title>
+        </field>
+        <field name="connected_to_asset" dataType="text">
+            <title>Connected To Asset</title>
+        </field>
+    </dataSource>
+
+    <!-- Helper data sources -->
+    <dataSource id="abEamTelCons_connect_eq_ds">
+        <table name="eq"/>
+        <field name="eq_id"/>
+        <field name="tc_eq_id"/>
+        <field name="tc_eqport_id"/>
+        <field name="tc_jk_id"/>
+        <field name="tc_pn_id"/>
+        <field name="tc_pnport_id"/>
+    </dataSource>
+    <dataSource id="abEamTelCons_connect_eqport_ds">
+        <table name="eqport"/>
+        <field name="eq_id"/>
+        <field name="port_id"/>
+        <field name="tc_eq_id"/>
+        <field name="tc_eqport_id"/>
+        <field name="tc_pn_id"/>
+        <field name="tc_pnport_id"/>
+    </dataSource>
+    <dataSource id="abEamTelCons_connect_jk_ds">
+        <table name="jk"/>
+        <field name="jk_id"/>
+        <field name="fp_id"/>
+        <field name="tc_eq_id"/>
+        <field name="tc_eqport_id"/>
+        <field name="tc_pn_id"/>
+        <field name="tc_pnport_id"/>
+    </dataSource>
+    <dataSource id="abEamTelCons_connect_pnport_ds">
+        <table name="pnport"/>
+        <field name="pn_id"/>
+        <field name="port_id"/>
+        <field name="tc_eq_id"/>
+        <field name="tc_eqport_id"/>
+        <field name="tc_pn_id"/>
+        <field name="tc_pnport_id"/>
+    </dataSource>
+</view>

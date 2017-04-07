@@ -1,0 +1,108 @@
+<view version="2.0">
+
+<!-- Change Log -->
+<!-- 2016/05/10 - MSHUSSAI - Changed the field Position to Display Primary Trade -->
+
+	<title>Primary Trade Hours by Zone</title>
+	<preferences>
+		<viewTitleBar show="false" />
+	</preferences>
+
+	<layout file="console-small.axvw" />
+	<js file="ab-ondemand-common.js" />
+	<js file="ab-ondemand-report-common.js" />
+	<js file="uc-wr-cf-position-hours-by-zone_2.js" />
+
+	<message name="selectTitle" translatable="true">-select-</message>
+
+	<dataSource id="consoleDS">
+		<table name="wrhwr" role="main" />
+		<field table="wrhwr" name="prob_type" />
+		<field table="wrhwr" name="date_requested" />
+	</dataSource>
+
+	<dataSource id="crossTableDS3" type="grouping">
+		<query>
+			<sql dialect="sqlserver">
+				SELECT wrcfhwrcf.*, wrhwr.prob_type AS wr_prob_type, cf.tr_id AS cf_position, bl.zone_id bl_zone_id, wrhwr.date_requested FROM wrcfhwrcf
+				LEFT OUTER JOIN wrhwr ON wrhwr.wr_id = wrcfhwrcf.wr_id
+				LEFT OUTER JOIN bl ON wrhwr.bl_id = bl.bl_id
+				LEFT OUTER JOIN cf ON cf.cf_id = wrcfhwrcf.cf_id
+			</sql>
+		</query>
+		<table name="wrcfhwrcf" role="main" />
+		<!--sortField name="pmp_id" table="pms" ascending="true" /-->
+		<!--sortField name="zone_trade" table="wrcfhwrcf" ascending="true" /-->
+
+		<!--
+		<field name="bl_zone_id" table="wrcfhwrcf" groupBy="true">
+			<title translatable="true">Zone - Trade</title>
+			<sql dialect="generic">bl_zone_id</sql>
+		</field>
+		-->
+
+		<field name="bl_zone_id" table="wrcfhwrcf" groupBy="true" dataType="text" size="32">
+			<title translatable="true">Zone</title>
+            <sql dialect="generic">bl_zone_id</sql>
+		</field>
+		<field name="cf_position" table="wrcfhwrcf" groupBy="true" dataType="text" size="32">
+			<title translatable="true">Trade</title>
+            <sql dialect="generic">cf_position</sql>
+		</field>
+
+
+		<field name="hours_total" formula="sum" dataType="number" baseField="wrcfhwrcf.hours_total">
+			<title translatable="true">Total Hours</title>
+		</field>
+
+		<field name="count_req" formula="count" dataType="number" baseField="wrcfhwrcf.wr_id" decimals="0">
+			<title translatable="true"># of Req</title>
+		</field>
+
+		<field name="hours_pm" formula="sum" dataType="number" baseField="wrcfhwrcf.hours_total">
+			<title translatable="true">PM Hours</title>
+			<sql dialect="sqlserver">SUM(CASE WHEN wr_prob_type = 'PREVENTIVE MAINT' THEN wrcfhwrcf.hours_total ELSE 0 END)</sql>
+		</field>
+
+		<field name="hours_dm" formula="sum" dataType="number" baseField="wrcfhwrcf.hours_total">
+			<title translatable="true">OD Hours</title>
+			<sql dialect="sqlserver">SUM(CASE WHEN wr_prob_type = 'PREVENTIVE MAINT' THEN 0 ELSE wrcfhwrcf.hours_total END)</sql>
+		</field>
+	</dataSource>
+
+	<panel type="console" columns="3" id="requestConsole"
+		dataSource="consoleDS" region="north">
+		<title translatable="true">Filter</title>
+		<action id="filter">
+			<title translatable="true">Show</title>
+			<command type="callFunction"
+				functionName="apply_console_restriction()" />
+		</action>
+		<action id="clear">
+			<title translatable="true">Clear</title>
+			<command type="clearForm"
+				panelId="reportPanel" />
+		</action>
+		<field table="wrhwr" name="date_requested" alias="wrhwr.date_requested.from" >
+			<title>Date From:</title>
+		</field>
+		<field table="wrhwr" name="date_requested" alias="wrhwr.date_requested.to" >
+			<title>To:</title>
+		</field>
+		<field table="wrhwr" name="prob_type" hidden="true" />
+	</panel>
+
+	<panel id="reportPanel" type="crossTable"
+		dataSource="crossTableDS3" region="center">
+		<title translatable="true">
+			Primary Trade Hours by Zone
+		</title>
+        <action id="exportXLS">
+            <title>XLS</title>
+            <command type="exportPanel" outputType="xls" panelId="reportPanel"/>
+        </action>
+		<!--event type="onClickItem">
+		    <command type="callFunction" functionName="onCrossTableClick"/>
+		</event-->
+	</panel>
+</view>

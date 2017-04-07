@@ -1,0 +1,224 @@
+<view version="2.0">
+<!-- Change Log -->
+<!--2015/11/25  -  MSHUSSAI - Modified code to add Requested Time to search grid -->
+<!--2015/11/25  -  MSHUSSAI - Modified code to fix Requestor Code not populating from pop up window -->
+<!--2015/11/26  -  MSHUSSAI - Modified code to fix Craftperson not populating from pop up window -->
+<!--2015/01/27  -  MSHUSSAI - WR365376 - Modified code to add Work Request Priority to results grid  -->
+
+    <title>Work Requests</title>
+
+    <layout>
+        <north initialSize="160"/>
+        <center/>
+    </layout>
+
+    <js file="uc-report-wr-executive_3.js" />
+    <js file="uc-common-functions-data.js"/>
+
+    <dataSource id="consoleDS3">
+        <table name="wrhwr" role="main" />
+        <table name="bl" role="standard"/>
+        <field table="wrhwr" name="tr_id" />
+        <field table="wrhwr" name="date_requested" />
+        <field table="wrhwr" name="tr_id"/>
+        <field table="wrhwr" name="bl_id"/>
+        <field table="wr" name="cf_id"/>
+        <field table="bl" name="zone_id"/>
+        <field table="wrhwr" name="requestor"/>
+        <field table="wrhwr" name="wr_id"/>
+        <field table="wrhwr" name="charge_type"/>
+        <field table="wrhwr" name="eq_id"/>
+		    <field table="wrhwr" name="work_team_id"/>
+		    <field table="wrhwr" name="priority"/>
+        <field table="wrhwr" name="description"/>
+    </dataSource>
+
+  <panel type="console" columns="3" id="requestConsole" dataSource="consoleDS3" region="north">
+    <title translatable="true">Filter</title>
+    <action id="filter">
+      <title translatable="true">Show</title>
+      <command type="callFunction"
+          functionName="apply_console_restriction()" />
+    </action>
+    <action id="clear">
+      <title translatable="true">Clear</title>
+    </action>
+    <field table="wrhwr" name="wr_id">
+      <title>Work Request #</title>
+    </field>
+    <field table="wrhwr" name="requestor">
+      <title>Requestor Code</title>
+      <action id="selectReq">
+        <title>...</title>
+        <tooltip>Select Requestor</tooltip>
+        <command type="selectValue"
+					fieldNames="wrhwr.requestor"
+					selectFieldNames="em.em_id"
+					visibleFieldNames="em.em_id,em.name_last,em.name_first,em.phone,em.email"
+					applyFilter="true" />
+      </action>
+    </field>
+    <field table="wrhwr" name="charge_type">
+      <title>Charge Type</title>
+    </field>
+    <field table="wrhwr" name="work_team_id"/>
+    <field>
+      <title>Demand/Preventive/All</title>
+      <html>
+        <select class="inputField_box" id="selectbox_work_type">
+          <option value="All">All</option>
+          <option value="Demand">Demand</option>
+          <option value="Preventive">Preventive</option>
+        </select>
+      </html>
+    </field>
+    <field>
+      <title>Assigned to Craftsperson/Contractor?</title>
+      <html>
+        <select class="inputField_box" id="selectbox_assigned_to_cf">
+          <option value="All">All</option>
+          <option value="No">No</option>
+          <option value="Yes">Yes</option>
+        </select>
+      </html>
+    </field>
+    <field>
+      <title>Primary Trade</title>
+      <html>
+        <select class="inputField_box" id="selectbox_tr_id">
+        </select>
+      </html>
+    </field>
+    <field table="bl" name="zone_id"/>
+    <field table="wrhwr" name="bl_id"/>
+    <field table="wr" name="cf_id" >
+      <title>Craftsperson/Cont. Assigned</title>
+      <action id="selectCf">
+        <title>...</title>
+      </action>
+    </field>
+    <field table="wrhwr" name="date_requested" alias="wrhwr.date_requested.from" >
+      <title>Requested Date From</title>
+    </field>
+    <field table="wrhwr" name="date_requested" alias="wrhwr.date_requested.to" >
+      <title>To</title>
+    </field>
+    <field table="wrhwr" name="wr_id">
+      <title>Work Request #</title>
+    </field>
+    <field table="wrhwr" name="description" style="height:18px; width:207px;">
+      <title>Work Description</title>
+    </field>
+  </panel>
+
+    <dataSource id="wrhwrDS8">
+		<query>
+			<sql dialect="generic">
+			SELECT wrhwr.*, DATEDIFF(day, wrhwr.date_requested,wrhwr.date_fwc) as cycletime_cal, 
+				DATEDIFF(dd, wrhwr.date_requested, wrhwr.date_fwc) - (DATEDIFF(wk, wrhwr.date_requested, wrhwr.date_fwc) * 2) -
+					case when datepart(dw, wrhwr.date_requested) = 1 then 1 else 0 end +
+					case when datepart(dw, wrhwr.date_fwc) = 1 then 1 else 0 end as cycletime_eff,
+			CASE WHEN (SELECT COUNT(1) FROM
+				(SELECT vn_id cf_id FROM wrotherhwrother WHERE wrhwr.wr_id = wrotherhwrother.wr_id AND wrotherhwrother.other_rs_type = 'CONTRACTOR' and wrotherhwrother.vn_id is not null
+					UNION
+				SELECT cf_id FROM wrcfhwrcf WHERE wrhwr.wr_id = wrcfhwrcf.wr_id ) t) > 1 THEN 'MULTIPLE'
+			ELSE
+			(SELECT TOP 1 cf_id FROM
+				(SELECT vn_id cf_id FROM wrotherhwrother WHERE wrhwr.wr_id = wrotherhwrother.wr_id AND wrotherhwrother.other_rs_type = 'CONTRACTOR' and wrotherhwrother.vn_id is not null
+					UNION
+				SELECT cf_id FROM wrcfhwrcf WHERE wrhwr.wr_id = wrcfhwrcf.wr_id ) t) END AS assigned_cf
+			FROM wrhwr
+			WHERE ${parameters['consoleRest']} and ${parameters['statusRest']}
+			</sql>
+		</query>
+		<table name="wrhwr" role="main"/>
+		<field table="wrhwr" name="wr_id" />
+		<field table="wrhwr" name="wo_id" />
+		<field table="wrhwr" name="status" />
+		<field table="wrhwr" name="requestor" />
+		<field table="wrhwr" name="prob_type" />
+		<field table="wrhwr" name="description" />
+		<field table="wrhwr" name="date_requested" />
+		<field table="wrhwr" name="time_requested" />
+		<field table="wrhwr" name="date_completed" />
+		<field table="wrhwr" name="date_fwc" />
+		<field table="wrhwr" name="date_closed" />
+		<field table="wrhwr" name="work_team_id" />
+		<field table="wrhwr" name="activity_type" />
+		<field table="wrhwr" name="supervisor" />
+		<field table="wrhwr" name="manager" />
+		<field table="wrhwr" name="site_id" />
+		<field table="wrhwr" name="bl_id" />
+		<field table="wrhwr" name="fl_id" />
+		<field table="wrhwr" name="rm_id" />
+		<field table="wrhwr" name="location" />
+		<field table="wrhwr" name="eq_id" />
+		<field table="wrhwr" name="ac_id" />
+		<field table="wrhwr" name="priority" />
+		<field table="wrhwr" name="cf_notes" />
+		<field table="wrhwr" name="tr_id"/>
+		<field table="wrhwr" name="work_team_id"/>
+		<field table="wrhwr" name="charge_type"/>
+		<field table="wrhwr" name="block_id"/>
+		<field table="wrhwr" name="unit_id"/>
+		<field table="wrhwr" name="dp_id"/>
+		<field table="wrhwr" name="dv_id"/>
+		<field table="wrhwr" name="serv_window_start"/>
+		<field table="wrhwr" name="serv_window_end"/>
+		<field table="wrhwr" name="phone" />
+		<field table="wrhwr" name="date_assigned"/>
+		<field table="wrhwr" name="activity_log_id"/>
+		<field table="wrhwr" name="assigned_cf" dataType="text"/>
+		<field table="wrhwr" name="act_labor_hours"/>
+        <field table="wrhwr" name="cost_labor"/>
+        <field table="wrhwr" name="cost_other"/>
+		<field table="wrhwr" name="cost_total"/>
+		<parameter name="consoleRest" dataType="verbatim" value="1=1"/>
+		<parameter name="statusRest" dataType="verbatim" value="1=1"/>
+		<sortField name="wr_id" table="wrhwr" ascending="false"/>
+     </dataSource>
+     <panel type="grid" id="reportPanel" dataSource="wrhwrDS8" showOnLoad="false" region="center" recordLimit="15000">
+		<action id="xlsExport">
+            <title>XLS</title>
+            <command type="exportPanel" outputType="xls" panelId="reportPanel"/>
+        </action>
+		<!--<action id="abViewdefReport_exportTXFR">
+            <title>DATA</title>
+            <command type="exportPanel" outputType="txfr" panelId="reportPanel"/>
+        </action>-->
+        <sortField table="wrhwr" name="wr_id" />
+        <field table="wrhwr" name="wr_id"><title>WR Code</title></field>
+        <field table="wrhwr" name="status" hidden="false"/>
+        <field table="wrhwr" name="date_requested" hidden="false"/> 	
+		<field table="wrhwr" name="time_requested" hidden="false"/> 		
+		<field table="wrhwr" name="date_fwc" />
+        <field table="wrhwr" name="date_completed" />
+        <field table="wrhwr" name="date_closed" />
+		<field table="wrhwr" name="cycletime_cal" dataType="number"><title>Cycle Time - Calendar</title></field>
+		<field table="wrhwr" name="cycletime_eff" dataType="number"><title>Cycle Time - Effective</title></field>
+        <field table="wrhwr" name="requestor" hidden="false"/>
+        <field table="wrhwr" name="wo_id" hidden="true"/>
+        <field table="wrhwr" name="prob_type"/>
+        <field table="wrhwr" name="bl_id"><title>Bldg Code</title></field>
+        <field table="wrhwr" name="fl_id" />
+        <field table="wrhwr" name="rm_id" />
+		<field table="wrhwr" name="priority" />
+        <field table="wrhwr" name="charge_type"/>
+        <field table="wrhwr" name="work_team_id"/>
+        <field table="wrhwr" name="tr_id"/>
+        <field table="wrhwr" name="assigned_cf" dataType="text" size="32">
+            <title>Assigned To</title>
+        </field>
+        <field table="wrhwr" name="act_labor_hours"/>
+        <field table="wrhwr" name="cost_labor"/>
+        <field table="wrhwr" name="cost_other"/>
+		<field table="wrhwr" name="cost_total"/>		
+        <field table="wrhwr" name="eq_id"/>
+        <field table="wrhwr" name="dv_id"/>
+        <field table="wrhwr" name="dp_id"/>
+        <field table="wrhwr" name="ac_id"/>
+        <field table="wrhwr" name="description"/>
+        <field table="wrhwr" name="cf_notes"/>
+		
+    </panel>
+</view>

@@ -1,0 +1,106 @@
+<view version="2.0">
+    <designInfo type="paginated" pattern="ab-viewdef-paginated-parent-parent-child" isAlterable="true"/>
+    <title translatable="true">View Room by Floor and Department</title>
+    <report orientation="landscape"/>
+    
+    <dataSource id="ds_ab-sp-vw-rm-by-fl-dp_prnt_grid_fl">
+        <table name="fl" role="main"/>
+        <field table="fl" name="bl_id"/>
+        <field table="fl" name="fl_id"/>
+        <field table="fl" name="area_usable"/>
+        <field table="fl" name="area_rm"/>
+        <field table="fl" name="area_nocup"/>
+        <field table="fl" name="area_ocup"/>
+        <field table="fl" name="area_rm_dp"/>
+        <field table="fl" name="area_rm_comn"/>
+        <restriction type="sql" sql="exists(select 1 from rmpct where rmpct.bl_id=fl.bl_id and rmpct.fl_id=fl.fl_id 
+                                       AND rmpct.area_rm>0 )"/>
+    </dataSource>
+    
+    <dataSource id="ds_ab-sp-vw-rm-by-fl-dp_prnt_grid_dp" type="grouping">
+        <table name="rmpct" role="main"/>
+        <field table="rmpct" name="bl_id" groupBy="true"/>
+        <field table="rmpct" name="fl_id" groupBy="true"/>
+        <field table="rmpct" name="dv_id" groupBy="true"/>
+        <field table="rmpct" name="dp_id" groupBy="true"/>
+        <field name="total_area" formula="sum" baseField="rmpct.area_rm" dataType="number" decimals="2">
+            <title translatable="true">Total Area</title>
+        </field>
+        <restriction type="sql" sql=" rmpct.area_rm>0 "/>
+        <parameter name="flBlId" dataType="verbatim" value=""/>
+        <parameter name="flFlId" dataType="verbatim" value=""/>
+        <restriction type="parsed">
+            <clause relop="AND" op="=" table="rmpct" name="bl_id" value="${parameters['flBlId']}"/>
+            <clause relop="AND" op="=" table="rmpct" name="fl_id" value="${parameters['flFlId']}"/>
+        </restriction>
+    </dataSource>
+    
+    <dataSource id="ds_ab-sp-vw-rm-by-fl-dp_prnt_grid_rm"   type="grouping">
+        <table name="rmpct" role="main"/>
+        <table name="rmcat" role="standard"/>
+        <table name="rm" role="standard"/>
+        <field table="rmpct" name="bl_id"  groupBy="true"/>
+        <field table="rmpct" name="fl_id"  groupBy="true"/>
+        <field table="rmpct" name="rm_id"  groupBy="true"/>
+        <field name="area_rm" formula="sum" baseField="rmpct.area_rm" dataType="number" decimals="2"/>
+        <field table="rmpct" name="rm_cat"  groupBy="true"/>
+        <field table="rmpct" name="rm_type"  groupBy="true"/>
+        <field table="rmcat" name="occupiable"/>
+        <field table="rm" name="rm_std" groupBy="true"/>
+        <field table="rmpct" name="dv_id" groupBy="true" />
+        <field table="rmpct" name="dp_id" groupBy="true" />
+        <field table="rmpct" name="prorate"  groupBy="true"/>
+        <restriction type="sql" sql=" rmpct.area_rm>0 "/>
+        <parameter name="dpBlId" dataType="verbatim" value=""/>
+        <parameter name="dpFlId" dataType="verbatim" value=""/>
+        <parameter name="dpDvId" dataType="verbatim" value=""/>
+        <parameter name="dpDpId" dataType="verbatim" value=""/>
+        <restriction type="parsed">
+            <clause relop="AND" op="=" table="rmpct" name="dv_id" value="${parameters['dpDvId']}"/>
+            <clause relop="AND" op="=" table="rmpct" name="dp_id" value="${parameters['dpDpId']}"/>
+            <clause relop="AND" op="=" table="rmpct" name="bl_id" value="${parameters['dpBlId']}"/>
+            <clause relop="AND" op="=" table="rmpct" name="fl_id" value="${parameters['dpFlId']}"/>
+        </restriction>
+    </dataSource>
+    
+    <panel id="floorsGrid" dataSource="ds_ab-sp-vw-rm-by-fl-dp_prnt_grid_fl" type="paginatedReport" format="table" role="parent">
+        <title translatable="true">Select Floor</title>
+        <sortField table="fl" name="bl_id" ascending="true"/>
+        <sortField table="fl" name="fl_id" ascending="true"/>
+        <field table="fl" name="bl_id" restrictionParameterName="flBlId"/>
+        <field table="fl" name="fl_id" restrictionParameterName="flFlId"/>
+        <field table="fl" name="area_usable"/>
+        <field table="fl" name="area_rm"/>
+        <field table="fl" name="area_ocup"/>
+        <field table="fl" name="area_nocup"/>
+        <field table="fl" name="area_rm_dp"/>
+        <field table="fl" name="area_rm_comn"/>
+    </panel>
+    
+    <panel id="deptGrid" dataSource="ds_ab-sp-vw-rm-by-fl-dp_prnt_grid_dp" type="paginatedReport" format="table" role="parent">
+        <title translatable="true">Select Department</title>
+        <sortField name="dv_id" table="rmpct" ascending="true"/>
+        <sortField name="dp_id" table="rmpct" ascending="true"/>
+        <field table="rmpct" name="bl_id" hidden="true" restrictionParameterName="dpBlId"/>
+        <field table="rmpct" name="fl_id" hidden="true" restrictionParameterName="dpFlId"/>
+        <field table="rmpct" name="dv_id" restrictionParameterName="dpDvId"/>
+        <field table="rmpct" name="dp_id" restrictionParameterName="dpDpId"/>
+        <field name="total_area">
+            <title translatable="true">Total Area</title>
+        </field>
+    </panel>
+    
+    <panel id="roomsGrid" dataSource="ds_ab-sp-vw-rm-by-fl-dp_prnt_grid_rm" type="paginatedReport" format="table" role="data">
+        <title translatable="true">Rooms</title>
+        <sortField name="rm_id" table="rmpct" ascending="true"/>
+        <field table="rmpct" name="rm_id"/>
+        <field table="rmpct" name="area_rm">
+         <title>Allocated Room Area ${user.areaUnits.title}</title>
+        </field>
+        <field table="rmpct" name="rm_cat"/>
+        <field table="rmpct" name="rm_type"/>
+        <field table="rm" name="rm_std"/>
+        <field table="rmpct" name="prorate"/>
+    </panel>
+</view>
+

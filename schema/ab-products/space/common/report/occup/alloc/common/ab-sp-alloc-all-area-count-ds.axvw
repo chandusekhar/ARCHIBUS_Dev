@@ -1,0 +1,61 @@
+<view version="2.0">	 
+	<message name="vert" translatable="true">All vertical penetration areas</message>
+	<message name="serv" translatable="true">All service areas</message>
+	<message name="prorate" translatable="true">All prorated usable space</message>
+	<message name="other" translatable="true">Any other areas</message>
+	<message name="nocat" translatable="true">None category areas</message>
+	<message name="noProrate" translatable="true">All non-prorated usable space</message>
+	<dataSource id="abSpAllocAllAreaCountChartDataDS"  type="grouping">
+		<table name="rm" role="main"/>
+		<table name="dv" role="standard"/>
+		<table name="bl" role="standard"/>
+		<table name="rmcat" role="standard"/>
+
+		<field table="bl" name="site_id" hidden="true"/>
+		<field table="rmcat" name="rm_cat" hidden="true"/>
+		<field table="dv" name="dv_id" hidden="true"/>
+		<field table="rm"  name="type" dataType="text" groupBy="true">
+			<title translatable="true">Space Types</title>
+			<sql dialect="generic">
+					CASE	
+							when  rm.rm_cat is null    
+							then '1 '${sql.concat}${parameters['nocat']}   
+							when  rmcat.supercat='VERT'   
+							then '2 '${sql.concat}${parameters['vert']}   
+							when rmcat.supercat='SERV'   
+							then '3 '${sql.concat}${parameters['serv']}   
+							when  rmcat.supercat='OTHR'   
+							then '4 '${sql.concat}${parameters['other']}   
+							when rm.dv_id is  null and rm.dp_id is null  and rmcat.supercat='USBL'  and rm.prorate!='NONE'  
+							then '5 '${sql.concat}${parameters['prorate']}   
+							when rm.dv_id is  null and rm.dp_id is null  and rmcat.supercat='USBL'  and rm.prorate='NONE'  
+							then '6 '${sql.concat}${parameters['noProrate']}   
+							when rm.dv_id is not null and rm.dp_id is null  and rmcat.supercat='USBL' 
+							then RTRIM(rm.dv_id)
+							when rm.dv_id is not null and rm.dp_id is not null  and rmcat.supercat='USBL' 
+							then RTRIM(rm.dv_id)${sql.concat}' - '${sql.concat}RTRIM(rm.dp_id)
+					END  
+			</sql>
+		</field>
+		<field  name="total_count" dataType="number"  formula="count" baseField="rm.rm_id">
+			<title translatable="true">Room Count</title>
+		</field>		
+		<field  name="total_area" dataType="number" decimals="2" formula="sum" baseField="rm.area">
+			<title translatable="true">Total Area</title>
+		</field>		
+		
+		<parameter name="yAxisOption" dataType="verbatim" value="rm.bl_id"/>  
+		<parameter name="summaryValueForThisGroup" dataType="text" value=""/>  
+	    <parameter name="vert" dataType="text" value=""/> 
+	    <parameter name="serv" dataType="text" value=""/> 
+	    <parameter name="prorate" dataType="text" value=""/> 
+	    <parameter name="other" dataType="text" value=""/> 
+	    <parameter name="nocat" dataType="text" value=""/> 
+	    <parameter name="noProrate" dataType="text" value=""/> 
+		<parameter name="consoleRes" dataType="verbatim" value=" 1=1 "/>
+		<restriction type="sql"  
+			sql=" ${parameters['yAxisOption']} = ${parameters['summaryValueForThisGroup']}  and ${parameters['consoleRes']}   and ( rmcat.used_in_calcs !='no_totals' OR rm.rm_cat IS NULL )  "/>
+
+        <sortField name="type" table="rm" ascending="true" />
+	</dataSource>
+</view>

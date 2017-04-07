@@ -1,0 +1,113 @@
+<view version="2.0">
+    <dataSource type="grouping" id="ds_abLocalizationAnalysisStrCounts_data">
+        <table name="lang_strings" role="main"/>
+        <field table="lang_strings" name="language" groupBy="true"/>
+        <field table="lang_strings" name="string_count" formula="count" baseField="lang_strings.string_english" dataType="number" decimals="0">
+            <title translatable="true">String Count</title>     
+        </field>
+        <field table="lang_strings" name="word_count_sum" formula="sum" baseField="lang_strings.word_count" dataType="number" decimals="0">
+            <title translatable="true">Word Count</title>
+            <sql dialect="sqlserver"> 
+                (SUM( len( string_english ) - len( REPLACE(string_english, char(13), '')) )) -
+                (SUM( len( string_english ) - len( REPLACE(string_english,' ' + char(13), ' ')))) + 
+                (SUM( len( string_english ) - len( REPLACE(string_english,' ', '')) + 1 ))    
+            </sql>
+            <sql dialect="oracle"> 
+                (SUM( LENGTH( string_english ) - LENGTH( REPLACE(string_english, chr(13), '')) )) -
+                (SUM( LENGTH( string_english ) - LENGTH( REPLACE(string_english,' ' || chr(13), ' ')))) + 
+                (SUM( LENGTH( string_english ) - LENGTH( REPLACE(string_english,' ', '')) + 1 ))    
+            </sql>            
+            <sql dialect="sybase"> 
+                (SUM( LENGTH( string_english ) - LENGTH( REPLACE(string_english, char(13), '')) )) -
+                (SUM( LENGTH( string_english ) - LENGTH( REPLACE(string_english,' ' || char(13), ' ')))) + 
+                (SUM( LENGTH( string_english ) - LENGTH( REPLACE(string_english,' ', '')) + 1 ))    
+            </sql>            
+        </field>
+         <restriction type="parsed">
+			<clause name="string_trans" table="lang_strings" relop="AND" op="IS NULL"/>
+		</restriction>
+        <sortField table="lang_strings" name="language" ascending="true"/>
+    </dataSource>
+    
+    <panel type="crossTable" id="panel_abLocalizationAnalysisStrCounts_data" dataSource="ds_abLocalizationAnalysisStrCounts_data">
+        <title translatable="true">Estimated Number of Words and Strings that Need Translation (lang_strings)</title>
+        <action id="abLocalizationAnalysisStrCounts_refresh">
+            <title translatable="true">Refresh</title>
+            <command type="showPanel" panelId="panel_abLocalizationAnalysisStrCounts_data"/>
+        </action>
+        <event type="onClickItem">
+            <command type="openDialog" panelId="abLocalizationAnalysisStrCounts_popup" width="600" height="400"/>
+        </event>
+    </panel>
+    
+    <dataSource id="abLocalizationAnalysisStrCounts_popup_ds">
+        <table name="lang_strings" role="main"/>
+        <field table="lang_strings" name="word_count" dataType="number" decimals="0">
+        <sql dialect="sqlserver">
+                (SUM( len( string_english ) - len( REPLACE(string_english, char(13), '')) )) -
+                (SUM( len( string_english ) - len( REPLACE(string_english,' ' + char(13), ' ')))) + 
+                (SUM( len( string_english ) - len( REPLACE(string_english,' ', '')) + 1 ))    
+        </sql>
+        <sql dialect="oracle">
+                (SUM( LENGTH( string_english ) - LENGTH( REPLACE(string_english, chr(13), '')) )) -
+                (SUM( LENGTH( string_english ) - LENGTH( REPLACE(string_english,' ' + chr(13), ' ')))) + 
+                (SUM( LENGTH( string_english ) - LENGTH( REPLACE(string_english,' ', '')) + 1 ))    
+        </sql>
+        <sql dialect="sybase">
+                (SUM( LENGTH( string_english ) - LENGTH( REPLACE(string_english, char(13), '')) )) -
+                (SUM( LENGTH( string_english ) - LENGTH( REPLACE(string_english,' ' + char(13), ' ')))) + 
+                (SUM( LENGTH( string_english ) - LENGTH( REPLACE(string_english,' ', '')) + 1 ))    
+        </sql>        
+        </field>
+        <field table="lang_strings" name="language"/>
+        <field table="lang_strings" name="string_english"/>
+        <field table="lang_strings" name="string_trans"/>
+        <sql dialect="sqlserver">      
+                (SELECT  (SUM( len( string_english ) - len( REPLACE(string_english, char(13), '')) )) -
+                (SUM( len( string_english ) - len( REPLACE(string_english,' ' + char(13), ' ')))) + 
+                (SUM( len( string_english ) - len( REPLACE(string_english,' ', '')) + 1 )) AS word_count,     
+                string_english, string_trans, language                             
+                FROM lang_strings         
+                WHERE string_trans IS NULL
+                AND string_english NOT LIKE '%;%'   
+                GROUP BY language, string_english, string_trans         
+                )                
+         </sql>
+        <sql dialect="oracle">      
+                (SELECT  (SUM( LENGTH( string_english ) - LENGTH( REPLACE(string_english, chr(13), '')) )) -
+                (SUM( LENGTH( string_english ) - LENGTH( REPLACE(string_english,' ' + chr(13), ' ')))) + 
+                (SUM( LENGTH( string_english ) - LENGTH( REPLACE(string_english,' ', '')) + 1 )) AS word_count,     
+                string_english, string_trans, language                             
+                FROM lang_strings         
+                WHERE string_trans IS NULL
+                AND string_english NOT LIKE '%;%'   
+                GROUP BY language, string_english, string_trans         
+                ORDER BY language)                
+         </sql>
+        <sql dialect="sybase">      
+                (SELECT  (SUM( LENGTH( string_english ) - LENGTH( REPLACE(string_english, char(13), '')) )) -
+                (SUM( LENGTH( string_english ) - LENGTH( REPLACE(string_english,' ' + char(13), ' ')))) + 
+                (SUM( LENGTH( string_english ) - LENGTH( REPLACE(string_english,' ', '')) + 1 )) AS word_count,     
+                string_english, string_trans, language                             
+                FROM lang_strings         
+                WHERE string_trans IS NULL
+                AND string_english NOT LIKE '%;%'   
+                GROUP BY language, string_english, string_trans         
+                ORDER BY language)                
+         </sql>
+    </dataSource>
+    
+    <panel type="grid" id="abLocalizationAnalysisStrCounts_popup" dataSource="abLocalizationAnalysisStrCounts_popup_ds" showOnLoad="false">
+        <title translatable="true">Details (lang_strings)</title>
+        <action id="abLocalizationAnalysisStrCounts_refresh">
+            <title translatable="true">Refresh</title>
+            <command type="showPanel" panelId="abLocalizationAnalysisStrCounts_popup"/>
+        </action>
+        <field table="lang_strings" name="word_count">
+            <title translatable="true">Word Count</title>
+        </field>
+        <field table="lang_strings" name="string_english"/>
+        <field table="lang_strings" name="string_trans"/>
+        <field table="lang_strings" name="language"/>
+    </panel>
+</view>

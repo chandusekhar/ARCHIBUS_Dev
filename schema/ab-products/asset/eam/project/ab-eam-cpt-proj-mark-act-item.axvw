@@ -1,0 +1,105 @@
+<view version="2.0">
+    <layout type="borderLayout" id="mainLayout">
+        <north initialSize="23%" split="true" id="consoleRegion"/>
+        <center id="actionsRegion"/>
+    </layout>
+
+    <message name="create" translatable="true">Create Markup</message>
+    <message name="edit" translatable="true">Edit Markup</message>
+    <message name="add" translatable="true">Add Action Item</message>
+    <message name="delete" translatable="true">The selected markup will be deleted.</message>
+
+    <dataSource id="abEamMarkItemConsoleDS">
+        <table name="activity_log"/>
+        <field name="bl_id"/>
+        <field name="fl_id"/>
+        <field name="activity_type"/>
+    </dataSource>
+
+    <panel type="console" id="abEamMarkItemConsole" dataSource="abEamMarkItemConsoleDS" columns="2" layoutRegion="consoleRegion">
+        <title>Action Items</title>
+        <action id="show">
+            <title>Show</title>
+        </action>
+        <field name="bl_id">
+            <title>Building</title>
+        </field>
+        <field name="activity_type">
+            <title>Activity Type</title>
+        </field>
+        <field name="fl_id">
+            <title>Floor</title>
+        </field>
+        <field id="noFloor" controlType="checkBox">
+            <title>Include Action Items with no floor</title>
+        </field>
+    </panel>
+
+    <dataSource id="abEamMarkItemDS">
+        <table name="activity_log"/>
+        <field name="activity_log_id"/>
+        <field name="action_title"/>
+        <field name="bl_id"/>
+        <field name="fl_id"/>
+        <field name="created_by"/>
+        <field name="work_pkg_id"/>
+        <field name="activity_type"/>
+        <field name="project_id" hidden="true"/>
+        <field name="hadRedline" dataType="integer">
+            <sql dialect="generic">
+                (CASE
+                    WHEN EXISTS ( SELECT 1 FROM afm_redlines
+                        WHERE afm_redlines.activity_log_id = activity_log.activity_log_id
+                        AND afm_redlines.origin IN ('HTML5-based Floor Plan', 'HTML5-based Map or Drawing Image' ) )
+                    THEN 1
+                    ELSE 0
+                END)
+            </sql>
+        </field>
+    </dataSource>
+
+    <panel type="grid" id="abEamMarkItemGrid" dataSource="abEamMarkItemDS" showOnLoad="false" layoutRegion="actionsRegion">
+        <title>Select Action Items</title>
+        <instructions>Select an existing action item to which you wish to add the markup, or create a new action item. Each action item can have a single markup.</instructions>
+        <action id="addNew" imageName="/schema/ab-core/graphics/icons/view/add-icon.png">
+            <title translatable="true">Add Action</title>
+        </action>
+        <field name="activity_log_id"/>
+        <field name="action_title"/>
+        <field name="activity_type"/>
+        <field name="bl_id"/>
+        <field name="fl_id"/>
+        <field id="markUp" controlType="button">
+            <title>Select</title>
+        </field>
+        <field id="delete" controlType="image" imageName="delete.gif" hidden="${record['activity_log.hadRedline'] != 1}"/>   
+        <indexField table="activity_log" name="action_title"/>
+    </panel>
+
+    <panel type="form" id="abEamMarkItemForm" dataSource="abEamMarkItemDS" showOnLoad="false" hidden="true">
+        <title translatable="true">Add Action</title>
+        <instructions>Enter a title for the action. Optionally select a Building and Floor for the action.</instructions>
+        <action id="save" mainAction="true">
+            <title translatable="true">Save</title>
+        </action>
+        <action id="cancel">
+            <title translatable="true">Cancel</title>
+            <command type="closeDialog"/>
+        </action>
+        <field name="action_title" required="true"/>
+        <field name="activity_type" value="PROPOSED PROJECT LOCATION"/>
+        <field name="work_pkg_id"/>
+        <field name="bl_id"/>
+        <field name="fl_id"/>
+        <field name="project_id" hidden="true"/>
+        <field name="created_by" hidden="true" value="${View.user.employee.id}"/>
+    </panel>
+
+    <dataSource id="abEamActionRedlineDS">
+        <table name="afm_redlines"/>
+        <field name="activity_log_id"/>
+        <field name="auto_number"/>
+    </dataSource>
+
+    <js file="ab-eam-cpt-proj-mark-act-item.js"/>
+</view>

@@ -1,0 +1,114 @@
+<view version="2.0">
+    <layout file="2panels.axvw"/>
+    <js file="ab-proj-actions-costs-variances.js"/>
+    
+    <dataSource id="projActionsCostsVariancesDs0">
+        <table name="work_pkgs" role="main"/>
+        <field name="work_pkg_id" table="work_pkgs"/>
+        <field name="project_id" table="work_pkgs"/>
+        <field name="status" table="work_pkgs"/>
+    </dataSource>
+    
+    <panel type="grid" id="projActionsCostsVariancesGrid" dataSource="projActionsCostsVariancesDs0" showOnLoad="false" region="west">
+        <title>Work Packages</title>
+        <sortField name="work_pkg_id" table="work_pkgs" ascending="true"/>
+        <field name="work_pkg_id" table="work_pkgs" controlType="link">
+            <command type="showPanel" panelId="projActionsCostsVariancesCrossTable"/>
+        </field>
+        <field name="project_id" table="work_pkgs" controlType="link">
+            <command type="showPanel" panelId="projActionsCostsVariancesCrossTable"/>
+        </field>
+        <field name="status" table="work_pkgs" controlType="link">
+            <command type="showPanel" panelId="projActionsCostsVariancesCrossTable"/>
+        </field>
+    </panel>
+    
+    <dataSource id="projActionsCostsVariancesDs1" type="grouping" applyVpaRestrictions="false">
+        <table name="activity_log" role="main"/>
+        <sql dialect="generic">
+          SELECT work_pkg_id, (RTRIM(action_title) ${sql.concat} ' - ' ${sql.concat} RTRIM(activity_log_id)) ${sql.as} action_item, 
+          project_id, (cost_est_cap + cost_estimated) ${sql.as} baseline_costs, 
+          (cost_est_design_cap + cost_est_design_exp) ${sql.as} design_estimated_costs, 
+          (cost_act_cap + cost_actual) ${sql.as} actual_costs, 
+          (cost_est_design_cap + cost_est_design_exp - cost_est_cap - cost_estimated) ${sql.as} variance_design_baseline, 
+          (cost_act_cap + cost_actual - cost_est_design_cap - cost_est_design_exp) ${sql.as} variance_actual_design 
+          FROM activity_log WHERE ${sql.vpaRestriction}
+        </sql>
+        <field name="action_item" dataType="text" groupBy="true">
+            <title>Action Title - ID</title>
+        </field>
+        <field name="baseline_costs" dataType="number" decimals="2">
+            <title>Baseline Costs</title>
+            <sql dialect="generic">SUM(baseline_costs)</sql>
+        </field>
+        <field name="design_estimated_costs" dataType="number" decimals="2">
+            <title>Design Estimated Costs</title>
+            <sql dialect="generic">SUM(design_estimated_costs)</sql>
+        </field>
+        <field name="actual_costs" dataType="number" decimals="2">
+            <title>Actual Costs</title>
+            <sql dialect="generic">SUM(actual_costs)</sql>
+        </field>
+        <field name="variance_design_baseline" dataType="number" decimals="2">
+            <title>Variance: Design to Baseline:</title>
+            <sql dialect="generic">SUM(variance_design_baseline)</sql>
+        </field>
+        <field name="variance_actual_design" dataType="number" decimals="2">
+            <title>Variance: Actual to Design</title>
+            <sql dialect="generic">SUM(variance_actual_design)</sql>
+        </field>
+        <sortField name="action_item" table="activity_log" ascending="true"/>
+    </dataSource>
+    
+    <panel type="crossTable" id="projActionsCostsVariancesCrossTable" dataSource="projActionsCostsVariancesDs1" region="center" showOnLoad="false">
+        <title>Action Cost Variances</title>
+        <action id="exportXLS">
+            <title>XLS</title>
+            <command type="exportPanel" outputType="xls" panelId="projActionsCostsVariancesCrossTable"/>
+        </action>
+        <event type="onClickItem">
+            <command type="callFunction" functionName="projActionsCostsVariancesCrossTable_onclick"/>
+        </event>
+    </panel>
+    
+    <dataSource id="projActionsCostsVariancesDs2">
+        <table name="activity_log" role="main"/>
+        <field name="action_item" dataType="text">
+            <title>Action Title - ID</title>
+            <sql dialect="generic">RTRIM(action_title) ${sql.concat} ' - ' ${sql.concat} RTRIM(activity_log_id)</sql>
+        </field>
+        <field name="wbs_id"/>
+        <field name="work_pkg_id"/>
+        <field name="project_id"/>
+        <field name="proj_phase"/>
+        <field name="status">
+            <title>Action Item Status</title>
+        </field>
+        <field name="cost_estimated" table="activity_log"/>
+        <field name="cost_est_cap" table="activity_log"/>
+        <field name="cost_est_design_cap" table="activity_log"/>
+        <field name="cost_est_design_exp" table="activity_log"/>
+        <field name="cost_act_cap" table="activity_log" />
+        <field name="cost_actual" table="activity_log" />
+        <parameter name="action_item_restriction" dataType="verbatim" value="1=1"/>
+        <restriction type="sql" sql="${parameters['action_item_restriction']}" />
+    </dataSource>
+    
+    <panel type="columnReport" id="projActionsCostsVariancesColumnReport" dataSource="projActionsCostsVariancesDs2" columns="2" showOnLoad="false">
+        <title>Action Item Details</title>
+    </panel>
+    
+    <panel type="grid" id="projActionsCostsVariancesActionsGrid" dataSource="projActionsCostsVariancesDs2" showOnLoad="false">
+        <title>Action Items</title>
+        <action id="exportDOCX">
+            <title>DOC</title>
+            <command type="exportPanel" outputType="docx" panelId="projActionsCostsVariancesActionsGrid"/>
+         </action>
+        <action id="exportXLS">
+            <title>XLS</title>
+            <command type="exportPanel" outputType="xls" panelId="projActionsCostsVariancesActionsGrid"/>
+        </action>
+        <sortField name="action_item" table="activity_log" ascending="true"/>
+    </panel>
+
+</view>

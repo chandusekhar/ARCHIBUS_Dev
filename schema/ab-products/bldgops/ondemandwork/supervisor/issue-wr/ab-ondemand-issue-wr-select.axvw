@@ -1,0 +1,113 @@
+<view version="2.0">
+	<message name="error_date_range" translatable="true">Given dates are invalid.</message>
+	<message name="error_code_range" translatable="true">Given codes are invalid.</message>
+	<message name="noItems" translatable="true">Please make selection first.</message>
+	<message name="DOCX" translatable="true">DOCX</message>
+	<message name="DOCXDRAWING" translatable="true">DOCX of Floor Plans</message>
+	<message name="PDF" translatable="true">PDF</message>
+    <message name="substituteLegend" translatable="true">Work Requests assigned to you as substitute</message>
+	
+	<js file="ab-ondemand-issue-wr-select.js" />
+	<js file="../ab-ondemand-common.js" />
+	<js file="ab-helpdesk-workorder-print-common.js"/>
+	<js file="ab-pdf-livecycle-command.js"/>
+    <js file="ab-helpdesk-common-v2.js"/>
+    <js file="ab-helpdesk-request-shared-para.js" />
+
+	<dataSource id="consoleDS">
+		<table name="wr" role="main" />
+
+		<field table="wr" name="date_requested" />
+		<field table="wr" name="wo_id" />
+		<field table="wr" name="bl_id" />
+		<field table="wr" name="wr_id" />
+		<field table="wr" name="prob_type" />
+
+	</dataSource>
+
+	<panel type="console" columns="3" id="requestConsole"
+		dataSource="consoleDS">
+		<title translatable="true">Filter</title>
+		<action id="filter">
+			<title translatable="true">Show</title>
+		</action>
+		<action id="clear">
+			<title translatable="true">Clear</title>
+		</action>
+
+		<field table="wr" name="bl_id" />
+		<field table="wr" name="wr_id" alias="wr.wr_id.from"
+			readOnly="false">
+			<title translatable="true">Work Request Code From</title>
+		</field>
+		<field table="wr" name="wr_id" alias="wr.wr_id.to"
+			readOnly="false">
+			<title translatable="true">Work Request Code To</title>
+		</field>
+		<field table="wr" name="prob_type" />
+		<field table="wr" name="date_requested"
+			alias="wr.date_requested.from">
+			<title translatable="true">Date Requested From</title>
+		</field>
+		<field table="wr" name="date_requested"
+			alias="wr.date_requested.to">
+			<title translatable="true">Date Requested To</title>
+		</field>
+	</panel>
+
+
+	<dataSource id="reportGridDS">
+		<table name="wr" role="main" />
+		<table name="wo" role="standard" />
+
+		<field table="wr" name="wr_id" />
+		<field table="wr" name="date_requested" />
+		<field table="wr" name="prob_type" />
+		<field table="wr" name="bl_id" />
+		<field table="wr" name="supervisor" />
+		<field table="wr" name="wo_id" />
+		<field table="wo" name="wo_type" />
+        <field table="wr" name="site_id"/>
+        
+        <parameter name="emWorkflowSubstitutes" dataType="verbatim" value="''"/>
+
+		<restriction type="sql"
+			sql="((wr.supervisor IS NULL AND wr.work_team_id IS NULL) OR (wr.supervisor =${sql.literal(user.employee.id)}
+						 OR (wr.supervisor IS NULL AND NOT wr.work_team_id IS NULL
+							 AND (wr.work_team_id IN (SELECT work_team_id FROM cf WHERE email = ${sql.literal(user.email)} AND is_supervisor = 1)
+							 OR wr.work_team_id IN (SELECT work_team_id FROM cf WHERE email IN (SELECT email FROM em WHERE em_id ${sql.concat} 'supervisor' IN
+                            (${parameters['emWorkflowSubstitutes']})))))
+						OR wr.supervisor ${sql.concat} 'supervisor' IN (${parameters['emWorkflowSubstitutes']})
+                        ))
+							AND (wr.wo_id IN (SELECT wo_id FROM wo WHERE date_completed IS NULL AND date_issued IS NULL AND
+							NOT EXISTS (select wo_id from wr where ((status = 'AA' and step_status is not null AND step_status != 'none')) and wr.wo_id = wo.wo_id )))
+							AND wr.status = 'AA' and (wr.step_status is null OR wr.step_status = 'none')">
+		</restriction>
+	</dataSource>
+
+	<panel type="grid" id="requestReportGrid" showCounts="true" dataSource="reportGridDS"
+		useParentRestriction="false" multipleSelectionEnabled="true">
+		
+		<title translatable="true">Select Open Work Order</title>
+        <indexField table="wr" name="wr_id" />
+		<sortField name="wr_id" table="wr" ascending="false" />
+		<action id="issue">
+			<title translatable="true">Issue Selected</title>
+			<command type="callFunction" functionName="issueSelected('requestReportGrid')" />
+		</action>
+	    <action id="printWO">
+			<title translatable="true">Print Selected</title>
+		</action>
+		<field controlType="button">
+			<title translatable="true">Select</title>
+			<command type="selectTabPage" tabPageName="issue" />
+		</field>
+		<field table="wr" name="wr_id" />
+		<field table="wr" name="wo_id" />
+		<field table="wr" name="bl_id" />
+		<field table="wr" name="date_requested" />
+		<field table="wr" name="prob_type" />
+		<field table="wr" name="supervisor" />
+		<field table="wo" name="wo_type" />
+	</panel>
+</view>

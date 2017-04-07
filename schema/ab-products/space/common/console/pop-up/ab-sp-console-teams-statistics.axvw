@@ -1,0 +1,318 @@
+<view version="2.0">
+	<title>Compare Team Room Statistics</title>
+	<js file="ab-sp-console-teams-statistics.js"/>
+	
+	<dataSource id="rmTeamFilterDs">
+		<table name="rm_team" role="main" />
+		<field table="rm_team" name="date_start" />
+	</dataSource>
+
+	<panel type="console" id="rmTeamFilter" dataSource="rmTeamFilterDs" columns="3">
+		<title translatable="true">Select Date and Report Type</title>
+		<action id="show">
+			<title translatable="true">Show</title>
+		</action>
+
+		<field table="rm_team" name="date_start">
+			<title>As of Date</title>
+		</field>
+		<field id="group_by" controlType="comboBox" onchange="teamsStatisticsController.onOptionChange(this.value)">
+			<title>View Statistics By:</title>
+			<option value="rmTeam_table" selected="true" translatable="true">All</option>
+			<option value="rmTeamCat_table" translatable="true">Room Category</option>
+			<option value="rmTeamType_table" translatable="true">Room Type</option>
+			<option value="rmTeamStd_table" translatable="true">Room Standard</option>
+		</field>
+
+		<field id="activeTeamOnly" controlType="checkBox">
+			<option value="active"  selected="true">Active Teams Only</option>
+		</field>
+	</panel>
+
+    <!-- Data source for the cross-table. -->
+	<dataSource id="rmTeamCat_ds" type="grouping">
+		<sql dialect="generic">
+			SELECT rm_team.team_id, rm_team.bl_id, rm_team.fl_id, rm_team.rm_id,
+				rm.area, rm.rm_cat 				
+			from  rm_team 
+			left outer join rm on rm_team.bl_id=rm.bl_id AND rm_team.fl_id=rm.fl_id AND rm_team.rm_id=rm.rm_id 
+			left outer join team_properties on team_properties.team_id = rm_team.team_id 
+			left outer join rmcat  on rm.rm_cat = rmcat.rm_cat 
+			where (rm_team.date_start is null or ${sql.yearMonthDayOf('rm_team.date_start')} &lt;= ${parameters['asOfDate']}) 
+						and (rm_team.date_end is null or ${sql.yearMonthDayOf('rm_team.date_end')} &gt;= ${parameters['asOfDate']}) 
+						and ( ${parameters['activeTeamOnly']} or team_properties.status='Active' ) and team_properties.needs_team_space=1 
+		</sql>
+		<table name="rm_team" role="main"/>
+        
+        <field table="rm_team" name="rm_cat" groupBy="true"/>
+        <field table="rm_team" name="team_id" groupBy="true"/>
+        
+        <field name="rmCount" formula="count" baseField="rm_team.rm_id" dataType="number" size="6" decimals="0">
+        	<title>Room Count</title>
+    	</field>
+
+        <field name="totalArea" formula="sum" baseField="rm_team.area" dataType="number" size="6" decimals="2" numericFormat="area">
+        	<title>Total Area</title>
+    	</field>
+
+        <field name="avgArea" formula="avg" baseField="rm_team.area" dataType="number" size="6" decimals="2" numericFormat="area">
+        	<title>Avg. Area</title>
+    	</field>
+
+        <parameter name="asOfDate" dataType="text" value=""/>
+        <parameter name="activeTeamOnly" dataType="verbatim" value="1=0"/>
+
+       <!-- 2D cross-table requires ascending sort on both grouping fields.
+             DO NOT change to descending. -->
+        <sortField name="rm_cat" table="rm_team" ascending="true"/>
+        <sortField name="team_id" table="rm_team" ascending="true"/>
+	</dataSource>
+	<panel id="rmTeamCat_table" type="crossTable" dataSource="rmTeamCat_ds" showOnLoad="false">
+        <title>Team  Statistic by Room Category</title>
+        
+        <event type="onClickItem">
+            <command type="openDialog" panelId="teamRmList" width="800" height="400"/>
+        </event> 
+    </panel>
+
+    <!-- Data source for the cross-table. -->
+	<dataSource id="rmTeamType_ds" type="grouping">
+		<sql dialect="generic">
+			SELECT rm_team.team_id, rm_team.bl_id, rm_team.fl_id, rm_team.rm_id,
+				rm.area, rm.rm_cat ${sql.concat} '-'  ${sql.concat} rm.rm_type ${sql.as} rm_cat_type  				
+			from  rm_team 
+			left outer join rm on rm_team.bl_id=rm.bl_id AND rm_team.fl_id=rm.fl_id AND rm_team.rm_id=rm.rm_id 
+			left outer join team_properties on team_properties.team_id = rm_team.team_id 
+			left outer join rmcat  on rm.rm_cat = rmcat.rm_cat 
+			where (rm_team.date_start is null or ${sql.yearMonthDayOf('rm_team.date_start')} &lt;= ${parameters['asOfDate']}) 
+						and (rm_team.date_end is null or ${sql.yearMonthDayOf('rm_team.date_end')} &gt;= ${parameters['asOfDate']}) 
+						and ( ${parameters['activeTeamOnly']} or team_properties.status='Active' ) and team_properties.needs_team_space=1 
+		</sql>
+		<table name="rm_team" role="main"/>
+        
+        <!-- Group by team -->
+        <field table="rm_team" name="rm_cat_type" groupBy="true"/>
+        <field table="rm_team" name="team_id" groupBy="true"/>
+        
+        <!-- Display the headcount per each room standard and building. -->
+        <field name="rmCount" formula="count" baseField="rm_team.rm_id" dataType="number" size="6" decimals="0">
+        	<title>Room Count</title>
+    	</field>
+
+        <!-- Display the headcount per each room standard and building. -->
+        <field name="totalArea" formula="sum" baseField="rm_team.area" dataType="number" size="6" decimals="2" numericFormat="area">
+        	<title>Total Area</title>
+    	</field>
+
+		<!-- Display the headcount per each room standard and building. -->
+        <field name="avgArea" formula="avg" baseField="rm_team.area" dataType="number" size="6" decimals="2" numericFormat="area">
+        	<title>Avg. Area</title>
+    	</field>
+        <parameter name="asOfDate" dataType="text" value=""/>
+        <parameter name="activeTeamOnly" dataType="verbatim" value="1=0"/>
+
+       <!-- 2D cross-table requires ascending sort on both grouping fields.
+             DO NOT change to descending. -->
+        <sortField name="rm_cat_type" table="rm_team" ascending="true"/>
+        <sortField name="team_id" table="rm_team" ascending="true"/>
+	</dataSource>
+    <!-- Cross-table panel. -->
+	<panel id="rmTeamType_table" type="crossTable" dataSource="rmTeamType_ds" showOnLoad="false">
+        <title>Team Statistic by Room Type</title>
+        
+        <!-- Attach a drill-down event handler to the cross-table: open a dialog and display the details view. -->
+        <event type="onClickItem">
+            <command type="openDialog" panelId="teamRmList" width="800" height="400"/>
+        </event> 
+    </panel>
+
+    <!-- Data source for the cross-table. -->
+	<dataSource id="rmTeamStd_ds" type="grouping">
+		<sql dialect="generic">
+			SELECT rm_team.team_id, rm_team.bl_id, rm_team.fl_id, rm_team.rm_id,
+				rm.area, rm.rm_std 				
+			from  rm_team 
+			left outer join rm on rm_team.bl_id=rm.bl_id AND rm_team.fl_id=rm.fl_id AND rm_team.rm_id=rm.rm_id 
+			left outer join team_properties on team_properties.team_id = rm_team.team_id 
+			left outer join rmstd  on rm.rm_std = rmstd.rm_std 
+			where (rm_team.date_start is null or ${sql.yearMonthDayOf('rm_team.date_start')} &lt;= ${parameters['asOfDate']}) 
+						and (rm_team.date_end is null or ${sql.yearMonthDayOf('rm_team.date_end')} &gt;= ${parameters['asOfDate']}) 
+						and ( ${parameters['activeTeamOnly']} or team_properties.status='Active' ) and team_properties.needs_team_space=1 
+		</sql>
+		<table name="rm_team" role="main"/>
+        
+        <!-- Group by team -->
+        <field table="rm_team" name="rm_std" groupBy="true"/>
+        <field table="rm_team" name="team_id" groupBy="true"/>
+        
+        <!-- Display the headcount per each room standard and building. -->
+        <field name="rmCount" formula="count" baseField="rm_team.rm_id" dataType="number" size="6" decimals="0">
+        	<title>Room Count</title>
+    	</field>
+
+        <!-- Display the headcount per each room standard and building. -->
+        <field name="totalArea" formula="sum" baseField="rm_team.area" dataType="number" size="6" decimals="2" numericFormat="area">
+        	<title>Total Area</title>
+    	</field>
+
+		<!-- Display the headcount per each room standard and building. -->
+        <field name="avgArea" formula="avg" baseField="rm_team.area" dataType="number" size="6" decimals="2" numericFormat="area">
+        	<title>Avg. Area</title>
+    	</field>
+        <parameter name="asOfDate" dataType="text" value=""/>
+        <parameter name="activeTeamOnly" dataType="verbatim" value="1=0"/>
+
+       <!-- 2D cross-table requires ascending sort on both grouping fields.
+             DO NOT change to descending. -->
+        <sortField name="rm_std" table="rm_team" ascending="true"/>
+        <sortField name="team_id" table="rm_team" ascending="true"/>
+	</dataSource>
+    <!-- Cross-table panel. -->
+	<panel id="rmTeamStd_table" type="crossTable" dataSource="rmTeamStd_ds"  showOnLoad="false">
+        <title>Team Statistic by Room Standard</title>
+        
+        <!-- Attach a drill-down event handler to the cross-table: open a dialog and display the details view. -->
+        <event type="onClickItem">
+            <command type="openDialog" panelId="teamRmList" width="800" height="400"/>
+        </event> 
+    </panel>
+
+    <!-- Data source for the cross-table. -->
+	<dataSource id="rmTeam_ds" type="grouping">
+		<sql dialect="generic">
+			SELECT team_properties.team_id, rm_team.bl_id, rm_team.fl_id, rm_team.rm_id,
+				rm.area, 		
+				team_properties.em_seat_ratio_tgt, 
+				( SELECT sum(team.pct_time/100) from team where team.em_id is not null and team.team_id=team_properties.team_id and (team.date_start is null or ${sql.yearMonthDayOf('team.date_start')} &lt;= ${parameters['asOfDate']}) 
+						and (team.date_end is null or ${sql.yearMonthDayOf('team.date_end')} &gt;= ${parameters['asOfDate']}) ) ${sql.as} headcount, 
+				
+				( rm.cap_em - ( select count( em.em_id) from em where em.bl_id=rm.bl_id and em.fl_id=rm.fl_id and em.rm_id=rm.rm_id ) )  ${sql.as} capcity,
+				team_properties.needs_team_space 
+				
+			from  rm_team 
+			right join team_properties on team_properties.team_id = rm_team.team_id 
+			left outer join rm on rm_team.bl_id=rm.bl_id AND rm_team.fl_id=rm.fl_id AND rm_team.rm_id=rm.rm_id 
+			where rm_team.team_id is null or (rm_team.date_start is null or ${sql.yearMonthDayOf('rm_team.date_start')} &lt;= ${parameters['asOfDate']}) 
+						and (rm_team.date_end is null or ${sql.yearMonthDayOf('rm_team.date_end')} &gt;= ${parameters['asOfDate']}) 
+						and ( ${parameters['activeTeamOnly']} or team_properties.status='Active' ) 
+		</sql>
+		<table name="rm_team" role="main"/>
+        
+        <!-- Group by team -->
+        <field table="rm_team" name="team_id" groupBy="true"/>
+        
+        <!-- Display the headcount per each room standard and building. -->
+        <field name="rmCount" formula="count" baseField="rm_team.rm_id" dataType="number" size="6" decimals="0">
+        	<title>Room Count</title>
+    	</field>
+
+        <!-- Display the headcount per each room standard and building. -->
+        <field name="totalArea" formula="sum" baseField="rm_team.area" dataType="number" size="6" decimals="2" numericFormat="area">
+        	<title>Total Area</title>
+    	</field>
+
+		<!-- Display the headcount per each room standard and building. -->
+        <field name="avgArea" formula="avg" baseField="rm_team.area" dataType="number" size="6" decimals="2" numericFormat="area">
+        	<title>Avg. Area</title>
+    	</field>
+
+        <field name="headcount" formula="avg" baseField="rm_team.headcount" dataType="number" size="6" decimals="0">
+        	<title>Headcount</title>
+    	</field>
+        
+        <field name="areaPerHeadcount" dataType="number" size="6" decimals="2" numericFormat="area">
+        	<title>Avg. Area per Employee</title>
+			<sql dialect="generic">
+				( case when avg(rm_team.headcount) is null or avg(rm_team.headcount)=0 then 0
+						else sum(rm_team.area)/avg(rm_team.headcount) 
+				  end
+				)
+			</sql>
+    	</field>
+        
+        <!-- Display the headcount per each room standard and building. -->
+        <field name="totalCapcity" formula="sum" baseField="rm_team.capcity" dataType="number" size="6" decimals="0">
+        	<title>Capacity</title>
+    	</field>
+
+		<!-- Display the headcount per each room standard and building. -->
+        <field name="tagRatio" formula="avg" baseField="rm_team.em_seat_ratio_tgt" dataType="number" size="6" decimals="2">
+        	<title>Seat Ratio - Target</title>
+    	</field>
+        
+		<!-- Display the headcount per each room standard and building. -->
+        <field name="actRatio" dataType="number" size="6" decimals="2">
+        	<title>Seat Ratio - Actual</title>
+			<sql dialect="generic">
+				(
+					case when sum( rm_team.capcity) = 0 then 999 
+					else avg(rm_team.headcount) / sum( rm_team.capcity) 
+					end 
+				)
+			</sql>
+    	</field>
+        
+		<!-- Display the headcount per each room standard and building. -->
+        <field name="pctRatio" dataType="number" size="6" decimals="2">
+        	<title>Seat Ratio - % of Target</title>
+			<sql dialect="generic">
+				(
+					case when sum( rm_team.capcity) = 0 then 999 
+							when avg(rm_team.em_seat_ratio_tgt) is null or avg(rm_team.em_seat_ratio_tgt) =0 then 0
+					else avg(rm_team.headcount) / sum( rm_team.capcity) / avg(rm_team.em_seat_ratio_tgt) 
+					end 
+				) * 100
+			</sql>
+    	</field>
+        <parameter name="asOfDate" dataType="text" value=""/>
+        <parameter name="activeTeamOnly" dataType="verbatim" value="1=0"/>
+       <!-- 2D cross-table requires ascending sort on both grouping fields.
+             DO NOT change to descending. -->
+        <sortField name="team_id" table="rm_team" ascending="true"/>
+		<restriction type="sql" sql="	rm_team.needs_team_space=1 " />
+	</dataSource>
+    <!-- Cross-table panel. -->
+	<panel id="rmTeam_table" type="crossTable" dataSource="rmTeam_ds" showOnLoad="false">
+        <title>All Team Statistics</title>        
+    </panel>
+
+	    <!-- Data source for the grid. -->
+    <dataSource id="rmDrilldown_ds">
+		<sql dialect="generic">
+			SELECT rm_team.team_id, 
+						rm_team.bl_id, rm_team.fl_id, rm_team.rm_id,
+						rm.rm_std, rm.rm_cat, rm.rm_type,  				
+						rm.rm_cat ${sql.concat} '-'  ${sql.concat} rm.rm_type ${sql.as} rm_cat_type  				
+			from  rm_team 
+			left outer join team_properties on team_properties.team_id = rm_team.team_id 
+			left outer join rm on rm_team.bl_id=rm.bl_id AND rm_team.fl_id=rm.fl_id AND rm_team.rm_id=rm.rm_id 
+			where (rm_team.date_start is null or ${sql.yearMonthDayOf('rm_team.date_start')} &lt;= ${parameters['asOfDate']}) 
+						and (rm_team.date_end is null or ${sql.yearMonthDayOf('rm_team.date_end')} &gt;= ${parameters['asOfDate']})  and team_properties.needs_team_space=1 
+		</sql>
+		<table name="rm_team" role="main"/>
+        
+        <field table="rm_team" name="bl_id" dataType="text"/>
+        <field table="rm_team" name="fl_id" dataType="text"/>
+        <field table="rm_team" name="rm_id" dataType="text"/>
+		<field table="rm_team" name="rm_cat" dataType="text"/>
+		<field table="rm_team" name="rm_type" dataType="text"/>
+		<field table="rm_team" name="rm_std" dataType="text"/>
+        <field table="rm_team" name="rm_cat_type" dataType="text"/>
+        <parameter name="asOfDate" dataType="text" value=""/>
+	</dataSource>
+    
+    <!-- Grid panel. -->    
+    <panel type="grid" id="teamRmList" dataSource="rmDrilldown_ds" showOnLoad="false">
+        <title>Rooms</title>
+        <field table="rm_team" name="bl_id">
+		        <title>Building Code</title>        
+		</field>
+        <field table="rm_team" name="fl_id">
+		        <title>Floor Code</title>        
+		</field>
+        <field table="rm_team" name="rm_id">
+		        <title>Room Code</title>        
+		</field>
+    </panel>
+
+</view>

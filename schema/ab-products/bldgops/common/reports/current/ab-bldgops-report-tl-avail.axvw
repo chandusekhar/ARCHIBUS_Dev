@@ -1,0 +1,120 @@
+<view version="2.0">
+
+	<js file="ab-bldgops-report-tl-avail.js" />
+	<js file="ab-bldgops-report-common.js" />
+	<js file="ab-pm-common.js" />
+	<layout type="borderLayout" id="mainLayout">
+		<north autoScroll="true" split="true" initialSize="120"/>
+		<center autoScroll="true"/>
+	</layout>
+
+	<title translatable="true">Tools Availability</title>
+
+	<dataSource id="abBldgopsReportTlAvailConsoleDS">
+		<table name="wrtl" role="main" />
+		<table name="tl" role="standard" />
+		<field table="tl" name="bl_id" />
+		<field table="tl" name="fl_id" />
+		<field table="tl" name="tool_type" />
+		<field table="wrtl" name="date_assigned" />
+	</dataSource>
+
+
+	<panel type="console" columns="3" id="abBldgopsReportTlAvailConsole" dataSource="abBldgopsReportTlAvailConsoleDS" region="north">
+		<title translatable="true">Filter</title>
+		<action id="filter">
+			<title translatable="true">Show</title>
+		</action>
+		<action id="clear">
+			<title translatable="true">Clear</title>
+		</action>
+		<field table="tl" name="bl_id" selectValueType="multiple"/>
+		<field table="tl" name="fl_id" selectValueType="multiple"/>
+		<field table="tl" name="tool_type" selectValueType="multiple"/>
+		<field table="wrtl" name="date_assigned" alias="wrtl.date_assigned.from">
+        	<title translatable="true">Date Assigned From</title>
+		</field>
+		<field table="wrtl" name="date_assigned"  alias="wrtl.date_assigned.to">
+			 <title translatable="true">Date Assigned To</title>
+		</field>
+	</panel>
+
+	<dataSource id="abBldgopsReportTlAvailReportDS" type="grouping">
+		 <sql dialect="generic">
+			SELECT 
+				tl.tool_id,
+				afm_cal_dates.cal_date ${sql.as} date_assigned,
+				isnull((select sum(wrtl.hours_est) from wrtl join wr ON wrtl.wr_id=wr.wr_id where wrtl.tool_id=tl.tool_id and wrtl.date_assigned=afm_cal_dates.cal_date),0)  ${sql.as} hours_committed,
+				tl.std_hours_avail  ${sql.as} hours_avail,
+				(tl.std_hours_avail - isnull( (select sum(wrtl.hours_est) from wrtl join wr ON wrtl.wr_id=wr.wr_id where wrtl.tool_id=tl.tool_id and wrtl.date_assigned=afm_cal_dates.cal_date ),0) ) ${sql.as} hours_remaining
+			 FROM tl, afm_cal_dates
+			 WHERE  ${parameters['dateRes']} and ${parameters['tlRes']}
+	        </sql>  
+		 <sql dialect="oracle">
+			SELECT 
+				tl.tool_id,
+				afm_cal_dates.cal_date ${sql.as} date_assigned,
+				nvl((select sum(wrtl.hours_est) from wrtl join wr ON wrtl.wr_id=wr.wr_id where wrtl.tool_id=tl.tool_id and wrtl.date_assigned=afm_cal_dates.cal_date ),0)  ${sql.as} hours_committed,
+				tl.std_hours_avail  ${sql.as} hours_avail,
+				(tl.std_hours_avail - nvl( (select sum(wrtl.hours_est) from wrtl join wr ON wrtl.wr_id=wr.wr_id where wrtl.tool_id=tl.tool_id and wrtl.date_assigned=afm_cal_dates.cal_date ),0) ) ${sql.as} hours_remaining
+			 FROM tl, afm_cal_dates
+			 WHERE  ${parameters['dateRes']} and ${parameters['tlRes']}
+	        </sql>  
+		<table name="wrtl" role="main" />
+		<sortField name="tool_id" ascending="true" />
+		<sortField name="date_assigned" ascending="true" />
+		<field name="tool_id" baseField="wrtl.tool_id" groupBy="true">
+		</field>
+		<field name="date_assigned" baseField="wrtl.date_assigned" groupBy="true">
+			<title translatable="true">Date Assigned</title>
+		</field>
+		<field name="total_hours_available" formula="sum" dataType="number"
+			 baseField="wrtl.hours_avail" decimals="2">
+			<title translatable="true">Total Hours Available</title>
+		</field>
+		<field name="total_hours_committed" formula="sum" dataType="number"
+			 baseField="wrtl.hours_committed" decimals="2">
+			<title translatable="true">Total Hours Committed</title>
+		</field>
+		<field name="total_hours_remaining" formula="sum" dataType="number"
+			 baseField="wrtl.hours_remaining" decimals="2">
+			<title translatable="true">Total Hours Remaining</title>
+		</field>
+		<parameter name="dateRes" dataType="verbatim" value=""/>
+		<parameter name="tlRes" dataType="verbatim" value=""/>
+	</dataSource>
+
+	<panel type="crossTable" id="abBldgopsReportTlAvailReport" dataSource="abBldgopsReportTlAvailReportDS" region="center" showOnLoad="false">
+		<title translatable="true">Tools Availability Summary Report</title>
+		<event type="onClickItem">
+		    <command type="callFunction" functionName="onReportClick"/>
+		</event>
+		<action id="exportDOCX">
+			<title translatable="true">XLS</title>
+			<tooltip translatable="true">Export to XLS</tooltip>
+			<command type="exportPanel" outputType="xls" panelId="abBldgopsReportTlAvailReport"/>
+		</action>
+	</panel>
+
+	<dataSource id="abBldgopsReportTlAvailGridDS">
+		<table name="wr" role="standard" />
+		<table name="tl" role="standard" />
+		<table name="wrtl" role="main" />
+		<field table="tl" name="tool_type" hidden="true"/>
+		<field table="wrtl" name="wr_id" />
+		<field table="wrtl" name="tool_id"/>
+		<field table="wrtl" name="hours_est" />
+		<field table="wr" name="status" />
+		<field table="wr" name="prob_type" />
+		<field table="wr" name="bl_id" />
+		<field table="wr" name="fl_id" />
+		<field table="wr" name="rm_id" />
+		<field table="wr" name="dv_id" />
+		<field table="wr" name="dp_id" />
+	</dataSource>
+
+	<panel type="grid" id="abBldgopsReportTlAvailGrid" dataSource="abBldgopsReportTlAvailGridDS" showOnLoad="false">
+		<title translatable="true">Work Requests Details</title>
+	</panel>
+
+</view>

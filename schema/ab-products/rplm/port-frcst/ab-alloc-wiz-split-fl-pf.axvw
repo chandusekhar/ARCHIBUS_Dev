@@ -1,0 +1,250 @@
+<view version="2.0">
+		<js file="ab-alloc-wiz-split-fl-pf.js" />
+		<js file="ab-alloc-wiz-common-pf.js"/>
+		<js file="ab-form-validator.js" />
+		<title>Split Floor into Groups</title>
+
+    <message name="errorDateEnd">The end date must be greater than the start date</message>
+    <message name="error_no_pct">Please enter % of floor</message>
+    <message name="error_pct_total">Total % Floor exceeds 100%</message>
+    <message name="error_invalid_dv_dp">The department does not exist.</message>
+    <message name="splitFloorDescription">Create Group</message>
+    <message name="enterDates">Please enter group allocation dates.</message>
+    <message name="noFloorArea">The floor has either not been assigned a Floor Area or its leases are no longer active for the selected start date.  Show Floor Details for more information.</message>
+		<message name="formMissingValues">One or more fields contain incorrect or missing values. Form was not saved. Please correct values and save again.</message>
+		<message name="endBeforeStart">Invalid date input.  End date cannot precede start date.</message>
+		<message name="overAllocInstrucSu">{0} {1} is overallocated.  On {2}, total group allocations are {3}.  Total available leased suite area is {4}.  See Floor Details.</message>
+		<message name="overAllocInstrucFl">{0} {1} is overallocated.  On {2}, total group allocations are {3}.  Available floor area is {4}.  See Floor Details.</message>
+		
+    <dataSource id="allocWizSplitFl_ds0">
+        <table name="gp" role="main"/>
+        <table name="fl" role="standard"/>
+        <field table="fl" name="area_usable"/>
+        <field table="gp" name="gp_id"/>
+        <field table="gp" name="area_comn" />
+        <field table="gp" name="area_comn_gp" />
+        <field table="gp" name="name"/>
+        <field table="gp" name="bl_id"/>
+        <field table="gp" name="fl_id"/>
+        <field table="gp" name="dv_id"/>
+        <field table="gp" name="dp_id"/>
+        <field table="gp" name="pct_floor"/>
+        <field table="gp" name="area"/>
+        <field table="gp" name="area_manual"/>
+        <field table="gp" name="count_em"/>
+        <field table="gp" name="date_start"/>
+        <field table="gp" name="date_end"/>
+        <field table="gp" name="description"/>
+        <field table="gp" name="portfolio_scenario_id"/>
+        <restriction type="sql" sql="fl.fl_id = gp.fl_id AND fl.bl_id = gp.bl_id"/>
+    </dataSource>
+
+		<dataSource id="allocWizSplitFl_ds1">
+        <table name="fl" role="main"/>
+        <sql dialect="generic">
+        		SELECT ${parameters['dateReview']} ${sql.as} date_review, fl.bl_id, fl.fl_id,
+								CASE WHEN NOT EXISTS(SELECT 1 FROM su WHERE su.bl_id = fl.bl_id AND su.fl_id = fl.fl_id AND EXISTS(SELECT 1 FROM ls WHERE ls.ls_id = su.ls_id AND ls.use_as_template = 0)) 
+                THEN (CASE WHEN fl.area_usable = 0 THEN fl.area_manual ELSE fl.area_usable END) ELSE (CASE WHEN suite.su_area IS NULL THEN 0 ELSE suite.su_area END) END ${sql.as} area_usable
+						FROM fl
+						LEFT OUTER JOIN (SELECT su.bl_id, su.fl_id, SUM(CASE WHEN su.area_usable=0 THEN su.area_manual ELSE su.area_usable END) ${sql.as} su_area 
+								FROM su WHERE EXISTS(SELECT 1 FROM ls WHERE ls.ls_id = su.ls_id AND ls.use_as_template = 0 AND 
+								((CASE WHEN ls.date_move IS NULL THEN ls.date_start ELSE ls.date_move END) &lt;= ${parameters['dateReview']} OR (CASE WHEN ls.date_move IS NULL THEN ls.date_start ELSE ls.date_move END) IS NULL) AND 
+								(ls.date_end &gt;= ${parameters['dateReview']} OR ls.date_end IS NULL)) 
+								GROUP BY su.bl_id, su.fl_id) ${sql.as} suite
+								ON (fl.bl_id = suite.bl_id AND fl.fl_id = suite.fl_id)
+        </sql>
+        <field table="fl" name="bl_id"/>
+        <field table="fl" name="fl_id"/>
+        <field table="fl" name="area_usable" dataType="number" decimals="2">
+        		<title>Floor Area</title>
+    		</field>
+    		<parameter name="dateReview" dataType="text" value="%"/>
+    </dataSource>
+    
+    <tabs id="allocWizSplitFl_tabs" workflow="enforced">
+ 				<tab name="allocWizSplitFl_tab1" selected="true">
+ 						<title>Select Dates</title>
+ 						<panel type="form" columns="1" id="allocWizSplitFl_splitFloorForm1" dataSource="allocWizSplitFl_ds0" newRecord="true">
+ 								<title>Select Group Allocation Dates</title>
+ 								<action id="editFl">
+ 										<tooltip>Floor Area, Leased Suites and Departments</tooltip>
+										<title>Floor Details</title>
+								</action>
+								<action id="next" mainAction="true">
+					          <title translatable="true">Next</title>
+					      </action>
+		 						<field table="gp" name="bl_id" readOnly="true" required="true"/>
+					      <field table="gp" name="fl_id" readOnly="true" required="true"/>	
+						    <field table="gp" name="date_start" required="true"/>
+						    <field table="gp" name="date_end" required="true"/>	
+ 						</panel>
+ 				</tab>
+ 				<tab name="allocWizSplitFl_tab2">
+ 						<title>Create Groups</title>
+						<panel type="form" columns="3" id="allocWizSplitFl_splitFloorForm2" dataSource="allocWizSplitFl_ds0" showOnLoad="false" newRecord="true">
+								<instructions>Splits a floor into multiple groups by percentages.</instructions>
+								<title translatable="true">Split Floor</title>
+								<action id="editFl">
+										<tooltip>Floor Area, Leased Suites and Departments</tooltip>
+										<title>Floor Details</title>
+								</action>
+					      <action id="save">
+					          <title translatable="true">Save</title>
+					      </action>
+					      <action id="cancel">
+					          <title translatable="true">Cancel</title>
+					          <command type="closeDialog"/>
+					      </action>
+					
+					      <field table="gp" name="bl_id" readOnly="true" required="true"/>
+					      <field table="gp" name="fl_id" readOnly="true" required="true"/>
+								<field table="fl" name="area_usable" readOnly="true">
+										<title>Floor Area</title>
+								</field>	
+						    <field table="gp" name="date_start" readOnly="false"/>
+						    <field table="gp" name="date_end" readOnly="false"/>	
+						    <field table="gp" name="portfolio_scenario_id" required="true" readOnly="true"/>
+								<field/><field/><field/>
+						    <field table="gp" name="dv_id" required="true" alias="gp.dv_id.1">
+									<action>
+										<title>...</title>
+										<command type="selectValue" fieldNames="gp.dv_id.1" selectFieldNames="dv.dv_id" visibleFieldNames="dv.dv_id,dv.name"/>
+									</action>
+								</field>
+						    <field table="gp" name="dp_id" required="true" alias="gp.dp_id.1">
+									<action>
+										<title>...</title>
+										<command type="selectValue" fieldNames="gp.dv_id.1,gp.dp_id.1" selectFieldNames="dp.dv_id,dp.dp_id" visibleFieldNames="dp.dv_id,dp.dp_id,dp.name"/>
+									</action>
+								</field>
+						    <field table="gp" name="pct_floor" required="true" alias="gp.pct_floor.1" value="0"/>
+						
+						    <field table="gp" name="dv_id" alias="gp.dv_id.2">
+									<action>
+										<title>...</title>
+										<command type="selectValue" fieldNames="gp.dv_id.2" selectFieldNames="dv.dv_id" visibleFieldNames="dv.dv_id,dv.name"/>
+									</action>
+								</field>
+						    <field table="gp" name="dp_id" alias="gp.dp_id.2">
+									<action>
+										<title>...</title>
+										<command type="selectValue" fieldNames="gp.dv_id.2,gp.dp_id.2" selectFieldNames="dp.dv_id,dp.dp_id" visibleFieldNames="dp.dv_id,dp.dp_id,dp.name"/>
+									</action>
+								</field>
+						    <field table="gp" name="pct_floor" alias="gp.pct_floor.2" value="0"/>
+						
+						    <field table="gp" name="dv_id" alias="gp.dv_id.3">
+									<action>
+										<title>...</title>
+										<command type="selectValue" fieldNames="gp.dv_id.3" selectFieldNames="dv.dv_id" visibleFieldNames="dv.dv_id,dv.name"/>
+									</action>
+								</field>
+						    <field table="gp" name="dp_id" alias="gp.dp_id.3">
+									<action>
+										<title>...</title>
+										<command type="selectValue" fieldNames="gp.dv_id.3,gp.dp_id.3" selectFieldNames="dp.dv_id,dp.dp_id" visibleFieldNames="dp.dv_id,dp.dp_id,dp.name"/>
+									</action>
+								</field>
+						    <field table="gp" name="pct_floor" alias="gp.pct_floor.3" value="0"/>
+						
+						    <field table="gp" name="dv_id" alias="gp.dv_id.4">
+									<action>
+										<title>...</title>
+										<command type="selectValue" fieldNames="gp.dv_id.4" selectFieldNames="dv.dv_id" visibleFieldNames="dv.dv_id,dv.name"/>
+									</action>
+								</field>
+						    <field table="gp" name="dp_id" alias="gp.dp_id.4">
+									<action>
+										<title>...</title>
+										<command type="selectValue" fieldNames="gp.dv_id.4,gp.dp_id.4" selectFieldNames="dp.dv_id,dp.dp_id" visibleFieldNames="dp.dv_id,dp.dp_id,dp.name"/>
+									</action>
+								</field>
+						    <field table="gp" name="pct_floor" alias="gp.pct_floor.4" value="0"/>
+						
+						    <field table="gp" name="dv_id" alias="gp.dv_id.5">
+									<action>
+										<title>...</title>
+										<command type="selectValue" fieldNames="gp.dv_id.5" selectFieldNames="dv.dv_id" visibleFieldNames="dv.dv_id,dv.name"/>
+									</action>
+								</field>
+						    <field table="gp" name="dp_id" alias="gp.dp_id.5">
+									<action>
+										<title>...</title>
+										<command type="selectValue" fieldNames="gp.dv_id.5,gp.dp_id.5" selectFieldNames="dp.dv_id,dp.dp_id" visibleFieldNames="dp.dv_id,dp.dp_id,dp.name"/>
+									</action>
+								</field>
+						    <field table="gp" name="pct_floor" alias="gp.pct_floor.5" value="0"/>
+						
+						    <field table="gp" name="dv_id" alias="gp.dv_id.6">
+									<action>
+										<title>...</title>
+										<command type="selectValue" fieldNames="gp.dv_id.6" selectFieldNames="dv.dv_id" visibleFieldNames="dv.dv_id,dv.name"/>
+									</action>
+								</field>
+						    <field table="gp" name="dp_id" alias="gp.dp_id.6">
+									<action>
+										<title>...</title>
+										<command type="selectValue" fieldNames="gp.dv_id.6,gp.dp_id.6" selectFieldNames="dp.dv_id,dp.dp_id" visibleFieldNames="dp.dv_id,dp.dp_id,dp.name"/>
+									</action>
+								</field>
+						    <field table="gp" name="pct_floor" alias="gp.pct_floor.6" value="0"/>
+						
+						    <field table="gp" name="dv_id" alias="gp.dv_id.7">
+									<action>
+										<title>...</title>
+										<command type="selectValue" fieldNames="gp.dv_id.7" selectFieldNames="dv.dv_id" visibleFieldNames="dv.dv_id,dv.name"/>
+									</action>
+								</field>
+						    <field table="gp" name="dp_id" alias="gp.dp_id.7">
+									<action>
+										<title>...</title>
+										<command type="selectValue" fieldNames="gp.dv_id.7,gp.dp_id.7" selectFieldNames="dp.dv_id,dp.dp_id" visibleFieldNames="dp.dv_id,dp.dp_id,dp.name"/>
+									</action>
+								</field>
+						    <field table="gp" name="pct_floor" alias="gp.pct_floor.7" value="0"/>
+						
+						    <field table="gp" name="dv_id" alias="gp.dv_id.8">
+									<action>
+										<title>...</title>
+										<command type="selectValue" fieldNames="gp.dv_id.8" selectFieldNames="dv.dv_id" visibleFieldNames="dv.dv_id,dv.name"/>
+									</action>
+								</field>
+						    <field table="gp" name="dp_id" alias="gp.dp_id.8">
+									<action>
+										<title>...</title>
+										<command type="selectValue" fieldNames="gp.dv_id.8,gp.dp_id.8" selectFieldNames="dp.dv_id,dp.dp_id" visibleFieldNames="dp.dv_id,dp.dp_id,dp.name"/>
+									</action>
+								</field>
+						    <field table="gp" name="pct_floor" alias="gp.pct_floor.8" value="0"/>
+						
+						    <field table="gp" name="dv_id" alias="gp.dv_id.9">
+									<action>
+										<title>...</title>
+										<command type="selectValue" fieldNames="gp.dv_id.9" selectFieldNames="dv.dv_id" visibleFieldNames="dv.dv_id,dv.name"/>
+									</action>
+								</field>
+						    <field table="gp" name="dp_id" alias="gp.dp_id.9">
+									<action>
+										<title>...</title>
+										<command type="selectValue" fieldNames="gp.dv_id.9,gp.dp_id.9" selectFieldNames="dp.dv_id,dp.dp_id" visibleFieldNames="dp.dv_id,dp.dp_id,dp.name"/>
+									</action>
+								</field>
+						    <field table="gp" name="pct_floor" alias="gp.pct_floor.9" value="0"/>
+						
+						    <field table="gp" name="dv_id" alias="gp.dv_id.10">
+									<action>
+										<title>...</title>
+										<command type="selectValue" fieldNames="gp.dv_id.10" selectFieldNames="dv.dv_id" visibleFieldNames="dv.dv_id,dv.name"/>
+									</action>
+								</field>
+						    <field table="gp" name="dp_id" alias="gp.dp_id.10">
+									<action>
+										<title>...</title>
+										<command type="selectValue" fieldNames="gp.dv_id.10,gp.dp_id.10" selectFieldNames="dp.dv_id,dp.dp_id" visibleFieldNames="dp.dv_id,dp.dp_id,dp.name"/>
+									</action>
+								</field>
+					      <field table="gp" name="pct_floor" alias="gp.pct_floor.10" value="0"/>
+						</panel>
+				</tab>
+		</tabs>
+</view>

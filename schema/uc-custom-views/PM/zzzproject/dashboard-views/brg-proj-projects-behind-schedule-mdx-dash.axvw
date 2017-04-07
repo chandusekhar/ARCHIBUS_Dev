@@ -1,0 +1,100 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<afmXmlView>
+	<preferences>
+		<viewTitleBar show="false"/>
+	</preferences>
+
+	<afmTableGroup type="reportNavigator" format="table" defaultActions="false" isRegularView="true" column="1" showGrid="false">
+	<title translatable="true">Projects Behind Schedule</title>
+		<dataSource>
+			<database>
+				<tables>
+					<table name="project" role="main" />
+					<table name="bl" role="standard" />
+					<table name="program" role="standard" />
+				</tables>
+				<fields>
+						<field name="project_id" table="project" />
+				</fields>
+				<sort>
+					<order>
+							<field name="project_id" table="project" ascending="true" unique="true" />
+					</order>
+				</sort>
+			</database>
+			<mdx>
+				<afmAction type="render" newWindow="false" response="true" name="ab-proj-projects-behind-schedule-details.axvw">
+			</afmAction>
+				<preferences dimensions="1" format="table">
+					<query>
+						<sql dialect="generic">
+                           SELECT bl.city_id, bl.state_id, project.site_id, project.bl_id, project.dv_id, project.dp_id,
+											program.program_type, program.program_id, project.project_type, project.project_id,
+											project.proj_mgr, project.status, project.is_template, 
+											cost_performance_index.budgeted_cost_of_work_performed/scheduled_performance_index.budgeted_cost_for_work_scheduled AS performance_index_value, action_pending.total_actions_pending AS number_of_overdue_actions
+FROM (SELECT project_id,  ( CASE WHEN SUM(cost_est_design_cap + cost_est_design_exp) = 0 THEN 1
+    ELSE SUM(cost_est_design_cap + cost_est_design_exp) END ) AS budgeted_cost_of_work_performed FROM activity_log WHERE activity_log.status IN ('COMPLETED', 'COMPLETED-V', 'CLOSED') GROUP BY project_id) AS cost_performance_index 
+    JOIN (SELECT project_id,  ( CASE WHEN SUM(cost_est_design_cap + cost_est_design_exp) = 0 THEN 1
+    ELSE SUM(cost_est_design_cap + cost_est_design_exp) END )   AS budgeted_cost_for_work_scheduled FROM activity_log  WHERE activity_log.status IN ('PLANNED','SCHEDULED','IN PROGRESS','IN PROCESS-H','COMPLETED','COMPLETED-V','CLOSED') AND activity_log.date_scheduled_end &lt;= #Date%CurrentDateTime% GROUP BY project_id) AS scheduled_performance_index ON cost_performance_index.project_id = scheduled_performance_index.project_id AND cost_performance_index.budgeted_cost_of_work_performed/scheduled_performance_index.budgeted_cost_for_work_scheduled &lt; 1 
+    JOIN (SELECT project_id, COUNT(*) AS total_actions_pending FROM activity_log WHERE activity_log.date_scheduled_end &lt;= #Date%CurrentDateTime% AND activity_log.status NOT LIKE 'COMPLETED%' AND activity_log.status &lt;&gt; 'CLOSED' GROUP BY project_id) AS action_pending ON scheduled_performance_index.project_id= action_pending.project_id 
+    JOIN project ON action_pending.project_id = project.project_id
+	LEFT OUTER JOIN program ON program.program_id = project.program_id
+							LEFT OUTER JOIN bl ON project.bl_id = bl.bl_id
+
+                        </sql>
+						<sql dialect="oracle">
+SELECT 	bl.city_id, bl.state_id, project.site_id, project.bl_id, project.dv_id, project.dp_id,
+	program.program_type, program.program_id, project.project_type, project.project_id,
+	project.proj_mgr, project.status, project.is_template, 
+	cost_performance_index.cost_of_work_performed/scheduled_performance_index.cost_for_work_scheduled AS performance_index_value, 	action_pending.total_actions_pending AS number_of_overdue_actions
+FROM 	(SELECT project_id,  
+		( CASE 	WHEN SUM(cost_est_design_cap + cost_est_design_exp) = 0 THEN 1
+    			ELSE SUM(cost_est_design_cap + cost_est_design_exp) END ) AS cost_of_work_performed
+	FROM activity_log 
+	WHERE activity_log.status IN ('COMPLETED', 'COMPLETED-V', 'CLOSED') 
+	GROUP BY project_id)  cost_performance_index, 
+	(SELECT project_id,  ( CASE WHEN SUM(cost_est_design_cap + cost_est_design_exp) = 0 THEN 1
+    				    ELSE SUM(cost_est_design_cap + cost_est_design_exp) END )   AS cost_for_work_scheduled
+	FROM activity_log
+	WHERE activity_log.status IN ('PLANNED','SCHEDULED','IN PROGRESS','IN PROCESS-H','COMPLETED','COMPLETED-V','CLOSED') AND activity_log.date_scheduled_end &lt;= #Date%CurrentDateTime% 
+	GROUP BY project_id)  scheduled_performance_index,  
+	(SELECT project_id, COUNT(*) AS total_actions_pending 
+	FROM activity_log 
+	WHERE 	activity_log.date_scheduled_end &lt;= #Date%CurrentDateTime% AND activity_log.status NOT LIKE 'COMPLETED%' AND 
+		activity_log.status &lt;&gt; 'CLOSED' GROUP BY project_id)  action_pending, 
+    	project,
+	program,
+	bl
+WHERE  	cost_performance_index.project_id = scheduled_performance_index.project_id AND
+ 		cost_performance_index.cost_of_work_performed/scheduled_performance_index.cost_for_work_scheduled &lt; 1 AND 
+	scheduled_performance_index.project_id=action_pending.project_id AND
+	action_pending.project_id = project.project_id AND 
+	program.program_id(+) = project.program_id AND
+	project.bl_id = bl.bl_id(+)
+
+						</sql>
+
+					</query>
+					<dimensions>
+						<dimension name="Project Name" table="project" column="project_id" hasAll="true">
+							<title translatable="true">Project Name</title>
+							<allMemberTitle translatable="true">Project Names</allMemberTitle>
+						</dimension>
+					</dimensions>
+					<measures>
+						<measure name="Schedule Performance Index" aggregator="sum" column="performance_index_value" type="calculated">
+							<title translatable="true">Schedule Performance Index</title>
+						</measure>
+						<measure name="Number of Actions Overdue" aggregator="sum" column="number_of_overdue_actions" type="calculated">
+							<title translatable="true">Number of Actions Overdue</title>
+						</measure>
+					</measures>
+				</preferences>
+			</mdx>
+		</dataSource>
+	</afmTableGroup>
+	<formatting>
+		<xsl file="ab-proj-projects-behind-schedule.xsl"/>
+	</formatting>
+	<!--afmXmlView frame="detailsFrame" name="ab-proj-projects-behind-schedule-details.axvw" /-->
+</afmXmlView>

@@ -1,0 +1,288 @@
+<view version="2.0">
+    <js file="uc-es-wastecollection-report.js" />
+    
+        <dataSource id="wpPanel_ds14">
+		<sql dialect="generic">
+			select case when exists (select 1 from bill b inner join vn on vn.vn_id=b.vn_id inner join bill_type bt on b.bill_type_id=bt.bill_type_id
+				where isnull(bt.parent,bt.bill_type_id ) in (t.bill_type_id,t.parent ) ${parameters['rpt_param']}) then '+' else 'hide' end state,
+			t.bill_type_id s1, 1 s2, null s3,null s4, 0 s5,
+			t.bill_type_id, 
+			case when exists (select 1 from bill b inner join vn on vn.vn_id=b.vn_id inner join bill_type bt on b.bill_type_id=bt.bill_type_id
+				where isnull(bt.parent,bt.bill_type_id ) in (t.bill_type_id,t.parent ) ) then t.em_id else null end em_id,	
+			null vn_id,
+			null bill_id, 
+			null date_issued, 
+			null time_period,
+			null status,	
+			e.edesc bill_unit_id,				
+			rtrim(isnull((select sum(l.qty_energy) from bill b inner join  bill_line l on b.bill_id=l.bill_id inner join vn on b.vn_id=vn.vn_id inner join bill_type bt on b.bill_type_id=bt.bill_type_id
+			where t.bill_Type_id in (bt.bill_Type_id,bt.parent) ${parameters['rpt_param']}),0)) qty,				
+			str(isnull((select case when sum(l.qty_energy) = 0 then 0 else sum(l.qty_energy*isnull(l.diverted,0))/sum(l.qty_energy) end  
+				from bill b inner join  bill_line l on b.bill_id=l.bill_id inner join vn on b.vn_id=vn.vn_id inner join bill_type bt on b.bill_type_id=bt.bill_type_id
+				where t.bill_Type_id in (bt.bill_Type_id,bt.parent ) ${parameters['rpt_param']}),0),7,2) diverted				
+			from bill_type t 
+			inner join bill_type s on isnull(s.parent,s.bill_type_ID) = t.bill_type_id 
+			inner join  bill_unit on s.bill_type_id = bill_unit.bill_type_id			
+			inner join afm.brg_enum('bill_type','unit_report') e on e.eid=t.unit_report				
+			where t.activity_id = 'AbRiskES1' and t.parent is null
+			${parameters['stream_param']} 										
+			group by t.bill_type_id,t.em_id,t.parent,e.edesc			
+
+			union 	
+					
+			select 'sub-title' state, 
+			isnull(t.parent,t.bill_type_id) s1,2 s2,null s3,null s4,0 s5,
+			'SubStream'bill_type_id,
+			'Company/Location' company, vn.vn_id,
+			'Bill #' bill_id,
+			'Bill Date' date_issued,
+			'Period' time_period,
+			'Status' status,
+			'Unit' bill_unit_id,
+			'Amount' qty,
+			'Diverted' diverted
+			from bill_type t 
+			inner join bill b on t.bill_type_id=b.bill_type_id
+			inner join vn on vn.vn_id=b.vn_id 			
+			where activity_id = 'AbRiskES1' and 1=2		
+			${parameters['bill_param']}	
+
+			union			
+
+			select 'Edit' state, 
+			isnull(t.parent,t.bill_type_id) s1,3 s2,date_issued s3,bill_id s4,0 s5,
+			case when  t.parent is null then null else '...' + b.bill_type_id end bill_type_id,
+			vn.company company, vn.vn_id,
+			b.bill_id,
+			left(b.date_issued,11) date_issued,
+			b.time_period,
+			b.status,
+			e.edesc bill_unit_id,
+			rtrim(isnull((select sum(l.qty_energy)from bill_line l where l.bill_id=b.bill_id ${parameters['line_param']}),0)) qty,
+			str(isnull((select case when sum(qty_energy) = 0 then 0 else sum(qty_energy*isnull(diverted,0))/sum(qty_energy) end  
+				from bill_line l where l.bill_id=b.bill_id ${parameters['line_param']}),0),7,2) diverted								
+			from bill_type t inner join bill_unit on t.bill_type_id = bill_unit.bill_type_id
+			inner join bill b on t.bill_type_id=b.bill_type_id 
+			inner join vn on vn.vn_id=b.vn_id	
+			inner join afm.brg_enum('bill_type','unit_report') e on e.eid=t.unit_report	
+			where activity_id = 'AbRiskES1' 				
+			${parameters['bill_param']}	 
+
+			union
+			select 'Nonedit' state, 
+			isnull(t.parent,t.bill_type_id) s1,3 s2,b.date_issued s3,b.bill_id s4, bill_line_id s5,
+			null bill_type_id,
+			l.loc_id, vn.vn_id,
+			null bill_id,
+			null date_issued,
+			null time_period,
+			null status,
+			l.bill_unit_Id,
+			rtrim(l.qty),
+			rtrim(l.diverted)					
+			from bill_type t inner join bill b on t.bill_type_id=b.bill_type_id inner join bill_unit on t.bill_type_id = bill_unit.bill_type_id
+			inner join bill_line l on b.bill_id=l.bill_id 
+			inner join vn on vn.vn_id=b.vn_id				
+			where activity_id = 'AbRiskES1' and 1=2 					
+			${parameters['rpt_param']}  
+		</sql>
+		<parameter name="rpt_param" dataType="verbatim" value="" />
+		<parameter name="stream_param" dataType="verbatim" value="" />
+		<parameter name="bill_param" dataType="verbatim" value="" />
+		<parameter name="line_param" dataType="verbatim" value="" />
+		
+		<table name="bill_type" role="main"/>
+		<field name="state" dataType="text"/>
+		<field name="s5" dataType="text"/>
+		<field name="s4" dataType="text"/>
+		<field name="s3" dataType="text"/>
+		<field name="s2" dataType="text"/>
+		<field name="s1" dataType="text"/>
+		<field name="bill_type_id" table="bill_type" dataType="text"/>
+		<field name="em_id" table="bill_type" dataType="text"/>
+		<field name="bill_id" dataType="text"/>
+		<field name="date_issued" dataType="text"/>
+		<!--field name="company" dataType="text"/-->
+		<field name="time_period" dataType="text"/>
+		<field name="bill_unit_id" dataType="text"/>
+		<field name="status" dataType="text"/>
+		<field name="qty" dataType="text"/>
+		<field name="diverted" dataType="text"/>
+		
+	</dataSource>
+	
+	<dataSource id="wpConsole_ds">
+		<table name="bill" role="main"/>
+		<table name="bill_type" role="standard"/>
+		
+		<field name="bill_type_id" table="bill_type"/>
+		<field name="date_issued" table="bill" />
+		<field name="vn_ac_id" table="bill"/>
+		<field name="bill_id" table="bill"/>
+		<field name="status" table="bill"/>
+	</dataSource>
+	
+	<panel id="wpConsole" type="console" columns="3"  dataSource="wpConsole_ds">
+		<title>Filter</title>
+		
+		<action id="search">
+			<title>Show</title>
+		</action>
+		<action id="clearSearch">
+		  <title>Clear Restrictions</title>
+		  <command type="clearPanel" panelId="wrConsole"/>
+		  <command type="callFunction" functionName="ucEsWasteCollReportController.resetFilter()"/>
+		</action>
+		<field name="bill_type_id" table="bill_type">
+			<title>Stream</title>
+	   	    <action>
+        		<command type="selectValue" 
+					 dialogTitle="Stream" 
+					 fieldNames="bill_type.bill_type_id" 
+					 selectFieldNames="bill_type.bill_type_id" 
+					 visibleFieldNames="bill_type.bill_type_id,bill_type.parent, bill_type.description"
+					 restriction="bill_type.activity_id='AbRiskES1'"/>
+	    	</action>
+			
+		</field>
+		<field name="date_issued" table="bill" alias="date_issued.from" required="true" >
+			<title>Date Issued From</title>
+		</field>
+		<field name="date_issued" table="bill" alias="date_issued.to" required="true" >
+			<title>Date Issued To</title>
+		</field>
+		<field name="vn_ac_id" table="bill" alias="company" readOnly="${ucEsWasteCollReportController.vnId!=''}" >
+			<title>Company</title>
+			<action id="Company">
+        		<title translatable="false">...</title>
+				<command type="selectValue"
+					fieldNames="company"
+					selectFieldNames="vn.company"
+					visibleFieldNames="vn.company"
+					restriction="exists (select 1 from vn_ac a inner join bill_type b on a.vn_ac_id=b.bill_type_id and b.activity_id='AbRiskES1' where vn.vn_id=a.vn_id)"
+				/>
+        	</action>
+		</field>
+		<field name="status" table="bill"/>
+	</panel>
+    
+	<panel id="wpPanel" type="grid" controlType="reportGrid" dataSource="wpPanel_ds14">
+		<title translatable="true">GHG Collection</title>
+		<action id="add">
+			<title>Add</title>
+		    <command type="callFunction" functionName="ucEsWasteCollReportController.openStreamAdd()"/>
+		</action>
+		<action id="expandAll">
+			<title>Expand All</title>
+		</action>
+		<!--action id="exportXLSAll">
+			<title translatable="true">XLS All</title>
+			<command type="exportPanel" outputType="xls" panelId="wpPanel"/>
+		</action-->
+		<action id="exportXLS">
+			<title translatable="true">XLS</title>
+			<command type="callFunction" functionName="ucEsWasteCollReportController.exportgrid(false)"/> 
+			<command type="exportPanel" outputType="xls" panelId="wpPanelexport"/>
+		</action>
+		<action id="exportXLS">
+			<title translatable="true">XLS Expanded Streams</title>
+			<command type="callFunction" functionName="ucEsWasteCollReportController.exportgrid(true)"/> 
+			<command type="exportPanel" outputType="xls" panelId="wpPanelexport"/>
+		</action>
+		<!--action id="exportDOCX">
+			<title>DOC</title>
+			<command type="exportPanel" outputType="docx" panelId="wpPanel"/>
+		</action-->	
+		<!--sortField name="sort1" ascending="true" />
+		<sortField name="sort2" ascending="true" /-->
+		
+		<sortField name="s1" ascending="true" />
+		<sortField name="s2" ascending="true" />
+		<sortField name="s3" ascending="true" />
+		<sortField name="s4" ascending="false" />		
+		<sortField name="s5" ascending="true" />
+		<field name="vn_id" dataType="text" hidden="true"/>
+		<field controlType="image" id="changeState" imageName="edit.gif" />
+		<field name="bill_type_id" table="bill_type" hidden="false"  >
+			<title>Stream / Sub Stream</title>
+		</field>
+		<field name="date_issued" dataType="text">
+			<title>Bill Date</title>
+		</field>
+		<field name="bill_id" dataType="text" >
+			<title>Bill #</title>
+		      <command type="callFunction" functionName="ucEsWasteCollReportController.openStreamAddUpdate()"/>
+		</field>
+		
+		<!--field name="company" dataType="text"/-->
+		<field name="time_period" dataType="text">
+			<title>Period</title>
+		</field>
+		<field name="status" dataType="text">
+			<title>Status</title>
+		</field>
+		<field name="em_id" table="bill_type" >
+			<title>Owner / Company</title>
+		</field>
+		
+		<field name="qty" dataType="text">
+			<title>Amount</title>
+		</field>
+		<field name="bill_unit_id" dataType="text">
+			<title>Unit</title>
+		</field>
+		
+		<field name="diverted" dataType="text">
+			<title>Diverted %</title>
+		</field>
+		<field name="s2" dataType="text" groupBy="true" hidden="true"/>
+		<field name="s1" dataType="text" groupBy="true" hidden="true"/>
+		<field name="s3" dataType="text" groupBy="true" hidden="true"/>
+	</panel>
+	
+	
+	<panel id="wpPanelexport" type="grid" controlType="reportGrid" dataSource="wpPanel_ds14" showOnLoad="false">
+		<title translatable="true">GHG Collection</title>
+	
+		<sortField name="s1" ascending="true" />
+		<sortField name="s2" ascending="true" />
+		<sortField name="s3" ascending="true" />
+		<sortField name="s4" ascending="false" />		
+		<sortField name="s5" ascending="true" />
+		
+		<field controlType="image" id="changeState" imageName="edit.gif" />
+		<field name="bill_type_id" table="bill_type" hidden="false"  >
+			<title>Stream / Sub Stream</title>
+		</field>
+		<field name="date_issued" dataType="text">
+			<title>Bill Date</title>
+		</field>
+		<field name="bill_id" dataType="text" >
+			<title>Bill #</title>
+		      <command type="callFunction" functionName="ucEsWasteCollReportController.openStreamAddUpdate()"/>
+		</field>
+		
+		<!--field name="company" dataType="text"/-->
+		<field name="time_period" dataType="text">
+			<title>Period</title>
+		</field>
+		<field name="em_id" table="bill_type" >
+			<title>Owner / Company</title>
+		</field>
+		
+		<field name="qty" dataType="text">
+			<title>Amount</title>
+		</field>
+		<field name="bill_unit_id" dataType="text">
+			<title>Unit</title>
+		</field>
+		
+		<field name="diverted" dataType="text">
+			<title>Diverted %</title>
+		</field>
+		<field name="s2" dataType="text" groupBy="true" hidden="true"/>
+		<field name="s1" dataType="text" groupBy="true" hidden="true"/>
+		<field name="s3" dataType="text" groupBy="true" hidden="true"/>
+	</panel>
+
+</view>

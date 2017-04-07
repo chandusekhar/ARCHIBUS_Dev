@@ -1,0 +1,330 @@
+<view version="2.0">
+
+<message name="titleForBl" translatable="true">Forecast Capital Costs for Building: {0}</message>
+<message name="titleForPr" translatable="true">Forecast Capital Costs for Property: {0}</message>
+<message name="titleForEqBl" translatable="true">Forecast Capital Costs for Equipment: {0} in Building: {1}</message>
+<message name="titleForEqPr" translatable="true">Forecast Capital Costs for Equipment: {0} in Property: {1}</message>
+<message name="titleForProjBl" translatable="true">Forecast Capital Costs for Project: {0} in Building: {1}</message>
+<message name="titleForProjPr" translatable="true">Forecast Capital Costs for Project: {0} in Property: {1}</message>
+<message name="confirmDeleteForecast" translatable="true">Do you wish to delete this forecast and all Schedule Costs previously generated from this forecast?</message>
+<message name="missingRequiredFields" translatable="true">{0} costs can be created only if these fields have values: {1}.</message>
+<message name="principalText" translatable="true">Principal</message>
+<message name="interestText" translatable="true">Interest</message>
+<message name="capitalText" translatable="true">Capital</message>
+<message name="depreciationText" translatable="true">Depreciation</message>
+<message name="appreciationText" translatable="true">Appreciation</message>
+<message name="dispositionText" translatable="true">Disposition</message>
+<message name="salvageText" translatable="true">Salvage</message>
+<message name="editSubLoanTitle" translatable="true">Edit Subordinate Loan</message>
+<message name="addSubLoanTitle" translatable="true">Add Subordinate Loan</message>
+<message name="startDateGreater" translatable="true">Date Due - To should be greater than or equal to Date Due - From.</message>
+
+<js file="ab-finanal-aggregate-forecast-costs-capital.js"/>
+<js file="ab-finanal-aggregate-forecast-costs-common.js"/>
+
+<style type="text/css">
+    .customSpan {
+        display:inline-block;
+        width:200px;
+     } 
+</style> 
+
+<dataSource id="ds_abFinanalAgregateForecastCostsCapital">
+    <table name="cost_tran_sched" role="main"/>
+    <field name="cost_tran_sched_id"/>
+    <field name="cost_cat_id"/>
+    <field name="description"/>
+    <field name="amount_income"/>
+    <field name="amount_expense"/>
+    <field name="date_due"/>
+    <!-- <restriction type="sql" sql="(cost_tran_sched.date_due &gt;= ${sql.currentDate})"/> -->
+</dataSource>
+
+<panel type="console" id="abFinanalAgregateForecastCostsAsset_capitalConsole" dataSource="ds_abFinanalAgregateForecastCostsCapital" columns="2">
+    <title translatable="true">Filter</title>   
+    <action id="filter">
+        <title translatable="true">Show</title>
+    </action>   
+    <action id="clear">
+        <title translatable="true">Clear</title>
+        <command type="callFunction" functionName="abFinanalAggregateForecastCostsCapitalCtrl.initializeFilterConsole()"/>
+    </action>
+    <field table="cost_tran_sched" name="date_due" alias="date_due_from">
+        <title translatable="true">Date Due - From</title>
+    </field>
+    <field table="cost_tran_sched" name="date_due" alias="date_due_to">
+        <title translatable="true">Date Due - To</title>
+    </field>
+</panel>
+    
+<panel type="grid" id="abFinanalAgregateForecastCostsAsset_capitalGrid" dataSource="ds_abFinanalAgregateForecastCostsCapital" showOnLoad="true">
+    <action id="forecastCapitalCosts">
+        <title translatable="true">Forecast Capital Costs</title>
+    </action>
+    <action id="addNewScheduledCost">
+        <title translatable="true">Add New Scheduled Cost</title>
+    </action>
+    <action id="openViews" type="menu" imageName="/schema/ab-core/graphics/icons/view/gear.png">
+        <action id="viewCostWizard">
+            <title translatable="true">View in Cost Wizard</title>
+            <command type="callFunction" functionName="abFinanalAggregateForecastCostsCapitalCtrl.viewCostWizard()"/>
+        </action>
+        <action id="viewCashFlow">
+            <title translatable="true">View Cash Flow Report</title>
+            <command type="callFunction" functionName="abFinanalAggregateForecastCostsCapitalCtrl.viewCashFlow()"/>              
+        </action>
+    </action>
+    <field controlType="button" id="edit">
+      <title translatable="true">Edit</title>
+    </field>
+    <field name="cost_tran_sched_id"/>
+    <field name="cost_cat_id"/>
+    <field name="description"/>
+    <field name="amount_expense"/>
+    <field name="amount_income"/>
+    <field name="date_due"/>
+    <indexField table="cost_tran_sched" name="cost_tran_sched_id"/>
+</panel>
+
+<dataSource id="ds_abFinanalAgregateForecastCostsCapital_forecast">
+    <table name="finanal_params" role="main"/>
+    <table name="property_type" role="standard"/>
+
+    <field name="auto_number"/>
+    <field name="bl_id"/>
+    <field name="pr_id"/>
+    <field name="project_id"/>
+    <field name="eq_id"/>
+    <field name="sub_loan"/>
+    
+    <field name="loan_amount"/>
+    <field name="down_payment"/>
+    <field name="vf_loan_rate" dataType="number" decimals="4"/>
+    <field name="loan_rate"/>
+    <field name="loan_term"/>
+    <field name="date_loan_start"/>
+
+    <field name="cost_purchase"/>
+    <field name="cost_of_land"/>
+    <field name="cost_basis_for_deprec"/>
+    <field name="date_purchased"/>
+    <field name="property_type"/>
+    <field table="property_type" name="deprec_period"/>
+
+    <field name="value_market"/>
+    <field name="date_market_val"/>
+    <field name="vf_rate_apprec" dataType="number" decimals="4"/>
+    <field name="rate_apprec"/>
+    <field name="date_apprec_start"/>
+    <field name="planned_life"/>
+    <field name="proposed_disposition_year" dataType="number"/>
+</dataSource>
+
+<panel type="form" id="abFinanalAgregateForecastCostsAsset_capitalForm" dataSource="ds_abFinanalAgregateForecastCostsCapital_forecast" showOnLoad="false" columns="2" formLabelWidth="90">
+    <title translatable="true">Forecast Capital Costs</title>
+    <instructions>Those Cost Categories that are checked below have no costs associated with this asset. Uncheck a category to omit that class of costs. Check any category to recreate existing costs.</instructions>
+    <action id="cancel">
+        <title translatable="true">Cancel</title>
+        <command type="closeDialog"/>
+    </action>
+    <action id="delete">
+        <title translatable="true">Delete Forecast</title>
+    </action>
+    <action id="create">
+        <title translatable="true">Create Forecast</title>
+    </action>
+    
+    <field name="auto_number" hidden="true"/>
+    <field name="bl_id" hidden="true"/>
+    <field name="pr_id" hidden="true"/>
+    <field name="project_id" hidden="true"/>
+    <field name="eq_id" hidden="true"/>
+        
+    <fieldset>
+        <title>Financing</title>
+        <field name="loan_amount"/>
+        <field name="down_payment"/>
+        <!-- Display the percentage value but save the fractional value in the database -->
+        <field name="vf_loan_rate" dataType="number" decimals="4">
+            <title translatable="true">Loan Rate (%)</title>
+        </field>
+        <field name="loan_rate" hidden="true"/>
+        <field name="loan_term">
+            <title translatable="true">Loan Term (Years)</title>
+        </field>
+        <field name="date_loan_start">
+            <title translatable="true">Date of Loan</title>
+        </field>
+    </fieldset>
+    
+    <fieldset>
+        <title translatable="false">&#160;</title>
+        <field id="forecast_principal_payments">
+            <html>
+                <input type="checkbox" id="forecast_principal_payments_chk" name="forecast_principal_payments_chk" value="forecast_principal_payments" checked="true"><span translatable="true" class="customSpan">Forecast Principal Payments</span></input>
+            </html>
+        </field> 
+        <field id="forecast_interest_payments">
+            <html>
+                <input type="checkbox" id="forecast_interest_payments_chk" name="forecast_interesy_payments_chk" value="forecast_interesy_payments" checked="true"><span translatable="true" class="customSpan">Forecast Interest Payments</span></input>
+            </html>
+        </field>
+        <field id="forecast_cost_of_capital">
+            <html>
+                <input type="checkbox" id="forecast_cost_of_capital_chk" name="forecast_cost_of_capital_chk" value="forecast_cost_of_capital" checked="true"><span translatable="true" class="customSpan">Forecast Cost of Capital</span></input>
+            </html>
+        </field>
+        <field>
+            <action id="add_subordinate_loan" mainAction="true">
+                <title translatable="true">Add Subordinate Loan</title>
+                <command type="callFunction" functionName="abFinanalAggregateForecastCostsCapitalCtrl.addSubordinateLoan()"/>
+            </action>
+        </field>
+    </fieldset>
+    
+    <fieldset>
+        <title>Depreciation</title>
+        <field name="cost_purchase" onchange="abFinanalAggregateForecastCostsCapitalCtrl.updateCostBasisForDepreciation()"/>
+        <field name="cost_of_land" onchange="abFinanalAggregateForecastCostsCapitalCtrl.updateCostBasisForDepreciation()">
+            <title translatable="true">Cost of Land Alone (if any)</title>
+        </field>
+        <field name="cost_basis_for_deprec" readOnly="true">
+            <title translatable="true">Cost Basis for Depreciation</title>
+        </field>
+        <field name="date_purchased"/>
+        <field name="property_type">
+            <title translatable="true">Property Type</title>
+            <action id="selectPropertyType">
+                <title>...</title>
+                <tooltip>Select Value</tooltip>
+                <command type="selectValue" 
+                    fieldNames="finanal_params.property_type, property_type.deprec_period"
+                    selectFieldNames="property_type.property_type, property_type.deprec_period"
+                    visibleFieldNames="property_type.property_type, property_type.deprec_method"
+                    actionListener="updateDeprecPeriod"
+                    restriction="property_type.deprec_method != 'PCT'"/>
+            </action>
+        </field>
+        <field table="property_type" name="deprec_period" required="false" readOnly="true">
+            <title translatable="true">Depreciation Period</title>
+        </field>
+    </fieldset>
+    
+    <fieldset>
+        <title translatable="false">&#160;</title>
+        <field id="forecast_depreciation">
+            <html>
+                <input type="checkbox" id="forecast_depreciation_chk" name="forecast_depreciation_chk" value="forecast_depreciation" checked="true"><span translatable="true" class="customSpan">Forecast Depreciation</span></input>
+            </html>
+        </field> 
+    </fieldset>
+    
+    <fieldset>
+        <title>Appreciation</title>
+        <field name="value_market">
+            <title translatable="true">Market Value</title>
+        </field>
+        <field name="date_market_val">
+            <title translatable="true">Assessment Date</title>
+        </field>
+        <!-- Display the percentage value but save the fractional value in the database -->
+        <field name="vf_rate_apprec" dataType="number" decimals="4">
+            <title translatable="true">Appreciation Rate (%)</title>
+        </field>
+        <field name="rate_apprec" hidden="true"/>
+        <field name="date_apprec_start" onchange="abFinanalAggregateForecastCostsCapitalCtrl.updateProposedDispositionYear()"/>
+        <field name="planned_life" onchange="abFinanalAggregateForecastCostsCapitalCtrl.updateProposedDispositionYear()">
+            <title translatable="true">Planned Life (Years)</title>
+        </field>
+        <field name="proposed_disposition_year" dataType="number" readOnly="true">
+            <title translatable="true">Proposed Disposition (Year)</title>
+        </field>
+    </fieldset>
+    
+     <fieldset>
+        <title translatable="false">&#160;</title>
+        <field id="forecast_appreciation">
+            <html>
+                <div id="forecast_appreciation_chk_div"><input type="checkbox" id="forecast_appreciation_chk" name="forecast_appreciation_chk" value="forecast_appreciation" checked="true"><span translatable="true" class="customSpan">Forecast Appreciation</span></input></div>
+            </html>
+        </field> 
+        <field id="estimate_disposal_costs">
+            <html>
+                <div id="estimate_disposal_costs_chk_div"><input type="checkbox" id="estimate_disposal_costs_chk" name="estimate_disposal_costs_chk" value="estimate_disposal_costs" checked="true"><span translatable="true" class="customSpan">Estimate Disposal Costs</span></input></div>
+            </html>
+        </field>
+        <field id="estimate_salvage_value">
+            <html>
+                <div id="estimate_salvage_value_chk_div"><input type="checkbox" id="estimate_salvage_value_chk" name="estimate_salvage_value_chk" value="estimate_salvage_value" checked="true"><span translatable="true" class="customSpan">Estimate Salvage Value</span></input></div>
+            </html>
+        </field>
+    </fieldset>
+    
+    <fieldset colspan="2">
+        <title translatable="true">Frequency</title>
+        <field>
+        <html>
+            <input type="radio" id="forecast_per_year" name="forecast_frequency" value="YEAR" checked="true"><span translatable="true">Create one Scheduled Cost per category per fiscal year (use for financial analysis)</span></input><br />
+            <input type="radio" id="forecast_per_month" name="forecast_frequency" value="MONTH"><span translatable="true">Create one Scheduled Cost record per category per month within each fiscal year (use if you additionally need to align to monthly budgets)</span></input><br />
+        </html>
+        </field>
+    </fieldset>
+</panel>
+
+<panel type="form" id="abFinanalAgregateForecastCostsAsset_subordinateLoanForm" dataSource="ds_abFinanalAgregateForecastCostsCapital_forecast" showOnLoad="false">
+    <title translatable="true">Add Subordinate Loan</title>
+    <action id="save">
+        <title translatable="true">Save</title>
+        <command type="callFunction" functionName="abFinanalAggregateForecastCostsCapitalCtrl.setSubLoanRateValue()"/>
+        <command type="saveForm"/>
+        <command type="closeDialog"/>
+    </action>
+    <action id="cancel">
+        <title translatable="true">Cancel</title>
+        <command type="closeDialog"/>
+    </action>
+    
+    <field name="auto_number" hidden="true"/>
+    <field name="bl_id" hidden="true"/>
+    <field name="pr_id" hidden="true"/>
+    <field name="project_id" hidden="true"/>
+    <field name="eq_id" hidden="true"/>
+    <field name="sub_loan" hidden="true"/>
+        
+    <fieldset>
+        <title>Financing</title>
+        <field name="loan_amount"/>
+        <field name="down_payment"/>
+        <field name="vf_loan_rate" dataType="number" decimals="4">
+            <title translatable="true">Loan Rate (%)</title>
+        </field>
+        <field name="loan_rate" hidden="true"/>
+        <field name="loan_term">
+            <title translatable="true">Loan Term (Years)</title>
+        </field>
+        <field name="date_loan_start">
+            <title translatable="true">Date of Loan</title>
+        </field>
+    </fieldset>
+</panel>
+
+<dataSource id="ds_abFinanalAgregateForecastCostsCapital_costTranSched">
+    <table name="cost_tran_sched" role="main"/>
+    <field name="cost_tran_sched_id"/>
+    <field name="status"/>
+    <field name="bl_id"/>
+    <field name="pr_id"/>
+    <field name="description"/>
+    <field name="cost_cat_id"/>
+</dataSource>
+
+<dataSource id="ds_abFinanalAgregateForecastCostsCapital_ot">
+    <table name="ot" role="main"/>
+    <field name="bl_id"/>
+    <field name="pr_id"/>
+    <field name="cost_purchase"/>
+    <field name="date_purchase"/>
+    <sortField name="date_purchase" ascending="false"/>
+</dataSource>
+
+</view>

@@ -1,0 +1,232 @@
+<!-- CHANGE LOG -->
+<!-- 2010/12/01 - EWONG - Fixed eq_std search box to allow input of entire eq_std string.  -->
+<!-- 2010/12/01 - EWONG - Added "Save" button to the Info dialog for saving comments. -->
+<!-- 2010/12/01 - EWONG - Info dialog now shows the eq's bl/fl/rm instead of pms's bl/fl/rm.  -->
+
+<view version="2.0">
+	<layout type="borderLayout" id="mainLayout">
+		<north autoScroll="true" split="true" initialSize="130"/>
+		<center autoScroll="true"/>
+	</layout>
+	<title translatable="true">Scheduled Preventative Maintenance Approval</title>
+	<js file="uc-schedule-approval-SF.js" />
+
+	<dataSource id="ds_ucScheduleReport">
+		<sql dialect="generic">
+			SELECT pmdd.date_todo, pmdd.approved, pmdd.desired, pmdd.em_id, pmdd.date_manual_changed, pmp.pmp_cat AS pmp_cat, pms.*,
+				case when pms.eq_id is null then pms.bl_id else eq.bl_id end bl,
+				case when pms.eq_id is null then pms.fl_id else eq.fl_id end fl,
+				case when pms.eq_id is null then pms.rm_id else eq.rm_id end rm,
+				eq.eq_std
+			FROM pmdd 	inner join pms on pmdd.pms_id = pms.pms_id
+						inner join pmp on pms.pmp_id = pmp.pmp_id
+						left join eq on pms.eq_id = eq.eq_id
+		    WHERE (eq.bl_id IN ('BR','CA','CD','GL','KA','KRAB','KRCD','KRE','KRF','KRG',
+				   'KRH','KRI','NO','OL','RE','RU', 'OO','IH') OR eq.bl_id LIKE ('VC%'))
+		</sql>
+		<table name="pmdd" role="main"/>
+		<field table="pmdd" name="pms_id"/>
+		<field table="pmdd" name="date_todo"/>
+		<field table="pmdd" name="approved"/>
+		<field table="pmdd" name="desired"/>
+		<field table="pmdd" name="em_id"/>
+		<field table="pmdd" name="date_manual_changed"/>
+	</dataSource>
+
+	<dataSource id="ds_ucScheduleConsole">
+		<table name="pms" role="main"/>
+		<field table="pmp" name="pmp_cat"/>
+		<field table="pms" name="pms_id"/>
+		<field table="pms" name="date_first_todo"/>
+		<field table="pms" name="pmp_id" />
+		<field table="pms" name="eq_id" />
+		<field table="pms" name="bl_id"/>
+		<field table="pms" name="fl_id"/>
+		<field table="pms" name="rm_id"/>
+		<field table="pms" name="hours_est" />
+		<field table="pms" name="hours_calc" />
+		<field table="pms" name="ac_id"/>
+		<field table="pms" name="comments"/>
+        <table name="eq" role="standard"/>
+        <field table="eq" name="eq_std"/>
+	</dataSource>
+
+	<panel type="console" columns="4" id="ucPrevMaintDisplay_consolePanel" dataSource="ds_ucScheduleConsole" region="north">
+		<title translatable="true">Restrict values ...</title>
+
+		<action type="javaScript" onclick="setFilterAndRender()">
+		  <title translatable="true">Show</title>
+		</action>
+
+		<action id="ucPrevMaintDisplay_clear">
+			<title translatable="true">Clear</title>
+			<command type="clearPanel" panelId="ucPrevMaintDisplay_consolePanel"/>
+		</action>
+		<field name="pms_id" table="pms" hidden="true"/>
+
+		<field name="eq_id" table="pms"><title>Barcode</title></field>
+		<field name="bl_id" table="pms"/>
+		<field name="eq_std" table="eq" alias="pms.eq_std" >
+			<title>Equipment Standard</title>
+			<action id="selValEqStd">
+				<command type="selectValue"
+					fieldNames="pms.eq_std"
+					selectFieldNames="eqstd.eq_std"
+					visibleFieldNames="eqstd.eq_std,eqstd.description" />
+			</action>
+		</field>
+		<field table="pms" name="date_first_todo" alias="pms.date_todo.from" readOnly="false">
+			<title translatable="true">From</title>
+		</field>
+
+		<field name="ac_id" table="pms" alias="pms.work_team_id">
+			<title>Work Team</title>
+			<action id="selValWorkTeam">
+				<command type="selectValue"
+					fieldNames="pms.work_team_id"
+					selectFieldNames="work_team.work_team_id"
+					visibleFieldNames="work_team.work_team_id,work_team.description" />
+			</action>
+		</field>
+		<field name="fl_id" table="pms"/>
+		<field name="pmp_cat" table="pmp"/>
+		<field table="pms" name="date_first_todo" alias="pms.date_todo.to" readOnly="false">
+			<title translatable="true">To</title>
+		</field>
+	</panel>
+
+
+	<panel type="grid" id="grid_results" dataSource="ds_ucScheduleReport" showOnLoad="true" region="center" recordLimit="2000">
+		<title translatable="true">Upcoming PM Schedules</title>
+
+		<action id="exportPDF">
+			<title>PDF</title>
+			<command type="exportPanel" outputType="pdf" panelId="grid_results"/>
+		</action>
+		<action id="exportXLS">
+			<title>XLS</title>
+			<command type="exportPanel" outputType="xls" panelId="grid_results"/>
+		</action>
+
+		<field id="actionApproveReject" controlType="button"><title></title></field>
+		<field id="actionInfo" controlType="button">
+			<title>Info</title>
+		</field>
+		<field table="pmdd" name="approved"><title>Approved</title></field>
+		<field table="pmdd" name="pms_id" hidden="true"/>
+		<field table="pmdd" name="date_todo"><title>Scheduled Date</title></field>
+
+		<field table="pmdd" name="pmp_cat" dataType="text" size="3"><title>Category</title></field>
+		<field table="pmdd" name="bl" dataType="text" size="8"><title>Building</title></field>
+		<field table="pmdd" name="fl" dataType="text" size="4"><title>Floor</title></field>
+		<field table="pmdd" name="pmp_id" dataType="text" size="16"><title>PM Procedure</title></field>
+		<field table="pmdd" name="eq_id" dataType="text" size="12"><title>Barcode</title></field>
+		<field table="pmdd" name="hours_est" dataType="number" size="3" decimals="2"><title>Est. Hours</title>
+		<field table="pmdd" name="em_id"/></field>
+
+	</panel>
+
+	<dataSource id="uc_pmdd_ds">
+		<table name="pmdd" role="main"/>
+		<field table="pmdd" name="pms_id"/>
+		<field table="pmdd" name="date_todo"/>
+		<field table="pmdd" name="approved"/>
+		<field table="pmdd" name="desired"/>
+		<field table="pmdd" name="em_id"/>
+		<field table="pmdd" name="date_manual_changed"/>
+	</dataSource>
+
+
+
+	<!-- *********************** SCHEDULE INFORMATION ************************** -->
+	<dataSource id="pms_ds">
+		<table name="pms" role="main"/>
+		<field table="pms" name="pms_id"/>
+		<field table="pms" name="pmp_id"/>
+		<field table="pms" name="pm_group"/>
+		<field table="pms" name="eq_id"/>
+		<field table="pms" name="bl_id"/>
+		<field table="pms" name="fl_id"/>
+		<field table="pms" name="rm_id"/>
+		<field table="pms" name="comments"/>
+		<field table="pms" name="date_first_todo"/>
+		<field table="pms" name="date_last_completed"/>
+		<field table="pms" name="date_next_alt_todo"/>
+		<field table="pms" name="date_next_todo"/>
+		<field table="pms" name="dv_id"/>
+		<field table="pms" name="dp_id"/>
+		<field table="pms" name="hours_calc"/>
+		<field table="pms" name="hours_est"/>
+		<field table="pms" name="interval_1"/>
+		<field table="pms" name="interval_2"/>
+		<field table="pms" name="interval_type"/>
+		<field table="pms" name="nactive"/>
+		<field table="pms" name="priority"/>
+		<field table="pms" name="ac_id"/>
+		<table name="pmp" role="standard"/>
+		<field table="pmp" name="pmp_id"/>
+		<field table="pmp" name="pmp_cat"/>
+		<field table="pmp" name="interval_rec"/>
+		<field table="pmp" name="interval_type"/>
+		<table name="uc_prm_gen_account_code_v" role="standard" />
+		<field table="uc_prm_gen_account_code_v" name="pms_id" />
+		<field table="uc_prm_gen_account_code_v" name="wr_ac_id" />
+		<field table="uc_prm_gen_account_code_v" name="generated_ac_id" />
+		<table name="eq" role="standard"/>
+		<field table="eq" name="bl_id"/>
+		<field table="eq" name="fl_id"/>
+		<field table="eq" name="rm_id"/>
+	</dataSource>
+
+	<panel type="form" id="schedule_info" dataSource="pms_ds" columns="2" showOnLoad="false" hidden="true" selectionEnabled="true" region="center">
+		<title translatable="true">Schedule Information</title>
+		<action id="actionInfoSave">
+			<title>Save</title>
+			<command type="saveForm"/>
+		</action>
+		<action id="actionInfoClose">
+			<title>Close</title>
+			<command type="closeDialog"/>
+		</action>
+
+		<field table="pms" name="pms_id" readOnly="true"/>
+		<field table="pms" name="pmp_id" readOnly="true"/>
+		<field table="pms" name="eq_id" readOnly="true"/>
+		<field table="pms" name="dv_id" hidden="true" readOnly="true"/>
+		<field table="pms" name="dp_id" hidden="true" readOnly="true"/>
+		<field table="pms" name="pm_group" hidden="true" readOnly="true"/>
+		<field/>
+
+		<field table="pms" name="interval_1" readOnly="true"><title>Scheduled Frequency</title></field>
+		<field table="eq" name="bl_id" required="false" readOnly="true"/>
+		<field table="pms" name="interval_type" readOnly="true"><title>Scheduled Freq. Type</title></field>
+		<field table="eq" name="fl_id" required="false" readOnly="true"/>
+
+		<field table="pmp" name="interval_rec" readOnly="true"><title>Manufacturer Frequency</title></field>
+		<field table="eq" name="rm_id" required="false" readOnly="true"/>
+		<field table="pmp" name="interval_type" readOnly="true"><title>Manufacturer Freq. Type</title></field>
+		<field/>
+
+		<field table="pms" name="date_first_todo" readOnly="true"></field>
+		<field table="pms" name="hours_est" readOnly="true"></field>
+		<field table="pms" name="date_last_completed" readOnly="true"></field>
+		<field table="pms" name="date_next_todo" hidden="true" readOnly="true"></field>
+		<field table="pms" name="hours_calc" readOnly="true"></field>
+
+		<field table="pms" name="date_next_alt_todo" hidden="true" readOnly="true"></field>
+
+		<field table="pms" name="fixed" hidden="true" readOnly="true"></field>
+		<field table="pms" name="interval_freq" hidden="true" readOnly="true"></field>
+		<field table="pms" name="interval_2" hidden="true" readOnly="true"></field>
+		<field table="pms" name="interval_3" hidden="true" readOnly="true"></field>
+		<field table="pms" name="interval_4" hidden="true" readOnly="true"></field>
+
+		<!-- Account Code -->
+		<field table="uc_prm_gen_account_code_v" name="generated_ac_id" colspan="2" required="false" readOnly="true" style="border:none">
+			<title>Generated Account Code</title>
+		</field>
+		<field colspan="2" table="pms" name="ac_id" readOnly="true" />
+
+		<field table="pms" name="comments" colspan="2" showSelectValueAction="false" />
+	</panel>
+</view>

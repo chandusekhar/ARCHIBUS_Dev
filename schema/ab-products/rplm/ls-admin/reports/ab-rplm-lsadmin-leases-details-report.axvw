@@ -1,0 +1,248 @@
+<view version="2.0">
+    <js file="ab-schema-utils.js"/>
+    <js file="ab-rplm-lsadmin-leases-details-report.js"/>
+    <message name="param_building" translatable="true">Building</message>
+    <message name="param_structure" translatable="true">Structure</message>
+    <message name="param_land" translatable="true">Land</message>
+    <message name="param_landlord" translatable="true">Landlord</message>
+    <message name="param_tenant" translatable="true">Tenant</message>
+    <layout id="main">
+        <west id="west" initialSize="20%" />
+        <center id="center"/>
+    </layout>
+    <dataSource id="dsCtry" applyVpaRestrictions="false">
+        <sql dialect="generic">
+            select 
+                ctry.ctry_id as ctry_id,
+                ctry.name as name
+            from ctry
+            where EXISTS(SELECT 1 FROM bl WHERE bl.ctry_id = ctry.ctry_id AND ${sql.getVpaRestrictionForTable('bl')} AND EXISTS(SELECT 1 FROM ls WHERE ls.bl_id = bl.bl_id AND ls.use_as_template = 0 ${parameters['subquery']})) OR 
+                  EXISTS(SELECT 1 FROM property WHERE property.ctry_id = ctry.ctry_id AND ${sql.getVpaRestrictionForTable('property')} AND EXISTS(SELECT 1 FROM ls WHERE ls.pr_id = property.pr_id AND ls.use_as_template = 0 ${parameters['subquery']}))
+                
+        </sql>
+        <table name="ctry" role="main"/>
+        <table name="bl" role="standard"/>
+        <table name="property" role="standard"/>
+        <field table="ctry" name="ctry_id"/>
+        
+        <sortField table="ctry" name="ctry_id"/>
+        
+        <parameter name="subquery" dataType="verbatim" value=""/>
+    </dataSource>
+    <dataSource id="dsCity" applyVpaRestrictions="false">
+        <sql dialect="generic">
+            select 
+                city.ctry_id as ctry_id,
+                city.city_id as city_id,
+                city.state_id as state_id   
+            from city
+            where (EXISTS(SELECT 1 FROM bl WHERE bl.state_id = city.state_id AND ${sql.getVpaRestrictionForTable('bl')} AND bl.city_id = city.city_id AND EXISTS(SELECT 1 FROM ls WHERE ls.bl_id = bl.bl_id AND ls.use_as_template = 0 ${parameters['subquery']}))) OR 
+            (EXISTS(SELECT 1 FROM property WHERE property.state_id = city.state_id AND ${sql.getVpaRestrictionForTable('property')} AND property.city_id = city.city_id AND EXISTS(SELECT 1 FROM ls WHERE ls.pr_id = property.pr_id AND ls.use_as_template = 0 ${parameters['subquery']})))
+        </sql>
+        <table name="city" role="main"/>
+        <table name="bl" role="standard"/>
+        <table name="property" role="standard"/>
+        <field table="city" name="state_id"/>
+        <field table="city" name="city_id"/>
+        
+        <sortField table="city" name="state_id"/>
+        <sortField table="city" name="city_id"/>
+        
+        <parameter name="subquery" dataType="verbatim" value=""/>
+    </dataSource>
+    <dataSource id="dsPropertiesBuildings">
+        <sql dialect="generic">
+            SELECT  property.pr_id as bl_id, 
+                    (case when property.property_type = 'Structure' 
+                            then ${parameters['param_structure']} 
+                        else ${parameters['param_land']} 
+                    end) as name, 
+                    property.property_type as property_type,
+                    'PROPERTY' as type,
+                    property.state_id as state_id, 
+                    property.city_id as city_id, 
+                    property.lat as lat, 
+                    property.lon as lon,
+                    property.site_id as site_id
+            FROM property
+            WHERE EXISTS(SELECT 1 FROM ls WHERE ls.pr_id = property.pr_id AND ls.use_as_template = 0 ${parameters['subquery']})
+            UNION
+            SELECT bl.bl_id as bl_id, 
+                    ${parameters['param_building']} as name, 
+                    '' as property_type, 
+                    'BUILDING' as type,
+                    bl.state_id as state_id, 
+                    bl.city_id as city_id, 
+                    bl.lat as lat, 
+                    bl.lon as lon,
+                    bl.site_id as site_id
+            FROM bl         
+            WHERE EXISTS(SELECT 1 FROM ls WHERE ls.bl_id = bl.bl_id AND ls.use_as_template = 0 ${parameters['subquery']})   
+        </sql>
+        <table name="bl" role="main"/>
+        <field table="bl" name="bl_id" dataType="text"/>
+        <field table="bl" name="name" dataType="text"/>
+        <field table="bl" name="property_type" dataType="text"/>
+        <field table="bl" name="type" dataType="text"/>
+        
+        <sortField table="bl" name="bl_id"/>
+        
+        <parameter name="subquery" dataType="verbatim" value=""/>
+        <parameter name="param_building" dataType="text" value=""/>
+        <parameter name="param_structure" dataType="text" value=""/>
+        <parameter name="param_land" dataType="text" value=""/>
+    </dataSource>
+    <dataSource id="dsLease">
+        <sql dialect="generic">
+            SELECT 
+                ls.ls_id,
+                (case when ls.landlord_tenant = 'LANDLORD' 
+                        then ${parameters['param_landlord']}
+                    else ${parameters['param_tenant']}
+                end) as landlord_tenant,
+                SUBSTRING(ls.description, 0, 30) AS description,
+                ls.ls_parent_id,
+                (CASE WHEN ls.pr_id IS NULL THEN bl_id ELSE ls.pr_id END) as bl_id
+            FROM ls
+            WHERE (ls.ls_parent_id is null)
+            AND ls.use_as_template = 0
+            ${parameters['subquery']}
+            OR EXISTS(SELECT 1 FROM ls x WHERE x.ls_parent_id = ls.ls_id AND x.use_as_template = 0 ${parameters['subquery_int']} )
+        </sql>
+        <sql dialect="oracle">
+            SELECT 
+                ls.ls_id,
+                (case when ls.landlord_tenant = 'LANDLORD' 
+                        then ${parameters['param_landlord']}
+                    else ${parameters['param_tenant']}
+                end) as landlord_tenant,
+                SUBSTR(ls.description, 0, 30) AS description,
+                ls.ls_parent_id,
+                (CASE WHEN ls.pr_id IS NULL THEN bl_id ELSE ls.pr_id END) as bl_id
+            FROM ls
+            WHERE (ls.ls_parent_id is null)
+            AND ls.use_as_template = 0
+            ${parameters['subquery']}
+            OR EXISTS(SELECT 1 FROM ls x WHERE x.ls_parent_id = ls.ls_id AND x.use_as_template = 0 ${parameters['subquery_int']} )
+        </sql>
+        <table name="ls" role="main"/>
+        <field table="ls" name="ls_id" dataType="text"/>
+        <field table="ls" name="landlord_tenant" dataType="text"/>
+        
+        <sortField table="ls" name="ls_id"/>
+        
+        <parameter name="subquery" dataType="verbatim" value=""/>
+        <parameter name="subquery_int" dataType="verbatim" value=""/>
+        <parameter name="param_landlord" dataType="text" value=""/>
+        <parameter name="param_tenant" dataType="text" value=""/>
+    </dataSource>
+    <dataSource id="dsSubLease">
+        <sql dialect="generic">
+            SELECT 
+                ls.ls_id as su_id,
+                (case when ls.landlord_tenant = 'LANDLORD' 
+                        then ${parameters['param_landlord']}
+                    else ${parameters['param_tenant']}
+                end) as landlord_tenant,
+                SUBSTRING(ls.description, 0, 30) AS description,
+                ls.ls_parent_id as ls_id,
+                (CASE WHEN ls.pr_id IS NULL THEN bl_id ELSE ls.pr_id END) as bl_id
+            FROM ls
+            WHERE ls.ls_parent_id is not null
+            AND ls.use_as_template = 0
+            ${parameters['subquery']}
+        </sql>
+        <sql dialect="oracle">
+            SELECT 
+                ls.ls_id as su_id,
+                (case when ls.landlord_tenant = 'LANDLORD' 
+                        then ${parameters['param_landlord']}
+                    else ${parameters['param_tenant']}
+                end) as landlord_tenant,
+                SUBSTR(ls.description, 0, 30) AS description,
+                ls.ls_parent_id as ls_id,
+                (CASE WHEN ls.pr_id IS NULL THEN bl_id ELSE ls.pr_id END) as bl_id
+            FROM ls
+            WHERE ls.ls_parent_id is not null
+            AND ls.use_as_template = 0
+            ${parameters['subquery']}
+        </sql>
+        <table name="su" role="main"/>
+        <table name="ls" role="standard"/>
+        <field table="su" name="su_id" dataType="text"/>
+        <field table="ls" name="landlord_tenant" dataType="text"/>
+        <field table="su" name="ls_id" dataType="text"/>
+        
+        <sortField table="su" name="ls_id"/>
+        
+        <parameter name="subquery" dataType="verbatim" value=""/>
+        <parameter name="param_landlord" dataType="text" value=""/>
+        <parameter name="param_tenant" dataType="text" value=""/>
+    </dataSource>
+    <panel type="tree" id="treeCtry" layoutRegion="west" dataSource="dsCtry">
+        <title translatable="false"></title> 
+        <action id="search" mainAction="true">
+            <title translatable="true">Search</title>
+        </action>
+        <action id="show_all">
+            <title translatable="true">Show All</title>
+        </action>
+        <panel type="tree" id="treeCity" dataSource="dsCity"/>
+        <panel type="tree" id="treePropertiesBuildings" dataSource="dsPropertiesBuildings"/>
+        <panel type="tree" id="treeLease" dataSource="dsLease">
+            <event type="onClickNode">
+                <command type="callFunction" functionName="showDetails"/>
+            </event>
+            <field table="ls" name="ls_id"/>
+            <field table="ls" name="landlord_tenant"/>
+            <field table="ls" name="description"/>
+        </panel>
+        <panel type="tree" id="treeSubLease" dataSource="dsSubLease">
+            <event type="onClickNode">
+                <command type="callFunction" functionName="showDetails"/>
+            </event>
+            <field table="ls" name="ls_id"/>
+            <field table="ls" name="landlord_tenant"/>
+            <field table="ls" name="description"/>
+        </panel>
+    </panel>
+    <dataSource id="dsSearch">
+        <table name="ls" role="main"/>
+        <field table="ls" name="ls_id"/>
+        <parameter name="lease_id" dataType="text" value=""/>
+        <restriction type="sql" sql="ls.ls_id = ${parameters['lease_id']}"/>
+    </dataSource>
+    <panel type="form" id="formFilter" hidden="true" layoutRegion="west" showOnLoad="false" dataSource="dsSearch">
+        <action id="apply" mainAction="true">
+            <title translatable="true">Apply</title>
+        </action>
+        <action id="clear">
+            <title translatable="true">Clear</title>
+        </action>
+        <action id="cancel">
+            <title translatable="true">Cancel</title>
+            <command type="closeDialog"/>
+        </action>
+        <field table="ls" name="ls_id"/>
+        <field id="criteria_1" controlType="radioButton">
+            <title>Leases for:</title>
+            <option value="all" selected="true">All</option>
+            <option value="building">Buildings</option>
+            <option value="structure">Structures</option>
+            <option value="land">Land</option>
+        </field>
+        <field id="criteria_2" controlType="radioButton">
+            <title>Active/Non-Active?</title>
+            <option value="both" selected="true">Both</option>
+            <option value="active">Active</option>
+            <option value="nonactive">Non-Active</option>
+        </field>
+        <field id="criteria_3" controlType="radioButton">
+            <title>Landlord/Tenant</title>
+            <option value="all" selected="true">All</option>
+            <option value="landlord">Landlord</option>
+            <option value="tenant">Tenant</option>
+        </field>
+    </panel>
+    <panel type="view" id="reportPanel" file="ab-rplm-lsadmin-leases-details-report-report.axvw" layoutRegion="center" useFrame="true"/>
+</view>

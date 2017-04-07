@@ -1,0 +1,138 @@
+<view version="2.0">
+    <js file="ab-sp-console-team-edit-statistics.js"/>
+    <js file="ab-sp-console-common.js"/>
+    
+    <message name="helpAsOfDate" translatable="true">Choose a date for which to calculate Team Statistics and show Employee and Room assignments</message>
+    <message name="none" translatable="true">None</message>
+    <message name="employee_start" translatable="true">employee(s) start</message>
+    <message name="employee_end" translatable="true">employee(s) end</message>
+    <message name="room_start" translatable="true">room(s) start</message>
+    <message name="room_end" translatable="true">room(s) end</message>
+    
+    <dataSource id="next_change_event_ds" distinct="true">
+        <table name="team_properties"/>
+        <field name="em_start" dataType="number" decimals='0'>
+            <sql dialect="generic">
+                (select count(date_start) from team where ${sql.yearMonthDayOf('team.date_start')} = ${parameters['latestDate']} and team.team_id= ${parameters['teamId']})
+            </sql>
+        </field>       
+         <field name="em_end" dataType="number" decimals='0'>
+            <sql dialect="generic">
+                (select count(date_start) from team where ${sql.yearMonthDayOf('team.date_end')} = ${parameters['latestDate']} and team.team_id= ${parameters['teamId']})
+            </sql>
+        </field> 
+        <field name="rm_start" dataType="number" decimals='0'>
+            <sql dialect="generic">
+                (select count(date_start) from rm_team where ${sql.yearMonthDayOf('rm_team.date_start')} = ${parameters['latestDate']} and rm_team.team_id= ${parameters['teamId']})
+            </sql>
+        </field>       
+         <field name="rm_end" dataType="number" decimals='0'>
+            <sql dialect="generic">
+                (select count(date_start) from rm_team where ${sql.yearMonthDayOf('rm_team.date_end')} = ${parameters['latestDate']} and rm_team.team_id= ${parameters['teamId']})
+            </sql>
+        </field>         
+        <parameter name="teamId" dataType="text" value=""/>
+        <parameter name="latestDate" dataType="text" value=""/>
+    </dataSource>
+    
+    <dataSource id="rm_team_ds" distinct="true">
+        <table name="rm_team"/>
+        <field name="bl_id" />
+        <parameter name="teamId" dataType="text" value="1"/>
+        <parameter name="dateCon" dataType="text" value="1"/>
+        <restriction type="sql" sql="  rm_team.team_id=${parameters['teamId']} AND ${sql.yearMonthDayOf('rm_team.date_start')} &lt;= ${parameters['dateCon']} AND (rm_team.date_end is null or ${sql.yearMonthDayOf('rm_team.date_end')} &gt;= ${parameters['dateCon']})"/> 
+        <sortField name="bl_id"/>
+    </dataSource>
+            
+    <dataSource id="team_statistics_ds">
+        <table name="team_properties"/>
+        <field name="total_rm_area" dataType="number" decimals='2' numericFormat="area">
+            <sql dialect="generic">
+                (SELECT ${sql.isNull("SUM(rm.area)", "0")} FROM rm, rm_team WHERE rm.rm_id = rm_team.rm_id and rm.fl_id = rm_team.fl_id and rm.bl_id = rm_team.bl_id
+                                AND rm_team.team_id = ${parameters['teamId']} 
+                                AND (rm.rm_cat IS NULL OR EXISTS (SELECT 1 FROM rmcat WHERE rmcat.used_in_calcs IN('all_totals','dp_comn_ocup_totals') AND rmcat.rm_cat = rm.rm_cat))
+                                AND ${sql.yearMonthDayOf('rm_team.date_start')} &lt;= ${parameters['dateCon']} 
+                                AND (rm_team.date_end is null or ${sql.yearMonthDayOf('rm_team.date_end')} &gt;= ${parameters['dateCon']}))
+            </sql>
+        </field>
+        <field name="room_count" dataType="number" decimals='0'>
+            <sql dialect="generic">
+                (SELECT COUNT( rm_team.rm_id ) FROM rm_team WHERE rm_team.team_id = ${parameters['teamId']} AND ${sql.yearMonthDayOf('rm_team.date_start')} &lt;= ${parameters['dateCon']} and (rm_team.date_end is null or ${sql.yearMonthDayOf('rm_team.date_end')} &gt;= ${parameters['dateCon']} ))
+            </sql>
+        </field>
+        <field name="capacity" dataType="number" decimals='0'>
+            <sql dialect="generic">
+                ( SELECT ${sql.isNull("SUM(rm.cap_em)", "0")} FROM rm, rm_team WHERE rm.rm_id = rm_team.rm_id and rm.fl_id = rm_team.fl_id and rm.bl_id = rm_team.bl_id and rm_team.team_id = ${parameters['teamId']} AND ${sql.yearMonthDayOf('rm_team.date_start')} &lt;= ${parameters['dateCon']} and (rm_team.date_end is null or ${sql.yearMonthDayOf('rm_team.date_end')} &gt;= ${parameters['dateCon']}) )
+                -
+                ( select count( em.em_id) from em left outer join rm_team on em.rm_id=rm_team.rm_id and em.fl_id=rm_team.fl_id and em.bl_id=rm_team.bl_id where rm_team.team_id = ${parameters['teamId']} AND ${sql.yearMonthDayOf('rm_team.date_start')} &lt;= ${parameters['dateCon']} and (rm_team.date_end is null or ${sql.yearMonthDayOf('rm_team.date_end')} &gt;= ${parameters['dateCon']})
+                ) 
+            </sql>
+        </field>
+        <field name="employees" dataType="number" decimals='2'>
+            <sql dialect="generic">
+                (SELECT ${sql.isNull("SUM( team.pct_time * 0.01 )", "0")} FROM team WHERE team.em_id is not null and team.team_id = ${parameters['teamId']} AND ${sql.yearMonthDayOf('team.date_start')} &lt;= ${parameters['dateCon']} and (team.date_end is null or ${sql.yearMonthDayOf('team.date_end')} &gt;= ${parameters['dateCon']}))
+            </sql>
+        </field>  
+        <field name="seat_ratio_act" dataType="number" decimals='2'>
+        </field>    
+        <field name="seat_ratio_tgt" dataType="number" decimals='2'>
+            <sql dialect="generic">
+                (SELECT team_properties.em_seat_ratio_tgt FROM team_properties WHERE team_properties.team_id = ${parameters['teamId']} )
+            </sql>
+        </field>
+        
+        <field name="next_date" dataType="text">
+            <sql dialect="generic">
+                (select ${sql.yearMonthDayOf('min(t.lateDate)')} ${sql.as} latestDate from 
+                    (select min(date_start) ${sql.as} lateDate from team where ${sql.yearMonthDayOf('team.date_start')} &gt; ${parameters['dateCon']} and team_id=${parameters['teamId']}
+                    union
+                    select min(date_end) from team where ${sql.yearMonthDayOf('team.date_end')} &gt; ${parameters['dateCon']} and team_id=${parameters['teamId']}
+                    union
+                    select min(date_start) from rm_team where ${sql.yearMonthDayOf('rm_team.date_start')} &gt; ${parameters['dateCon']} and team_id=${parameters['teamId']}
+                    union
+                    select min(date_end) from rm_team where ${sql.yearMonthDayOf('rm_team.date_end')} &gt; ${parameters['dateCon']} and team_id=${parameters['teamId']}
+                    ) t)
+                
+            </sql>
+        </field>                
+        <field name="stat_date" width="20px" height="20px"/>
+        <parameter name="teamId" dataType="text" value=""/>
+        <parameter name="dateCon" dataType="text" value=""/>
+    </dataSource>    
+    
+    <panel type="form" id="statisticsForm" dataSource="team_statistics_ds" showOnLoad="false" layout="westLayout" region="north">
+        
+        <field name="stat_date" dataType="date" onchange="statisticsController.onAsOfDateChanged()" cssClass="shortField">
+            <title translatable="true">Team Statistics as of:</title>
+        </field>
+        <field name="room_count" cssClass="shortField">
+            <title translatable="true">Room Count</title>
+        </field>
+        <field name="capacity">
+            <title translatable="true">Capacity</title>
+        </field>
+        <field name="total_rm_area" cssClass="shortField">
+            <title translatable="true">Total Room Area ${user.areaUnits.title}</title>
+        </field>
+        <field name="employees" cssClass="shortField">
+            <title translatable="true">Employees</title>
+        </field>
+        <field name="seat_ratio_act" cssClass="shortField">
+            <title translatable="true">Seat Ratio - Actual</title>
+        </field>
+        <field name="seat_ratio_tgt" cssClass="shortField">
+            <title translatable="true">Seat Ratio - % of Target</title>
+        </field>
+        <field name="buildings" cssClass="shortField">
+            <title translatable="true">Buildings</title>
+        </field>
+        <field name="next_change_event" cssClass="shortField">
+            <title translatable="true">Next Change Event</title>
+            <html>
+                <div id="depict">
+                
+                </div>
+            </html>
+        </field>        
+    </panel>    
+</view>

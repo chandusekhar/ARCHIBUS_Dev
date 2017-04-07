@@ -1,0 +1,78 @@
+<view version="2.0">
+    <js file="ab-sp-vw-em-exceptions.js" />
+    <message name="option0" translatable="true">Exception Type</message>
+    <message name="option1" translatable="true">Primary location does not agree in employee and workspace transactions table</message>
+    <message name="option2" translatable="true">More than one move request for the primary location</message>
+    <message name="option3" translatable="true">More than one pending move request for the same location</message>
+    <dataSource id="abSpExcDs1" applyVpaRestrictions="false">
+        <sql dialect="generic">
+     	select distinct rmpct.em_id,rmpct.bl_id,rmpct.fl_id, rmpct.rm_id,rmpct.dv_id,rmpct.dp_id,
+            (case when 
+                    ( exists (select 1 from rmpct  ${sql.as}  rmpct2 where rmpct2.em_id=em.em_id and rmpct2.date_start  &gt; ${sql.currentDate} and rmpct2.primary_em = 1)
+                    ) 
+                    then 
+                        ${parameters['Yes']} 
+                    else 
+                        ${parameters['No']} 
+                    end
+            ) ${sql.as}  pendingRequest 
+            FROM em, rmpct WHERE ${sql.vpaRestriction} and  em.em_id = rmpct.em_id AND rmpct.primary_em = 1 AND (rmpct.bl_id != em.bl_id OR rmpct.fl_id != em.fl_id OR rmpct.rm_id != em.rm_id) AND rmpct.status = 1  AND (rmpct.date_start IS NULL OR rmpct.date_start &lt;= ${sql.currentDate}) AND (rmpct.date_end IS NULL OR rmpct.date_end &gt;= ${sql.currentDate})
+        </sql>
+        <table name="rmpct" role="main" />
+        <field table="rmpct" name="em_id" />
+        <field table="rmpct" name="bl_id" />
+        <field table="rmpct" name="fl_id" />
+        <field table="rmpct" name="rm_id" />
+        <field table="rmpct" name="dv_id" />
+        <field table="rmpct" name="dp_id" />
+        <field table="rmpct"  name="pendingRequest" dataType="text" />
+        <parameter name="Yes" dataType="text" value="YES"/>
+        <parameter name="No" dataType="text" value="NO"/>
+    </dataSource>
+    
+    <dataSource id="abSpExcDs2" applyVpaRestrictions="false">
+        <sql dialect="generic">
+        select em.em_id,em.bl_id,em.fl_id, em.rm_id,em.dv_id,em.dp_id from em where ${sql.vpaRestriction} and  em_id in  ( SELECT em_id   FROM rmpct, activity_log WHERE rmpct.activity_log_id IS NOT NULL AND rmpct.activity_log_id = activity_log.activity_log_id AND activity_log.activity_type IN ('SERVICE DESK - INDIVIDUAL MOVE', 'SERVICE DESK - GROUP MOVE') AND rmpct.primary_em = 1 AND (rmpct.status = 0 OR (rmpct.status = 1 AND rmpct.date_start &gt;= ${sql.currentDate})) GROUP BY em_id having COUNT(1) &gt;1)
+        </sql>
+        <table name="em" role="main" />
+        <field table="em" name="em_id" />
+        <field table="em" name="bl_id" />
+        <field table="em" name="fl_id" />
+        <field table="em" name="rm_id" />
+        <field table="em" name="dv_id" />
+        <field table="em" name="dp_id" />
+    </dataSource>
+    
+    <dataSource id="abSpExcDs3" applyVpaRestrictions="false">
+        <sql dialect="generic">
+        select em.em_id,em.bl_id,em.fl_id, em.rm_id,em.dv_id,em.dp_id from em where ${sql.vpaRestriction} and  em_id in  ( SELECT em_id   FROM rmpct, activity_log WHERE rmpct.activity_log_id IS NOT NULL AND rmpct.activity_log_id = activity_log.activity_log_id AND activity_log.activity_type IN ('SERVICE DESK - INDIVIDUAL MOVE', 'SERVICE DESK - GROUP MOVE')  AND (rmpct.status = 0 OR (rmpct.status = 1 AND rmpct.date_start &gt;= ${sql.currentDate})) GROUP BY em_id ,rmpct.bl_id, rmpct.fl_id, rmpct.rm_id having COUNT(1) &gt;1)
+        </sql>
+        <table name="em" role="main" />
+        <field table="em" name="em_id" />
+        <field table="em" name="bl_id" />
+        <field table="em" name="fl_id" />
+        <field table="em" name="rm_id" />
+        <field table="em" name="dv_id" />
+        <field table="em" name="dp_id" />
+    </dataSource>
+    <panel type="grid"  id="abSpExc" dataSource="abSpExcDs1" >
+        <title translatable="true">Employee Exceptions</title>
+        <field table="rmpct" name="em_id" />
+        <field table="rmpct" name="bl_id" />
+        <field table="rmpct" name="fl_id" />
+        <field table="rmpct" name="rm_id" />
+        <field table="rmpct" name="dv_id" />
+        <field table="rmpct" name="dp_id" />
+        <field table="rmpct"  name="pendingRequest">
+            <title>Pending Request</title>
+        </field>
+    </panel>
+    
+    <panel type="grid"  id="abSpExc2" dataSource="abSpExcDs2">
+        <title translatable="true">Employee Exceptions</title>
+    </panel>
+    
+    <panel type="grid"  id="abSpExc3" dataSource="abSpExcDs3">
+        <title translatable="true">Employee Exceptions</title>
+    </panel>
+</view>

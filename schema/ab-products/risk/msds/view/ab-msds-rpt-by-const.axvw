@@ -1,0 +1,213 @@
+<view version="2.0">
+    <layout id="main">
+        <north id="north" initialSize="140" split="true"/>
+        <center id="center" initialSize="30%"/>
+        <south id="south" initialSize="40%" />
+    </layout>
+    <js file="ab-msds-rpt-by-const.js" />
+    <js file="ab-msds-common.js" />
+    <title translatable="true">Chemical Constituent Locations</title>
+    <dataSource id="abRiskMsdsRptByConConsoleDs">
+        <table name="msds_chemical" role="main"/> 
+        <table name="msds_data" role="standard"/>
+        <field table="msds_chemical" name="chemical_id"/>
+        <field table="msds_chemical" name="alias"/>
+        <field table="msds_chemical" name="cas_number"/>
+        <field table="msds_chemical" name="un_number"/>
+        <field table="msds_chemical" name="ec_number"/>
+        <field table="msds_chemical" name="icsc_number"/>
+        <field table="msds_chemical" name="rtecs_number"/>
+        <field table="msds_chemical" name="tier2"/>
+        <field table="msds_data" name="ghs_id"/>
+        <field table="msds_data" name="product_name"/>
+        <field table="msds_data" name="chemical_name"/>
+        <field table="msds_data" name="manufacturer_id"/>
+    </dataSource>
+
+    <panel type="console" id="abRiskMsdsRptByConConsole" columns="3" layoutRegion="north" dataSource="abRiskMsdsRptByConConsoleDs" showOnLoad="true">
+        <title translatable="true">Filter</title>
+        <action id="show" mainAction="true">
+            <title translatable="true">Show</title>
+        </action>
+        <action id="clear">
+            <title translatable="true">Clear</title>
+            <command type="clearPanel" panelId="abRiskMsdsRptByConConsole"/>
+        </action>
+        <field table="msds_chemical" name="chemical_id" required="false"/>
+        <field table="msds_chemical" name="un_number"/>
+        <field table="msds_data" name="ghs_id" required="false"/>
+        <field table="msds_chemical" name="alias" dataType="text" showSelectValueAction="false" op="like"/>
+        <field table="msds_chemical" name="ec_number"/>
+        <field table="msds_data" name="product_name" required="false"/>
+        <field table="msds_chemical" name="tier2"/>
+        <field table="msds_chemical" name="icsc_number"/>
+        <field table="msds_data" name="chemical_name" required="false"/>
+        <field table="msds_chemical" name="cas_number"/>
+        <field table="msds_chemical" name="rtecs_number"/>
+        <field id="provider_id" dataType="text" >
+            <title translatable="true">Provider ID</title>
+             <action>
+                <title>...</title>
+                <command 
+                         type="selectValue"
+                         fieldNames="provider_id"
+						 restriction="   company IN (SELECT DISTINCT(preparer_id) FROM msds_data  )  or company IN (SELECT DISTINCT(distributor_id) FROM msds_data  )  or company IN (SELECT DISTINCT(manufacturer_id) FROM msds_data  ) "
+                         selectFieldNames="company.company"
+                         visibleFieldNames="company.company"
+                         applyFilter="false"
+                         >
+                </command>
+            </action> 
+        </field>        
+    </panel>
+    <dataSource id="abRiskMsdsRptByConGridDs">
+        <table name="msds_constituent" role="main"/> 
+        <table name="msds_chemical" role="standard"/> 
+        <table name="msds_data" role="standard"/>
+        <field table="msds_constituent" name="chemical_id"/>
+        <field table="msds_constituent" name="msds_id"/>
+        <field table="msds_constituent" name="pct_high"/>
+        <field table="msds_constituent" name="pct_low"/>
+        <field table="msds_constituent" name="pct_operator"/>
+        <field table="msds_chemical" name="chemical_id"/>
+        <field table="msds_chemical" name="alias"/>
+        <field table="msds_chemical" name="cas_number"/>
+        <field table="msds_chemical" name="un_number"/>
+        <field table="msds_chemical" name="ec_number"/>
+        <field table="msds_chemical" name="icsc_number"/>
+        <field table="msds_chemical" name="rtecs_number"/>
+        <field table="msds_chemical" name="tier2"/>
+        <field table="msds_data" name="msds_id"/>
+        <field table="msds_data" name="ghs_id"/>
+        <field table="msds_data" name="product_name"/>
+        <field table="msds_data" name="chemical_name"/>
+        <field table="msds_data" name="manufacturer_id"/>
+        <field name="concentration" dataType="text" >
+            <sql dialect="generic">(case when msds_constituent.pct_operator = 'R' then msds_constituent.pct_low ${sql.concat} '-' ${sql.concat} pct_high else msds_constituent.pct_operator ${sql.concat} pct_high end)</sql>
+            <sql dialect="sqlserver">(case when msds_constituent.pct_operator = 'R' then cast(msds_constituent.pct_low as varchar) ${sql.concat} '-' ${sql.concat} cast(msds_constituent.pct_high as varchar) else msds_constituent.pct_operator ${sql.concat} cast(msds_constituent.pct_high as varchar) end)</sql>
+        </field>
+        
+    </dataSource>
+    <panel type="grid" layoutRegion="center" id="abRiskMsdsRptByConGrid" dataSource="abRiskMsdsRptByConGridDs" showOnLoad="false">
+        <title translatable="true">Materials and their Constituents</title>
+        <action id="xls">
+            <title translatable="true">XLS</title>
+            <command type="exportPanel" outputType="xls" panelId="abRiskMsdsRptByConGrid" viewName="ab-msds-rpt-by-const.axvw"/>
+        </action>
+        <action id="pdf">
+            <title translatable="true">PDF</title>
+            <command type="exportPanel" outputType="pdf" panelId="abRiskMsdsRptByConGrid" show="false"/>
+        </action>
+        <field table="msds_constituent" name="msds_id" hidden="true"/>
+        <field table="msds_data" name="manufacturer_id" controlType="link">
+             <command type="callFunction" functionName="clickCon"/>
+        </field>
+        <field table="msds_data" name="product_name" controlType="link">
+             <command type="callFunction" functionName="clickCon"/>
+        </field>
+        <field table="msds_constituent" name="chemical_id" controlType="link">
+             <command type="callFunction" functionName="clickCon"/>
+        </field>
+        <field name="concentration" controlType="link">
+            <title translatable="true">Concentration</title>
+            <command type="callFunction" functionName="clickCon"/>
+        </field>
+        <field table="msds_chemical" name="cas_number" controlType="link">
+             <command type="callFunction" functionName="clickCon"/>
+        </field>
+        <field table="msds_chemical" name="tier2" controlType="link">
+             <command type="callFunction" functionName="clickCon"/>
+        </field>
+    </panel>
+    <dataSource id="abRiskMsdsRptByConGridLocDs">
+        <table name="msds_location" role="main"/>
+        <table name="msds_constituent" role="standard"/> 
+        <field table="msds_location" name="auto_number"/>
+        <field table="msds_location" name="bl_id"/>
+        <field table="msds_location" name="fl_id"/>
+        <field table="msds_location" name="rm_id"/>
+        <field table="msds_location" name="aisle_id"/>
+        <field table="msds_location" name="cabinet_id"/>
+        <field table="msds_location" name="shelf_id"/>
+        <field table="msds_location" name="bin_id"/>
+        <field table="msds_location" name="container_code"/>
+        <field table="msds_location" name="eq_id"/>
+        <field table="msds_location" name="quantity"/>
+        <field table="msds_location" name="quantity_units"/>
+        <field table="msds_location" name="quantity_units_type"/>
+        <field table="msds_location" name="container_type"/>
+        <field table="msds_location" name="num_containers"/>
+        <field table="msds_location" name="msds_id"/>
+        <field table="msds_location" name="temperature"/>
+        <field table="msds_location" name="temperature_units"/>
+        <field table="msds_location" name="pressure"/>
+        <field table="msds_location" name="pressure_units"/>
+        <field table="msds_constituent" name="chemical_id"/>
+    </dataSource>
+    <panel type="grid" layoutRegion="south" id="abRiskMsdsRptByConGridLoc" dataSource="abRiskMsdsRptByConGridLocDs" showOnLoad="false">
+        <title translatable="true">Constituent Locations</title>
+        <action id="xls">
+            <title translatable="true">XLS</title>
+            <command type="exportPanel" outputType="xls" panelId="abRiskMsdsRptByConGridLoc" viewName="ab-msds-rpt-by-const.axvw"/>
+        </action>
+        <action id="pdf">
+            <title translatable="true">PDF</title>
+            <command type="exportPanel" outputType="pdf" panelId="abRiskMsdsRptByConGridLoc" viewName="ab-msds-rpt-by-const.axvw"/>
+        </action>
+        <field table="msds_constituent" name="chemical_id"/>
+        <field table="msds_location" name="auto_number" hidden="true"/>
+        <field table="msds_location" name="bl_id" controlType="link">
+            <command type="openDialog" viewName="ab-msds-rpt-inv-loc-detail.axvw"/>
+        </field>
+        <field table="msds_location" name="fl_id" controlType="link">
+            <command type="openDialog" viewName="ab-msds-rpt-inv-loc-detail.axvw"/>
+        </field>
+        <field table="msds_location" name="rm_id" controlType="link">
+            <command type="openDialog" viewName="ab-msds-rpt-inv-loc-detail.axvw"/>
+        </field>
+        <field table="msds_location" name="aisle_id" controlType="link">
+            <command type="openDialog" viewName="ab-msds-rpt-inv-loc-detail.axvw"/>
+        </field>
+        <field table="msds_location" name="cabinet_id" controlType="link">
+            <command type="openDialog" viewName="ab-msds-rpt-inv-loc-detail.axvw"/>
+        </field>
+        <field table="msds_location" name="shelf_id" controlType="link">
+            <command type="openDialog" viewName="ab-msds-rpt-inv-loc-detail.axvw"/>
+        </field>
+        <field table="msds_location" name="bin_id" controlType="link">
+            <command type="openDialog" viewName="ab-msds-rpt-inv-loc-detail.axvw"/>
+        </field>
+        <field table="msds_location" name="container_code" controlType="link">
+            <command type="openDialog" viewName="ab-msds-rpt-inv-loc-detail.axvw"/>
+        </field>
+        <field table="msds_location" name="eq_id" controlType="link">
+            <command type="openDialog" viewName="ab-msds-rpt-inv-loc-detail.axvw"/>
+        </field>
+        <field table="msds_location" name="quantity" controlType="link">
+            <title translatable="true">Product Quantity</title>
+            <command type="openDialog" viewName="ab-msds-rpt-inv-loc-detail.axvw"/>
+        </field>
+        <field table="msds_location" name="quantity_units" controlType="link">
+            <command type="openDialog" viewName="ab-msds-rpt-inv-loc-detail.axvw"/>
+        </field>
+        
+        <field table="msds_location" name="container_type" controlType="link">
+            <command type="openDialog" viewName="ab-msds-rpt-inv-loc-detail.axvw"/>
+        </field>
+        <field table="msds_location" name="num_containers" controlType="link">
+            <command type="openDialog" viewName="ab-msds-rpt-inv-loc-detail.axvw"/>
+        </field>
+        <field table="msds_location" name="temperature" controlType="link">
+            <command type="openDialog" viewName="ab-msds-rpt-inv-loc-detail.axvw"/>
+        </field>
+        <field table="msds_location" name="temperature_units" controlType="link">
+            <command type="openDialog" viewName="ab-msds-rpt-inv-loc-detail.axvw"/>
+        </field>
+        <field table="msds_location" name="pressure" controlType="link">
+            <command type="openDialog" viewName="ab-msds-rpt-inv-loc-detail.axvw"/>
+        </field>
+        <field table="msds_location" name="pressure_units" controlType="link">
+            <command type="openDialog" viewName="ab-msds-rpt-inv-loc-detail.axvw"/>
+        </field>
+    </panel>
+</view>

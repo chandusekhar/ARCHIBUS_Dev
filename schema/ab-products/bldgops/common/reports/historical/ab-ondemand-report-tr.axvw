@@ -1,0 +1,103 @@
+<view version="2.0">
+	<layout file="console-small.axvw" />
+	<js file="ab-ondemand-report-common.js" />
+	<js file="ab-ondemand-report-tr.js" />
+	<js file="ab-bldgops-report-common.js" />
+	<js file="ab-ondemand-report-cost-common.js" />
+	
+	<dataSource id="afmScmprefDS">
+		<table name="afm_scmpref" />
+		<field name="fiscalyear_startmonth" />
+		<field name="fiscalyear_startday" />
+	</dataSource>
+	
+	<dataSource type="grouping" id="dsYears">
+		<table name="afm_cal_dates" />
+		<field name="year" groupBy="true" dataType="text" formula="year" baseField="afm_cal_dates.cal_date"/>
+		<sortField name="year" ascending="false" />
+	</dataSource>
+
+	<dataSource id="consoleDS">
+		<table name="hwr" role="main" />
+		<field table="hwr" name="tr_id" />
+	</dataSource>
+
+	<dataSource id="crossTableDS" type="grouping">
+		<sql dialect="generic">
+			select hwrtr.wr_id, hwrtr.tr_id, ( select ${sql.yearMonthOf('h1.date_completed')} from hwr ${sql.as} h1 where h1.wr_id=hwrtr.wr_id )  ${sql.as} month
+			from hwrtr where exists ( select 1 from hwr ${sql.as} h1 where h1.wr_id=hwrtr.wr_id and ${sql.yearOf('h1.date_completed')} = ${parameters['year']} )  
+		</sql>
+		<table name="hwr" role="main" />
+
+		<sortField name="tr_id" ascending="true" />
+		<sortField name="month" ascending="true" />
+
+		<field name="tr_id" dataType="text" groupBy="true">
+			<title translatable="true">Trade</title>
+		</field>
+		<field name="month" dataType="text" groupBy="true">
+			<title translatable="true">Month</title>
+		</field>
+		<field name="count_request" formula="count" dataType="number"
+			decimals="0" baseField="hwr.wr_id">
+			<title translatable="true">Number of Requests</title>
+		</field>
+
+        <parameter name="year" dataType="text" value="2000"/>
+	</dataSource>
+
+	<panel type="console" columns="3" id="requestConsole"
+		dataSource="consoleDS" region="north">
+		<title translatable="true">Filter</title>
+		<action id="filter">
+			<title translatable="true">Show</title>
+		</action>
+		<action id="clear">
+			<title translatable="true">Clear</title>
+		</action>
+
+		<field>
+			<title translatable="true">Select Year</title>
+			<html>
+				<table border="0" rules="none" frame="void" cellpadding="1">
+					<tr>
+						<td>
+							<input type="radio" name="cal_year" value="0" checked="true">
+								<span id="hol.cal_year" translatable="true">Calendar Year</span>
+							</input>
+						</td>
+						<td>
+							<select  name="selectYear" id="selectYear">
+							</select>
+						</td>
+					</tr>
+					<tr>
+						<td>
+							<input type="radio" name="cal_year" value="1" >
+								<span id="hol.fiscal_year" translatable="true">Fiscal Year</span>
+							</input>
+						</td>
+					</tr>
+				</table>
+			</html>
+		</field>
+		<field table="hwr" name="tr_id" hidden="true" />
+	</panel>
+
+	<panel id="reportPanel" type="crossTable" dataSource="crossTableDS" showOnLoad="false">
+		<title translatable="true">
+			Archived Work Requests by Trade
+		</title>
+		<action id="showBarChart">
+            <title translatable="true">Bar Chart</title>
+        </action>
+		<action id="exportDOCX">
+			<title translatable="true">XLS</title>
+			<tooltip translatable="true"></tooltip>
+			<command type="exportPanel" outputType="xls" panelId="reportPanel"/>
+		</action>
+		<event type="onClickItem">
+		    <command type="callFunction" functionName="onClickItem"/>
+		</event>
+	</panel>
+</view>

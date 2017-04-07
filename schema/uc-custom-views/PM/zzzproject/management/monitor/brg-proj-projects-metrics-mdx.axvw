@@ -1,0 +1,179 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<afmXmlView>
+
+	<preferences>
+        <viewTitleBar show="false"/>
+    </preferences>
+    <title translatable="true">View Metrics</title>
+
+    <afmTableGroup type="report" format="table" defaultActions="false">
+        <title translatable="true">View Metrics</title>
+	
+        <dataSource>
+            <database>
+                <tables>
+                    <table name="brg_project_view" role="main"/>
+                    <table name="bl" role="standard"/>
+					 <table name="program" role="standard"/>
+                 </tables>
+
+                <sort>
+                    <order>
+                  		<field name="project_id" table="brg_project_view" ascending="true" unique="true"/>
+					</order>
+                </sort>
+			<fields>
+					<field name="project_id" table="brg_project_view"/>
+			</fields>
+
+            </database>
+
+            <mdx>
+			
+				
+                <preferences dimensions="1" format="table">
+				  <query>
+						                    
+              	<sql dialect="generic">
+			SELECT 
+				bl.city_id, bl.state_id, project.site_id, project.bl_id, project.dv_id, project.dp_id,
+				program.program_type, program.program_id, project.project_type, project.project_id, project.is_template,
+				project.proj_mgr, project.status, 
+				(cost_performance_index.budgeted_cost_work_performed - cost_performance_index.actual_cost_of_work_performed) AS cost_variance,
+				cost_performance_index.budgeted_cost_work_performed/scheduled_performance_index.budgeted_cost_work_scheduled AS scheduled_performance_index,
+				(cost_performance_index.budgeted_cost_work_performed - scheduled_performance_index.budgeted_cost_work_scheduled) AS schedule_variance,
+				(activity_aggs.design_tot_est - cost_performance_index.actual_cost_of_work_performed) AS budget_remaining,
+				(activity_aggs.design_tot_est - cost_performance_index.budgeted_cost_work_performed) AS budget_cost_of_work_remaining,
+				cost_performance_index.budgeted_cost_work_performed/cost_performance_index.actual_cost_of_work_performed AS cost_performance_index_value,
+				(CASE WHEN activity_aggs.design_tot_est = 0 THEN 0
+				ELSE (100 * (cost_performance_index.budgeted_cost_work_performed/activity_aggs.design_tot_est)) END) AS pct_complete_by_budget, (CASE WHEN 					activity_aggs.design_tot_est = 0 THEN 0
+				ELSE (100 * (cost_performance_index.actual_cost_of_work_performed/activity_aggs.design_tot_est)) END) AS pct_budget_spent, 									vendor_cost.vendor_actual_cap, owner_cost.owner_actual_cap
+			FROM project 
+				LEFT OUTER JOIN
+				(SELECT project_id,  
+				( CASE WHEN SUM(cost_est_design_cap + cost_est_design_exp) = 0 THEN 1 ELSE SUM(cost_est_design_cap + cost_est_design_exp) END ) AS 							budgeted_cost_work_performed, 
+				( CASE WHEN SUM(cost_act_cap + cost_actual) = 0 THEN 1 ELSE SUM(cost_act_cap + cost_actual) END ) AS actual_cost_of_work_performed 
+				FROM activity_log 
+				WHERE activity_log.status IN ('COMPLETED', 'COMPLETED-V', 'CLOSED') GROUP BY project_id) 
+				AS cost_performance_index 
+				ON project.project_id = cost_performance_index.project_id
+				LEFT OUTER JOIN 
+				(SELECT project_id,  
+				( CASE WHEN SUM(cost_est_design_cap + cost_est_design_exp) = 0 THEN 1 ELSE SUM(cost_est_design_cap + cost_est_design_exp) END )   AS 						budgeted_cost_work_scheduled 
+				FROM activity_log  
+				WHERE activity_log.status IN ('PLANNED','SCHEDULED','IN PROGRESS') GROUP BY project_id) 
+				AS scheduled_performance_index 
+				ON project.project_id = scheduled_performance_index.project_id
+				LEFT OUTER JOIN
+				(SELECT project_id, SUM(cost_est_design_cap) AS design_cap_est, SUM(cost_est_design_exp) AS design_exp_est, 
+				(SUM(cost_est_design_exp) + SUM(cost_est_design_cap)) AS design_tot_est 
+				FROM activity_log GROUP BY project_id )
+				AS activity_aggs 
+				ON project.project_id = activity_aggs.project_id
+				LEFT OUTER JOIN
+				(SELECT project_id, SUM(cost_act_cap + cost_actual) AS owner_actual_cap FROM activity_log 
+				WHERE activity_log.activity_type LIKE 'PROJECT - CHANGE ORDER' AND activity_log.requestor_type LIKE 'Owner' GROUP BY project_id ) 
+				AS owner_cost 
+				ON project.project_id = owner_cost.project_id
+				LEFT OUTER JOIN
+				(SELECT project_id, SUM(cost_act_cap + cost_actual) AS vendor_actual_cap FROM activity_log 
+				WHERE activity_log.activity_type LIKE 'PROJECT - CHANGE ORDER' AND activity_log.requestor_type LIKE 'Vendor' GROUP BY project_id ) 
+				AS vendor_cost 
+				ON project.project_id = vendor_cost.project_id
+				LEFT OUTER JOIN program ON program.program_id = project.program_id
+				LEFT OUTER JOIN bl ON project.bl_id = bl.bl_id
+							
+                        </sql>
+
+	 <sql dialect="oracle">
+		SELECT 
+			bl.city_id, bl.state_id, project.site_id, project.bl_id, project.dv_id, project.dp_id,
+			program.program_type, program.program_id, project.project_type, project.project_id, project.is_template,
+			project.proj_mgr, project.status, 
+			(cost_performance_index.budgeted_cost_work_performed - cost_performance_index.actual_cost_of_work_performed) AS cost_variance,
+			cost_performance_index.budgeted_cost_work_performed/scheduled_performance_index.budgeted_cost_work_scheduled AS scheduled_performance_index,
+			(cost_performance_index.budgeted_cost_work_performed - scheduled_performance_index.budgeted_cost_work_scheduled) AS schedule_variance,
+			(activity_aggs.design_tot_est - cost_performance_index.actual_cost_of_work_performed) AS budget_remaining,
+			(activity_aggs.design_tot_est - cost_performance_index.budgeted_cost_work_performed) AS budget_cost_of_work_remaining,
+			cost_performance_index.budgeted_cost_work_performed/cost_performance_index.actual_cost_of_work_performed AS cost_performance_index_value,
+			(CASE WHEN activity_aggs.design_tot_est = 0 THEN 0
+			ELSE (100 * (cost_performance_index.budgeted_cost_work_performed/activity_aggs.design_tot_est)) END) AS pct_complete_by_budget, (CASE WHEN 					activity_aggs.design_tot_est = 0 THEN 0
+			ELSE (100 * (cost_performance_index.actual_cost_of_work_performed/activity_aggs.design_tot_est)) END) AS pct_budget_spent, vendor_cost.vendor_actual_cap, 				owner_cost.owner_actual_cap
+		FROM project,
+ 			(SELECT project_id,  
+				( CASE WHEN SUM(cost_est_design_cap + cost_est_design_exp) = 0 THEN 1 ELSE SUM(cost_est_design_cap + cost_est_design_exp) END ) AS 							budgeted_cost_work_performed, 
+				( CASE WHEN SUM(cost_act_cap + cost_actual) = 0 THEN 1 ELSE SUM(cost_act_cap + cost_actual) END ) AS actual_cost_of_work_performed 
+			FROM activity_log 
+			WHERE activity_log.status IN ('COMPLETED', 'COMPLETED-V', 'CLOSED') GROUP BY project_id) cost_performance_index, 
+			(SELECT project_id,  
+				( CASE WHEN SUM(cost_est_design_cap + cost_est_design_exp) = 0 THEN 1 ELSE SUM(cost_est_design_cap + cost_est_design_exp) END )   AS 						budgeted_cost_work_scheduled 
+			FROM activity_log  
+			WHERE activity_log.status IN ('PLANNED','SCHEDULED','IN PROGRESS') GROUP BY project_id) scheduled_performance_index, 
+			(SELECT project_id, SUM(cost_est_design_cap) AS design_cap_est, SUM(cost_est_design_exp) AS design_exp_est, 
+				(SUM(cost_est_design_exp) + SUM(cost_est_design_cap)) AS design_tot_est 
+			FROM activity_log GROUP BY project_id ) activity_aggs,
+			(SELECT project_id, SUM(cost_act_cap + cost_actual) AS owner_actual_cap 
+			FROM activity_log 
+			WHERE activity_log.activity_type LIKE 'PROJECT - CHANGE ORDER' AND activity_log.requestor_type LIKE 'Owner' GROUP BY project_id ) owner_cost,
+			(SELECT project_id, SUM(cost_act_cap + cost_actual) AS vendor_actual_cap FROM activity_log 
+			WHERE activity_log.activity_type LIKE 'PROJECT - CHANGE ORDER' AND activity_log.requestor_type LIKE 'Vendor' GROUP BY project_id ) vendor_cost,
+			program,
+			bl   	
+		WHERE 	project.project_id = cost_performance_index.project_id(+) AND
+				project.project_id = scheduled_performance_index.project_id(+) AND 
+				project.project_id = activity_aggs.project_id(+) AND
+				project.project_id = owner_cost.project_id(+) AND
+				project.project_id = vendor_cost.project_id(+) AND 
+				project.program_id = program.program_id(+) AND
+				project.bl_id = bl.bl_id(+)
+	   </sql>
+                        
+                       </query> 
+                    
+            
+                       <dimensions>
+                        <dimension name="Project Name" table="brg_project_view" column="project_id" hasAll="true">
+				<title translatable="true">Project Name</title>
+				<allMemberTitle translatable="true">Project Names</allMemberTitle>
+			</dimension>            
+                      </dimensions>              
+                      
+                       <measures>
+                        <measure name="Cost Variance" aggregator="sum" column="cost_variance" type="calculated">
+				<title translatable="true">Cost Variance</title>
+			</measure>
+                        <measure name="Schedule Variance" aggregator="sum" column="schedule_variance" type="calculated">
+				<title translatable="true">Schedule Variance</title>
+			</measure>
+			<measure name="Budget Remaining" aggregator="sum" column="budget_remaining" type="calculated" >
+				<title translatable="true">Budget Remaining</title>
+			</measure>
+			<measure name="Budgeted Cost of Work Remaining" aggregator="sum" column="budget_cost_of_work_remaining" type="calculated" >
+				<title translatable="true">Budgeted Cost of Work Remaining</title>
+			</measure>
+			<measure name="Cost Performance Index" aggregator="sum" column="cost_performance_index_value" type="calculated" >
+				<title translatable="true">Cost Performance Index</title>
+			</measure>
+			<measure name="Schedule Performance Index" aggregator="sum" column="scheduled_performance_index" type="calculated" >
+				<title translatable="true">Schedule Performance Index</title>
+			</measure>
+			<measure name="% Complete by Budget" aggregator="sum" column="pct_complete_by_budget" type="calculated" >
+				<title translatable="true">% Complete by Budget</title>
+			</measure>
+			<measure name="% Budget Spent" aggregator="sum" column="pct_budget_spent" type="calculated" >
+				<title translatable="true">% Budget Spent</title>
+			</measure>
+			<measure name="Owner Changes" aggregator="sum" column="owner_actual_cap" type="calculated" >
+				<title translatable="true">Owner Changes</title>
+			</measure>
+			<measure name="Vendor Changes" aggregator="sum" column="vendor_actual_cap" type="calculated" >
+				<title translatable="true">Vendor Changes</title>
+			</measure>
+                    </measures>
+
+                </preferences>
+            </mdx>
+        </dataSource>
+    </afmTableGroup>
+		
+</afmXmlView>

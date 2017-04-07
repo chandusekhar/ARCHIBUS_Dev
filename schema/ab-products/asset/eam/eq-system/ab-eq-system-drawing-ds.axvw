@@ -1,0 +1,211 @@
+<view version="2.0">
+    <!-- Drawing actions -->
+    <dataSource id="servedRooms_ds">
+        <sql dialect="generic">
+            SELECT DISTINCT eq_id, bl_id, fl_id, rm_id FROM
+            (SELECT distinct eq.eq_id,eq_rm.bl_id,eq_rm.fl_id,eq_rm.rm_id FROM (SELECT
+                l1.eq_id_master ${sql.as} level1,
+                l1.eq_id_depend ${sql.as} level2,
+                l2.eq_id_depend ${sql.as} level3,
+                l3.eq_id_depend ${sql.as} level4,
+                l4.eq_id_depend ${sql.as} level5,
+                l5.eq_id_depend ${sql.as} level6,
+                l6.eq_id_depend ${sql.as} level7,
+                l7.eq_id_depend ${sql.as} level8,
+                l8.eq_id_depend ${sql.as} level9,
+                l9.eq_id_depend ${sql.as} level10
+            FROM eq_system ${sql.as} l1
+            LEFT JOIN eq_system ${sql.as} l2 ON l1.eq_id_depend=l2.eq_id_master
+            LEFT JOIN eq_system ${sql.as} l3 ON l2.eq_id_depend=l3.eq_id_master
+            LEFT JOIN eq_system ${sql.as} l4 ON l3.eq_id_depend=l4.eq_id_master
+            LEFT JOIN eq_system ${sql.as} l5 ON l4.eq_id_depend=l5.eq_id_master
+            LEFT JOIN eq_system ${sql.as} l6 ON l5.eq_id_depend=l6.eq_id_master
+            LEFT JOIN eq_system ${sql.as} l7 ON l6.eq_id_depend=l7.eq_id_master
+            LEFT JOIN eq_system ${sql.as} l8 ON l7.eq_id_depend=l8.eq_id_master
+            LEFT JOIN eq_system ${sql.as} l9 ON l8.eq_id_depend=l9.eq_id_master
+            ) ${sql.as} eqs INNER JOIN eq ON eq.eq_id=level2 OR eq.eq_id=level3 OR eq.eq_id=level4 OR eq.eq_id=level5 OR eq.eq_id=level6 OR eq.eq_id=level7 OR eq.eq_id=level8 OR eq.eq_id=level9 OR eq.eq_id=level10
+            LEFT JOIN eq_rm ON eq.eq_id=eq_rm.eq_id
+            WHERE (${parameters['levelRestriction']} OR ${parameters['eqRestriction']}) AND eq_rm.fl_id IS NOT NULL
+            UNION
+            SELECT eq.eq_id,eq_rm.bl_id,eq_rm.fl_id,eq_rm.rm_id
+            FROM eq LEFT JOIN eq_rm ON eq.eq_id=eq_rm.eq_id
+            WHERE NOT EXISTS (SELECT 1 FROM eq_system where eq_id_master=eq.eq_id AND eq_id_depend=eq.eq_id) AND ${parameters['eqRestriction']}) ${sql.as} A
+        </sql>
+        <table name="eq"/>
+        <field name="eq_id" dataType="text"/>
+        <field name="bl_id" dataType="text"/>
+        <field name="fl_id" dataType="text"/>
+        <field name="rm_id" dataType="text"/>
+        <parameter name="levelRestriction" dataType="verbatim" value="1=1"/>
+        <parameter name="eqRestriction" dataType="verbatim" value="1=1"/>
+    </dataSource>
+    <dataSource id="traceDepend_ds">
+        <sql dialect="generic">
+            SELECT
+                l1.eq_id_master ${sql.as} level1, l1.eq_id_depend ${sql.as} level2,
+                l2.eq_id_depend ${sql.as} level3,
+                l3.eq_id_depend ${sql.as} level4,
+                l4.eq_id_depend ${sql.as} level5,
+                l5.eq_id_depend ${sql.as} level6,
+                l6.eq_id_depend ${sql.as} level7,
+                l7.eq_id_depend ${sql.as} level8,
+                l8.eq_id_depend ${sql.as} level9,
+                l9.eq_id_depend ${sql.as} level10
+            FROM eq_system ${sql.as} l1
+            LEFT JOIN eq_system ${sql.as} l2 ON l1.eq_id_depend=l2.eq_id_master
+            LEFT JOIN eq_system ${sql.as} l3 ON l2.eq_id_depend=l3.eq_id_master
+            LEFT JOIN eq_system ${sql.as} l4 ON l3.eq_id_depend=l4.eq_id_master
+            LEFT JOIN eq_system ${sql.as} l5 ON l4.eq_id_depend=l5.eq_id_master
+            LEFT JOIN eq_system ${sql.as} l6 ON l5.eq_id_depend=l6.eq_id_master
+            LEFT JOIN eq_system ${sql.as} l7 ON l6.eq_id_depend=l7.eq_id_master
+            LEFT JOIN eq_system ${sql.as} l8 ON l7.eq_id_depend=l8.eq_id_master
+            LEFT JOIN eq_system ${sql.as} l9 ON l8.eq_id_depend=l9.eq_id_master
+            WHERE l1.eq_id_master = '${parameters['eqDependId']}' AND (l1.eq_id_master != l1.eq_id_depend)
+        </sql>
+        <table name="eq_system"/>
+        <field name="level1" dataType="text"/>
+        <field name="level2" dataType="text"/>
+        <field name="level3" dataType="text"/>
+        <field name="level4" dataType="text"/>
+        <field name="level5" dataType="text"/>
+        <field name="level6" dataType="text"/>
+        <field name="level7" dataType="text"/>
+        <field name="level8" dataType="text"/>
+        <field name="level9" dataType="text"/>
+        <field name="level10" dataType="text"/>
+        <parameter name="eqDependId" dataType="verbatim" value=""/>
+    </dataSource>
+    <dataSource id="traceDependency_ds">
+        <sql dialect="generic">
+            SELECT DISTINCT *FROM
+            (SELECT
+                l1.eq_id_master ${sql.as} level1,
+                l1.eq_id_depend ${sql.as} level2,
+                (CASE WHEN l2.eq_id_master = '${parameters['eqDependId']}' THEN NULL ELSE l2.eq_id_depend END) ${sql.as} level3,
+                (CASE WHEN l2.eq_id_master = '${parameters['eqDependId']}' OR l3.eq_id_master = '${parameters['eqDependId']}' THEN NULL ELSE l3.eq_id_depend END) ${sql.as} level4,
+                (CASE WHEN l2.eq_id_master = '${parameters['eqDependId']}' OR l3.eq_id_master = '${parameters['eqDependId']}' OR l4.eq_id_master = '${parameters['eqDependId']}' THEN NULL ELSE l4.eq_id_depend END) ${sql.as} level5,
+                (CASE WHEN l2.eq_id_master = '${parameters['eqDependId']}' OR l3.eq_id_master = '${parameters['eqDependId']}' OR l4.eq_id_master = '${parameters['eqDependId']}' OR l5.eq_id_master = '${parameters['eqDependId']}' THEN NULL ELSE l5.eq_id_depend END) ${sql.as} level6,
+                (CASE WHEN l2.eq_id_master = '${parameters['eqDependId']}' OR l3.eq_id_master = '${parameters['eqDependId']}' OR l4.eq_id_master = '${parameters['eqDependId']}' OR l5.eq_id_master = '${parameters['eqDependId']}' OR l6.eq_id_master = '${parameters['eqDependId']}' THEN NULL ELSE l6.eq_id_depend END) ${sql.as} level7,
+                (CASE WHEN l2.eq_id_master = '${parameters['eqDependId']}' OR l3.eq_id_master = '${parameters['eqDependId']}' OR l4.eq_id_master = '${parameters['eqDependId']}' OR l5.eq_id_master = '${parameters['eqDependId']}' OR l6.eq_id_master = '${parameters['eqDependId']}' OR l7.eq_id_master = '${parameters['eqDependId']}' THEN NULL ELSE l7.eq_id_depend END) ${sql.as} level8,
+                (CASE WHEN l2.eq_id_master = '${parameters['eqDependId']}' OR l3.eq_id_master = '${parameters['eqDependId']}' OR l4.eq_id_master = '${parameters['eqDependId']}' OR l5.eq_id_master = '${parameters['eqDependId']}' OR l6.eq_id_master = '${parameters['eqDependId']}' OR l7.eq_id_master = '${parameters['eqDependId']}' OR l8.eq_id_master = '${parameters['eqDependId']}' THEN NULL ELSE l8.eq_id_depend END) ${sql.as} level9,
+                (CASE WHEN l2.eq_id_master = '${parameters['eqDependId']}' OR l3.eq_id_master = '${parameters['eqDependId']}' OR l4.eq_id_master = '${parameters['eqDependId']}' OR l5.eq_id_master = '${parameters['eqDependId']}' OR l6.eq_id_master = '${parameters['eqDependId']}' OR l7.eq_id_master = '${parameters['eqDependId']}' OR l8.eq_id_master = '${parameters['eqDependId']}' OR l9.eq_id_master = '${parameters['eqDependId']}' THEN NULL ELSE l9.eq_id_depend END) ${sql.as} level10
+                FROM eq_system ${sql.as} l1
+                INNER JOIN eq ${sql.as} eq1 ON l1.eq_id_depend=eq1.eq_id
+                    LEFT JOIN eq_system ${sql.as} l2 ON l1.eq_id_depend=l2.eq_id_master
+                    LEFT JOIN eq_system ${sql.as} l3 ON l2.eq_id_depend=l3.eq_id_master
+                    LEFT JOIN eq_system ${sql.as} l4 ON l3.eq_id_depend=l4.eq_id_master
+                    LEFT JOIN eq_system ${sql.as} l5 ON l4.eq_id_depend=l5.eq_id_master
+                    LEFT JOIN eq_system ${sql.as} l6 ON l5.eq_id_depend=l6.eq_id_master
+                    LEFT JOIN eq_system ${sql.as} l7 ON l6.eq_id_depend=l7.eq_id_master
+                    LEFT JOIN eq_system ${sql.as} l8 ON l7.eq_id_depend=l8.eq_id_master
+                    LEFT JOIN eq_system ${sql.as} l9 ON l8.eq_id_depend=l9.eq_id_master
+                WHERE
+                (l1.eq_id_depend = '${parameters['eqDependId']}' OR l2.eq_id_depend = '${parameters['eqDependId']}' OR l3.eq_id_depend = '${parameters['eqDependId']}' OR l4.eq_id_depend = '${parameters['eqDependId']}' OR l5.eq_id_depend = '${parameters['eqDependId']}'
+                OR l6.eq_id_depend = '${parameters['eqDependId']}' OR l7.eq_id_depend = '${parameters['eqDependId']}' OR l8.eq_id_depend = '${parameters['eqDependId']}' OR l9.eq_id_depend = '${parameters['eqDependId']}')
+                AND l1.eq_id_master != l1.eq_id_depend
+                AND l1.eq_id_master IN (SELECT eq_id_master FROM eq_system WHERE eq_id_master=eq_id_depend)
+            ) ${sql.as} eq_system
+        </sql>
+        <table name="eq_system"/>
+        <field name="level1" dataType="text"/>
+        <field name="level2" dataType="text"/>
+        <field name="level3" dataType="text"/>
+        <field name="level4" dataType="text"/>
+        <field name="level5" dataType="text"/>
+        <field name="level6" dataType="text"/>
+        <field name="level7" dataType="text"/>
+        <field name="level8" dataType="text"/>
+        <field name="level9" dataType="text"/>
+        <field name="level10" dataType="text"/>
+        <parameter name="eqDependId" dataType="verbatim" value=""/>
+    </dataSource>
+    <dataSource id="abEqRm_ds">
+        <table name="eq_rm"/>
+        <field name="eq_id"/>
+        <field name="bl_fl_rm"/>
+        <field name="bl_id"/>
+        <field name="fl_id"/>
+        <field name="rm_id"/>
+    </dataSource>
+    <!-- Drawing tool-tip labels -->
+    <dataSource id="label_rm_ds">
+        <title>Room Standards</title>
+        <table name="rm"/>
+        <field name="bl_id" hidden="true"/>
+        <field name="fl_id" hidden="true"/>
+        <field name="rm_id"/>
+        <field name="rm_std"/>
+    </dataSource>
+    <dataSource id="label_eq_ds">
+        <title>Equipment Names</title>
+        <table name="eq"/>
+        <field name="eq_id"/>
+        <field name="eq_std"/>
+    </dataSource>
+    <dataSource id="label_jk_ds">
+        <title>Jack Names</title>
+        <table name="jk"/>
+        <field name="jk_id"/>
+        <field name="jk_std"/>
+    </dataSource>
+    <dataSource id="label_fp_ds">
+        <title>Faceplate Names</title>
+        <table name="fp"/>
+        <field name="fp_id"/>
+        <field name="fp_std"/>
+    </dataSource>
+    <dataSource id="label_pn_ds">
+        <title>Patch Panels Names</title>
+        <table name="pn"/>
+        <field name="pn_id"/>
+        <field name="pn_std"/>
+    </dataSource>
+    <!-- Labels Data Sources -->
+    <dataSource id="labelCategoriesDs" type="DrawingControlLabels">
+        <title>Room Categories</title>
+        <table name="rm" role="main"/>
+        <field name="bl_id" hidden="true"/>
+        <field name="fl_id" hidden="true"/>
+        <field name="rm_id"/>
+        <field name="rm_cat"/>
+    </dataSource>
+    <dataSource id="labelSuperCategoriesDs" type="DrawingControlLabels">
+        <title>Room Super Categories</title>
+        <table name="rm" role="main"/>
+        <table name="rmcat" role="standard"/>
+        <field name="bl_id" hidden="true"/>
+        <field name="fl_id" hidden="true"/>
+        <field name="rm_id"/>
+        <field table="rmcat" name="supercat"/>
+    </dataSource>
+    <dataSource id="labelEmployeesDs" type="DrawingControlLabels">
+        <title>Employees</title>
+        <sql dialect="generic">
+            SELECT rm.dwgname, em.em_id ${sql.as} em_id, rm.bl_id ${sql.as} bl_id, rm.fl_id ${sql.as} fl_id, rm.rm_id ${sql.as} rm_id
+            FROM em RIGHT JOIN rm ON em.bl_id = rm.bl_id AND em.fl_id = rm.fl_id AND em.rm_id = rm.rm_id
+        </sql>
+        <table name="rm" role="main"/>
+        <field table="rm" name="bl_id" hidden="true"/>
+        <field table="rm" name="fl_id" hidden="true"/>
+        <field table="rm" name="rm_id"/>
+        <field table="rm" name="em_id" dataType="text"/>
+    </dataSource>
+    <!-- None -->
+    <dataSource id="labelNoneDs" type="DrawingControlLabels">
+        <title>None</title>
+        <table name="rm" role="main"/>
+        <field table="rm" name="bl_id"/>
+        <field table="rm" name="fl_id"/>
+        <field table="rm" name="rm_id"/>
+        <restriction type="sql" sql="rm_id IS NULL"/>
+    </dataSource>
+    <!-- None -->
+    <dataSource id="highlightNoneDs" type="DrawingControlHighlight">
+        <title>None</title>
+        <table name="rm" role="main"/>
+        <field table="rm" name="bl_id"/>
+        <field table="rm" name="fl_id"/>
+        <field table="rm" name="rm_id"/>
+        <restriction type="sql" sql="rm_id IS NULL"/>
+    </dataSource>
+</view>

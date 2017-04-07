@@ -1,0 +1,334 @@
+<view version="2.0">
+    <js url="//js.arcgis.com/3.9/"/>
+    <css url="//js.arcgis.com/3.9/js/esri/css/esri.css" />
+    <js file="ab-arcgis-map.js"/>
+    <css file="ab-arcgis-map.css"/>
+    <js file="ab-arcgis-geocoder.js"/>
+
+	<js file="ab-rplm-gis-map.js"/>
+	<style type="text/css">
+		.x-layer[style]{width: auto !important;}
+	</style>
+	<message name="option_suite_manual_area" translatable="true">Total Suite Manual Area</message>
+	<message name="option_suite_usable_area" translatable="true">Total Suite Usable Area</message>
+	<message name="option_others_manual_area" translatable="true">Total Leased Out Area (Suite Manual Area)</message>
+	<message name="option_others_usable_area" translatable="true">Total Leased Out Area (Suite Usable Area)</message>
+	<message name="option_purchasing_cost" translatable="true">Purchasing Cost</message>
+	<message name="option_market_value" translatable="true">Market Value</message>
+	<message name="option_manual_area" translatable="true">Total Manual Area</message>
+	<message name="option_cad_area" translatable="true">Total CAD Area</message>
+	<message name="option_book_value" translatable="true">Book Value</message>
+	<message name="option_none" translatable="true">None</message>
+	<message name="status_owned" translatable="true">Owned</message>
+	<message name="status_leased" translatable="true">Leased</message>
+	<message name="status_neither" translatable="true">Neither</message>
+	<message name="status_active" translatable="true">Active</message>
+	<message name="status_inactive" translatable="true">Inactive</message>
+	<message name="not_geocoded" translatable="true">You have selected at least one item that is not geocoded. Non-geocoded items will not be shown on the map.</message>
+	<message name="msg_ie_eight" translatable="true">You are using Interner Explorer 8. Please turn on the Compatibility mode by clicking on Tools : Compatibility View menu</message>
+    <message name="total_suite_manual_area_title" translatable="true">Total Suite Manual Area</message>
+    <message name="total_suite_usable_area_title" translatable="true">Total Suite Usable Area</message>
+    <message name="manual_area_used_by_others_title" translatable="true">Total Leased Out Area (Suite Manual Area)</message>
+    <message name="usable_area_used_by_others_title" translatable="true">Total Leased Out Area (Suite Usable Area)</message>
+    <message name="estimated_area_title" translatable="true">Estimated Area</message>
+	
+    <message name="labelOpenDetails" translatable="true">Open Details</message>
+    
+	<dataSource id="dsGeoBuilding">
+		<table name="bl" role="main"/>
+		<field table="bl" name="bl_id"/>
+		<field table="bl" name="address1"/>
+		<field table="bl" name="city_id"/>
+		<field table="bl" name="state_id"/>
+		<field table="bl" name="ctry_id"/>
+		<field table="bl" name="zip"/>
+		<field table="bl" name="lat"/>
+		<field table="bl" name="lon"/>
+	</dataSource>
+	
+	<dataSource id="dsGeoProperty">
+		<table name="property" role="main"/>
+		<field table="property" name="pr_id"/>
+		<field table="property" name="address1"/>
+		<field table="property" name="city_id"/>
+		<field table="property" name="state_id"/>
+		<field table="property" name="ctry_id"/>
+		<field table="property" name="zip"/>
+		<field table="property" name="lat"/>
+		<field table="property" name="lon"/>
+	</dataSource>
+
+	<dataSource id="dsBuilding">
+		<table name="bl"/>
+		<field table="bl" name="bl_id"/>
+		<field table="bl" name="pr_id"/>
+		<field table="bl" name="name"/>
+		<field name="address" dataType="text">
+			<title translatable="true">Address</title>
+            <sql dialect="generic">
+                ((CASE WHEN address1 IS NULL THEN '' ELSE address1 END)
+                    ${sql.concat}(CASE WHEN address1 IS NULL OR address2 IS NULL THEN '' ELSE ', ' END)
+                    ${sql.concat}(CASE WHEN address2 IS NULL THEN '' ELSE address2 END))
+            </sql>
+		</field>
+		<field name="total_suite_manual_area" dataType="number" size="10" decimals="0" numericFormat="area">
+			<sql dialect="generic">(SELECT COALESCE(SUM(su.area_manual), 0) FROM su WHERE su.bl_id = bl.bl_id)</sql>
+		</field>
+		<field name="total_suite_usable_area" dataType="number" size="10" decimals="0" numericFormat="area">
+			<sql dialect="generic">(SELECT COALESCE(SUM(su.area_usable), 0) FROM su WHERE su.bl_id = bl.bl_id)</sql>
+		</field>
+		<field name="manual_area_used_by_others" dataType="number" size="10" decimals="0" numericFormat="area">
+			<sql dialect="generic">
+				(SELECT COALESCE(SUM(su.area_manual), 0) FROM su, ls WHERE su.ls_id = ls.ls_id AND ls.bl_id = bl.bl_id
+					AND ls.landlord_tenant = 'LANDLORD' AND ls.signed = 1 AND ls.date_end &gt; ${sql.currentDate}
+					AND ls.date_start &lt; ${sql.currentDate})
+			</sql>
+		</field>
+		<field name="usable_area_used_by_others" dataType="number" size="10" decimals="0" numericFormat="area">
+			<sql dialect="generic">
+				(SELECT COALESCE(SUM(su.area_usable), 0) FROM su, ls WHERE su.ls_id = ls.ls_id AND ls.bl_id = bl.bl_id
+					AND ls.landlord_tenant = 'LANDLORD' AND ls.signed = 1 AND ls.date_end &gt; ${sql.currentDate}
+					AND ls.date_start &lt; ${sql.currentDate})
+			</sql>
+		</field>
+		<field name="leases_number" dataType="number" size="10" decimals="0">
+			<title translatable="true">Number of leases and subleases</title>
+			<sql dialect="generic">
+				(SELECT COUNT(*) FROM ls WHERE ls.bl_id = bl.bl_id AND ls.signed = 1 AND ls.date_end &gt; ${sql.currentDate}
+					AND ls.date_start &lt; ${sql.currentDate})
+			</sql>
+		</field>
+		<field name="purchasing_cost" dataType="number" size="12" decimals="2" currency="${user.userCurrency.code}">
+			<title translatable="true">Purchasing Cost</title>
+			<sql dialect="generic">
+				COALESCE((SELECT ot.cost_purchase * ${sql.exchangeRateFromBudgetToUserForDate('Budget', 'ot.date_purchase')} FROM ot WHERE ot.ot_id = (SELECT MAX(b.ot_id) FROM ot b WHERE b.bl_id = bl.bl_id AND b.status = 'Owned') ), 0)
+			</sql>
+		</field>
+		<field name="value_book" dataType="number" size="12" decimals="2" currency="${user.userCurrency.code}">
+            <sql dialect="generic">
+                (bl.value_book * ${sql.exchangeRateFromBudgetToUserForDate('Budget', 'bl.date_book_val')})
+            </sql>
+        </field>
+		<field name="value_market" dataType="number" size="12" decimals="2" currency="${user.userCurrency.code}">
+             <sql dialect="generic">
+                (bl.value_market * ${sql.exchangeRateFromBudgetToUserForDate('Budget', 'bl.date_market_val')})
+            </sql>
+        </field>
+		<field table="bl" name="lat"/>
+		<field table="bl" name="lon"/>
+		<field table="bl" name="zip"/>
+		<field table="bl" name="city_id"/>
+		<field table="bl" name="ctry_id"/>
+		<field table="bl" name="regn_id"/>
+		<field table="bl" name="state_id"/>
+	</dataSource>
+	<dataSource id="dsProperty">
+		<table name="property"/>
+		<field table="property" name="pr_id"/>
+		<field table="property" name="name"/>
+		<field name="address" dataType="text">
+			<title translatable="true">Address</title>
+			<sql dialect="generic">
+                ((CASE WHEN address1 IS NULL THEN '' ELSE address1 END)
+                    ${sql.concat}(CASE WHEN address1 IS NULL OR address2 IS NULL THEN '' ELSE ', ' END)
+                    ${sql.concat}(CASE WHEN address2 IS NULL THEN '' ELSE address2 END))
+            </sql>
+            
+		</field>
+		<field table="property" name="lat"/>
+		<field table="property" name="lon"/>
+		<field table="property" name="area_manual"/>
+		<field table="property" name="area_cad"/>
+		<field name="leases_number" dataType="number" size="10" decimals="0">
+			<title translatable="true">Number of leases and subleases</title>
+			<sql dialect="generic">
+				(SELECT COUNT(*) FROM ls WHERE ls.pr_id = property.pr_id AND ls.signed = 1 AND ls.date_end &gt; ${sql.currentDate}
+                    AND ls.date_start &lt; ${sql.currentDate})
+			</sql>
+		</field>
+		<field name="purchasing_cost" dataType="number" size="12" decimals="2" currency="${user.userCurrency.code}">
+			<title translatable="true">Purchasing Cost</title>
+			<sql dialect="generic">
+				COALESCE((select ot.cost_purchase * ${sql.exchangeRateFromBudgetToUserForDate('Budget', 'ot.date_purchase')} from ot where ot.ot_id = (select max(b.ot_id) from ot b where b.pr_id = property.pr_id and b.status = 'Owned') ), 0) 
+			</sql>
+		</field>
+        <field name="value_book" dataType="number" size="12" decimals="2" currency="${user.userCurrency.code}">
+            <sql dialect="generic">
+                (property.value_book * ${sql.exchangeRateFromBudgetToUserForDate('Budget', 'property.date_book_val')})
+            </sql>
+        </field>
+        <field name="value_market" dataType="number" size="12" decimals="2" currency="${user.userCurrency.code}">
+             <sql dialect="generic">
+                (property.value_market * ${sql.exchangeRateFromBudgetToUserForDate('Budget', 'property.date_market_val')})
+            </sql>
+        </field>
+		<field table="property" name="city_id"/>
+		<field table="property" name="ctry_id"/>
+		<field table="property" name="regn_id"/>
+		<field table="property" name="state_id"/>
+	</dataSource>
+	<dataSource id="dsLease">
+		<sql dialect="generic">
+			select
+				ls.ls_id as ls_id,
+				(select SUM(CASE WHEN su.area_usable = 0 THEN su.area_manual ELSE su.area_usable END ) from su where su.ls_id = ls.ls_id) as estimated_area,
+				ls.landlord_tenant as landlord_tenant,
+			    (case 
+			        when exists(select 1 from ot where ot.bl_id = ls.bl_id and ot.status = 'Owned') 
+			            then ${parameters['status_owned']}
+					when exists(select 1 from ls x where x.bl_id = ls.bl_id and x.signed = 1 and x.date_end &gt; ${sql.currentDate} and x.date_start &lt; ${sql.currentDate} )
+						 then ${parameters['status_leased']}
+			        else ${parameters['status_neither']}
+			    end) as item_status,	
+				(case when ls.signed = 1 and (ls.date_end &gt;= ${sql.currentDate} OR ls.date_end IS NULL) and ls.date_start &lt;= ${sql.currentDate} 
+						then ${parameters['status_active']}
+				else ${parameters['status_inactive']}
+				end	) as status,
+				(select bl.lat from bl where bl.bl_id = ls.bl_id) as lat,
+				(select bl.lon from bl where bl.bl_id = ls.bl_id) as lon,
+				(select bl.city_id from bl where bl.bl_id = ls.bl_id) as city_id,
+				(select bl.ctry_id from bl where bl.bl_id = ls.bl_id) as ctry_id,
+				(select bl.regn_id from bl where bl.bl_id = ls.bl_id) as regn_id,
+				(select bl.state_id from bl where bl.bl_id = ls.bl_id) as state_id,
+                bl_id
+			from ls
+			where ls.ls_id = ${parameters['item']} and ls.bl_id =  ${parameters['parent']}  and ls.use_as_template = 0
+			
+            UNION
+			
+            select
+				ls.ls_id as ls_id,
+				(select SUM(CASE WHEN property.area_cad = 0 THEN property.area_manual ELSE property.area_cad END ) from property where property.pr_id = ls.pr_id) as estimated_area,
+				ls.landlord_tenant as landlord_tenant,
+			    (case 
+			        when exists(select 1 from ot where ot.pr_id = ls.pr_id and ot.status = 'Owned') 
+			            then ${parameters['status_owned']}
+					when exists(select 1 from ls x where x.pr_id = ls.pr_id and x.signed = 1 and x.date_end &gt; ${sql.currentDate} and x.date_start &lt; ${sql.currentDate} )
+						 then ${parameters['status_leased']}
+			        else ${parameters['status_neither']}
+			    end) as item_status,	
+				(case when ls.signed = 1 and (ls.date_end &gt;= ${sql.currentDate} OR ls.date_end IS NULL) and ls.date_start &lt;= ${sql.currentDate}
+						then ${parameters['status_active']}
+				else ${parameters['status_inactive']}
+				end	) as status,			
+				(select property.lat from property where property.pr_id = ls.pr_id) as lat,
+				(select property.lon from property where property.pr_id = ls.pr_id) as lon,
+				(select property.city_id from property where property.pr_id = ls.pr_id) as city_id,
+				(select property.ctry_id from property where property.pr_id = ls.pr_id) as ctry_id,
+				(select property.regn_id from property where property.pr_id = ls.pr_id) as regn_id,
+				(select property.state_id from property where property.pr_id = ls.pr_id) as state_id,
+                bl_id
+			from ls
+			where ls.ls_id = ${parameters['item']} and ls.pr_id =  ${parameters['parent']} and ls.use_as_template = 0
+		</sql>
+		<table name="ls" role="main"/>
+		<field table="ls" name="ls_id" dataType="text"/>
+		<field name="estimated_area" dataType="number" size="10" decimals="0" numericFormat="area"/>
+		<field table="ls" name="landlord_tenant" dataType="text"/>
+		<field name="item_status" dataType="text">
+			<title translatable="true">Portfolio Item Status</title>
+		</field>
+		<field name="status" dataType="text">
+			<title translatable="true">Lease Status</title>
+		</field>
+		<field table="ls" name="lat" dataType="number" size="24" decimals="16"/>
+		<field table="ls" name="lon" dataType="number" size="24" decimals="16"/>
+		<field name="city_id" dataType="text"/>
+		<field name="ctry_id" dataType="text"/>
+		<field name="regn_id" dataType="text"/>
+		<field name="state_id" dataType="text"/>
+		<parameter name="item" dataType="text" value=""/>
+		<parameter name="parent" dataType="text" value=""/>
+		<parameter name="status_owned" dataType="text" value=""/>
+		<parameter name="status_leased" dataType="text" value=""/>
+		<parameter name="status_neither" dataType="text" value=""/>
+		<parameter name="status_active" dataType="text" value=""/>
+		<parameter name="status_inactive" dataType="text" value=""/>
+	</dataSource>
+	<panel type="html" id="htmlMap">
+         <action id="geocode">
+            <title translatable="true">Geocode</title>
+            <tooltip>Calculate coordinates from address.</tooltip>
+            <html>
+              <input id="geocode" class="selectValue_AbActionButtonFormStdWidth" width="80%" value="" type="button"/>
+           </html>
+        </action> 
+		<action id="basemapLayerMenu" type="menu" imageName="/schema/ab-core/graphics/icons/view/ab-arcgis-basemap-16.png">
+        </action>    
+        <action id="referenceLayerMenu" type="menu" imageName="/schema/ab-core/graphics/icons/view/ab-arcgis-layers-16.png">
+          <title translatable="true">Layers</title>
+        </action>
+        <action id="showESRILegend" imageName="/schema/ab-core/graphics/icons/view/ab-arcgis-legend-16.png">
+          <title translatable="true">Legend</title>
+        </action>   
+		<action id="highlight">
+			<title translatable="true">Highlight by ...</title>
+			<command type="openDialog" panelId="htmlHighlight" width="400" height="300" closeButton="false"/>    
+			<command type="callFunction" functionName="setHighlightPanel" />   
+		</action>
+		<action id="reports">
+			<title translatable="true">Reports</title>
+		</action>
+		<instructions>&#160;</instructions>
+	    <html>    
+	      	<div id="objMap"> </div>
+	    </html>
+	</panel>
+	<panel type="html" id="htmlHighlight" showOnLoad="false" hidden="true">
+		<title translatable="true">Highlight by:</title>
+		<action id="apply">
+			<title translatable="true">Apply</title>
+		</action>
+		<action id="cancel">
+			<title translatable="true">Cancel</title>
+		</action>
+		<action id="close">
+			<title translatable="true">Close</title>
+			<command type="closeDialog"/>
+		</action>
+		<html>
+			<table class="panel" id="highlight_body">
+				<tr class="space">
+					<td class="formTopSpace" colspan="3">&#160;</td>
+				</tr>
+				<tr>
+					<td>
+						<input type="radio" id="radioHighlight" name="radioHighlight" value="option_suite_manual_area">
+							<span id="span_option_suite_manual_area"></span>
+						</input><br/>
+						<input type="radio" id="radioHighlight" name="radioHighlight" value="option_suite_usable_area">
+							<span id="span_option_suite_usable_area"></span>
+						</input><br/>
+						<input type="radio" id="radioHighlight" name="radioHighlight" value="option_others_manual_area">
+							<span id="span_option_others_manual_area"></span>
+						</input><br/>
+						<input type="radio" id="radioHighlight" name="radioHighlight" value="option_others_usable_area">
+							<span id="span_option_others_usable_area"></span>
+						</input><br/>
+						<input type="radio" id="radioHighlight" name="radioHighlight" value="option_purchasing_cost">
+							<span id="span_option_purchasing_cost"></span>
+						</input><br/>
+						<input type="radio" id="radioHighlight" name="radioHighlight" value="option_market_value">
+							<span id="span_option_market_value"></span>
+						</input><br/>
+						<input type="radio" id="radioHighlight" name="radioHighlight" value="option_book_value">
+							<span id="span_option_book_value"></span>
+						</input><br/>
+						<input type="radio" id="radioHighlight" name="radioHighlight" value="option_manual_area">
+							<span id="span_option_manual_area"></span>
+						</input><br/>
+						<input type="radio" id="radioHighlight" name="radioHighlight" value="option_cad_area">
+							<span id="span_option_cad_area"></span>
+						</input><br/>
+						<input type="radio" id="radioHighlight" name="radioHighlight" value="option_none">
+							<span id="span_option_none"></span>
+						</input>
+					</td>
+				</tr>
+				<tr class="space">
+					<td colspan="3" class="formBottomSpace">&#160;</td>
+				</tr>
+			</table>
+		</html>
+	</panel>
+</view>

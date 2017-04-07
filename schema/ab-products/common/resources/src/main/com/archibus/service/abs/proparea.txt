@@ -1,0 +1,276 @@
+/**************************************************************
+'proparea.abs
+'03.14.97
+' Property Area Calculations
+
+11.15.02 JH - Changed 'NON-PERMIABLE' to 'NON-PERMEABLE' in Sub UpdatePrAreasFromRunOffAreas() 
+            so that value matches the db.
+***************************************************************/
+
+Option Explicit
+
+'---- External Functions
+Declare Function SqlFunc_SQLIsNull() As String
+Declare Sub ciup_calc_GrossVertServ()
+Declare Sub ciup_calc_all_gp()
+Declare Sub ciup_calc_all_rm()
+Declare Sub arup_calc_all()
+
+
+'---- Views called
+Declare Sub propab()
+
+
+'---- Internal Functions
+Declare Sub proparea_UpdateBlAndPrAreas()
+Declare Sub UpdateBlAndPrAreas()
+Declare Sub RunSpaceModCalcsToUpdateBldgAreas()
+Declare Sub SummarizeSuiteAreas()
+Declare Sub UpdateBldgAreasFromLeases()
+Declare Sub UpdatePrAreasFromBuildings()
+Declare Sub UpdatePrAreasFromLeases()
+Declare Sub UpdatePrAreasFromParcels()
+Declare Sub UpdatePrAreasFromRunOffAreas()
+Declare Sub UpdatePrAreasFromParking()
+Declare Sub UpdatePrSuiteOccupancy()
+
+Private pbDoNotDisplayView As Boolean
+
+'------------------------------------------------------------------------------
+'----                                    TRANSLATE
+Const kPleaseWaitMsg$              = "Please wait ... "
+Const kUpdatingPropAreaTotalsMsg$  = "Updating Property Area Totals"
+Const kSummarizingSuiteAreaTotalsMsg$="Summarizing Suite Area Totals"
+'------------------------------------------------------------------------------
+
+Sub proparea_UpdateBlAndPrAreas()
+    pbDoNotDisplayView = TRUE
+    UpdateBlAndPrAreas
+End Sub
+
+'------------------------------------------------------------------------------
+'---- Updates all Building and Property Areas
+Sub UpdateBlAndPrAreas()
+
+    RunSpaceModCalcsToUpdateBldgAreas
+
+     MsgOpen kUpdatingPropAreaTotalsMsg & BASIC.EOLN$ & BASIC.EOLN$ & _
+             kPleaseWaitMsg, 0, FALSE, TRUE
+
+    UpdateBldgAreasFromLeases
+    MsgSetThermometer 15
+
+    UpdatePrAreasFromBuildings
+    MsgSetThermometer 30
+
+    UpdatePrAreasFromLeases
+    MsgSetThermometer 45
+
+    UpdatePrAreasFromParcels
+    MsgSetThermometer 60
+
+    UpdatePrAreasFromRunOffAreas
+    MsgSetThermometer 75
+
+    UpdatePrAreasFromParking
+    MsgSetThermometer 90
+
+    UpdatePrSuiteOccupancy
+    MsgSetThermometer 100
+
+    Sleep 300
+    MsgClose
+
+    If Not pbDoNotDisplayView Then
+        call propab
+        Avw.Display
+    End If
+
+End Sub
+'------------------------------------------------------------------------------
+
+'------------------------------------------------------------------------------
+'---- Updates only property areas from parcels and runoffareas
+Sub RunOffAndParkingAnalysis()
+
+     MsgOpen kUpdatingPropAreaTotalsMsg & BASIC.EOLN$ & BASIC.EOLN$ & _
+             kPleaseWaitMsg, 0, FALSE, TRUE
+
+    UpdatePrAreasFromParcels
+    MsgSetThermometer 33
+
+    UpdatePrAreasFromRunOffAreas
+    MsgSetThermometer 66
+
+    UpdatePrAreasFromParking
+    MsgSetThermometer 100
+
+    Sleep 300
+    MsgClose
+
+End Sub
+'------------------------------------------------------------------------------
+
+
+'------------------------------------------------------------------------------
+'---- Updates Bldg Areas according to the lease area inventory method used
+Sub RunSpaceModCalcsToUpdateBldgAreas()
+
+    Dim rs As New RecordSet
+    Dim sLeaseAreaMethod As String
+
+    rs.Open "SELECT lease_area_type FROM afm_scmpref"
+    
+    sLeaseAreaMethod = rs.Fields( 0 ).Value
+
+    rs.Close
+
+    Select Case sLeaseAreaMethod
+    Case "su"
+        ciup_calc_GrossVertServ
+        SummarizeSuiteAreas
+    Case "gp"
+        ciup_calc_all_gp
+    Case "cr"
+        ciup_calc_all_rm
+    Case "ar"
+        arup_calc_all
+    End Select
+
+End Sub
+'------------------------------------------------------------------------------
+
+'------------------------------------------------------------------------------
+'---- Updates Building and Floor suite area totals
+Sub SummarizeSuiteAreas()
+
+     MsgOpen kSummarizingSuiteAreaTotalsMsg & BASIC.EOLN$ & BASIC.EOLN$ & _
+             kPleaseWaitMsg, 0, FALSE, TRUE
+    
+     Dim fo As New FieldOperation
+
+     fo.Owner    = "fl"
+     fo.Assigned = "su"
+    fo.Calculate "fl.area_su", "SUM", "su.area_usable"
+     fo.Clear
+    
+    MsgSetThermometer 50
+
+     fo.Owner    = "bl"
+     fo.Assigned = "fl"
+    fo.Calculate "bl.area_su", "SUM", "fl.area_su"
+     fo.Clear
+
+    MsgSetThermometer 100
+
+    MsgClose
+
+End Sub
+'------------------------------------------------------------------------------
+
+'------------------------------------------------------------------------------
+Sub UpdateBldgAreasFromLeases()
+
+     Dim fo As New FieldOperation
+
+     fo.Owner    = "bl"
+     fo.Assigned = "ls"
+    fo.Calculate "bl.area_ls_negotiated", "SUM", "ls.area_negotiated"
+    fo.Clear
+
+End Sub
+
+
+Sub UpdatePrAreasFromBuildings()
+
+     Dim fo As New FieldOperation
+
+     fo.Owner    = "property"
+     fo.Assigned = "bl"
+    fo.AddOperation "property.area_bl_gross_int", "SUM", "bl.area_gross_int"
+    fo.AddOperation "property.area_bl_rentable", "SUM", "bl.area_rentable"
+    fo.AddOperation "property.area_bl_usable", "SUM", "bl.area_usable"
+    fo.AddOperation "property.qty_headcount", "SUM", "bl.count_occup"
+    fo.AddOperation "property.qty_no_bldgs_calc", "COUNT", "*"
+     fo.Calculate
+     fo.Clear
+
+End Sub
+
+
+Sub UpdatePrAreasFromLeases()
+
+    Dim sStmt           As String
+    Dim sFromLsStmt As String
+    
+    sFromLsStmt = " FROM ls, bl WHERE ls.bl_id = bl.bl_id" & _
+                         " AND bl.pr_id = property.pr_id )"
+
+    sStmt = "UPDATE property SET" & _
+            " area_lease_meas = (SELECT " & SqlFunc_SQLIsNull() & "( " & _
+                        "SUM(ls.area_rentable), 0 )" & sFromLsStmt & _
+            ", area_lease_neg = (SELECT " & SqlFunc_SQLIsNull() & "( " & _
+                        "SUM(ls.area_negotiated), 0 )" & sFromLsStmt
+
+    ProjDb.ExecuteSQL sStmt
+
+End Sub
+
+
+Sub UpdatePrAreasFromParcels()
+
+     Dim fo As New FieldOperation
+
+     fo.Owner    = "property"
+     fo.Assigned = "parcel"
+    fo.Calculate "property.area_parcel", "SUM", "parcel.area_cad"
+     fo.Clear
+
+End Sub
+
+
+Sub UpdatePrAreasFromRunOffAreas()
+
+     Dim fo As New FieldOperation
+
+     fo.Owner    = "property"
+     fo.Assigned = "runoffarea"
+     fo.Standard = "runofftype"
+     fo.InpFilter = "runofftype.permiability = 'NON-PERMEABLE'"
+    fo.Calculate "property.area_non_permeable", "SUM", "runoffarea.area_cad"
+     fo.InpFilter = "runofftype.permiability <> 'NON-PERMEABLE'"
+    fo.Calculate "property.area_total_permeable", "SUM", "runoffarea.area_cad"
+     fo.InpFilter = "runofftype.runoff_class = 'PARKING'"
+    fo.Calculate "property.area_parking_total", "SUM", "runoffarea.area_cad"
+     fo.Clear
+
+End Sub
+
+
+Sub UpdatePrAreasFromParking()
+
+     Dim fo As New FieldOperation
+
+     fo.Owner    = "property"
+     fo.Assigned = "parking"
+    fo.Calculate "property.qty_no_spaces_calc", "COUNT", "*"
+     fo.Clear
+
+End Sub
+
+Sub UpdatePrSuiteOccupancy()
+
+    Dim sStmt           As String
+    Dim sFromSuStmt As String
+    
+    sFromSuStmt = " FROM su, bl WHERE su.bl_id = bl.bl_id" & _
+                         " AND bl.pr_id = property.pr_id )"
+
+    sStmt = "UPDATE property SET" & _
+            " qty_su_occupancy = (SELECT " & SqlFunc_SQLIsNull() & "( " & _
+                        "SUM(su.occupancy), 0 )" & sFromSuStmt
+
+    ProjDb.ExecuteSQL sStmt
+
+End Sub
+'------------------------------------------------------------------------------

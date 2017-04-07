@@ -1,0 +1,79 @@
+<view version="2.0" showLoadProgress="true">
+    <title translatable="true">Cost per Area for Multiple Locations</title>
+    <layout id="mainLayout">
+        <north initialSize="165" split="true" id="console"/>
+        <center />
+  	</layout>
+  	<layout id="nestedLayout_1" containingLayout="mainLayout" region="center">
+        <west initialSize="400" split="true" id="tree"/>
+        <center id="chart"/>
+  	</layout> 
+  	
+  	<message name="unitTitle">Cost</message>
+  	
+  	<js file="ab-energy-cost-base.js"/>
+  	<js file="ab-energy-cost-locations.js"/>
+    <js file="ab-energy-common.js"/>
+    
+   <panel id="costConsolePanel" type="view" file="ab-energy-cost-console.axvw" layoutRegion="console"/>
+  	
+   <panel id="costTreePanel" type="view" file="ab-energy-cost-tree.axvw" layoutRegion="tree"/>
+    
+    <!-- Chart datasource -->    
+    <dataSource id="ds_energyCostLoc">
+        <table name="bill_archive" />
+        <sql dialect="generic">
+        SELECT locDtl ${sql.as} locDtl,
+            (CASE WHEN (${parameters['selectedNormByArea']} = '1') THEN 
+                (CASE WHEN SUM(bill_archive.area) = 0 THEN 0 
+                 ELSE SUM(bill_archive.value_common)/SUM(bill_archive.area) END) 
+             ELSE SUM(bill_archive.value_common) END) ${sql.as} value_common
+        FROM 
+        (   SELECT MIN(${parameters['locDtl']}) ${sql.as} locDtl,
+            SUM(bill_archive.amount_expense) ${sql.as} value_common,
+            MIN(bl.area_usable) ${sql.as} area
+            FROM bill_archive
+            LEFT OUTER JOIN bl ON bill_archive.bl_id = bl.bl_id 
+            LEFT OUTER JOIN site ON bill_archive.site_id = site.site_id       
+            WHERE ${parameters['finalRestriction']}
+            AND ((bill_archive.prorated_aggregated = 'NO' AND bill_archive.reference_bill_id IS NULL AND NOT EXISTS (SELECT 1 FROM bill_archive b WHERE b.reference_bill_id = bill_archive.bill_id)) OR (bill_archive.prorated_aggregated &lt;&gt; 'NO'))
+            GROUP BY bill_archive.bl_id 
+        ) ${sql.as} bill_archive
+        GROUP BY locDtl
+        </sql>
+        <field table="bill_archive" name="value_common" dataType="number" decimals="2"/>
+        <field table="bill_archive" name="locDtl" dataType="text" />
+        <sortField table="bill_archive" name="value_common" />
+        <parameter name="finalRestriction" dataType="verbatim" value=" 1=1 "/>
+        <parameter name="selectedNormByArea" dataType="text" value="1"/>
+        <parameter name="locDtl" dataType="verbatim" value=" RTRIM(bill_archive.bl_id) "/>
+        <parameter name="noCity" dataType="text" value="None"/>
+    </dataSource> 
+    
+    <!-- Chart panel -->   
+    <panel 	id="energyCostLoc_chart" 
+    		type="htmlChart"
+    		layoutRegion="chart" 
+    		controlType="barChart"  
+    		dataSource="ds_energyCostLoc" 
+    		showOnLoad="false"
+    		showLegendOnLoad="true"
+    		showLegendAsPopUp="false" 
+    		legendLocation="right"
+            showExportButton="true"
+    		showDataTips="true">
+        <title translatable="true">Cost per Area for Multiple Locations</title>
+        <event type="onClickItem">
+            <command type="callFunction" functionName="onDrillDownToBillArchive"/>
+        </event>
+        <groupingAxis dataSource="ds_energyCostLoc" table="bill_archive" field="locDtl" showLabel="true" showTitle="false" labelRotation="45">
+            <title translatable="true">Location</title>
+        </groupingAxis>
+        <dataAxis dataSource="ds_energyCostLoc" table="bill_archive" field="value_common" showLabel="true" showTitle="false" >
+            <title translatable="true">Cost</title>
+        </dataAxis>
+    </panel> 
+    
+    <panel id="costDrillDownPanel" type="view" file="ab-energy-cost-drilldown.axvw" />
+
+</view>

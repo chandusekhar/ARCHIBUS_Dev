@@ -1,0 +1,132 @@
+<view version="2.0">
+    <!-- esri js library (required) -->
+    <js url="//js.arcgis.com/3.9/"/>
+    <css url="//js.arcgis.com/3.9/js/esri/css/esri.css" />
+    <!-- ab core map control (required) -->
+    <js file="ab-arcgis-map.js"/>
+    <css file="ab-arcgis-map.css"/>
+    
+    <js file="ab-proj-projects-map.js"/>
+
+	<title translatable="true">View Projects Map</title>
+    <layout id="mainLayout">
+        <west initialSize="30%" split="true"/>
+        <center/>
+    </layout>
+    <layout id="nestedLayout1_center" containingLayout="nestedLayout_center" region="center">
+        <center/>
+        <south initialSize="50%" split="true"/>
+    </layout>
+
+    
+    <message name="labelShowDetails" translatable="true">Show Details</message>
+    
+    <dataSource id="projProjectsMap_consoleDS">
+    	<table name="project"/>
+    	<field name="project_id"/>
+    </dataSource>   
+    
+    <panel type="console" id="projProjectsMap_console" dataSource="projProjectsMap_consoleDS" showOnLoad="true" layout="mainLayout" region="west">
+    	<title translatable="true">Filter</title>
+    	<action id="filter">
+    		<title translatable="true">Filter</title>
+    	</action>
+    	<action id="clear">
+    		<title translatable="true">Clear</title>
+    	</action>
+    	<field name="project_id" selectValueType="grid">
+			<action>
+            <title>...</title>
+            <command type="selectValue"
+            	fieldNames="project.project_id"
+            	selectFieldNames="project.project_id"
+            	visibleFieldNames="project.project_id, project.project_name, project.project_type, project.proj_mgr, project.dv_id, project.dp_id, project.program_id, project.status, project.summary"
+                restriction="project.is_template = 0"/>
+        </action>
+        </field>
+    </panel>
+    
+	<dataSource id="projProjectsMapPage1_buildingsDS">
+		<table name="bl"/>
+		<field name="bl_id"/>
+        <field name="name"/>
+		<field name="site_id"/>
+		<field name="address1"/>
+		<field name="city_id"/>
+		<field name="state_id"/>
+		<field name="ctry_id"/>
+		<field name="lat"/>
+		<field name="lon"/>
+		<parameter name="projectParameter" dataType="verbatim" value="1=1"/>
+		<restriction type="sql" sql="EXISTS (SELECT 1 FROM activity_log WHERE activity_log.bl_id = bl.bl_id AND ${parameters['projectParameter']} AND activity_log.project_id IS NOT NULL)"/>
+	</dataSource>
+	
+	<dataSource id="projProjectsMapPage1_detailsDS">
+        <table name="activity_log" role="main"/>
+        <table name="project" role="standard"/>
+        <table name="rm" role="standard"/>
+        <field name="action_title" table="activity_log"/>
+		<field name="activity_log_id" table="activity_log"/>
+		<field name="wbs_id" table="activity_log"/>
+		<field name="activity_type" table="activity_log"/>
+		<field name="site_id" table="activity_log"/>
+		<field name="bl_id" table="activity_log"/>
+		<field name="fl_id" table="activity_log"/>
+		<field name="rm_id" table="rm"/>
+		<field name="project_id" table="project"/>
+        <field name="project_name" table="project"/>
+		<field name="status" table="activity_log"/>
+		<field name="date_scheduled" table="activity_log"/>
+		<field name="date_scheduled_end" table="activity_log"/>
+		<field name="work_pkg_id" table="activity_log"/>
+		<restriction type="sql" sql="project.is_template = 0"/>
+		<restriction type="sql" sql="activity_log.bl_id IS NOT NULL"/>
+    </dataSource>
+
+	<panel type="grid" id="projProjectsMapPage1_buildingsGrid" multipleSelectionEnabled="true" dataSource="projProjectsMapPage1_buildingsDS" layout="mainLayout" region="west">
+        <title translatable="true">Actions by Building</title>
+		<sortField name="bl_id" table="bl" ascending="true" />
+		<action id="showBuildings">
+			<title translatable="true">Show Buildings</title>
+		</action>
+        <field table="bl" name="bl_id"/>
+        <field name="site_id"/>
+        <field name="state_id"/>
+		<field name="ctry_id"/>
+    </panel>
+    
+	<panel type="html" id="mapPanel" dataSource="projProjectsMapPage1_buildingsDS" layout="nestedLayout1_center" region="center">
+		<instructions translatable="true">Select building to view floorplans</instructions>
+		<title>Map</title>
+		<html> <div id="map" style="border:1px solid #000;"/> </html>
+	</panel>
+
+    <panel type="grid" id="projProjectsMapPage1_itemsDetails" showOnLoad="true" dataSource="projProjectsMapPage1_detailsDS" layout="nestedLayout1_center" region="south">
+        <title translatable="true">Action Items</title>
+		<sortField name="action_title" table="activity_log" ascending="true"/>
+		<action id="exportDOCX">
+            <title>DOC</title>
+            <command type="exportPanel" outputType="docx" panelId="projProjectsMapPage1_itemsDetails"/>
+        </action>
+        <action id="exportXLS">
+            <title>XLS</title>
+            <command type="exportPanel" outputType="xls" panelId="projProjectsMapPage1_itemsDetails"/>
+        </action>
+        <field table="activity_log" name="action_title"/>
+		<field table="activity_log" name="activity_log_id"/>
+		<field table="activity_log" name="wbs_id"/>
+		<field table="activity_log" name="activity_type"/>
+		<field table="activity_log" name="site_id"/>
+		<field table="activity_log" name="bl_id"/>
+		<field table="activity_log" name="fl_id"/>
+		<field table="rm" name="rm_id"/>
+		<field table="project" name="project_id"/>
+        <field name="project_name" table="project"/>
+		<field table="activity_log" name="work_pkg_id"/>
+		<field table="activity_log" name="status">
+        	<title>Action Item Status</title>
+    	</field>
+		<field table="activity_log" name="date_scheduled"/>
+		<field table="activity_log" name="date_scheduled_end"/>
+    </panel>
+</view>

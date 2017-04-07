@@ -1,0 +1,120 @@
+<view version="2.0">
+    <title>Track Training Program Assignments and Results</title>
+    
+    <message translatable="true" name="trainingDoneInFutureError">The status of a Training scheduled in the future can't be set to 'Done'. Please change the status back to 'Pending', or adjust the Training date if it's not correct.</message>
+    <message translatable="true" name="zeroActualHours">Actual Training Hours are set to zero. Do you wish to proceed?</message>
+    
+    <js file="ab-ehs-track-em-training.js"/>
+    
+    <!--  Layout -->
+    <layout type="borderLayout" id="mainLayout">
+        <west id="westPos" initialSize="28%" split="true"/>
+        <center/>
+    </layout>
+    <layout type="borderLayout" id="nestedCenterLayout" containingLayout="mainLayout" region="center">
+        <north id="eastTopPos" initialSize="55%"/>
+        <center id="eastBottomPos"/>
+    </layout>
+    
+    <!-- Tree control -->
+    <dataSource id="abEhsTrackEmTraining_categories_ds">
+        <table name="ehs_training_cat"/>
+        <field name="training_category_id"/>
+        <field name="description"/>
+        <sortField table="ehs_training_cat" name="training_category_id" ascending="true"/>
+        <restriction type="sql" sql="EXISTS(SELECT ehs_training.training_id FROM ehs_training WHERE ehs_training.training_category_id = ehs_training_cat.training_category_id)"/>
+    </dataSource>
+    
+    <dataSource id="abEhsTrackEmTraining_training_ds">
+        <table name="ehs_training"/>
+        <field name="training_id"/>
+        <field name="training_name"/>
+        <field name="training_category_id" hidden="true"/>
+        <field name="hours_training" hidden="true"/>
+        <sortField table="ehs_training" name="training_id" ascending="true"/>
+        <sortField table="ehs_training" name="training_name" ascending="true"/>
+    </dataSource>
+    
+    <panel type="tree" id="abEhsTrackEmTraining_treeCateg" dataSource="abEhsTrackEmTraining_categories_ds" layoutRegion="westPos">
+        <title>Select Training Program</title>
+        <panel type="tree" id="abEhsTrackEmTraining_treeTraining" dataSource="abEhsTrackEmTraining_training_ds">
+            <event type="onClickNode">
+                <command type="showPanel" panelId="abEhstrackEmTraining_result"/>
+            </event>
+        </panel>
+    </panel>
+    
+    <!-- Scheduled training -->
+    <dataSource id="abEhstrackEmTraining_result_ds">
+        <table name="ehs_training_results" role="main"/>
+        <table name="ehs_training" role="standard"/>
+        <field table="ehs_training_results" name="training_id"/>
+        <field table="ehs_training_results" name="date_actual"/>
+        <field table="ehs_training_results" name="em_id"/>
+        <field table="ehs_training_results" name="incident_id"/>
+        <field table="ehs_training_results" name="description"/>
+        <field table="ehs_training_results" name="status"/>
+        <field table="ehs_training_results" name="doc"/>
+        <field table="ehs_training_results" name="hours_training"/>
+        <field table="ehs_training" name="hours_training"/>
+    </dataSource>
+    
+    <panel type="grid" id="abEhstrackEmTraining_result" dataSource="abEhstrackEmTraining_result_ds" layoutRegion="eastTopPos" showOnLoad="false">
+        <sortField table="ehs_training_results" name="em_id" ascending="true"/>
+        <sortField table="ehs_training_results" name="date_actual" ascending="true"/>
+        <title>Training Program Assigned Employees and Dates</title>
+
+        <field name="em_id" controlType="link">
+            <command type="showPanel" panelId="abEhstrackEmTraining_details"/>
+        </field>
+        <field name="date_actual" controlType="link">
+            <command type="showPanel" panelId="abEhstrackEmTraining_details"/>
+        </field>
+        <field name="status" controlType="link">
+            <command type="showPanel" panelId="abEhstrackEmTraining_details"/>
+        </field>
+        <field name="training_id" hidden="true"/>
+    </panel>
+    
+    <panel type="form" id="abEhstrackEmTraining_details" dataSource="abEhstrackEmTraining_result_ds" columns="2" layoutRegion="eastBottomPos" showOnLoad="false">
+        <title>Edit Employee Training Results</title>
+        <instructions translatable="true">Be sure to verify EH&amp;S regulations before deleting or editing scheduled training programs.</instructions>
+        <action id="save">
+            <title>Save</title>
+            <command type="callFunction" functionName="checkNotification('Update')"/>
+            <command type="saveForm"/>
+            <command type="callFunction" functionName="abEhsTrackEmTrainingCtrl.updateDocRecord()"/>
+            <command type="showPanel" panelId="abEhstrackEmTraining_result" applyParentRestriction="false"/>
+            <command type="callFunction" functionName="sendNotification('Update')"/>
+        </action>
+        <action id="delete">
+            <title translatable="true">Delete</title>
+            <command type="callFunction" functionName="checkNotification('Delete')"/>
+            <command type="deleteRecord"/>
+            <command type="showPanel" panelId="abEhstrackEmTraining_details" show="false"/>
+            <command type="showPanel" panelId="abEhstrackEmTraining_result" applyParentRestriction="false"/>
+            <command type="callFunction" functionName="sendNotification('Delete')"/>
+        </action>
+        <action id="cancel">
+            <title>Cancel</title>
+            <command type="showPanel" panelId="abEhstrackEmTraining_details" show="false" includeHeader="true"/>
+        </action>
+        <field name="training_id" readOnly="true"/>
+        <field name="em_id" readOnly="true"/>
+        <field name="date_actual" onchange="abEhsTrackEmTrainingCtrl.updateDocName()"/>
+        <field name="incident_id">
+            <action>
+                <title translatable="false">...</title>
+                <tooltip translatable="true">Select Value</tooltip>
+                <command type="callFunction" functionName="selectIncidentId('abEhstrackEmTraining_details', 'ehs_training_results', true)"/>
+            </action>
+        </field>
+        <field name="doc"/>
+        <field name="description" rowspan="2"/>
+        <field name="status"/>
+        <field table="ehs_training" name="hours_training" readOnly="true"/>
+        <field table="ehs_training_results" name="hours_training"/>
+    </panel>
+    
+    <panel type="view" id="abEhsCommonView" file="ab-ehs-common.axvw"/>
+</view>

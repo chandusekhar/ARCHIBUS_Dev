@@ -1,0 +1,63 @@
+package com.archibus.app.reservation.domain;
+
+/**
+ * A specific subclass of CalendarException that indicates a recurring meeting series is not found
+ * by the calendar service. This specific error is reported through a specific exception to allow
+ * specific handling of the error.
+ *
+ * @author Yorik Gerlo
+ * @since 22.1
+ */
+public class SeriesNotFoundException extends CalendarException {
+
+    /** Property: serialVersionUID. */
+    private static final long serialVersionUID = 367655998972976801L;
+
+    /**
+     * Create a reservation exception with localization based on the provided class.
+     *
+     * @param message the message (to translate)
+     * @param clazz the class where the message was defined
+     */
+    public SeriesNotFoundException(final String message, final Class<?> clazz) {
+        super(message, clazz);
+    }
+
+    /**
+     * Create a reservation exception with localization based on the provided class. The additional
+     * arguments are used for formatting the translated string.
+     *
+     * @param message the message (to translate)
+     * @param clazz the class where the message was defined
+     * @param args additional arguments used for formatting the localized message
+     */
+    public SeriesNotFoundException(final String message, final Class<?> clazz, final Object... args) {
+        super(message, clazz, args);
+    }
+
+    /**
+     * Create a reservation exception with localization based on the provided class.
+     *
+     * @param message the message (to translate)
+     * @param cause the causing exception
+     * @param clazz the class where the message was defined
+     */
+    public SeriesNotFoundException(final String message, final Exception cause, final Class<?> clazz) {
+        super(message, cause, clazz);
+    }
+
+    /**
+     * Create a reservation exception with localization based on the provided class. The additional
+     * arguments are used for formatting the translated string.
+     *
+     * @param message the message (to translate)
+     * @param cause the causing exception
+     * @param clazz the class where the message was defined
+     * @param args additional arguments used for formatting the localized message
+     */
+    public SeriesNotFoundException(final String message, final Exception cause,
+            final Class<?> clazz, final Object... args) {
+        super(message, cause, clazz, args);
+    }
+
+}

@@ -1,0 +1,77 @@
+<view version="2.0">
+   
+   <dataSource id="dateRangeDS" >
+        <table name="afm_cal_dates" role="main"/>
+        <field table="afm_cal_dates" name="cal_date" dataType="date"/>
+        <parameter name="dateRange" dataType="verbatim" value=""/>
+        <restriction type="sql"  sql=" cal_date in  (${parameters['dateRange']}) "/>
+    </dataSource>
+    
+    <dataSource id="occupancyDS" type="grouping"  applyVpaRestrictions="false">
+        <sql dialect="generic">
+               SELECT 
+                ${parameters['groupby']} ${sql.as} groupby,
+                rm.cap_em  ${sql.as}cap_em ,
+                       
+                    (( SELECT COUNT(em_id) FROM (  ( select em_id,pct_id,dv_id,dp_id ,status,date_start,date_end,day_part,bl_id,fl_id,rm_id from rmpct where rmpct.status in (1)) union (select  em_id,pct_id ,dv_id,dp_id,status,date_start,date_end,day_part,bl_id,fl_id,rm_id from hrmpct )  ) ${sql.as} rmpct
+                        WHERE rmpct.bl_id = rm.bl_id AND rmpct.fl_id = rm.fl_id AND rmpct.rm_id = rm.rm_id 
+                          AND rmpct.em_id IS NOT NULL AND 
+                            (rmpct.date_start is NULL or ${sql.yearMonthDayOf('rmpct.date_start')} &lt;= ${parameters['summaryValueForThisGroup']})  AND 
+                            (rmpct.date_end is null or ${sql.yearMonthDayOf('rmpct.date_end')} &gt;= ${parameters['summaryValueForThisGroup']} )   
+                             AND rmpct.day_part = 0 AND ${parameters['dvdpParam']} 
+                    ) 
+                    + 
+                    ( 0.5* ( 
+                    SELECT COUNT(em_id) FROM  (  ( select em_id,pct_id,dv_id,dp_id ,status,date_start,date_end,day_part,bl_id,fl_id,rm_id from rmpct  where rmpct.status in (1)) union (select  em_id,pct_id ,dv_id,dp_id,status,date_start,date_end,day_part,bl_id,fl_id,rm_id from hrmpct )  ) ${sql.as} rmpct
+                                  WHERE rmpct.bl_id = rm.bl_id AND rmpct.fl_id = rm.fl_id AND rmpct.rm_id = rm.rm_id 
+                                        AND rmpct.em_id IS NOT NULL 
+                                        AND(rmpct.date_start is null or ${sql.yearMonthDayOf('rmpct.date_start')} &lt;= ${parameters['summaryValueForThisGroup']} ) 
+                                        AND (rmpct.date_end is null or ${sql.yearMonthDayOf('rmpct.date_end')} &gt;= ${parameters['summaryValueForThisGroup']} )  
+                                         AND rmpct.day_part != 0  AND ${parameters['dvdpParam']} 
+                        ) 
+                    ) 
+                    )${sql.as} occupancyCap 
+                       
+                FROM rm left join bl on bl.bl_id=rm.bl_id WHERE  ${sql.vpaRestriction} and rm.${parameters['blId']} AND ${parameters['dvdpForRmParam']} 
+        </sql>
+        <table name="rm" role="main"/>
+        <field table="rm" name="groupby" dataType="text"  groupBy="true"/>
+        <field table="rm" name="sum_capEm"   formula="sum" baseField="rm.cap_em"  dataType="number" decimals="0"/>
+        <field table="rm" name="sum_occupancyCap"  formula="sum" baseField="rm.occupancyCap"  dataType="number" decimals="0"/>
+        <field table="rm" name="occupancyRate" baseField="rm.cap_em" dataType="number" decimals="2">
+        <title translatable="true">Occupancy Rate</title>
+            <sql dialect="generic">
+            case when sum(rm.cap_em)>0 then (sum(rm.occupancyCap)/sum(rm.cap_em))*100 else 0 end
+            </sql>
+        </field>
+        
+        <parameter name="groupby" dataType="verbatim" value="rm.bl_id"/>
+        <parameter name="blId" dataType="verbatim" value="bl_id is not null"/>
+        <parameter name="summaryValueForThisGroup" dataType="date" value=""/>
+        <parameter name="dvdpParam" dataType="verbatim" value="1=1"/>
+        <parameter name="dvdpForRmParam" dataType="verbatim" value="1=1"/>
+    </dataSource>
+
+    <panel id="vacancyChart"
+        type="chart"
+        controlType="lineChart"
+		showOnLoad="false" 
+        dataSource="occupancyDS"
+        showLegendOnLoad="false"
+        showLegendAsPopUp="false"
+        legendLocation="right"
+        showDataTips="true"
+        fillType="linearGradient"
+        >
+        <title translatable="true">Occupancy Rate</title>
+        <groupingAxis dataSource="dateRangeDS" table="afm_cal_dates" field="cal_date"></groupingAxis>
+        <secondaryGroupingAxis dataSource="occupancyDS" table="rm" field="groupby">
+        </secondaryGroupingAxis>
+        <dataAxis   dataSource="occupancyDS"   table="rm" field="occupancyRate"  displayAxis="false" labelPosition="inside">
+            <title translatable="true">Occupancy Rate</title>
+        </dataAxis>
+    </panel>
+	
+	<js file="ab-sp-mgm-dash-common.js"/>
+    <js file="ab-sp-mgm-occup-vac-rate-rpt.js"/>
+</view>

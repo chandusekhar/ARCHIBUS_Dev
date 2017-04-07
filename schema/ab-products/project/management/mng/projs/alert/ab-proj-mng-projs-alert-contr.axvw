@@ -1,0 +1,71 @@
+<view version="2.0">
+		<message name="expandAll">Expand All</message>
+		<message name="collapseAll">Collapse All</message>
+    <js file="ab-proj-mng-projs-alert-contr.js"/>
+    
+    <dataSource id="projMngProjsAlertContr_dsProj" applyVpaRestrictions="false">
+    		<table name="project" role="main"/>
+    		<sql dialect="generic">
+    		SELECT project.project_id, 
+    		CASE WHEN (project.date_commence_work IS NULL OR project.date_target_end IS NULL) 
+    				THEN project.date_start ELSE project.date_commence_work END ${sql.as} start_date,
+    		CASE WHEN (project.date_commence_work IS NULL OR project.date_target_end IS NULL) 
+            THEN project.date_end ELSE project.date_target_end END ${sql.as} end_date,
+        project.project_name, project.project_type, project.summary, project.proj_mgr
+        FROM project
+        LEFT OUTER JOIN program ON program.program_id = project.program_id
+        LEFT OUTER JOIN bl ON bl.bl_id = project.bl_id
+        LEFT OUTER JOIN site on site.site_id = project.site_id
+        LEFT OUTER JOIN ctry ON ctry.ctry_id = bl.ctry_id
+        WHERE ${parameters['projRestriction']} AND ${sql.vpaRestriction}
+    		</sql>
+    		<field table="project" name="project_id" dataType="text"/>
+    		<field table="project" name="start_date" dataType="date"/>
+    		<field table="project" name="end_date" dataType="date"/>
+        <field table="project" name="project_name" dataType="text"/>
+        <field table="project" name="project_type" dataType="text"/>
+        <field table="project" name="summary" dataType="text"/>
+        <field table="project" name="proj_mgr" dataType="text"/>
+        <restriction type="sql" sql="EXISTS (SELECT 1 FROM work_pkg_bids WHERE work_pkg_bids.status IN ('Approved') AND work_pkg_bids.project_id = project.project_id)"/>
+        <parameter name="projRestriction" dataType="verbatim" value=" 1=1 "/>
+    </dataSource>
+    
+    <dataSource id="projMngProjsAlertContr_dsContr">
+        <table name="work_pkg_bids" role="main"/>
+        <table name="work_pkgs" role="standard"/>
+        <table name="project" role="standard"/>
+        <field name="work_pkg_id" table="work_pkgs"/>
+        <field name="vn_id" table="work_pkg_bids" />
+        <field name="status" table="work_pkg_bids"/>
+        <field name="cost_bid" table="work_pkg_bids"/>
+        <field name="bid_type" table="work_pkg_bids"/>
+        <field name="date_approved" table="work_pkg_bids"/>
+        <field name="project_id" table="work_pkg_bids"/>
+        <field name="project_name" table="project"/>
+        <field name="work_pkg_id" table="work_pkg_bids"/>
+        <restriction type="sql" sql="work_pkg_bids.status IN ('Approved')"/>
+    </dataSource>
+    
+    <panel type="tree" controlType="table" id="projMngProjsAlertContr_projTree" dataSource="projMngProjsAlertContr_dsProj">
+        <title>Contracts Pending Signature</title>
+        <action id="collapse">
+        		<title>Collapse All</title>
+        </action>
+        <field table="project" name="project_id"/>
+        <field table="project" name="project_name"/>
+
+        <panel type="tree" controlType="table" id="projMngProjsAlertContr_contrTree" dataSource="projMngProjsAlertContr_dsContr" showLabels="true">
+		        <sortField table="work_pkg_bids" name="work_pkg_id" ascending="true"/>
+		        <field name="project_id" table="work_pkg_bids" hidden="true"/>
+		        <field name="vn_id" table="work_pkg_bids" />
+						<field name="work_pkg_id" table="work_pkg_bids"/>
+		        <field name="cost_bid" table="work_pkg_bids"/>
+		        <field name="bid_type" table="work_pkg_bids"/>
+		        <field name="status" table="work_pkg_bids"/>
+		        <field name="date_approved" table="work_pkg_bids"/>		        	        
+            <event type="onClickNode">
+                <command type="callFunction" functionName="projMngProjsAlertContr_contrTree_select"/>
+            </event>
+        </panel>
+    </panel>
+</view>

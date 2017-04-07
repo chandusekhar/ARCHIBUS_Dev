@@ -1,0 +1,876 @@
+<view version="2.0">
+    <layout id="mainCenter"  region="center">
+        <north id="treeConsole" initialSize="70" split="false"/>
+        <west initialSize="28%" split="true"/>
+        <center/>
+    </layout>
+    
+    <layout id="nested_west" containingLayout="mainCenter"  region="west">
+        <north id="treePositon" initialSize="30%" split="true"/>
+        <center id="selectPosition" initialSize="70%"/>
+    </layout>
+    
+    <layout id="nested_center" containingLayout="mainCenter" region="center">
+        <center/>
+        <south id="assignmentsPosition" initialSize="150" split="true"/>
+    </layout>
+    
+    <layout id="nested_north" containingLayout="nested_center" region="center">
+        <center id="dwgPosition"/>
+        <east initialSize="200" split="true"/>
+    </layout>
+    
+    <layout id="nested_north_east" containingLayout="nested_north" region="east">
+        <center id="legendPosition" initialSize="10" />
+        <south id="documents" split="true"/>
+    </layout>
+    
+    <message name="countOver" translatable="true">Employee Count will exceed Employee Capacity, Do you wish to continue?</message>
+    <message name="selectFloor" translatable="true">Please select a floor</message>
+    <message name="selectEm" translatable="true">Please select employees</message>
+    <message name="selectRm" translatable="true">Select a room to assign selected employees to</message>
+    <message name="selectAnotherEm" translatable="true">Please select other employees</message>
+    <message name="saving" translatable="true">Saving changes...</message>
+    <message name="confirmMessage" translatable="true">Are you sure you want to unassign the selected employees?</message>
+    <message name="noEmSelected" translatable="true">Please make selection first</message>
+    <message name="legendLevel0" translatable="true">Vacant</message>
+    <message name="legendLevel1" translatable="true">Available</message>
+    <message name="legendLevel2" translatable="true">At Capacity</message>
+    <message name="legendLevel3" translatable="true">Exceeds Capacity</message>
+    <message name="legendLevel4" translatable="true">Pending Request</message>
+    <message name="promptSelectEmp" translatable="true">You can only change the location of one employee at a time.  Please select only one employee.</message>
+    <message name="onlyOnePrimaryEm" translatable="true">check to make sure that only one assigned room is marked "primary"(Primary Em=1) for each employee,currently employee: [{0}] were more than one record marked as "primary"</message>
+    <message name="onlyDiffRmForEm"  translatable="true">Employee: [{0}] are not allow assign with same "From Location" and "To Location"</message>
+    <message name="existEmPendingMove" translatable="true">The selected Employee is already involved in a pending move.  Do you wish to continue?</message>
+    <message name="onChangeDate" translatable="true">Changing the Requested End Date will remove any existing employee assignments you have already made.  Do you wish to continue?</message>
+    <message name="infoLossPrompt" translatable="true">all the input values in previous tab will remove. Do you wish to continue?</message>
+    <message name="existDuplicate" translatable="true">This request contains employees [{0}] that are part of another pending move request.  Do you wish to continue?</message>
+    
+    <message name="cannotOccupy" translatable="true">The selected employee [{0}] does not have the authority to occupy the selected room, due to room standard and employee standard restrictions.</message>    <message name="buttonApprove" translatable="true">Approve</message>
+    <message name="pendingAssign" translatable="true">Please assign all employees in panel 'Employees to be Moved' before clicking button 'Issue request'.</message>
+    <message name="abSpAsgnEmToRmEmSelectTitle" translatable="true">Employees to be Moved</message>
+    
+    <message name="existEmptyPartRoom" translatable="true">Please assign employees one by one.</message>
+
+    <message name="pendingFutureTransMoveOut" translatable="true">Another request exists involving the same employee for a future assignment.activity log ids:[{0}]. Please cancel or modify that assignment first before changing this assignment</message>
+    <message name="showAllLocation" translatable="true">Show All Locations</message>
+    <message name="showPrimaryLocation" translatable="true">Show Primary Locations</message>
+    <message name="withEmptyAssignment" translatable="true">Please add assignments</message>
+    <message name="withEmptyFromAndToLocation" translatable="true">current assignments contains empty "From and To Location", please change assignments before issue.</message>
+    
+    <message name="existEmInAssignment" translatable="true">This request contains employees [{0}] more than once.  A move request can include each employee only once.</message>
+    <message name="messageYes" translatable="true">Yes</message>
+    <message name="messageNo" translatable="true">No</message>
+    
+    <message name="messageOccupancy" translatable="true">Occupancy</message>
+    <message name="messageCapacity" translatable="true">Capacity</message>
+    
+    <message name="existsSameDayMoveAndDepartmentRequests" translatable="true">There is already department space request on the same date for room '{0}' continue to submit the request will resulted the department space requests be overridden , continue?</message>
+
+	<dataSource id="ds_ab-sp-asgn-rm">
+        <table name="rm" role="main"/>
+        <field table="rm" name="bl_id"/>
+        <field table="rm" name="fl_id"/>
+        <field table="rm" name="rm_id"/>
+        <field table="rm" name="dv_id"/>
+        <field table="rm" name="dp_id"/>
+        <field table="rm" name="rm_cat"/>
+        <field table="rm" name="rm_type"/>
+    </dataSource>
+    <!-- 
+    kb 3034262 Add action/new design for Select Employee in Group Move
+     -->
+    <dataSource id="ds_ab-sp-asgn-em-to-rm_grid_em">
+        <table name="em" role="main"/>
+        <field table="em" name="em_id"/>
+        <field table="em" name="bl_id"/>
+        <field table="em" name="fl_id"/>
+        <field table="em" name="rm_id"/>
+        <field table="em" name="dv_id"/>
+        <field table="em" name="dp_id"/>
+    </dataSource>
+    <dataSource id="ds_ab-sp-asgn-em-to-rm_grid_rmpct" applyVpaRestrictions="false">
+        <sql dialect="generic">
+          select em.em_id, 
+                 (case when rmpct.bl_id is null then em.bl_id else rmpct.bl_id end) ${sql.as} bl_id, 
+                 (case when rmpct.fl_id is null then em.fl_id else rmpct.fl_id end) ${sql.as} fl_id, 
+                 (case when rmpct.rm_id is null then em.rm_id else rmpct.rm_id end) ${sql.as} rm_id, 
+               em.dv_id, em.dp_id ,rmpct.primary_rm,
+                (case when rmpct.primary_em = 1 then ${parameters['p_yes']} 
+                 when rmpct.primary_em = 0 then ${parameters['p_no']} end)  ${sql.as} primary_em 
+            from em left outer join 
+              (select * from rmpct where
+                rmpct.em_id IS NOT NULL 
+                AND ((rmpct.date_start IS NULL OR rmpct.date_start &lt;= ${parameters['p_date_start']})
+                AND (rmpct.date_end IS NULL OR rmpct.date_end &gt;=${parameters['p_date_end']}))
+                AND rmpct.status = 1 
+                AND ${parameters['primaryRm']} 
+               ) ${sql.as} rmpct 
+            on em.em_id = rmpct.em_id where ${sql.vpaRestriction} 
+        </sql>
+        <table name="em" role="main"/>
+        <field table="em" name="em_id" dataType="text"/>
+        <field table="em" name="bl_id" dataType="text"/>
+        <field table="em" name="fl_id" dataType="text"/>
+        <field table="em" name="rm_id" dataType="text"/>
+        <field table="em" name="dv_id" dataType="text"/>
+        <field table="em" name="dp_id" dataType="text"/>
+        <field table="em" name="primary_rm" dataType="text" />
+        <field table="em" name="primary_em" dataType="text" />
+        <parameter name="p_date_start" dataType="date" value=""/>
+        <parameter name="p_date_end" dataType="date" value=""/>
+        <parameter name="primaryRm" dataType="verbatim" value="(rmpct.primary_em = 1 OR rmpct.primary_em IS NULL)"/>
+        <parameter name="p_yes" dataType="text" value="Yes"/>
+        <parameter name="p_no" dataType="text" value="No"/>
+    </dataSource>
+    
+    <dataSource id="ds_ab-sp-asgn-em-to-rm_grid_emAssign">
+        <table name="em" role="main"/>
+        <field table="em" name="em_id"/>
+        <field table="em" name="bl_id"/>
+        <field table="em" name="fl_id"/>
+        <field table="em" name="rm_id"/>
+        
+        <restriction type="parsed">
+           <clause table="em" name="status" value="1" op="="/>
+        </restriction>
+    </dataSource>
+    
+    <dataSource id="ds_ab_assign_em_to_rm_js">
+        <table name="rmpct" role="main"/>
+        <field table="rmpct" name="em_id"/>
+        <field table="rmpct" name="bl_id"/>
+        <field table="rmpct" name="fl_id"/>
+        <field table="rmpct" name="rm_id"/>
+        <field table="rmpct" name="dv_id"/>
+        <field table="rmpct" name="dp_id"/>
+        <field table="rmpct" name="primary_em"/>
+    </dataSource>
+    
+    <dataSource id="ds_for_get_date_use_by_js">
+        <table name="rmpct" role="main"/>
+        <field table="rmpct" name="pct_id"/>
+        <field table="rmpct" name="parent_pct_id"/>
+        <field table="rmpct" name="em_id"/>
+        <field table="rmpct" name="from_bl_id"/>
+        <field table="rmpct" name="from_fl_id"/>
+        <field table="rmpct" name="from_rm_id"/>
+        <field table="rmpct" name="bl_id"/>
+        <field table="rmpct" name="fl_id"/>
+        <field table="rmpct" name="rm_id"/>
+        <field table="rmpct" name="date_start"/>
+        <field table="rmpct" name="date_end"/>
+        <field table="rmpct" name="activity_log_id"/>
+        <field table="rmpct" name="primary_em"/>
+        <field table="rmpct" name="primary_rm"/>
+        <field table="rmpct" name="dv_id"/>
+        <field table="rmpct" name="dp_id"/>
+        <field table="rmpct" name="rm_cat"/>
+        <field table="rmpct" name="rm_type"/>
+        <restriction type="sql" sql="
+          em_id is not null and rmpct.activity_log_id = ${parameters['activity_log_id']}
+        "/>
+        <parameter name="activity_log_id" dataType="text" value=""/>
+    </dataSource>
+    
+    
+    <dataSource id="ds_ab-sp-asgn-em-to-rm_legend" distinct="true">
+        <table name="rm" role="main"/>
+        <field name="rm_id"></field>
+        <restriction type="sql" sql="1=2"/>
+    </dataSource>
+    
+    <panel type="view" id="labelStylesView" file="ab-helpdesk-assign-datasource-labels.axvw"/>
+    
+    
+    <dataSource id="ds_ab-sp-asgn-em-to-rm_rmCnt">
+        <table name="rm" role="main"/>
+        <field table="rm" name="bl_id"/>
+        <field table="rm" name="fl_id"/>
+        <field table="rm" name="rm_id"/>
+        <field table="rm" name="caculated_count_em" dataType="integer">
+            <sql dialect="generic">
+               (SELECT COUNT(DISTINCT(rmpct.em_id)) 
+                FROM rmpct 
+                WHERE 
+                rmpct.bl_id = rm.bl_id AND rmpct.fl_id = rm.fl_id AND rmpct.rm_id = rm.rm_id 
+                
+                AND rmpct.em_id IS NOT NULL 
+                AND     (rmpct.date_start IS NULL OR rmpct.date_start &lt;= ${parameters['p_date_start']})
+                AND (rmpct.date_end IS NULL OR rmpct.date_end &gt;=${parameters['p_date_end']})
+                AND rmpct.status IN (0, 1)) 
+            </sql>
+        </field>
+        <field table="rm" name="cap_em"/>
+        <restriction type="sql" sql="
+            rm.cap_em > 0 AND 
+            rm.cap_em > (
+                SELECT COUNT(DISTINCT(rmpct.em_id)) 
+                FROM rmpct 
+                WHERE 
+                rmpct.bl_id = rm.bl_id AND rmpct.fl_id = rm.fl_id AND rmpct.rm_id = rm.rm_id 
+                
+                AND rmpct.em_id IS NOT NULL 
+                AND ((   (rmpct.date_start IS NULL OR rmpct.date_start &lt;= ${parameters['p_date_start']})
+                AND (rmpct.date_end IS NULL OR rmpct.date_end &gt;=${parameters['p_date_end']}))
+                OR rmpct.date_start &gt;= ${parameters['p_date_start']})
+                AND rmpct.status IN (0, 1)) 
+        "/>
+        <parameter name="p_date_start" dataType="date" value=""/>
+        <parameter name="p_date_end" dataType="date" value=""/>
+    </dataSource>
+    <dataSource id="ds_ab-sp-asgn-em-to-click_rm">
+        <sql dialect="generic">
+            SELECT COUNT(1) ${sql.as} COUNT FROM rmpct WHERE bl_id =${parameters['p_bl_id']} AND fl_id =${parameters['p_fl_id']} 
+             AND rm_id = ${parameters['p_rm_id']} 
+              ${parameters['dateRestriction']} 
+             AND status = 1
+             AND em_id IS NULL
+        </sql>
+        <table name="rmpct" role="main"/>
+        <field table="rmpct" name="COUNT" dataType="number"/>
+        <parameter name="p_bl_id" dataType="text" value=""/>
+        <parameter name="p_fl_id" dataType="text" value=""/>
+        <parameter name="p_rm_id" dataType="text" value=""/>
+        <parameter name="p_date_start" dataType="date" value=""/>
+        <parameter name="p_date_end" dataType="date" value=""/>
+        <parameter name="dateRestriction" dataType="verbatim" value=""/>
+    </dataSource>
+    <dataSource id="ds_ab-sp-asgn-em-to-click_rm_pop_up">
+        <table name="rmpct" role="main"/>
+        <table name="rm" role="standard"/>
+        <table name="rmcat" role="standard"/>
+        <field table="rm" name="rm_id"/>
+        <field table="rmcat" name="rm_cat"/>
+        <field table="rmpct" name="pct_id"/>
+        <field table="rmpct" name="pct_space"/>
+        <field table="rmpct" name="dv_id"/>
+        <field table="rmpct" name="dp_id"/>
+        <field table="rmpct" name="rm_cat"/>
+        <field table="rmpct" name="rm_type"/>
+        <field table="rmpct" name="primary_rm"/>
+        <parameter name="p_bl_id" dataType="text" value=""/>
+        <parameter name="p_fl_id" dataType="text" value=""/>
+        <parameter name="p_rm_id" dataType="text" value=""/>
+        <parameter name="p_date_start" dataType="date" value=""/>
+        <parameter name="p_date_end" dataType="date" value=""/>
+        <parameter name="dateRestriction" dataType="verbatim" value=""/>
+        <restriction type="sql" sql="
+          rmpct.bl_id =${parameters['p_bl_id']} AND rmpct.fl_id =${parameters['p_fl_id']} 
+             AND rmpct.rm_id = ${parameters['p_rm_id']} 
+              ${parameters['dateRestriction']}
+             AND status = 1 
+             AND rmcat.occupiable = 1 
+             AND rmpct.em_id IS NULL 
+        "/>
+    </dataSource>
+    <dataSource id="ds_ab-sp-asgn-select-location" distinct="true">
+        <table name="rmpct" role="main"/>
+        <table name="rm" role="standard"/>
+        <field table="rm" name="rm_id"/>
+        <field table="rmpct" name="bl_id"/>
+        <field table="rmpct" name="fl_id"/>
+        <field table="rmpct" name="rm_id"/>
+        <restriction type="sql" sql="
+           ${parameters['parameterSelectFromLocation']}
+        "/>
+        <parameter name="parameterSelectFromLocation" dataType="verbatim" value=" 1=1"/>
+    </dataSource>
+    
+    <panel id="abSpAsgnEmToClickRm_popup"  type="grid" dataSource="ds_ab-sp-asgn-em-to-click_rm_pop_up"
+                multipleSelectionEnabled="false" showOnLoad="false" sortEnabled="false">
+        <instructions translatable="true">Please choose the part of the room that you want to assign to the selected employee</instructions>                
+        <field table="rmpct" name="pct_id" hidden="true">
+        </field>    
+        <field table="rmpct" name="pct_space" controlType="link">
+              <command type="callFunction" functionName="chooseOneRecordToRoom"/>
+        </field>    
+        <field table="rmpct" name="dv_id" controlType="link">
+              <command type="callFunction" functionName="chooseOneRecordToRoom"/>
+        </field>    
+        <field table="rmpct" name="dp_id" controlType="link">
+              <command type="callFunction" functionName="chooseOneRecordToRoom"/>
+        </field>    
+        <field table="rmpct" name="rm_cat" controlType="link">
+              <command type="callFunction" functionName="chooseOneRecordToRoom"/>
+        </field>    
+        <field table="rmpct" name="rm_type" controlType="link">
+              <command type="callFunction" functionName="chooseOneRecordToRoom"/>
+        </field>    
+        <field table="rmpct" name="primary_rm" controlType="link" hidden="true">
+              <command type="callFunction" functionName="chooseOneRecordToRoom"/>
+        </field>    
+    </panel>
+    
+     <dataSource id="ds_ab-sp-asgn-em-to-rm_drawing_availRm">
+        <table name="rm" role="main"/>
+        <table name="rmcat" role="standard"/>
+        <field table="rm" name="bl_id"/>
+        <field table="rm" name="fl_id"/>
+        <field table="rm" name="rm_id"/>
+        <field table="rm" name="area"/>
+        <field table="rm" name="count_em" dataType="integer">
+            <sql dialect="generic">
+               (SELECT COUNT(DISTINCT(rmpct.em_id)) 
+                FROM rmpct 
+                WHERE 
+                rmpct.bl_id = rm.bl_id AND rmpct.fl_id = rm.fl_id AND rmpct.rm_id = rm.rm_id 
+                
+                AND rmpct.em_id IS NOT NULL 
+                AND ((   (rmpct.date_start IS NULL OR rmpct.date_start &lt;= ${parameters['p_date_start']})
+                AND (rmpct.date_end IS NULL OR rmpct.date_end &gt;=${parameters['p_date_end']}))
+                OR rmpct.date_start &gt;= ${parameters['p_date_start']})
+                AND rmpct.status IN (0, 1)) 
+            </sql>
+        </field>
+        <field table="rm" name="cap_em"/>
+        <field table="rmcat" name="occupiable"/>
+        <field table="rmcat" name="used_in_calcs"/>
+        <field table="rm" name="legend_level" dataType="text" legendKey="true">
+            <sql dialect="generic">               
+              CASE 
+                WHEN 
+                    rm.cap_em > 0 AND 
+                    0 =  (
+                        SELECT COUNT(DISTINCT(rmpct.em_id)) 
+                        FROM rmpct 
+                        WHERE 
+                        rmpct.bl_id = rm.bl_id AND rmpct.fl_id = rm.fl_id AND rmpct.rm_id = rm.rm_id 
+                        
+                        AND rmpct.em_id IS NOT NULL 
+                        AND ((   (rmpct.date_start IS NULL OR rmpct.date_start &lt;= ${parameters['p_date_start']})
+                        AND (rmpct.date_end IS NULL OR rmpct.date_end &gt;=${parameters['p_date_end']}))
+                        OR rmpct.date_start &gt;= ${parameters['p_date_start']})
+                        AND rmpct.status IN (0, 1) 
+                        AND rmcat.occupiable = 1) 
+              THEN '0'
+                  WHEN 
+                    rm.cap_em > 0 AND 
+                    rm.cap_em > (
+                        SELECT COUNT(DISTINCT(rmpct.em_id)) 
+                        FROM rmpct 
+                        WHERE 
+                        rmpct.bl_id = rm.bl_id AND rmpct.fl_id = rm.fl_id AND rmpct.rm_id = rm.rm_id 
+                        
+                        AND rmpct.em_id IS NOT NULL 
+                        AND ((   (rmpct.date_start IS NULL OR rmpct.date_start &lt;= ${parameters['p_date_start']})
+                        AND (rmpct.date_end IS NULL OR rmpct.date_end &gt;=${parameters['p_date_end']}))
+                        OR rmpct.date_start &gt;= ${parameters['p_date_start']})
+                        AND rmpct.status IN (0, 1) 
+                        AND rmcat.occupiable = 1) AND 
+                    0!= (
+                        SELECT COUNT(DISTINCT(rmpct.em_id)) 
+                        FROM rmpct 
+                        WHERE 
+                        rmpct.bl_id = rm.bl_id AND rmpct.fl_id = rm.fl_id AND rmpct.rm_id = rm.rm_id 
+                        
+                        AND rmpct.em_id IS NOT NULL 
+                        AND ((   (rmpct.date_start IS NULL OR rmpct.date_start &lt;= ${parameters['p_date_start']})
+                        AND (rmpct.date_end IS NULL OR rmpct.date_end &gt;=${parameters['p_date_end']}))
+                        OR rmpct.date_start &gt;= ${parameters['p_date_start']})
+                        AND rmpct.status IN (0, 1) 
+                        AND rmcat.occupiable = 1)
+              THEN '1' 
+               END 
+            </sql>
+        </field>
+        <parameter name="p_date_start" dataType="date" value=""/>
+        <parameter name="p_date_end" dataType="date" value=""/>
+        <restriction type="sql" sql="
+         rmcat.used_in_calcs IN('all_totals', 'dp_comn_ocup_totals') AND rm.hotelable = 0"/>
+    </dataSource>
+    
+     <dataSource id="ds_ab-sp-asgn-em-to-rm_drawing_availRm_forApprove">
+        <table name="rm" role="main"/>
+        <table name="rmcat" role="standard"/>
+        <field table="rm" name="bl_id"/>
+        <field table="rm" name="fl_id"/>
+        <field table="rm" name="rm_id"/>
+        <field table="rm" name="area"/>
+        <field table="rm" name="count_em" dataType="integer">
+            <sql dialect="generic">
+               (SELECT COUNT(DISTINCT(rmpct.em_id)) 
+                FROM rmpct 
+                WHERE 
+                rmpct.bl_id = rm.bl_id AND rmpct.fl_id = rm.fl_id AND rmpct.rm_id = rm.rm_id 
+                
+                AND rmpct.em_id IS NOT NULL 
+                AND ((   (rmpct.date_start IS NULL OR rmpct.date_start &lt;= ${parameters['p_date_start']})
+                AND (rmpct.date_end IS NULL OR rmpct.date_end &gt;=${parameters['p_date_end']}))
+                OR rmpct.date_start &gt;= ${parameters['p_date_start']})
+                AND rmpct.status IN (0, 1)) 
+            </sql>
+        </field>
+        <field table="rm" name="cap_em"/>
+        <field table="rmcat" name="occupiable"/>
+        <field table="rmcat" name="used_in_calcs"/>
+        <field table="rm" name="legend_level" dataType="text" legendKey="true">
+            <sql dialect="generic">               
+              CASE 
+                WHEN 
+                    rm.cap_em > 0 AND 
+                    0 =  (
+                        SELECT COUNT(DISTINCT(rmpct.em_id)) 
+                        FROM rmpct 
+                        WHERE 
+                        rmpct.bl_id = rm.bl_id AND rmpct.fl_id = rm.fl_id AND rmpct.rm_id = rm.rm_id 
+                        
+                        AND rmpct.em_id IS NOT NULL 
+                        AND ((   (rmpct.date_start IS NULL OR rmpct.date_start &lt;= ${parameters['p_date_start']})
+                        AND (rmpct.date_end IS NULL OR rmpct.date_end &gt;=${parameters['p_date_end']}))
+                        OR rmpct.date_start &gt;= ${parameters['p_date_start']})
+                        AND rmpct.status IN (0, 1) 
+                        AND rmcat.occupiable = 1) 
+              THEN '0'
+                  WHEN 
+                    rm.cap_em > 0 AND 
+                    rm.cap_em > (
+                        SELECT COUNT(DISTINCT(rmpct.em_id)) 
+                        FROM rmpct 
+                        WHERE 
+                        rmpct.bl_id = rm.bl_id AND rmpct.fl_id = rm.fl_id AND rmpct.rm_id = rm.rm_id 
+                        
+                        AND rmpct.em_id IS NOT NULL 
+                        AND ((   (rmpct.date_start IS NULL OR rmpct.date_start &lt;= ${parameters['p_date_start']})
+                        AND (rmpct.date_end IS NULL OR rmpct.date_end &gt;=${parameters['p_date_end']}))
+                        OR rmpct.date_start &gt;= ${parameters['p_date_start']})
+                        AND rmpct.status IN (0, 1) 
+                        AND rmcat.occupiable = 1) AND 
+                    0!= (
+                        SELECT COUNT(DISTINCT(rmpct.em_id)) 
+                        FROM rmpct 
+                        WHERE 
+                        rmpct.bl_id = rm.bl_id AND rmpct.fl_id = rm.fl_id AND rmpct.rm_id = rm.rm_id 
+                        
+                        AND rmpct.em_id IS NOT NULL 
+                        AND ((   (rmpct.date_start IS NULL OR rmpct.date_start &lt;= ${parameters['p_date_start']})
+                        AND (rmpct.date_end IS NULL OR rmpct.date_end &gt;=${parameters['p_date_end']}))
+                        OR rmpct.date_start &gt;= ${parameters['p_date_start']})
+                        AND rmpct.status IN (0, 1) 
+                        AND rmcat.occupiable = 1)
+              THEN '1' 
+                  WHEN 
+                    rm.cap_em > 0 AND 
+                    rm.cap_em = (
+                        SELECT COUNT(DISTINCT(rmpct.em_id)) 
+                        FROM rmpct 
+                        WHERE 
+                        rmpct.bl_id = rm.bl_id AND rmpct.fl_id = rm.fl_id AND rmpct.rm_id = rm.rm_id 
+                        
+                        AND rmpct.em_id IS NOT NULL 
+                        AND ((   (rmpct.date_start IS NULL OR rmpct.date_start &lt;= ${parameters['p_date_start']})
+                        AND (rmpct.date_end IS NULL OR rmpct.date_end &gt;=${parameters['p_date_end']}))
+                        OR rmpct.date_start &gt;= ${parameters['p_date_start']})
+                        AND rmpct.status IN (0, 1) 
+                        AND rmcat.occupiable = 1)
+              THEN '2' 
+                  WHEN 
+                    rm.cap_em > 0 AND 
+                    rm.cap_em &lt; (
+                        SELECT COUNT(DISTINCT(rmpct.em_id)) 
+                        FROM rmpct 
+                        WHERE 
+                        rmpct.bl_id = rm.bl_id AND rmpct.fl_id = rm.fl_id AND rmpct.rm_id = rm.rm_id 
+                        
+                        AND rmpct.em_id IS NOT NULL 
+                        AND ((   (rmpct.date_start IS NULL OR rmpct.date_start &lt;= ${parameters['p_date_start']})
+                        AND (rmpct.date_end IS NULL OR rmpct.date_end &gt;=${parameters['p_date_end']}))
+                        OR rmpct.date_start &gt;= ${parameters['p_date_start']})
+                        AND rmpct.status IN (0, 1) 
+                        AND rmcat.occupiable = 1)
+              THEN '3' 
+               END 
+            </sql>
+        </field>
+        <parameter name="p_date_start" dataType="date" value=""/>
+        <parameter name="p_date_end" dataType="date" value=""/>
+        <restriction type="sql" sql="
+         rmcat.used_in_calcs IN('all_totals', 'dp_comn_ocup_totals') AND rm.hotelable = 0"/>
+    </dataSource>
+    
+    <panel type="view" file="ab-helpdesk-request-assign-console.axvw" id="abHelpdeskRequestMoveConsole" layoutRegion="treeConsole"/>
+    
+    <panel type="view" file="ab-helpdesk-request-world-tree.axvw" id="abHelpdeskRequestWorldTree" layoutRegion="treePositon"/>
+    
+    <panel type="drawing" id="abSpAsgnEmToRm_drawingPanel" layoutRegion="dwgPosition" multiple="false"  selectionMode="1" assignMode="3"
+     highlightDataSource="ds_ab-sp-asgn-em-to-rm_drawing_availRm" 
+     labelsDataSource="ds_ab-sp-asgn-em-to-rm_drawing_rmLabel1"   
+     legendPanel="abSpAsgnEmToRm_legendGrid">
+        
+     	<action id="exportDOCX">
+			<title translatable="true">DOC</title>
+			<tooltip translatable="true">Export current view of drawing to Docx file.</tooltip>
+			<command type="exportPanel" outputType="docx" panelId="abSpAsgnEmToRm_drawingPanel"/>
+		</action>
+        <title></title>
+    </panel>
+     
+    <panel type="grid" controlType="reportGrid" id="abSpAsgnEmToRm_legendGrid" dataSource="ds_ab-sp-asgn-em-to-rm_legend" 
+    layoutRegion="legendPosition" showOnLoad="false">
+        <title translatable="true">Legend</title>
+        <action id="listPending">
+            <title translatable="true">List Pending</title>
+            <command type="openDialog" panelId="abSpGroupMo_rmPendingRequestList"/>
+        </action>
+	<!-- KB 3027141 do NOT use attribute width on controlType="color" field because IE does not strictly enforce the table column width & so the color div will be short. See KB comments -->
+        <field table="legend" name="color" controlType="color"/>
+        <field table="legend" name="value" width="80%">
+            <title translatable="true">Value</title>
+        </field>
+    </panel>
+    
+    <dataSource id="ds_abSpGroupMo_rmPendingRequestHighlightDS" applyVpaRestrictions="false">
+        <sql dialect="generic">
+            SELECT
+            RTRIM(rm.bl_id) ${sql.concat} ';' ${sql.concat} RTRIM(rm.fl_id) ${sql.concat} ';' ${sql.concat} RTRIM(rm.rm_id) ${sql.as} asset_id,
+            '0x808000' ${sql.as} color 
+            FROM rm 
+            where ${sql.vpaRestriction} and rm.hotelable = 0 and rm.bl_id = ${parameters['blId']} and rm.fl_id = ${parameters['flId']} 
+            and exists(select 1 from rmpct where ((rmpct.bl_id = rm.bl_id and rmpct.fl_id = rm.fl_id and rmpct.rm_id = rm.rm_id) OR 
+            (rmpct.from_bl_id = rm.bl_id and rmpct.from_fl_id = rm.fl_id and rmpct.from_rm_id = rm.rm_id))
+            and (rmpct.activity_log_id IS NOT NULL OR rmpct.mo_id IS NOT NULL) and
+            (rmpct.status = 0 OR (rmpct.status = 1 AND rmpct.date_start &gt; ${parameters['moveDate']})) )
+        </sql>
+        <table name="rm" role="main"/>
+        <field table="rm" name="asset_id" dataType="text"/>
+        <field table="rm" name="color" dataType="text"/>
+        <parameter name="moveDate" dataType="date" value=""/>
+        <parameter name="blId" dataType="text" value=""/>
+        <parameter name="flId" dataType="text" value=""/>
+        <parameter name="parentPctId" dataType="text" value=""/> 
+    </dataSource>
+    
+    <dataSource id="ds_abSpGroupMo_rmPendingRequestList">
+        <table name="rmpct" role="main"/>
+        <table name="activity_log" role="standard"/>
+        <field table="activity_log" name="activity_log_id"/>
+        <field table="activity_log" name="activity_type"/>
+        <field table="activity_log" name="status"/>
+        <table name="mo" role="standard"/>
+        <field table="mo" name="mo_id"/>
+        <field table="mo" name="project_id"/>
+        <field table="mo" name="status"/>
+        <field table="rmpct" name="em_id"/>
+        <field table="rmpct" name="date_start"/>
+        <field table="rmpct" name="bl_id"/>
+        <field table="rmpct" name="fl_id"/>
+        <field table="rmpct" name="rm_id"/>
+        <restriction type="sql" sql="((rmpct.bl_id = ${parameters['blId']} and rmpct.fl_id = ${parameters['flId']}) OR (rmpct.from_bl_id =${parameters['blId']} AND rmpct.from_fl_id = ${parameters['flId']})) 
+        AND (rmpct.activity_log_id IS NOT NULL OR rmpct.mo_id IS NOT NULL) and (rmpct.status = 0 
+        OR (rmpct.status = 1 AND rmpct.date_start &gt; ${parameters['moveDate']}))"/>
+        <parameter name="moveDate" dataType="date" value=""/>
+        <parameter name="blId" dataType="text" value=""/>
+        <parameter name="flId" dataType="text" value=""/>
+    </dataSource>
+    
+    <panel type="grid" columns="2" id="abSpGroupMo_rmPendingRequestList" dataSource="ds_abSpGroupMo_rmPendingRequestList" showOnLoad="false">
+        <title>Pending Requests</title>
+        <field table="rmpct" name="bl_id"/>
+        <field table="rmpct" name="fl_id"/>
+        <field table="rmpct" name="rm_id"/>
+        <field table="rmpct" name="em_id"/>
+        <field table="rmpct" name="date_start"/>
+        <field table="mo" name="mo_id"/>
+        <field table="mo" name="status"/>
+        <field table="mo" name="project_id"/>
+        <field table="activity_log" name="activity_log_id"/>
+        <field table="activity_log" name="status"/>
+        <field table="activity_log" name="activity_type"/>
+    </panel>
+    
+    <panel type="grid" id="abSpAsgnEmToRm_emSelect_PopUp" dataSource="ds_ab-sp-asgn-em-to-rm_grid_rmpct" 
+    multipleSelectionEnabled="true" showOnLoad="false">
+        <title translatable="true">Select Employee</title>
+        <action id="addSelected" hidden="false">
+            <title translatable="true">Add Selected</title>
+        </action>
+        <sortField table="em" name="em_id" ascending="true"/>
+        <field table="em" name="em_id"/>
+        
+        <field table="em" name="bl_id"/>
+        <field table="em" name="fl_id"/>
+        <field table="em" name="rm_id"/>
+        <field table="em" name="dv_id"/>
+        <field table="em" name="dp_id"/>
+        
+        <field table="em" name="primary_em" hidden="false">
+            <title translatable="true">Primary Employee Location</title>
+        </field>
+    </panel>
+    <!-- 
+    kb 3034262 Add action/new design for Select Employee in Group Move
+    use for 'create assignments'
+     -->
+    <panel type="grid" id="abSpAsgnEmToRm_rmpctSelect" dataSource="ds_ab-sp-asgn-em-to-rm_grid_rmpct" 
+    multipleSelectionEnabled="true" layoutRegion="selectPosition" showOnLoad="false" sortEnabled="true">
+        <title translatable="true">Select Employee</title>
+        <action id="assignSelected" hidden="false">
+            <title translatable="true">Assign Selected</title>
+            <command type="callFunction" functionName="assignSelected"/>
+        </action>
+        <action id="showAllLocations" hidden="false">
+            <title translatable="true">Show All Locations</title>
+        </action>
+       
+        <sortField table="em" name="em_id" ascending="true"/>
+        <field table="em" name="em_id"/>
+        <field table="em" name="bl_id"/>
+        <field table="em" name="fl_id"/>
+        <field table="em" name="rm_id"/>
+        <field table="em" name="dv_id"/>
+        <field table="em" name="dp_id"/>
+        
+        <field table="em" name="primary_em">
+            <title translatable="true">Primary Employee Location</title>
+        </field>
+    </panel>
+    
+    <panel type="grid" id="abSpAsgnEmToRm_emSelect" dataSource="ds_ab-sp-asgn-em-to-rm_grid_em" 
+    multipleSelectionEnabled="true" layoutRegion="selectPosition" showOnLoad="false">
+        <title translatable="true">Select Employee</title>
+        <action id="assignSelected" hidden="true">
+            <title translatable="true">Assign Selected</title>
+            <command type="callFunction" functionName="assignSelected"/>
+        </action>
+        <action id="addSelected" hidden="true">
+            <title translatable="true">Add Employee</title>
+        </action>
+        <action id="removeSelected" hidden="true">
+            <title translatable="true">Remove Selected</title>
+        </action>
+        <sortField table="em" name="em_id" ascending="true"/>
+        <field table="em" name="em_id"/>
+        
+        <field table="em" name="pct_id" hidden="true">
+        </field>
+        <field table="em" name="parent_pct_id" hidden="true">
+        </field>
+        
+        <field table="em" name="bl_id_current" hidden="false">
+            <title translatable="true">From Building</title>
+        </field>
+        <field table="em" name="fl_id_current" hidden="false">
+            <title translatable="true">From Floor</title>
+        </field>
+        <field table="em" name="rm_id_current" hidden="false">
+            <title translatable="true">From Room</title>
+        </field>
+        
+        <field table="em" name="bl_id"/>
+        <field table="em" name="fl_id"/>
+        <field table="em" name="rm_id"/>
+        <field table="em" name="dv_id"/>
+        <field table="em" name="dp_id"/>
+        
+        <field table="em" name="primary_em" hidden="false">
+            <title translatable="true">Primary Employee Location</title>
+        </field>
+    </panel>
+    
+    <panel type="grid" controlType="reportGrid" id="abSpAsgnEmToRm_emAssigned" dataSource="ds_ab-sp-asgn-em-to-rm_grid_emAssign"
+     multipleSelectionEnabled="true" layoutRegion="assignmentsPosition" showOnLoad="false">
+        <title translatable="true">Assignments</title>
+        <action id="removeSelected">
+            <title translatable="true">Remove Selected</title>
+            <command type="callFunction" functionName="removeAssignSelected"/>
+        </action>
+        <action id="clear" hidden="true">
+            <title translatable="true">Clear</title>
+            <command type="callFunction" functionName="clearChanges"/>
+        </action>
+        <field controlType="button">
+            <title translatable="true">Change From Location</title>
+            <command type="callFunction" functionName="clickChangeFromLocation"/>
+        </field>        
+        <field table="em" name="pct_id" hidden="true">
+        </field>
+        <field table="em" name="parent_pct_id" hidden="true">
+        </field>
+        <field table="em" name="em_id">
+            <title translatable="true">Employee to Move</title>
+        </field>
+        <field table="em" name="bl_id_current">
+            <title translatable="true">From Building</title>
+        </field>
+        <field table="em" name="fl_id_current">
+            <title translatable="true">From Floor</title>
+        </field>
+        <field table="em" name="rm_id_current">
+            <title translatable="true">From Room</title>
+        </field>
+        <field table="em" name="bl_id">
+            <title translatable="true">To Building</title>
+        </field>
+        <field table="em" name="fl_id">
+            <title translatable="true">To Floor</title>
+        </field>
+        <field table="em" name="rm_id">
+            <title translatable="true">To Room</title>
+        </field>        
+        <field controlType="button" id="toLocation">
+            <title translatable="true">Select To Location</title>
+            <command type="callFunction" functionName="clickChangeToLocation"/>
+        </field>
+        <field table="em" name="primary_em" hidden="false">
+            <title translatable="true">Primary Employee Location</title>
+        </field>
+    </panel>
+    <!-- pop up when click button 'Change From Location'  -->
+    <panel id="abSpAsgnEmFromRm_popup"  type="grid" dataSource="ds_ab-sp-asgn-select-location" showOnLoad="false">
+        <title translatable="true">All current employee room assignments</title>
+        <action id="SelectNull">
+            <title translatable="true">Leave From Location Empty</title>
+            <command type="callFunction" functionName="chooseOneRecordFromRoom"/>
+        </action>
+        <field table="rmpct" name="bl_id" controlType="link">
+            <command type="callFunction" functionName="chooseOneRecordFromRoom"/>
+        </field>   
+        <field table="rmpct" name="fl_id" controlType="link">
+            <command type="callFunction" functionName="chooseOneRecordFromRoom"/>
+        </field>   
+        <field table="rmpct" name="rm_id" controlType="link">
+            <command type="callFunction" functionName="chooseOneRecordFromRoom"/>
+        </field>   
+    </panel>
+    
+    <dataSource id="ds_ab-sp-asgn-select-to-location">
+        <table name="rm" role="main"/>
+        <field table="rm" name="bl_id"/>        
+        <field table="rm" name="fl_id"/>
+        <field table="rm" name="rm_id"/>   
+        <restriction type="sql" sql="                
+            rm.cap_em > 0 AND 
+            rm.cap_em > (
+                SELECT COUNT(DISTINCT(rmpct.em_id)) 
+                FROM rmpct, rmcat   
+                WHERE 
+                rmpct.bl_id = rm.bl_id AND rmpct.fl_id = rm.fl_id AND rmpct.rm_id = rm.rm_id and rmcat.rm_cat = rm.rm_cat  
+                
+                AND rmpct.em_id IS NOT NULL 
+                AND ((   (rmpct.date_start IS NULL OR rmpct.date_start &lt;= ${parameters['p_date_start']})
+                AND (rmpct.date_end IS NULL OR rmpct.date_end &gt;=${parameters['p_date_end']}))
+                OR rmpct.date_start &gt;= ${parameters['p_date_start']})
+                AND rmpct.status IN (0, 1) 
+                AND rmcat.occupiable = 1 ) 
+                AND rm.hotelable = 0
+        "/>
+        <parameter name="p_date_start" dataType="date" value=""/>
+        <parameter name="p_date_end" dataType="date" value=""/>
+    </dataSource>
+    
+    <dataSource id="ds_ab-sp-asgn-select-to-location-for-approve">
+        <table name="rm" role="main"/>
+        <field table="rm" name="bl_id"/>        
+        <field table="rm" name="fl_id"/>
+        <field table="rm" name="rm_id"/>   
+        <field name="dv_id" table="rm" />
+        <field name="dp_id" table="rm" />
+        <field name="rm_cat" table="rm" />
+        <field name="rm_type" table="rm" />
+        <restriction type="sql" sql="                
+            rm.cap_em > 0 
+                AND rm.hotelable = 0 
+        "/>
+        <parameter name="p_date_start" dataType="date" value=""/>
+        <parameter name="p_date_end" dataType="date" value=""/>
+    </dataSource>
+    
+    <!-- pop up when click button 'Change To Location'  -->
+    <panel id="abSpAsgnEmToRm_popup"  type="grid" dataSource="ds_ab-sp-asgn-select-to-location" showOnLoad="false">
+        <title translatable="true">Available Rooms</title>
+        <field table="rm" name="bl_id" controlType="link">
+            <command type="callFunction" functionName="chooseOneRecordMoveToRoom"/>
+        </field>   
+        <field table="rm" name="fl_id" controlType="link">
+            <command type="callFunction" functionName="chooseOneRecordMoveToRoom"/>
+        </field>   
+        <field table="rm" name="rm_id" controlType="link">
+            <command type="callFunction" functionName="chooseOneRecordMoveToRoom"/>
+        </field>   
+    </panel>
+    <!-- pop up when click button 'Change To Location' for approve -->
+    <panel id="abSpAsgnEmToRm_popup_approve"  type="grid" dataSource="ds_ab-sp-asgn-select-to-location-for-approve" showOnLoad="false">
+        <title translatable="true">Available Rooms</title>
+        <field table="rm" name="bl_id" controlType="link">
+            <command type="callFunction" functionName="chooseOneRecordMoveToRoom"/>
+        </field>   
+        <field table="rm" name="fl_id" controlType="link">
+            <command type="callFunction" functionName="chooseOneRecordMoveToRoom"/>
+        </field>   
+        <field table="rm" name="rm_id" controlType="link">
+            <command type="callFunction" functionName="chooseOneRecordMoveToRoom"/>
+        </field>   
+    </panel>
+    
+   <dataSource id="docsDS">
+        <table name="activity_log" role="main" />
+        <field name="created_by" table="activity_log" />
+        <field name="activity_log_id" table="activity_log" />
+        <field name="activity_type" table="activity_log" />
+        <field name="description" table="activity_log" />
+        <field name="requestor" table="activity_log" />
+        <field name="phone_requestor" table="activity_log" />
+        <field name="doc1" table="activity_log" />
+        <field name="doc2" table="activity_log" />
+        <field name="doc3" table="activity_log" />
+        <field name="doc4" table="activity_log" />
+        <field name="prob_type" table="activity_log" />
+        <field name="priority" table="activity_log" />
+        <field name="status" table="activity_log" />
+        <field name="assessment_id" table="activity_log" />
+    </dataSource>
+    
+    <panel type="form" columns="1" id="documentsPanel" dataSource="docsDS" layoutRegion="documents">
+        <title translatable="true">Documents</title>
+        <field name="activity_log_id" table="activity_log" hidden="true"/>
+        <field name="doc1" table="activity_log"/>
+        <field name="doc2" table="activity_log"/>
+        <field name="doc3" table="activity_log"/>
+        <field name="doc4" table="activity_log"/>
+    </panel>
+    
+    
+    <dataSource id="duplicates_rmpct_for_js">
+        <table name="rmpct" role="main"/>
+        <field table="rmpct" name="pct_id"/>
+        <restriction type="sql" sql="
+          EXISTS (SELECT 1 FROM rmpct, activity_log 
+          WHERE rmpct.activity_log_id IS NOT NULL 
+          AND rmpct.activity_log_id = activity_log.activity_log_id 
+          AND activity_log.activity_type IN ('SERVICE DESK - INDIVIDUAL MOVE', 'SERVICE DESK - GROUP MOVE') 
+          AND rmpct.primary_em = 1 
+          AND (rmpct.status = 0 OR (rmpct.status = 1 AND rmpct.date_start &gt;= ${parameters['current_date']}))
+          AND rmpct.em_id = ${parameters['em_id']})
+        "/>
+        <parameter name="current_date" dataType="date" value=""/>
+        <parameter name="em_id" dataType="text" value=""/>
+    </dataSource>
+    
+    <dataSource id="updateDs_0">
+        <table name="activity_log" role="main"/>
+        <field table="activity_log" name="activity_log_id" />
+        <field table="activity_log" name="comments"/>
+    </dataSource>
+
+    <panel type="form" columns="2" id="updatePanel" dataSource="updateDs_0" layoutRegion="documents" showOnLoad="true">
+        
+        <field name="activity_log_id" table="activity_log" hidden="true"/>      
+          
+        <field name="comments" table="activity_log" colspan="2"
+                style="height:60px" showSelectValueAction="false" />
+                
+    </panel>
+    
+    <dataSource id="ds_ab-sp-asgn-current-user-role">
+        <table name="afm_roleprocs" role="main"/>
+        <field table="afm_roleprocs" name="role_name"/>        
+        <field table="afm_roleprocs" name="process_id"/>        
+        <restriction type="sql" sql="                
+            afm_roleprocs.role_name = '${user.role}' and  process_id = 'Space Manager RmTrans'
+        "/>
+    </dataSource>
+    <js file="ab-sp-common.js"/>
+    <js file="ab-helpdesk-request-move-assign.js"/>
+    <js file="ab-helpdesk-request-trans-common.js"/>
+    <js file="ab-helpdesk-common-v2.js" />
+</view>

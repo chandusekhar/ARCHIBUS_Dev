@@ -1,0 +1,339 @@
+<?xml version="1.0"?>
+<project name="ARCHIBUS Web Central AB Products" basedir=".">
+
+	<target name="init" description="Initialize build environment">
+		<!-- read properties from build.properties -->
+		<property file="${basedir}/build.properties" />
+
+		<!-- master application folders -->
+		<property name="master" value="${basedir}/../.." />
+		<property name="master.dist" value="${master}/dist" />
+		<property name="master.lib" value="${master}/compile-lib" />
+		<property name="master.schema" value="${master}/schema" />
+		<property name="master.framesets" value="${master.schema}/ab-system/framesets" />
+
+		<!-- deployment folder for jar files -->
+		<property name="deploy.lib" value="${master}/WEB-INF/lib" />
+		<property name="deploy.classes" value="${master}/WEB-INF/classes" />
+
+		<!-- Java compiler options -->
+		<property name="build.compiler" value="modern" />
+
+		<!-- target name used to build all activities -->
+		<property name="master.target" value="jar" />
+
+		<property name="toolsdir" value="${master}/../../../../tools" />
+		<property name="ant" value="${toolsdir}/ant" />
+		<property name="jdk" value="${toolsdir}/jdk" />
+	</target>
+
+	<target name="init-activity" depends="init" description="Initialize build environment">
+		<!-- input parameters -->
+		<property name="product.name" value="" />
+		<property name="activity.name" value="" />
+		<property name="activity.version" value="" />
+		<property name="activity.description" value="" />
+		<property name="activity.dir" value="${product.name}/${activity.name}" />
+
+		<!-- activity source code folder -->
+		<property name="activity" value="${basedir}/${activity.dir}" />
+		<property name="activity.build" value="${activity}/build" />
+		<property name="activity.build.classes" value="${activity.build}/classes" />
+		<property name="activity.lib" value="${activity}/lib" />
+		<property name="activity.src" value="${activity}/src" />
+		<property name="activity.src.main" value="${activity.src}/main" />
+		<property name="activity.src.test" value="${activity.src}/test" />
+
+		<!-- JAR file into which activity files are packaged -->
+		<property name="jar-file" value="${master.dist}/archibus-${product.name}-${activity.name}.jar" />
+	</target>
+
+	<target name="clean" depends="init-activity" description="Clean build folders">
+		<delete dir="${activity.build.classes}" />
+		<delete file="${jar-file}" />
+	</target>
+
+	<target name="prepare" depends="init-activity, clean" description="Prepare build folders">
+		<mkdir dir="${master.dist}" />
+		<mkdir dir="${activity.build}" />
+		<mkdir dir="${activity.build.classes}" />
+		<copy todir="${activity.build.classes}">
+			<fileset dir="${activity}">
+				<include name="*.axvw" />
+				<include name="*.xsl" />
+			</fileset>
+			<fileset dir="${activity.src.main}">
+				<include name="**/*.xml" />
+			</fileset>
+			<fileset dir="${activity.src.test}">
+				<include name="**/*.xml" />
+			</fileset>
+		</copy>
+	</target>
+
+	<target name="compile" depends="prepare" description="Compile Java classes">
+		<javac destdir="${activity.build.classes}" debug="on" target="1.6" source="1.6" bootclasspath="${bootclasspath}" encoding="Cp1252">
+			<src path="${activity.src.main}" />
+			<classpath>
+				<fileset dir="${activity}">
+					<include name="lib/*.jar" />
+				</fileset>
+				<fileset dir="${master}">
+					<include name="dist/*.jar" />
+					<include name="compile-lib/*.jar" />
+					<include name="WEB-INF/lib/*.jar" />
+				</fileset>
+			</classpath>
+		</javac>
+	</target>
+
+	<target name="jar" depends="compile, if-enabled-pmd-checkstyle-findbugs-mail" description="Create JAR file">
+		<jar destfile="${jar-file}" basedir="${activity.build.classes}">
+			<include name="**/*" />
+			<exclude name="**/*.dep*" />
+			<manifest>
+				<attribute name="Java-Version" value="${java.vm.version}" />
+				<section name="${activity.description}">
+					<attribute name="Activity-Version" value="${activity.version}" />
+				</section>
+			</manifest>
+		</jar>
+	</target>
+
+	<target name="deploy" depends="jar" description="Build and deploy activity jar files to WEB-INF\lib folder">
+		<copy todir="${deploy.lib}" file="${jar-file}" />
+		<copy todir="${deploy.lib}" failonerror="false">
+			<fileset dir="${activity.lib}" excludes="servlet.jar servlet-api.jar jsp-api.jar" />
+		</copy>
+	</target>
+
+	<target name="build-all" depends="init" description="Performs specified build target for all activities">
+		<ant target="${master.target}" inheritAll="true">
+			<property name="product.name" value="common" />
+			<property name="activity.name" value="resources" />
+			<property name="email.warnings.tolist" value="${email.warnings.tolist.common-resources}" />
+		</ant>
+		<ant target="${master.target}" inheritAll="true">
+			<property name="product.name" value="compatibility" />
+			<property name="activity.name" value="resources" />
+			<property name="email.warnings.tolist" value="${email.warnings.tolist.compatibility-resources}" />
+		</ant>
+		<ant target="${master.target}" inheritAll="true">
+			<property name="product.name" value="common" />
+			<property name="activity.name" value="connectors" />
+			<property name="email.warnings.tolist" value="${email.warnings.tolist.common-extensions-arcgis}" />
+		</ant>
+		<ant target="${master.target}" inheritAll="true">
+			<property name="product.name" value="common" />
+			<property name="activity.name" value="extensions-arcgis" />
+			<property name="email.warnings.tolist" value="${email.warnings.tolist.common-extensions-arcgis}" />
+		</ant>
+		<ant target="${master.target}" inheritAll="true">
+			<property name="product.name" value="solutions" />
+			<property name="activity.name" value="localization" />
+			<property name="email.warnings.tolist" value="${email.warnings.tolist.solutions-localization}" />
+		</ant>
+		<ant target="${master.target}" inheritAll="true">
+			<property name="product.name" value="solutions" />
+			<property name="activity.name" value="logic-cookbook" />
+			<property name="email.warnings.tolist" value="${email.warnings.tolist.solutions-logic-cookbook}" />
+		</ant>
+		<ant target="${master.target}" inheritAll="true">
+			<property name="product.name" value="solutions" />
+			<property name="activity.name" value="common" />
+			<property name="email.warnings.tolist" value="${email.warnings.tolist.solutions-common}" />
+		</ant>
+		<ant target="${master.target}" inheritAll="true">
+			<property name="product.name" value="solutions" />
+			<property name="activity.name" value="workflow" />
+			<property name="email.warnings.tolist" value="${email.warnings.tolist.solutions-workflow}" />
+		</ant>
+		<ant target="${master.target}" inheritAll="true">
+			<property name="product.name" value="bldgops" />
+			<property name="activity.name" value="common" />
+			<property name="email.warnings.tolist" value="${email.warnings.tolist.bldgops-common}" />
+		</ant>
+		<ant target="${master.target}" inheritAll="true">
+			<property name="product.name" value="move" />
+			<property name="activity.name" value="management" />
+			<property name="email.warnings.tolist" value="${email.warnings.tolist.move-management}" />
+		</ant>
+		<ant target="${master.target}" inheritAll="true">
+			<property name="product.name" value="project" />
+			<property name="activity.name" value="common" />
+			<property name="email.warnings.tolist" value="${email.warnings.tolist.project-common}" />
+		</ant>
+		<ant target="${master.target}" inheritAll="true">
+			<property name="product.name" value="rplm" />
+			<property name="activity.name" value="common" />
+			<property name="email.warnings.tolist" value="${email.warnings.tolist.rplm-common}" />
+		</ant>
+		<ant target="${master.target}" inheritAll="true">
+			<property name="product.name" value="solutions" />
+			<property name="activity.name" value="compatibility" />
+			<property name="email.warnings.tolist" value="${email.warnings.tolist.solutions-compatibility}" />
+		</ant>
+		<ant target="${master.target}" inheritAll="true">
+			<property name="product.name" value="space" />
+			<property name="activity.name" value="common" />
+			<property name="email.warnings.tolist" value="${email.warnings.tolist.space-common}" />
+		</ant>
+		<ant target="${master.target}" inheritAll="true">
+			<property name="product.name" value="asset" />
+			<property name="activity.name" value="common" />
+			<property name="email.warnings.tolist" value="${email.warnings.tolist.asset-common}" />
+		</ant>
+		<ant target="${master.target}" inheritAll="true">
+			<property name="product.name" value="workplace" />
+			<property name="activity.name" value="common" />
+			<property name="email.warnings.tolist" value="${email.warnings.tolist.workplace-common}" />
+		</ant>
+		<ant target="${master.target}" inheritAll="true">
+			<property name="product.name" value="workplace" />
+			<property name="activity.name" value="reservations" />
+			<property name="email.warnings.tolist" value="${email.warnings.tolist.workplace-reservations}" />
+		</ant>
+		<ant target="${master.target}" inheritAll="true">
+			<property name="product.name" value="workplace" />
+			<property name="activity.name" value="hoteling" />
+			<property name="email.warnings.tolist" value="${email.warnings.tolist.workplace-hoteling}" />
+		</ant>
+		<ant target="${master.target}" inheritAll="true">
+			<property name="product.name" value="risk" />
+			<property name="activity.name" value="common" />
+			<property name="email.warnings.tolist" value="${email.warnings.tolist.risk-common}" />
+		</ant>
+	</target>
+	<target name="build-solutions" description="Performs specified build target for activity: solutions">
+		<ant target="${master.target}" inheritAll="false">
+			<property name="product.name" value="compatibility" />
+			<property name="activity.name" value="resources" />
+		</ant>
+		<ant target="${master.target}" inheritAll="false">
+			<property name="product.name" value="solutions" />
+			<property name="activity.name" value="common" />
+		</ant>
+		<ant target="${master.target}" inheritAll="false">
+			<property name="product.name" value="solutions" />
+			<property name="activity.name" value="localization" />
+		</ant>
+		<ant target="${master.target}" inheritAll="false">
+			<property name="product.name" value="solutions" />
+			<property name="activity.name" value="logic-cookbook" />
+		</ant>
+		<ant target="${master.target}" inheritAll="false">
+			<property name="product.name" value="solutions" />
+			<property name="activity.name" value="workflow" />
+		</ant>
+		<ant target="${master.target}" inheritAll="false">
+			<property name="product.name" value="solutions" />
+			<property name="activity.name" value="compatibility" />
+		</ant>
+	</target>
+
+	<target name="clean-all" description="Cleans all activities">
+		<ant target="build-all" inheritAll="false">
+			<property name="master.target" value="clean" />
+		</ant>
+	</target>
+
+	<target name="jars-all" description="Creates all activities JAR files">
+		<ant target="build-all" inheritAll="false">
+			<property name="master.target" value="jar" />
+			<property name="warnings-mail" value="${warnings-mail}" />
+		</ant>
+	</target>
+
+	<target name="jars-solutions" description="Creates solutions activity JAR files">
+		<ant target="build-solutions" inheritAll="false">
+			<property name="master.target" value="jar" />
+		</ant>
+	</target>
+
+	<target name="deploy-all" description="Deploys all activities">
+		<ant target="build-all" inheritAll="false">
+			<property name="master.target" value="deploy" />
+		</ant>
+	</target>
+
+	<target name="pmd" depends="init-activity">
+		<taskdef name="pmd" classname="net.sourceforge.pmd.ant.PMDTask" classpath="..\..\..\Tools\PMD\lib\pmd-4.2.5.jar;..\..\" />
+		<!-- The ruleset excludes all existing in 19.3 files -->
+		<pmd rulesetfiles="ARCHIBUS.pmd.ruleset.xml" failuresPropertyName="pmd-failure">
+			<formatter type="xml" tofile="pmd-report.xml" />
+			<fileset dir="${activity.src.main}">
+				<include name="**/*.java" />
+			</fileset>
+		</pmd>
+		<xslt in="pmd-report.xml" out="pmd-report.html" style="..\..\..\Tools\PMD\etc\xslt\pmd-report.xslt" />
+	</target>
+
+	
+	<target name="checkstyle" depends="init-activity" description="Generates a report of code convention violations.">
+		<taskdef resource="checkstyletask.properties" classpath="..\..\..\Tools\CheckStyle\checkstyle-5.6-all.jar" />
+		<property name="config_loc" value="${basedir}\..\..\" />
+		<!-- The ruleset excludes all existing in 19.3 files -->
+		<checkstyle config="..\..\ARCHIBUS.CheckStyle.xml" failureProperty="checkstyle-failure" failOnViolation="false" maxErrors="0" maxWarnings="0">
+			<formatter type="xml" tofile="checkstyle-report.xml" />
+			<fileset dir="${activity.src.main}">
+				<include name="**/*.java" />
+			</fileset>
+		</checkstyle>
+		<xslt in="checkstyle-report.xml" out="checkstyle-report.html" style="..\..\..\Tools\CheckStyle\contrib\checkstyle-simple.xsl" />
+	</target>
+
+	<target name="findbugs" depends="init-activity">
+		<taskdef name="findbugs" classname="edu.umd.cs.findbugs.anttask.FindBugsTask" classpath="..\..\..\Tools\FindBugs\lib\findbugs-ant.jar" />
+		<property name="findbugs.home" value="..\..\..\Tools\FindBugs" />
+		<!-- exclude all existing files -->
+		<findbugs home="${findbugs.home}" output="xml:withMessages" outputFile="findbugs-report.xml" jvmargs="-Xmx500M" excludeFilter="..\..\findbugs-exclude.xml" warningsProperty="findbugs-failure">
+			<sourcePath path="${activity.src.main}" />
+			<class location="${activity.build.classes}" />
+			<!-- TODO add all lib\JARs here -->
+			<!-- auxClasspath path="${master.dist}/archibus.jar" / -->
+			<auxClasspath>
+				<fileset dir="${master.dist}">
+					<include name="**/*.jar" />
+				</fileset>
+			</auxClasspath>
+			<auxClasspath>
+				<fileset dir="${master.lib}">
+					<include name="**/*.jar" />
+				</fileset>
+			</auxClasspath>
+			<auxClasspath>
+				<fileset dir="${deploy.lib}">
+					<include name="**/*.jar" />
+				</fileset>
+			</auxClasspath>
+		</findbugs>
+		<xslt in="findbugs-report.xml" out="findbugs-report.html" style="..\..\..\Tools\FindBugs\src\xsl\default.xsl" />
+	</target>
+
+	<target name="if-enabled-pmd-checkstyle-findbugs-mail">
+		<taskdef resource="net/sf/antcontrib/antcontrib.properties" classpath="${deploy.lib}\ant-contrib-1.0b3.jar" />
+		<if>
+			<equals arg1="${warnings-mail}" arg2="true" />
+			<then>
+				<ant target="pmd-mail" inheritAll="true" />
+				<ant target="checkstyle-mail" inheritAll="true" />
+				<ant target="findbugs-mail" inheritAll="true" />
+			</then>
+		</if>
+	</target>
+
+	<target name="pmd-mail" depends="pmd" if="pmd-failure">
+		<mail mailhost="${email.host}" tolist="${email.warnings.tolist}" from="${email.from}" subject="PMD violations in ${product.name}-${activity.name}" message="${email.warnings.message.pmd}" files="pmd-report.html" />
+		<echo message="Sent email with warnings in ${product.name}-${activity.name} to ${email.warnings.tolist}" />
+	</target>
+
+	<target name="checkstyle-mail" depends="checkstyle" if="checkstyle-failure">
+		<mail mailhost="${email.host}" tolist="${email.warnings.tolist}" from="${email.from}" subject="CheckStyle violations in ${product.name}-${activity.name}" message="${email.warnings.message.checkstyle}" files="checkstyle-report.html" />
+		<echo message="Sent email with warnings in ${product.name}-${activity.name} to ${email.warnings.tolist}" />
+	</target>
+
+	<target name="findbugs-mail" depends="findbugs" if="findbugs-failure">
+		<mail mailhost="${email.host}" tolist="${email.warnings.tolist}" from="${email.from}" subject="FindBugs violations in ${product.name}-${activity.name}" message="${email.warnings.message.findbugs}" files="findbugs-report.html" />
+		<echo message="Sent email with warnings in ${product.name}-${activity.name} to ${email.warnings.tolist}" />
+	</target>
+</project>

@@ -1,0 +1,159 @@
+<view version="2.0">
+	<title translatable="true">Work Request Status Statistics by Assessment Project</title>
+	<js file="ab-es-wr-stat-by-ca-prj.js"/>
+	<js file="ab-ca-common.js"/>
+	
+	<message name="noProjectSelected" translatable="true">You must select at least one project before pressing the 'Show' action button</message>
+	<message name="noProjectSelectedForDetails" translatable="true">You must select at least one project before pressing the 'Details' button</message>
+	<message name="noProjectSelectedForReport" translatable="true">You must select at least one project before pressing the 'Paginated Report' button</message>
+	<message name="selectedProjects" translatable="true">Selected Projects</message>
+	<message name="siteId" translatable="true">Site Code</message>
+	<message name="blId" translatable="true">Building Code</message>
+	<message name="flId" translatable="true">Floor Code</message>
+	<message name="csiId" translatable="true">Classification Code</message>
+	
+    <layout type="borderLayout" id="mainLayout">
+        <west autoScroll="true" split="true" initialSize="20%"/>
+        <center autoScroll="true"/>
+    </layout>
+    <layout type="borderLayout" id="centerLayout" containingLayout="mainLayout" region="center">
+        <north split="true" initialSize="15%"/>
+        <center autoScroll="true"/>
+    </layout>
+	
+	<!-- Project List-->
+    <dataSource id="dsProjects">
+        <table name="project"/>
+        <field name="project_id"/>
+		<restriction type="parsed">
+		    <clause table="project" name="project_type" op="=" value="ASSESSMENT - ENVIRONMENTAL"/>
+		</restriction>
+		<restriction type="sql" sql="EXISTS(SELECT activity_log.project_id FROM activity_log WHERE activity_log.project_id = project.project_id AND activity_log.sust_priority &lt;&gt; 0)"/>
+    </dataSource>  
+	<panel type="grid" id="listProjects" dataSource="dsProjects" multipleSelectionEnabled="true" layout="mainLayout" region="west">
+		<title translatable="true">Projects</title>
+        <action id="projDetails">
+            <title translatable="true">Details</title>
+        </action>
+		<field name="project_id"/>
+		<sortField name="project_id" ascending="true"/>
+	</panel>
+	
+	<!-- Filter Panel-->
+	<dataSource id="dsCaWrStatByPrjFilter">
+		<table name="activity_log" role="main"/>
+		<field table="activity_log" name="site_id"/>
+		<field table="activity_log" name="bl_id"/>
+		<field table="activity_log" name="fl_id"/>
+		<field table="activity_log" name="csi_id"/>
+	</dataSource>
+	<panel type="console" id="caWrStatByPrjFilterPanel" dataSource="dsCaWrStatByPrjFilter" columns="3" layout="centerLayout" region="north">
+		<title translatable="true">Filter</title>
+        <action id="paginatedReport">
+            <title translatable="true">Paginated Report</title>
+        </action>
+        <action id="show">
+            <title translatable="true">Show</title>
+        </action>
+        <action id="clear">
+            <title translatable="true">Clear</title>
+            <command type="clearPanel" panelId="caWrStatByPrjFilterPanel"/>
+        </action>
+		<field table="activity_log" name="site_id" style="width: 100px;"/>
+		<field table="activity_log" name="bl_id" style="width: 100px;"/>
+		<field table="activity_log" name="fl_id" style="width: 100px;"/>
+		<field table="activity_log" name="csi_id" style="width: 100px;"/>
+	</panel>
+	
+	<!-- Summary panel -->
+	<dataSource id="dsCaWrStatByPrjRep" type="grouping">
+		<sql dialect="generic">
+			SELECT
+				activity_log.activity_log_id ${sql.as} activity_log_id,
+				activity_log.description ${sql.as} description,
+				activity_log.cost_estimated,
+				activity_log.cost_est_cap,
+				activity_log.csi_id,
+				activity_log.site_id,
+				activity_log.bl_id,
+				activity_log.fl_id,
+				activity_log.cond_value,
+				activity_log.sust_priority,
+				(SELECT COUNT(wr.activity_log_id) FROM wr WHERE wr.status IN ('R','Rev') AND wr.activity_log_id IN (SELECT a_in.activity_log_id FROM activity_log a_in WHERE a_in.assessment_id = activity_log.activity_log_id)) ${sql.as} num_wr_requested,
+				(SELECT COUNT(wr.activity_log_id) FROM wr WHERE wr.status IN ('A','AA','I','HP','HA','HL') AND wr.activity_log_id IN (SELECT a_in.activity_log_id FROM activity_log a_in WHERE a_in.assessment_id = activity_log.activity_log_id) ) ${sql.as} num_wr_issued,
+				(SELECT COUNT(wr.activity_log_id) FROM wr WHERE wr.status IN ('Com') AND wr.activity_log_id IN (SELECT a_in.activity_log_id FROM activity_log a_in WHERE a_in.assessment_id = activity_log.activity_log_id) ) ${sql.as} num_wr_completed,
+				(SELECT COUNT(hwr.activity_log_id) FROM hwr, hactivity_log WHERE hwr.status IN ('Clo') AND hwr.activity_log_id = hactivity_log.activity_log_id AND hactivity_log.assessment_id = activity_log.activity_log_id) ${sql.as} num_wr_closed,
+				(SELECT project_id FROM activity_log a WHERE a.activity_log_id = activity_log.activity_log_id ) ${sql.as} hours_actual
+			FROM activity_log 
+			WHERE 
+			EXISTS(SELECT 1 FROM activity_log act_log_inner 
+						WHERE act_log_inner.assessment_id = activity_log.activity_log_id
+						AND activity_log.activity_type = 'ASSESSMENT'
+						AND ${parameters['projectRestriction']}
+				       	UNION
+       					SELECT 1 FROM hactivity_log hact_log_inner
+       					WHERE hact_log_inner.assessment_id = activity_log.activity_log_id
+						AND ${parameters['projectRestriction']}
+						) 
+		</sql>
+		<parameter name="projectRestriction" dataType="verbatim" value="1=1"/>
+		<table name="activity_log" role="main"/>
+		<field table="activity_log" name="activity_log_id" groupBy="true"/>
+		<field table="activity_log" name="hours_actual" dataType="text">
+			<title translatable="true">Project Name</title>
+			<sql dialect="generic">
+				MAX(activity_log.hours_actual)
+			</sql>
+		</field>
+		<field table="activity_log" name="sust_priority" dataType="number" size="10" decimals="0">
+			<sql dialect="generic">
+				MAX(activity_log.sust_priority)
+			</sql>
+		</field>
+		<field table="activity_log" name="cond_value" dataType="number" size="10" decimals="0">
+			<sql dialect="generic">
+				MAX(activity_log.cond_value)
+			</sql>
+		</field>
+		<field table="activity_log" name="description" dataType="text">
+			<sql dialect="generic">
+				MAX(activity_log.description)
+			</sql>
+		</field>
+		<field table="activity_log" name="vf_num_wr_requested" dataType="number" size="10" decimals="0">
+			<title translatable="true">Requested</title>
+			<sql dialect="generic">
+				SUM(activity_log.num_wr_requested)
+			</sql>
+		</field>
+		<field table="activity_log" name="vf_num_wr_issued" dataType="number" size="10" decimals="0">
+			<title translatable="true">In Process</title>
+			<sql dialect="generic">
+				SUM(activity_log.num_wr_issued)
+			</sql>
+		</field>
+		<field table="activity_log" name="vf_num_wr_completed" dataType="number" size="10" decimals="0">
+			<title translatable="true">Completed</title>
+			<sql dialect="generic">
+				SUM(activity_log.num_wr_completed)
+			</sql>
+		</field>
+		<field table="activity_log" name="vf_num_wr_closed" dataType="number" size="10" decimals="0">
+			<title translatable="true">Closed</title>
+			<sql dialect="generic">
+				SUM(activity_log.num_wr_closed)
+			</sql>
+		</field>
+		<field table="activity_log" name="vf_cost_est_total" dataType="number" size="12" decimals="2">
+			<title translatable="true">Cost Estimated Total</title>
+			<sql dialect="generic">
+				SUM(activity_log.cost_estimated + activity_log.cost_est_cap)
+			</sql>
+		</field>
+	</dataSource>
+	<panel type="crossTable" id="repCaWrStatByPrj" dataSource="dsCaWrStatByPrjRep" showOnLoad="false" multipleSelectionEnabled="false" layout="centerLayout" region="center">
+        <event type="onClickItem">
+            <command type="callFunction" functionName="gridCaWrStatByPrjDetails_onClick"/>
+        </event>
+	</panel>
+</view>

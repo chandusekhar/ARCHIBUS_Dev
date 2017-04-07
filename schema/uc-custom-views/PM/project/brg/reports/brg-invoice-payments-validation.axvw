@@ -1,0 +1,168 @@
+<view version="2.0">
+	<title>Invoice Import Payment Validation Report</title>
+	<js file="brg-common.js" />
+
+	<dataSource id="ds_invoice_noproj">
+		<table name="invoice" role="main" />
+		<field table="invoice" name="invoice_id" />
+		<field table="invoice" name="vn_invoicenum" />
+		<field table="invoice" name="po" />
+		<field table="invoice" name="int_num" />
+		<field table="invoice" name="vn_id" />
+		<field table="invoice" name="project_id" />
+		<field table="invoice" name="work_pkg_id" />
+		<field table="invoice" name="description" />
+		<restrictions>
+			<restriction type="sql" sql="project_id IS NULL OR work_pkg_id IS NULL" />
+		</restrictions>
+	</dataSource>
+
+	<panel id="invoiceEdit" type="form" dataSource="ds_invoice_noproj" columns="1" showOnLoad="false" hidden="true" newRecord="true">
+		<title>Edit Invoice</title>
+		<action id="invoiceSave">
+			<title>Save</title>
+			<tooltip>Save</tooltip>
+			<command type="saveForm" />
+			<command type="closeDialog" />
+		</action>
+		<field table="invoice" name="invoice_id" />
+		<field table="invoice" name="vn_invoicenum" />
+		<field table="invoice" name="description" />
+		<field table="invoice" name="po" />
+		<field table="invoice" name="vn_id" />
+		<field table="invoice" name="project_id" required="true">
+			<action id="invoiceEditProjectSelVal">
+				<title>...</title>
+				<command type="selectValue"
+					dialogTitle='Select Project'
+					selectValueType="grid"
+					fieldNames="invoice.project_id,invoice.int_num"
+					selectFieldNames="project.project_id,project.int_num"
+					visibleFieldNames="project.project_id,project.int_num,project.description" showIndex="false"
+					restriction=""
+				/>
+			</action>
+		</field>
+		<field table="invoice" name="int_num" required="true" />
+		<field table="invoice" name="work_pkg_id" required="true">
+			<action id="invoiceEditWorkPkgIdSel">
+				<title>...</title>
+				<script language="javascript">
+					function workpkgSelectVal()
+					{
+						var panel = View.panels.get('invoiceEdit');
+						var po = panel.getFieldValue('invoice.po');
+						var project = panel.getFieldValue('invoice.project_id');
+
+						var rest;
+						if (project != "") {
+							rest = "project_id = '"+project.replace(/'/g,"''")+"'";
+						}
+
+						View.selectValue('invoiceEdit', '', ['invoice.project_id', 'invoice.work_pkg_id'], 'work_pkgs', ['work_pkgs.project_id', 'work_pkgs.work_pkg_id'], ['work_pkgs.project_id', 'work_pkgs.work_pkg_id', 'work_pkgs.description'], rest);
+					}
+				</script>
+				<command type="callFunction" functionName="workpkgSelectVal" />
+			</action>
+		</field>
+	</panel>
+
+	<dataSource id="ds_invoice_payment">
+		<table name="invoice_payment" role="main" />
+		<table name="invoice" role="standard" />
+		<field table="invoice_payment" name="payment_id" />
+		<field table="invoice_payment" name="invoice_id" />
+		<field table="invoice_payment" name="amount_expense" />
+		<field table="invoice_payment" name="description" />
+		<field table="invoice_payment" name="account" />
+		<field table="invoice_payment" name="dept_id" />
+		<field table="invoice_payment" name="fund_id" />
+		<field table="invoice_payment" name="program_code" />
+		<field table="invoice_payment" name="activity_id" />
+		<field table="invoice_payment" name="date_paid" />
+		<field table="invoice" name="int_num" />
+		<field table="invoice" name="project_id" />
+		<field table="invoice" name="po" />
+		<restrictions>
+			<restriction type="sql" sql="invoice.project_id IS NULL OR invoice.work_pkg_id IS NULL" />
+		</restrictions>
+	</dataSource>
+
+	<panel id="PaymentList" type="grid" dataSource="ds_invoice_payment" >
+		<title>Invoice Payments with Invoices without a Work Package</title>
+		<field table="invoice_payment" name="payment_id" controlType="link" >
+			<command type="openDialog" panelId="paymentEdit" />
+		</field>
+		<field table="invoice" name="int_num" />
+		<field table="invoice" name="project_id" />
+		<field table="invoice_payment" name="amount_expense" />
+		<field table="invoice_payment" name="description" />
+		<field table="invoice_payment" name="account" />
+		<field table="invoice_payment" name="dept_id" />
+		<field table="invoice_payment" name="fund_id" />
+		<field table="invoice_payment" name="program_code" />
+		<field table="invoice_payment" name="activity_id" />
+		<field table="invoice_payment" name="date_paid" />
+		<field table="invoice_payment" name="reviewed" />
+	</panel>
+
+	<panel id="paymentEdit" type="form" dataSource="ds_invoice_payment" columns="1" showOnLoad="false" hidden="true">
+		<title>Edit Invoice Payment</title>
+		<action id="invoiceSave">
+			<title>Save</title>
+			<tooltip>Save</tooltip>
+			<command type="saveForm" />
+			<command type="callFunction" functionName="View.panels.get('paymentList').refresh();" />
+			<command type="closeDialog" />
+		</action>
+		<field table="invoice_payment" name="payment_id" />
+		<field table="invoice_payment" name="invoice_id" required="true">
+			<action id="paymentEditInvoiceSel">
+				<title>...</title>
+				<tooltip>Select Value</tooltip>
+				<script language="javascript">
+					function invoiceSelectVal()
+					{
+						var panel = View.panels.get('paymentEdit');
+						var int_num = panel.getFieldValue('invoice_payment.int_num');
+
+						var rest;
+						if (int_num != "") {
+							rest = "int_num = '"+int_num+"'";
+						}
+
+						View.selectValue('paymentEdit', '', ['invoice_payment.invoice_id'], 'invoice', ['invoice.invoice_id'], ['invoice.invoice_id','invoice.int_num','invoice.project_id','invoice.vn_invoice','invoice.work_pkg_id'], rest);
+					}
+				</script>
+				<command type="callFunction" functionName="invoiceSelectVal" />
+			</action>
+			<action>
+				<title>Create New</title>
+				<script language="javascript">
+					function openNewInvoiceDialog()
+					{
+						var panel = View.panels.get('invoiceEdit');
+						panel.refresh(null,true);
+						panel.showInWindow({newRecord: true,closeButton: true});
+
+						var paymentPanel = View.panels.get('paymentEdit');
+						panel.setFieldValue('invoice.project_id', paymentPanel.getFieldValue('invoice.project_id'));
+						panel.setFieldValue('invoice.int_num', paymentPanel.getFieldValue('invoice.int_num'));
+						panel.setFieldValue('invoice.description', paymentPanel.getFieldValue('invoice_payment.description'));
+					}
+				</script>
+				<command type="callFunction" functionName="openNewInvoiceDialog" />
+			</action>
+		</field>
+		<field table="invoice" name="int_num" required="false"/>
+		<field table="invoice" name="project_id" required="false"/>
+		<field table="invoice_payment" name="amount_expense" readOnly="true"/>
+		<field table="invoice_payment" name="reviewed" />
+		<field table="invoice_payment" name="description" readOnly="true" />
+		<field table="invoice_payment" name="account" readOnly="true" />
+		<field table="invoice_payment" name="dept_id" readOnly="true" />
+		<field table="invoice_payment" name="fund_id" readOnly="true" />
+		<field table="invoice_payment" name="program_code" readOnly="true" />
+		<field table="invoice_payment" name="activity_id" readOnly="true" />
+	</panel>
+</view>

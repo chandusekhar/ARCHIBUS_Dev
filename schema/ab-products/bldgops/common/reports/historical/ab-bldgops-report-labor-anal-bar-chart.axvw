@@ -1,0 +1,68 @@
+
+<view version="2.0">
+    <title translatable="true">Labor Analysis Chart</title>
+    
+    <js file="ab-bldgops-report-labor-anal-bar-chart.js"/>
+    
+    <dataSource type="grouping" id="abBldgopsReportLaborAnalBarChartGroupDS">
+        <sql dialect="generic">
+        	SELECT a.x_month, a.hours_total, (b.hours_avail_total- a.hours_total) ${sql.as} hours_diff
+			FROM 
+			(   SELECT
+				${sql.yearMonthOf('hwr.date_completed')} ${sql.as} x_month,
+				SUM(hwrcf.hours_total) ${sql.as} hours_total
+				FROM hwrcf LEFT OUTER JOIN hwr ON hwrcf.wr_id = hwr.wr_id
+	            WHERE hwr.status NOT IN ('Rej','Can') AND (EXISTS(SELECT 1 FROM bl WHERE bl.bl_id = hwr.bl_id and ${sql.getVpaRestrictionForTable('bl')})) AND ${parameters['opennerConsoleRes']}
+				GROUP BY  ${sql.yearMonthOf('hwr.date_completed')}
+			)  ${sql.as} a 
+			LEFT OUTER JOIN
+			(  SELECT 
+			   c.x_month ${sql.as} x_month, 
+			  (c.workdays * (SELECT SUM(cf.std_hours_avail) FROM cf 
+                 WHERE cf.cf_id IN (SELECT hwrcf.cf_id FROM hwrcf LEFT OUTER JOIN hwr ON hwrcf.wr_id = hwr.wr_id	            
+                 WHERE hwr.status NOT IN ('Rej','Can') AND (EXISTS(SELECT 1 FROM bl WHERE bl.bl_id = hwr.bl_id and ${sql.getVpaRestrictionForTable('bl')})) AND  ${parameters['opennerConsoleRes']}))
+			  ) ${sql.as} hours_avail_total 
+			  FROM 
+			  (	   SELECT  
+			       ${sql.yearMonthOf('afm_cal_dates.cal_date')} ${sql.as} x_month,  
+			       COUNT(*) ${sql.as} workdays 
+				   FROM afm_cal_dates WHERE afm_cal_dates.day_type = 'Workday' ${parameters['dateRange']}
+				   GROUP BY ${sql.yearMonthOf('afm_cal_dates.cal_date')}
+			  ) c
+			) ${sql.as} b
+			ON a.x_month = b.x_month
+        </sql>
+        <table name="hwrcf" role="main"/>
+        <table name="bl" role="standard"/>
+        
+        <field name="x_month" groupBy="true" dataType="text"/>
+        <field name="hours_avail" formula="sum" dataType="number" size="6" decimals="2" baseField="hwrcf.hours_diff"/>
+        <field name="hours_total" formula="sum" dataType="number" size="6" decimals="2" baseField="hwrcf.hours_total"/>
+        
+        <sortField name="x_month"/>
+        
+        <parameter name="dateRange" dataType="verbatim" value=""/>
+        <parameter name="opennerConsoleRes" dataType="verbatim" value=""/>
+    </dataSource>
+    
+    <panel id="abBldgopsReportLaborAnalBarChart" type="chart" showOnLoad="false" controlType="stackedBarChart" showDataTips="true"
+     dataSource="abBldgopsReportLaborAnalBarChartGroupDS"
+     showLegendOnLoad="true"
+     showLegendAsPopUp="false"
+     legendLocation="right"
+     backgroundColor="0xffffff"
+     fillType="solid">
+        <title translatable="true">Labor Analysis</title>
+        
+        <groupingAxis dataSource="abBldgopsReportLaborAnalBarChartGroupDS" table="hwrcf" field="x_month" showLabel="true" labelRotation="45">
+            <title translatable="true">Month</title>
+        </groupingAxis>
+        
+        <dataAxis dataSource="abBldgopsReportLaborAnalBarChartGroupDS" table="hwrcf" field="hours_avail" showLabel="true">
+            <title translatable="true">Available Hours</title>
+        </dataAxis>
+        <dataAxis dataSource="abBldgopsReportLaborAnalBarChartGroupDS" table="hwrcf" field="hours_total" showLabel="true">
+            <title translatable="true">Actual Hours</title>
+        </dataAxis>
+    </panel>
+</view>

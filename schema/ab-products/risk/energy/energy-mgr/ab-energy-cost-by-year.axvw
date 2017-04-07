@@ -1,0 +1,100 @@
+<view version="2.0" showLoadProgress="true">
+    <title translatable="true">Year-to-Year Cost Comparison</title>
+    <layout id="mainLayout">
+        <north initialSize="140" split="true" id="console"/>
+        <center />
+  	</layout>
+  	<layout id="nestedLayout_1" containingLayout="mainLayout" region="center">
+        <west initialSize="400" split="true" id="tree"/>
+        <center id="chart"/>
+  	</layout> 
+  	
+  	<message name="axisTitle" translatable="true">Cost</message> 
+  	  	
+  	<js file="ab-energy-cost-base.js"/>
+  	<js file="ab-energy-cost-by-year.js"/>
+    <js file="ab-energy-common.js"/>
+    
+   <panel id="costConsolePanel" type="view" file="ab-energy-cost-console.axvw" layoutRegion="console"/>
+  	
+   <panel id="costTreePanel" type="view" file="ab-energy-cost-tree.axvw" layoutRegion="tree"/>
+   
+   <dataSource id="lastBillArchivePeriodDs" type="grouping">
+        <table name="bill_archive" role="main"/> 
+        <field name="time_period" formula="max" baseField="bill_archive.time_period" dataType="text" /> 
+   </dataSource>     
+      
+    <dataSource id="ds_energyCost" type="grouping" >
+        <table name="bill_archive" /> 
+        <field table="bill_archive" name="time_period" groupBy="true"/>
+        <restriction type="sql" sql=" exists (select 1 from bl where bl.bl_id = bill_archive.bl_id and ${parameters['finalRestriction']} ) AND ((bill_archive.prorated_aggregated = 'NO' AND bill_archive.reference_bill_id IS NULL AND NOT EXISTS (SELECT 1 FROM bill_archive b WHERE b.reference_bill_id = bill_archive.bill_id)) OR (bill_archive.prorated_aggregated &lt;&gt; 'NO'))" />
+        <parameter name="finalRestriction" dataType="verbatim" value=" 1=1 "/> 
+    </dataSource>    
+
+     <!-- data source for one of the two data axis  -->    
+     <dataSource id="ds_energyCostPrevious" type="grouping">    
+           <table name="bill_archive"/>  
+           <sql dialect="generic">                
+               SELECT bill_archive.amount_expense ${sql.as} amount_expense,  
+                  left(left(bill_archive.time_period,4)+1,4) ${sql.concat} '-' ${sql.concat} right(bill_archive.time_period,2) ${sql.as} time_period
+               FROM bill_archive 
+               WHERE exists (select 1 from bl where bl.bl_id = bill_archive.bl_id and ${parameters['previousRestriction']})        
+               AND ((bill_archive.prorated_aggregated = 'NO' AND bill_archive.reference_bill_id IS NULL AND NOT EXISTS (SELECT 1 FROM bill_archive b WHERE b.reference_bill_id = bill_archive.bill_id)) OR (bill_archive.prorated_aggregated &lt;&gt; 'NO'))       
+           </sql>     
+           <sql dialect="oracle">                
+               SELECT bill_archive.amount_expense ${sql.as} amount_expense,  
+                  substr(substr(bill_archive.time_period,1,4)+1,1,4) ${sql.concat} '-' ${sql.concat} substr(bill_archive.time_period,6,2) ${sql.as} time_period
+               FROM bill_archive 
+               WHERE exists (select 1 from bl where bl.bl_id = bill_archive.bl_id and ${parameters['previousRestriction']}) 
+               AND ((bill_archive.prorated_aggregated = 'NO' AND bill_archive.reference_bill_id IS NULL AND NOT EXISTS (SELECT 1 FROM bill_archive b WHERE b.reference_bill_id = bill_archive.bill_id)) OR (bill_archive.prorated_aggregated &lt;&gt; 'NO'))              
+           </sql>       
+           <field name="cost_previous" formula="sum" baseField="bill_archive.amount_expense" dataType="number" size="6" decimals="0"> 
+               <title>Energy Cost</title>
+           </field>    
+           <field table="bill_archive" name="time_period" groupBy="true"/>
+           <parameter name="summaryValueForThisGroup" dataType="text" value=""/> 
+           <parameter name="previousRestriction" dataType="verbatim" value=" 1=1 "/>   
+           <restriction type="sql"  sql=" time_period = ${parameters['summaryValueForThisGroup']} "/>
+   </dataSource>     
+    
+    <!-- data source for another one of the two data axis  -->   
+    <dataSource id="ds_energyCostYear" type="grouping"> 
+            <table name="bill_archive"/>  
+            <field name="cost_total" formula="sum" baseField="bill_archive.amount_expense" dataType="number" size="6" decimals="0"> 
+                <title>Energy Cost</title>
+            </field>
+            <parameter name="summaryValueForThisGroup" dataType="text" value=""/>   
+            <parameter name="finalRestriction" dataType="verbatim" value=" 1=1 "/> 
+            <restriction type="sql"  sql=" exists (select 1 from bl where bl.bl_id = bill_archive.bl_id and ${parameters['finalRestriction']} ) and time_period = ${parameters['summaryValueForThisGroup']} AND ((bill_archive.prorated_aggregated = 'NO' AND bill_archive.reference_bill_id IS NULL AND NOT EXISTS (SELECT 1 FROM bill_archive b WHERE b.reference_bill_id = bill_archive.bill_id)) OR (bill_archive.prorated_aggregated &lt;&gt; 'NO')) "/>
+    </dataSource>    
+    
+    <!-- Chart panel -->   
+    <panel  id="energyCost_chart" 
+    		type="htmlChart"
+    		layoutRegion="chart" 
+    		controlType="columnChart"   
+    		dataSource="ds_energyCost" 
+    		showOnLoad="false" 
+    		legendLocation="bottom"
+            showExportButton="true" 
+    		showDataTips="true">
+        <title translatable="true">Year-to-Year Cost Comparison</title>
+        <event type="onClickItem">
+            <command type="callFunction" functionName="onDrillDownToBillArchiveYearCompare"/>
+        </event>
+        
+        <groupingAxis table="bill_archive" field="time_period" dataSource="ds_energyCost" labelRotation="45" showLabel="true">
+            <title translatable="true">Time Period</title> 
+        </groupingAxis>   
+        
+        <dataAxis  table="bill_archive" field="cost_previous" dataSource="ds_energyCostPrevious" displayAxis="false">
+            <title translatable="true">Cost Previous Year</title>
+        </dataAxis>
+        <dataAxis  table="bill_archive" field="cost_total" dataSource="ds_energyCostYear" displayAxis="false">
+            <title translatable="true">Cost Selected Year</title>
+        </dataAxis>
+    </panel> 
+    
+    <panel id="costDrillDownPanel" type="view" file="ab-energy-cost-drilldown.axvw" />
+
+</view>

@@ -1,0 +1,70 @@
+
+<!-- 1D cross-table with two data sources:
+     - the 1st data source provides row dimension values, and additional per-row visible fields.
+     - the 2nd data source provides the rest of the data, as in a regular cross-table. -->
+
+<view version="2.0">
+    <title>Rooms by Department -- Using row dimension data source</title>
+
+    <!-- Show two cross-tables for comparison: regular and customized. -->
+    <layout file="dashboard-1x2.axvw"/>
+
+    <!-- Regular data source: retrieves departments and additional visible fields per department. -->    
+    <dataSource id="crossTableByDepartment_dpDS">
+        <table name="dp"/>
+        
+        <!-- Use department names as restriction parameters for the main data source. -->    
+        <field name="dp_id"/>
+        
+        <!-- Additional fields to be displayed for each department. -->
+        <field name="name"/>
+        <field name="area_gp"/>
+
+        <!-- Display only one division. -->        
+        <restriction type="parsed">
+            <clause table="dp" name="dv_id" value="FACILITIES"/>
+        </restriction>
+    </dataSource>
+    
+    <!-- Main grouping data source. -->
+    <dataSource type="grouping" id="crossTableByDepartment_dataDS">
+        <table name="rm"/>
+
+        <!-- Grouping field is required for 1D cross-tab. -->    
+        <field name="dp_id" groupBy="true"/>
+        
+        <!-- calculated fields (measures). -->
+        <field name="total_rooms" dataType="integer" formula="count" baseField="rm.rm_id">
+            <title>Total Rooms</title>
+        </field>
+        <field name="total_area" dataType="number" formula="sum" baseField="rm.area">
+            <title>Total Area</title>
+        </field>
+        
+        <!-- The same restriction should be applied here, otherwise the totals won't be right. -->
+        <restriction type="parsed">
+            <clause table="rm" name="dv_id" value="FACILITIES"/>
+        </restriction>
+    </dataSource>
+
+    <!-- Cross-tab panel references only the main data source.
+         Only departments for which data exists in the Rooms table are displayed. -->
+    <panel type="crossTable" id="crossTableByDepartment_table1" layoutRegion="row1col1" 
+           dataSource="crossTableByDepartment_dataDS">
+         <title>Show only departments with rooms</title>
+    </panel>
+
+    <!-- Cross-tab panel references both data sources:
+         dpDS for the first dimension;
+         dataDS for the second dimension and all measures. 
+         All departments are displayed, even departments without rooms. -->
+    <panel type="crossTable" id="crossTableByDepartment_table2" layoutRegion="row1col2" 
+           dataSource="crossTableByDepartment_dataDS"
+           rowDimensionDataSource="crossTableByDepartment_dpDS">
+         <title>Show all departments, and display per-department data</title>
+	<action id="exportXLS">
+            <title>Print</title>
+            <command type="exportPanel" outputType="xls" panelId="crossTableByDepartment_table2"/>
+        </action>
+    </panel>
+</view>

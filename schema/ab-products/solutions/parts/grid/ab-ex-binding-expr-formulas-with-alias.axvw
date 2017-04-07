@@ -1,0 +1,65 @@
+<view version="2.0">
+    <title>Calculation formulas defined with binding expression</title>
+    
+    <layout type="borderLayout" id="mainLayout">
+        <west autoScroll="true" id="projectPos" split="true" initialSize="20%"/>
+        <center id="itemsPos" autoScroll="true"/>
+    </layout>
+    
+    <dataSource id="abExBindingExprAliasProject_ds">
+        <table name="project"/>
+        <field name="project_id"/>
+        <field name="project_name"/>
+        <field name="project_type"/>
+        <restriction type="parsed">
+            <clause table="project" name="project_type" op="=" value="ASSESSMENT" relop="AND"/>
+            <clause table="project" name="is_template" op="=" value="0" relop="AND"/>
+        </restriction>
+    </dataSource>
+    
+    <panel type="grid" id="abExBindingExprAliasProject_ds" dataSource="abExBindingExprAliasProject_ds" layoutRegion="projectPos">
+        <title>Condition Assessment Projects</title>
+        <field name="project_id" controlType="link">
+            <command type="showPanel" panelId="abExBindingExprAliasCaItems_ds"/>
+        </field>
+        <field name="project_name"  controlType="link">
+            <command type="showPanel" panelId="abExBindingExprAliasCaItems_ds"/>
+        </field>
+        <field name="project_type" controlType="link">
+            <command type="showPanel" panelId="abExBindingExprAliasCaItems_ds"/>
+        </field>
+    </panel>
+    
+    
+    <dataSource id="abExBindingExprAliasActivityLog_ds" type="grouping">
+        <table name="activity_log" role="main"/>
+        <field name="project_id" groupBy="true"/>
+        <field name="bl_id" groupBy="true"/>
+        <field name="fl_id" groupBy="true"/>
+        <field name="sum_fci_value" dataType="number" size="20" decimals="2">
+            <title>Facility Condition Index</title>
+            <sql dialect="generic">
+                (SELECT 
+                    SUM(${sql.getFormulaForTable('AbCapitalPlanningCA-FacilityConditionIndex', 'activity_log', 'activity_log_int')})
+                FROM activity_log ${sql.as} activity_log_int
+                WHERE activity_log_int.project_id = activity_log.project_id 
+                    AND activity_log_int.activity_type = 'ASSESSMENT' 
+                    AND activity_log_int.bl_id = activity_log.bl_id
+                    AND activity_log_int.fl_id = activity_log.fl_id)
+            </sql>
+        </field>
+        <restriction type="parsed">
+            <clause table="activity_log" name="activity_type" op="LIKE" value="ASSESSMENT" relop="AND"/>
+        </restriction>
+    </dataSource>
+
+    <panel type="grid" id="abExBindingExprAliasCaItems_ds" dataSource="abExBindingExprAliasActivityLog_ds" layoutRegion="itemsPos" showOnLoad="false">
+        <title>Condition Assessment Items; Facility Condition Index Formula: ${activityParameters['AbCapitalPlanningCA-FacilityConditionIndex']} </title>
+        <field name="project_id"/>
+        <field name="bl_id"/>
+        <field name="fl_id"/>
+        <field name="sum_fci_value" dataType="number" size="20" decimals="2">
+            <title>Facility Condition Index</title>
+        </field>
+    </panel>
+</view>

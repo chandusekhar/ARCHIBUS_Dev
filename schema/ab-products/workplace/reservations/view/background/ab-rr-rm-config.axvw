@@ -1,0 +1,160 @@
+<view version="2.0">
+	<layout type="borderLayout" id="mainLayout">
+		<west initialSize="340" split="true" />
+		<center autoScroll="true" />
+	</layout>
+	<layout type="borderLayout" id="nestedLayout_1" containingLayout="mainLayout" region="west">
+		<north initialSize="33%" split="true" />
+		<center initialSize="34%" autoScroll="true" />
+		<south initialSize="34%" split="true" />
+	</layout>
+
+	<message translatable="true" name="deleteRecord">The record will be deleted.</message>
+	<message translatable="true" name="excludedConfigError">If you remove this configuration, you should also check that there aren't other configurations for this room that were referring to this one in the Excluded Configurations field. Do you wish to continue?</message>
+	<message translatable="true" name="roomId">Room Code</message>
+
+	<title translatable="true">Define Room Configuration</title>
+
+	<!-- Buildings DataSource -->
+	<dataSource id="blDs">
+		<table name="bl" role="main" />
+
+		<field name="ctry_id" table="bl"/>
+		<field name="site_id" table="bl"/>
+		<field name="bl_id" table="bl"/>
+
+		<restriction type="sql" sql="EXISTS (SELECT 1 FROM rm WHERE rm.bl_id=bl.bl_id AND reservable=1)" />
+	</dataSource>
+
+	<!-- Floors DataSource -->
+	<dataSource id="flDs">
+		<table name="fl" role="main" />
+
+		<field name="bl_id" table="fl"/>
+		<field name="fl_id" table="fl"/>
+
+		<restriction type="sql"
+			sql="EXISTS (SELECT 1 FROM rm WHERE rm.bl_id=fl.bl_id AND rm.fl_id=fl.fl_id AND reservable=1)" />
+	</dataSource>
+
+	<!-- Room Config DataSource -->
+	<dataSource id="rmConfigDs">
+		<table name="rm_config" role="main" />
+
+		<field name="bl_id" table="rm_config"/>
+		<field name="fl_id" table="rm_config"/>
+		<field name="rm_id" table="rm_config"/>
+		<field name="config_id" table="rm_config" />
+	</dataSource>
+
+	<!-- Edit Room configurations DataSource -->
+	<dataSource id="editRmConfigDs">
+		<table name="rm_config" role="main" />
+
+		<field name="bl_id" table="rm_config"/>
+		<field name="fl_id" table="rm_config"/>
+		<field name="rm_id" table="rm_config"/>
+		<field name="config_id" table="rm_config"/>
+		<field name="config_name" table="rm_config"/>
+		<field name="excluded_config" table="rm_config"/>
+		<field name="doc_layout" table="rm_config"/>
+	</dataSource>
+
+	<!-- Buildings grid table -->
+	<panel type="grid" id="bl_list" showOnLoad="true" selectionEnabled="true" dataSource="blDs" layout="nestedLayout_1"
+		region="north">
+		<title translatable="true">Buildings</title> 
+		
+		<field name="site_id" table="bl" required="false" controlType="link">
+			<command type="showPanel" panelId="fl_list" />
+		</field>
+		<field name="bl_id" table="bl" required="false" controlType="link">
+			<command type="showPanel" panelId="fl_list" />
+		</field>
+
+		<sortField name="ctry_id" table="bl" ascending="true" />
+		<sortField name="site_id" table="bl" ascending="true" />
+		<sortField name="bl_id" table="bl" ascending="true" />
+	</panel>
+
+	<!-- Floors grid table -->
+	<panel type="grid" id="fl_list" showOnLoad="false" selectionEnabled="true" dataSource="flDs" layout="nestedLayout_1"
+		region="center">
+		<title translatable="true">Floors</title>
+
+		<field name="bl_id" table="fl" controlType="link">
+			<command type="showPanel" panelId="rm_config_list" />
+		</field>
+		<field name="fl_id" table="fl" required="false" controlType="link">
+			<command type="showPanel" panelId="rm_config_list" />
+		</field>
+
+		<sortField name="bl_id" table="fl" ascending="true" />
+		<sortField name="fl_id" table="fl" ascending="true" />
+	</panel>
+
+	<!-- Room configurations gris table -->
+	<panel type="grid" id="rm_config_list" showOnLoad="false" selectionEnabled="true" dataSource="rmConfigDs"
+		layout="nestedLayout_1" region="south">
+		<title translatable="true">Room Configurations</title>
+
+		<action id="addNew">
+			<title translatable="true">Add New</title>
+			<command type="showPanel" panelId="rm_config_form" newRecord="true" />
+		</action>
+
+		<field name="bl_id" table="rm_config" controlType="link" hidden="true">
+			<command type="showPanel" panelId="rm_config_form" />
+		</field>
+		<field name="fl_id" table="rm_config" required="false" controlType="link" hidden="true">
+			<command type="showPanel" panelId="rm_config_form" />
+		</field>
+		<field name="rm_id" table="rm_config" controlType="link">
+			<command type="showPanel" panelId="rm_config_form" />
+		</field>
+		<field name="config_id" table="rm_config" controlType="link">
+			<command type="showPanel" panelId="rm_config_form" />
+		</field>
+
+		<sortField name="rm_id" table="rm_config" ascending="true" />
+		<sortField name="config_id" table="rm_config" ascending="true" />
+		<sortField name="config_name" table="rm_config" ascending="true" />
+	</panel>
+
+	<!-- Edit Room configurations -->
+	<panel type="form" id="rm_config_form" showOnLoad="false" columns="1" dataSource="editRmConfigDs"
+		layout="mainLayout" region="center">
+		<title translatable="true">Room Configurations</title>
+
+		<action id="save" mainAction="true">
+			<title translatable="true">Save</title>
+			<command type="callFunction" functionName="ABRV_saveRecord('rm_config_form', 'rm_config_list', true)" />
+		</action>
+		<action id="delete">
+			<title translatable="true">Delete</title>
+			<command type="callFunction" functionName="ABRV_deleteRecord('rm_config_form', 'rm_config_list', false)" />
+		</action>
+
+		<field name="bl_id" table="rm_config" required="false" readOnly="true" />
+        <field name="fl_id" table="rm_config" required="false" readOnly="true" />
+        <field name="rm_id" table="rm_config" required="true">
+            <action>
+                <title translatable="true">...</title>
+                <command type="callFunction" functionName="onClickRmId()" />
+            </action>
+        </field>
+		<field name="config_id" table="rm_config" required="true" />
+		<field name="config_name" table="rm_config" required="true" showSelectValueAction="true"/>
+		<field name="doc_layout" table="rm_config" required="false"/>
+		<field name="excluded_config" table="rm_config" required="false" onfocus="blur();">
+			<action>
+				<title translatable="true">...</title>
+				<command type="callFunction" functionName="onClickExcludedConfig()" />
+			</action>
+		</field>
+	</panel>
+
+	<!-- JS functions specific to this tab -->
+	<js file="ab-rr-common.js" />
+	<js file="ab-rr-rm-config.js" />
+</view>

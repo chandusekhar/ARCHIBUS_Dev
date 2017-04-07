@@ -1,0 +1,114 @@
+<view version="2.0">
+
+<layout id="main">
+    <west id="row1col1" initialSize="30%" split="true" />
+    <center />
+</layout>
+
+<layout id="nested_center" containingLayout="main" region="center">
+    <north id="row1col2" initialSize="50%" split="true" />
+    <center id="row2col2" />
+</layout>
+<title translatable="true">Waste Profiles by Category</title>
+<js file="ab-waste-rpt-profile-by-cat.js" />
+<js file="ab-pdf-livecycle-command.js"/>
+    <dataSource id="abWasteRptProByCodeTree1DS">
+        <table name="waste_categories" role="main"/>
+        <field table="waste_categories" name="waste_category"/>
+        <field table="waste_categories" name="description"/>
+    </dataSource>
+
+    <dataSource id="abWasteRptProByCodeTree2DS">
+        <table name="waste_profiles" role="main"/>
+        <field table="waste_profiles" name="waste_category" hidden="true" />
+        <field table="waste_profiles" name="waste_profile"/>
+        <field table="waste_profiles" name="waste_name" hidden="true"/>
+        <field table="waste_profiles" name="waste_type" hidden="true"/>
+        <field table="waste_profiles" name="status" hidden="true"/>
+        <field table="waste_profiles" name="units_type" hidden="true"/>
+        <field table="waste_profiles" name="transp_shipping_name" hidden="true"/>
+        <field table="waste_profiles" name="transp_classification" hidden="true"/>
+        <field table="waste_profiles" name="transp_hazardous" hidden="true"/>
+        <field table="waste_profiles" name="is_recyclable" hidden="true"/>
+        <field table="waste_profiles" name="specific_gravity" hidden="true"/>
+        <field table="waste_profiles" name="cas_number" hidden="true"/>
+        <field table="waste_profiles" name="msds_id" hidden="true"/>
+    </dataSource>
+
+    <panel type="tree" id="abWasteRptProByCodeTree1" dataSource="abWasteRptProByCodeTree1DS" layoutRegion="row1col1">
+        <title translatable="true">Waste Categories and Profiles</title>
+        <event type="onClickNode">
+            <command type="callFunction" functionName="selectCatFromTree()"/>
+        </event>
+        <field name="waste_category" table="waste_categories"/>
+        <panel type="tree" id="abWasteRptProByCodeTree2" dataSource="abWasteRptProByCodeTree2DS">
+            <event type="onClickNode">
+                <command type="callFunction" functionName="selectProFromTree()"/>
+            </event>
+            <sortField name="waste_profile" table="waste_profiles" ascending="true"/>
+            <sortField name="waste_name" table="waste_profiles" ascending="true"/>
+            <field table="waste_profiles" name="waste_profile"/>
+            <field table="waste_profiles" name="waste_name"/>
+        </panel>
+    </panel>
+    
+    <panel type="form" columns="2" id="abWasteRptProByCodeForm" dataSource="abWasteRptProByCodeTree2DS" showOnLoad="false" layoutRegion="row1col2" >
+        <title translatable="true">Waste Profile Details</title>
+        <action id="doc">
+          <title>DOCX</title>
+        </action>
+        <field table="waste_profiles" name="waste_profile" readOnly="true"/>
+        <field table="waste_profiles" name="transp_shipping_name" readOnly="true"/>
+        <field table="waste_profiles" name="waste_name" readOnly="true"/>
+        <field table="waste_profiles" name="transp_classification" readOnly="true"/>
+        <field table="waste_profiles" name="waste_type" readOnly="true"/>
+        <field table="waste_profiles" name="transp_hazardous" readOnly="true"/>
+        <field table="waste_profiles" name="status" readOnly="true" />
+        <field table="waste_profiles" name="specific_gravity" readOnly="true"/>
+        <field table="waste_profiles" name="units_type"  readOnly="true"/>
+        <field table="waste_profiles" name="cas_number" readOnly="true"/>
+        <field table="waste_profiles" name="is_recyclable" readOnly="true"/>
+        <field id="html_msds_id">
+            <title translatable="true">SDS Code</title>
+            <html>
+                <div id="html_msds_id_div"></div>
+            </html>
+        </field>
+        <field table="waste_profiles" name="msds_id" hidden="true"/>
+    </panel>
+    
+    <dataSource id="abWasteRptProByCodeGridDS">
+        <table name="waste_profile_reg_codes" role="main"/>
+        <field table="waste_profile_reg_codes" name="regulated_code"/>
+        <field table="waste_profile_reg_codes" name="regulated_code_type"/>
+        <field table="waste_profile_reg_codes" name="waste_profile"/>
+    </dataSource>
+    <panel type="grid" layoutRegion="row2col2" id="abWasteRptProByCodeGrid" dataSource="abWasteRptProByCodeGridDS" showOnLoad="false">
+        <title translatable="true">Waste Regulated Codes</title>
+        <field table="waste_profile_reg_codes" name="regulated_code_type"/>
+        <field table="waste_profile_reg_codes" name="regulated_code"/>
+    </panel>
+    
+    <dataSource id="abWasteRptProfileByCat_viewMsdsDs">
+        <sql dialect="generic">
+            SELECT DISTINCT
+                afm_userprocs.user_name
+            FROM afm_userprocs
+            WHERE 
+                afm_userprocs.activity_id = 'AbRiskMSDS' 
+                    AND afm_userprocs.process_id = 'Review MSDSs'
+                    AND afm_userprocs.user_name = '${user.name}'
+            UNION
+            SELECT DISTINCT
+                afm_users.user_name
+            FROM afm_roleprocs
+                LEFT OUTER JOIN afm_users ON afm_users.role_name = afm_roleprocs.role_name
+            WHERE     
+                afm_roleprocs.activity_id = 'AbRiskMSDS' 
+                    AND afm_roleprocs.process_id = 'Review MSDSs'
+                    AND afm_users.user_name = '${user.name}'
+        </sql>
+        <table name="afm_userprocs" role="main"/>
+        <field table="afm_userprocs" name="user_name"/>
+    </dataSource>
+</view>

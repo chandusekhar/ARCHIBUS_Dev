@@ -1,0 +1,56 @@
+<view version="2.0">
+    <designInfo type="paginated" pattern="ab-viewdef-paginated-highlight-restriction" isAlterable="true"/>
+    <title translatable="true">Occupancy Plan</title>
+    <report/>
+    
+    <dataSource id="abSpHlOccPlanTransPrntrmHighlight" type="DrawingControlHighlight">
+        <table name="rm" role="main"/>
+        <field table="rm" name="bl_id" legendKey="true"/>
+        <field table="rm" name="fl_id"/>
+        <field table="rm" name="rm_id"/>
+        <field table="rm" name="dwgname"/>
+        <restriction type="sql" sql="${parameters['blRes']} and EXISTS (SELECT 1 FROM (select pct_id, bl_id , fl_id, rm_id, em_id, date_start, date_end, status from rmpct 
+	      union select  pct_id, bl_id , fl_id, rm_id, em_id, date_start, date_end, status  from hrmpct ) 
+		rmpct WHERE rmpct.bl_id=rm.bl_id AND rmpct.fl_id=rm.fl_id AND rmpct.rm_id=rm.rm_id 
+        AND rmpct.status=1 AND (rmpct.date_start IS NULL OR rmpct.date_start &lt;= ${parameters['date']}) AND (rmpct.date_end IS NULL OR rmpct.date_end &gt;= ${parameters['date']})
+        AND rmpct.em_id IS NOT NULL )"/>
+        <parameter name="date" dataType="date" value=""/>
+        <parameter name="blRes" dataType="verbatim" value=""/>
+    </dataSource>
+    
+    <dataSource id="abSpHlOccPlanTransPrntrmLabel">
+     	<sql dialect="generic">
+            SELECT
+			rm.bl_id ${sql.as} bl_id,
+			rm.fl_id ${sql.as} fl_id,
+			rm.rm_id ${sql.as} rm_id,
+			rm.dwgname ${sql.as} dwgname,
+			null ${sql.as} org_id FROM rm where not exists(select 1 FROM (select pct_id, bl_id , fl_id, rm_id, em_id, date_start, date_end, status from rmpct 
+			       union select  pct_id, bl_id , fl_id, rm_id,  em_id, date_start, date_end, status from hrmpct ) 
+			       rmpct where rmpct.em_id IS NOT NULL AND rmpct.status=1 and (rmpct.date_start IS NULL OR rmpct.date_start &lt;= ${parameters['date']}) and (rmpct.date_end IS NULL OR rmpct.date_end &gt;= ${parameters['date']}) and rmpct.bl_id = rm.bl_id and rmpct.fl_id = rm.fl_id and rmpct.rm_id = rm.rm_id)
+			union
+			SELECT
+			rm.bl_id ${sql.as} bl_id,
+			rm.fl_id ${sql.as} fl_id,
+			rm.rm_id ${sql.as} rm_id,
+			rm.dwgname ${sql.as} dwgname,
+			rmpct.em_id ${sql.as} org_id
+			FROM (select pct_id, bl_id , fl_id, rm_id, em_id, date_start, date_end, status from rmpct 
+			      union select  pct_id, bl_id , fl_id, rm_id, em_id,date_start, date_end, status from hrmpct ) 
+			rmpct LEFT OUTER JOIN rm ON rmpct.bl_id=rm.bl_id AND rmpct.fl_id=rm.fl_id AND rmpct.rm_id=rm.rm_id 
+			WHERE rmpct.em_id IS NOT NULL and rmpct.status=1 and (rmpct.date_start IS NULL OR rmpct.date_start &lt;= ${parameters['date']}) and (rmpct.date_end IS NULL OR rmpct.date_end &gt;= ${parameters['date']})
+        </sql>
+        <table name="rm" role="main"/>
+        <field table="rm" name="bl_id" hidden="true"/>
+        <field table="rm" name="fl_id" hidden="true"/>
+        <field table="rm" name="rm_id"/>
+        <field table="rm" name="org_id"/>
+        <parameter name="date" dataType="date" value=""/>
+    </dataSource>
+ 
+    <panel type="drawing" id="abSpHlOccPlanTransPrnt_DrawingPanel"
+     highlightDataSource="abSpHlOccPlanTransPrntrmHighlight"
+     labelsDataSource="abSpHlOccPlanTransPrntrmLabel"
+     highlightType="restriction"></panel>
+
+</view>	

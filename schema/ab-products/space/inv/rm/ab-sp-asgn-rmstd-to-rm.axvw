@@ -1,0 +1,142 @@
+<view version="2.0">
+    <layout id="main">
+        <north id="filterPosition" initialSize="13%" split="true"/>
+        <west initialSize="30%" split="true"/>
+        <center/>
+    </layout>
+    
+    <layout id="nested_west" containingLayout="main" region="west">
+        <north id="treePositon" initialSize="40%" split="true"/>
+        <center id="assignPosition"/>
+    </layout>
+    
+    <layout id="nested_center" containingLayout="main" region="center">
+        <center id="dwgPosition"/>
+        <south id="assignmentsPosition"  initialSize="20%" split="true"/>
+    </layout>
+    
+    <title translatable="true">Assign Room Standards to Rooms</title>
+    
+    <message name="selectFloor" translatable="true">Please select a floor</message>
+    <message name="selectStd" translatable="true">Please select a room standard</message>
+    <message name="selectRm" translatable="true">Please select a room to assign %s to</message>
+    <message name="noFloorSelected" translatable="true">Please select floor first</message>
+    <message name="confirmMessage" translatable="true">Switching floors will cause all changes to be lost, do you wish to continue?</message>
+    
+    <dataSource id="ds_ab-sp-assgn-rmstd-to-rm_console_rm">
+        <table name="rm" role="main"/>
+        <field table="rm" name="bl_id"/>
+        <field table="rm" name="rm_std"/>
+    </dataSource>
+    
+    <dataSource id="ds_ab-sp-assgn-rmstd-to-rm_tree_bl">
+        <table name="bl" role="main"/>
+        <field table="bl" name="bl_id"/>
+		<restriction type="sql" sql="EXISTS (SELECT 1 FROM rm WHERE rm.dwgname IS NOT NULL AND rm.bl_id=bl.bl_id)"/>
+        <sortField table="bl" name="bl_id" ascending="true"/>
+    </dataSource>
+    
+    <dataSource id="ds_ab-sp-assgn-rmstd-to-rm_tree_fl">
+        <sql dialect="generic">
+            SELECT
+            rm.bl_id ${sql.as} bl_id,
+            rm.fl_id ${sql.as} fl_id,
+            rm.dwgname ${sql.as} dwgname
+            FROM rm WHERE rm.dwgname IS NOT NULL GROUP BY rm.bl_id,rm.fl_id,rm.dwgname
+        </sql>
+        <table name="fl" role="main"/>
+        <field name="fl_id"/>
+        <field name="dwgname"/>
+        <sortField table="fl" name="fl_id" ascending="true"/>
+    </dataSource>
+    
+    <dataSource id="ds_ab-sp-assgn-rmstd-to-rm_grid_rmstd">
+        <table name="rmstd" role="main"/>
+        <field name="rm_std"/>
+        <field name="hpattern_acad"/>
+        <field name="tot_count"/>
+    </dataSource>
+    
+    <dataSource id="ds_ab-sp-assgn-rmstd-to-rm_drawing_rmHighlight">
+        <table name="rm" role="main"/>
+        <table name="rmstd" role="standard"/>
+        <field table="rm" name="bl_id"/>
+        <field table="rm" name="fl_id"/>
+        <field table="rm" name="rm_id"/>
+        <field table="rm" name="rm_std"/>
+        <field table="rmstd" name="rm_std" legendKey="true"/>
+        <field table="rmstd" name="hpattern_acad"/>
+    </dataSource>
+    
+    <dataSource id="ds_ab-sp-assgn-rmstd-to-rm_drawing_rmLabel">
+        <table name="rm" role="main"/>
+        <field name="bl_id" hidden="true"/>
+        <field name="fl_id" hidden="true"/>
+        <field name="rm_id"/>
+        <field name="rm_std"/>
+    </dataSource>
+    
+    <dataSource id="ds_ab-sp-assgn-rmstd-to-rm_grid_rm">
+        <table name="rm" role="main"/>
+    </dataSource>
+    
+    <panel type="console" id="abSpAsgnRmstdToRm_filterConsole" columns="2" dataSource="ds_ab-sp-assgn-rmstd-to-rm_console_rm" layoutRegion="filterPosition">
+        <title translatable="true">Filter</title>
+        <action id="showTree">
+            <title translatable="true">Show</title>
+        </action>
+        <action id="clear">
+            <title translatable="true">Clear</title>
+            <command type="clearPanel" panelId="abSpAsgnRmstdToRm_filterConsole"/>
+        </action>
+    </panel>
+    
+    <panel type="tree" id="abSpAsgnRmstdToRm_blTree" dataSource="ds_ab-sp-assgn-rmstd-to-rm_tree_bl" layoutRegion="treePositon">
+        <title translatable="true">Select Floor</title>
+        <panel type="tree" id="abSpAsgnRmstdToRm_flTree" dataSource="ds_ab-sp-assgn-rmstd-to-rm_tree_fl">
+            <event type="onClickNode">
+                <command type="callFunction" functionName="onFlTreeClick"/>
+            </event>
+        </panel>
+    </panel>
+    
+    <panel type="grid" id="abSpAsgnRmstdToRm_rmstdGrid" showOnLoad="false" dataSource="ds_ab-sp-assgn-rmstd-to-rm_grid_rmstd" layoutRegion="assignPosition">
+        <title translatable="true">Select Room Standard</title>
+        <sortField table="rmstd" name="rm_std" ascending="true"/>
+	    <!-- KB 3027141 do NOT use attribute width on controlType="color" field because IE does not strictly enforce the table column width & so the color div will be short. See KB comments -->
+        <field id="abSpAsgnRmstdToRm_rmstdLegend" table="rmstd" name="hpattern_acad" controlType="color">
+            <title translatable="true">Legend</title>
+        </field>
+        <field table="rmstd" name="rm_std" controlType="link" onclick="onRmStdSelected"/>
+    </panel>
+    
+    <panel type="drawing" id="abSpAsgnRmstdToRm_drawingPanel" layoutRegion="dwgPosition" multiple="false" selectionMode="2" assignMode="2"
+     highlightDataSource="ds_ab-sp-assgn-rmstd-to-rm_drawing_rmHighlight"
+     labelsDataSource="ds_ab-sp-assgn-rmstd-to-rm_drawing_rmLabel">
+        <title></title>
+    </panel>
+    
+    <panel type="grid" id="abSpAsgnRmstdToRm_rmstdAssignGrid" controlType="reportGrid" dataSource="ds_ab-sp-assgn-rmstd-to-rm_grid_rm" layoutRegion="assignmentsPosition" showOnLoad="false">
+        <title translatable="true">Assignments</title>
+        <action id="save">
+            <title translatable="true">Save</title>
+            <command type="callFunction" functionName="saveAllChanges"/>
+        </action>
+        <action id="revert">
+            <title translatable="true">Revert All</title>
+            <command type="callFunction" functionName="resetAssignmentCtrls"/>
+        </action>
+        <field table="composite" name="loc">
+            <title translatable="true">Location</title>
+        </field>
+        <field table="rm" name="rm_std">
+            <title translatable="true">Room Standard</title>
+        </field>
+		<field table="rm" name="bl_id" hidden="true"/>
+		<field table="rm" name="fl_id" hidden="true"/>
+		<field table="rm" name="rm_id" hidden="true"/>
+    </panel>
+    
+    <js file="ab-sp-asgn-rmstd-to-rm.js"/>
+    <js file="ab-sp-common.js"/>
+</view>

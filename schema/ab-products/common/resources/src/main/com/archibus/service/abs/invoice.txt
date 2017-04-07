@@ -1,0 +1,698 @@
+/****************************************************************************
+invoice.abs
+04.01.97
+
+Presents dialog for creating invoices. You can choose cost records
+and then create and invoice for those cost records or assign costs
+to an existing invoice.
+
+09.04.97 - JH - Changed commented delimiters in TRANSLATE section to allow
+			  reading into language localization database
+04.08.98 - JH - Changed Avw.ClearRest to Avw.ClearAllRest
+04.09.98 - JH - Changed Avw.AddRest to Avw.AddPermRest
+03-16-99 - JH - Changed Dim OwnerKeys$( 0 ) to Dim OwnerKeys$()
+04.13.99 - JH - Added calls to sup_AdjustShortDateCentury()
+04.14.99 - JH - Changed Format "Short Date" to WindowShortDateWithFourDigitYear
+03.06.00 - JH - Localization: Help strings changed to context strs from keyword
+03.08.00 - JH - Localization - Updated string constants for trailing spaces
+04.19.00 - JH - Localization: Widened dialog controls.
+12.28.00 - JH - Localization: Added CDate() inside of Format$() for string date
+07.19.02 - YQ - Localization: use Format$(CDate(),WindowShortDateWithFourDigitYear)
+
+****************************************************************************/
+
+Option Explicit
+
+'--- External subs and functions
+Declare Sub sup_Show_Help (ByVal Help_Topic As String)
+Declare Function SqlFunc_SQLConvertIntToChar( sIntVal As String ) As String
+Declare Function sup_ISO_Date ( Date_to_Convert As String ) As String
+Declare Function sup_MakeLiteralOrNull( strVal As String ) As String
+Declare Function sup_AdjustShortDateCentury( sDialogDate As String ) As String
+Declare Sub SelId_Main( sValTbl1 As String, sValFld1 As String, _
+			 bFld1IsNumber As Boolean, sFld1SqlFilter As String, _
+			 sValTbl2 As String, sValFld2 As String, _
+			 bFld2IsNumber As Boolean, sFld2SqlFilter As String, _
+			 sFldLable1 As String, sFldLable2 As String, _
+			 bAllowInvalidValues As Boolean, sDlgHeading As String, _
+			 sReturnedId1 As String,	sReturnedId2 As String, _
+			 bDialogWasCancelled As Boolean )
+
+'--- External views called
+Declare Sub InvCosts()
+Declare Sub invcrels()
+Declare Sub invcrebl()
+Declare Sub invcrepr()
+Declare Sub invcreac()
+
+'--- Internal subs and functions
+Declare Sub CreateInvoiceDlg()
+Declare Function GetIdFromKey (KeyString As String) As String
+Declare Sub MainInvoice (OwnerTable As String, OwnerIdField As String, _
+				     OriginalView As String, CreateInvoice As Boolean)
+Declare Sub AddToExistInvoice(OwnerTable As String, OwnerIdField As String, _
+	                         OriginalView As String, SelRecords As String, _
+						OwnerId As String)
+Declare Sub CreateNewInvoice( OwnerTable As String, OwnerIdField As String, _
+					     OriginalView As String, SelRecords As String, _
+						OwnerId As String)
+Declare Sub UpdatePresent (InvoiceCode As String, SelRecords As String, _
+		    		       OwnerIdField As String)
+Declare Sub ReturnToView()
+
+'--- Subs called from the Navigator
+Declare Sub CreateInvoiceLs ()
+Declare Sub CreateInvoicePr ()
+Declare Sub CreateInvoiceBl ()
+Declare Sub CreateInvoiceAc ()
+Declare Sub AddToInvoiceLs ()
+Declare Sub AddToInvoicePr ()
+Declare Sub AddToInvoiceBl ()
+Declare Sub AddToInvoiceAc ()
+
+Declare Sub ReviewInvoice()
+
+'------------------------------------------------------------------------------
+'----							 TRANSLATE
+Const kHeadingCreateMsg$	     = "Create Invoice for Costs"
+Const kHeadingAddMsg$		= "Add Costs to Invoice"
+Const kInvalidRemitToMsg$	= "Invalid Remit to Contact Name:"
+Const kInvalidSendToMsg$		= "Invalid Send To Contact Name:"
+Const kSelectRemitToMsg$		= "Remit Payment To:"
+Const kSelectSendToMsg$		= "Send To:"
+Const kNoRecordsSelectedMsg$	= "No records selected."
+Const kNoRecordsParsedMsg$	= "No records selected."
+Const kNoCostTranTableMsg$	= "Couldn't find costs table."
+Const kInvoiceCreatedMsg$	= "Created invoice:"
+Const kReturnToPreviousMsg$	= "Return to Invoice Creation View"
+Const kPleaseClearValMsg$     = "Please clear the value or enter a new one."
+Const kNoUnissuedInvMsg$ = "Couldn't find any unissued invoices to add costs to."
+Const kAddedCostsMsg$         = "Added costs to invoice:"
+
+Const kInvoiceDescrMsg$		= "Invoice Description:"
+Const kSendToMsg$		     = "Send To:"
+Const kRemitPaymentToMsg$	= "Remit Payment To:"
+Const kDateSentMsg$			= "Date Billed: "
+Const kDateExpRecMsg$		= "Date Due:"
+Const kPrintInvoiceMsg$		= "Show Report?"
+Const kIssueInvoiceMsg$		= "Issue?"
+Const kOKMsg$				= "OK"
+Const kCancelMsg$			= "Cancel"
+Const kHelpMsg$			= "Help"
+Const kInvalidDateMsg$		= "Invalid Date."
+Const kInvoiceCodeMsg$		= "Invoice Code:"
+
+'------------------------------------------------------------------------------
+
+'------------------------------------------------------------------------------
+'---- Do NOT Translate
+Const kCrlf$					= Chr$(13) & Chr$(10)
+'------------------------------------------------------------------------------
+
+Private pRemitTo As String
+Private pSendTo As String
+Private pDateSent As String
+Private pDateExpRec As String
+Private pInvoiceDescription As String
+
+Private pAuthorizedToCreateInvoice As Boolean
+Private pPrintInvoiceFlag As Boolean
+Private pIssueInvoiceFlag As Boolean
+Private pDialogHeadingMsg As String
+Private pCreateInvoice As Boolean
+
+Public pbPreviousViewName As String
+
+/* Main function that checks the grid for costs to be assigned
+   to a new or an existing invoice and then calls a sub for 
+   creating the invoice with the costs or a sub that adds the 
+   costs to an existing unissued invoice. */
+
+Sub MainInvoice (OwnerTable As String, OwnerIdField As String, _
+   		       OriginalView As String, CreateInvoice As Boolean)
+	
+	Dim ed As Editor
+	Dim OwnerId As String
+	Dim SelRecords As String
+	Dim rs As New Recordset
+
+	'--- Save the view name so we can restore the original view, later
+	'--- through an Add Action.
+	pbPreviousViewName = OriginalView
+
+	'--- save this to use it later
+	pCreateInvoice = CreateInvoice
+
+	If CreateInvoice Then
+		pDialogHeadingMsg = kHeadingCreateMsg
+	Else
+		pDialogHeadingMsg = kHeadingAddMsg
+	End If
+
+	'--- Check if we have an owner table.
+	Set ed = Avw.GetEditor ( OwnerTable )
+	If ed is Not Nothing Then
+		OwnerId = "'" & GetIdFromKey(ed.CurRecKey) & "'"
+	Else
+		OwnerId = "NULL"
+	End If
+
+	Set ed = Avw.GetEditor ("cost_tran")
+	If ed is Nothing Then
+		MsgBox kNoCostTranTableMsg,ebExclamation,pDialogHeadingMsg
+		End
+	Else
+		SelRecords = ed.SelRecKeys
+		If SelRecords = "" Then
+			MsgBox kNoRecordsSelectedMsg,ebExclamation,pDialogHeadingMsg
+			End
+		End If
+	End If
+
+	'--- We still need to ensure that the selected records have no invoice_id
+
+	rs.Open "SELECT count(*) FROM cost_tran WHERE " & SelRecords & _
+		   " AND invoice_id IS NULL"
+	If rs.Fields(0).NumValue = 0 Then
+			MsgBox kNoRecordsParsedMsg,ebExclamation,pDialogHeadingMsg
+			End
+	End If
+	rs.Close
+
+	If CreateInvoice Then
+		CreateNewInvoice OwnerTable, OwnerIdField, OriginalView, _
+					  SelRecords, OwnerID
+	Else
+		AddToExistInvoice OwnerTable, OwnerIdField, OriginalView, _
+  					   SelRecords, OwnerID
+	End If
+End Sub
+
+/* This will add costs to an existing invoice. */
+
+Sub AddToExistInvoice (OwnerTable As String, OwnerIdField As String, _
+                       OriginalView As String, SelRecords As String, _
+                       OwnerId As String)
+
+	Dim InvoiceId As String
+	Dim IssueInvoice As String
+	Dim rs As New Recordset
+	Dim bCanceled As Boolean
+
+	'--- since we are only adding costs to unissued invoices
+	'--- we have to make sure that there are unissued invoices.
+
+	rs.Open "SELECT invoice_id FROM invoice WHERE status = 'N/A'"
+	If rs.EOF Then
+		MsgBox kNoUnissuedInvMsg, ebExclamation, kHeadingAddMsg
+		End
+	End If
+
+	'--- we prompt the user for an invoice
+
+	SelId_Main "invoice", "invoice_id", _
+			 FALSE, "invoice.status = 'N/A'", _
+			 "", "", _
+			 FALSE, "", _
+			 kInvoiceCodeMsg, "", _
+			 FALSE, kHeadingAddMsg, _
+			 InvoiceId, "", bCanceled
+
+	If bCanceled Then End
+
+	'--- we get the invoice properties to present them in the dialog form
+
+	rs.Open "SELECT description,date_sent,date_expected_rec" & _
+		   ",contact_id_send_to,contact_id_remit_to" & _
+		   " FROM invoice WHERE invoice_id ='" & InvoiceId & "'"
+
+	pRemitTo = rs.Fields("contact_id_remit_to").Value
+	pSendTo  = rs.Fields("contact_id_send_to").Value
+	pDateSent = sup_AdjustShortDateCentury( _
+				Format$( CDate( rs.Fields("date_sent").Value ), WindowShortDateWithFourDigitYear) )
+	pDateExpRec = sup_AdjustShortDateCentury( _
+			Format$( CDate( rs.Fields("date_expected_rec").Value ), WindowShortDateWithFourDigitYear) )
+	pInvoiceDescription = rs.Fields("description").Value
+	rs.Close
+
+	'--- we call the dialog
+
+	CreateInvoiceDlg
+
+	'--- If the user pressed OK upon exiting the dialog
+
+	If pAuthorizedToCreateInvoice Then
+
+		'--- If the issue flag is on we will set the invoice status
+
+		If pIssueInvoiceFlag Then
+			IssueInvoice = "'ISSUED'"
+		Else
+			IssueInvoice = "'N/A'"
+		End If
+
+		'--- We proceed to update the invoice record
+
+		ProjDb.ExecuteSql "UPDATE invoice SET" & _
+					  " description = " & pInvoiceDescription & _
+					  ",date_sent = " & pDateSent & _
+					  ",date_expected_rec = " & pDateExpRec & _
+					  ",contact_id_remit_to = " & pRemitTo & _
+					  ",contact_id_send_to = " & pSendTo & _
+					  ",status = " & IssueInvoice & _
+					  "," & OwnerIdField & " = " & OwnerId & _
+					  " WHERE invoice_id ='" & InvoiceId & "'"
+
+		'--- we call another sub that will update the costs and 
+		'--- load a results view.
+
+		UpdatePresent InvoiceId, SelRecords, OwnerIdField
+	End If
+End Sub
+
+
+Sub CreateNewInvoice (OwnerTable As String, OwnerIdField As String, _
+				  OriginalView As String, SelRecords As String, _
+				  OwnerId As String)
+
+	Dim IssueInvoice As String
+	Dim rs As New Recordset
+	Dim ed As Editor
+	Dim NewInvoiceNumber As String
+
+	pRemitTo = ""
+	pSendTo  = ""
+	pDateSent = ""
+	pDateExpRec = ""
+	pInvoiceDescription = ""
+
+	CreateInvoiceDlg
+
+	If pAuthorizedToCreateInvoice Then
+
+		'--- If the issue flag is on we will set the invoice status
+
+		If pIssueInvoiceFlag Then
+			IssueInvoice = "'ISSUED'"
+		Else
+			IssueInvoice = "'N/A'"
+		End If
+
+		'--- We proceed to create an invoice record
+
+		ProjDb.ExecuteSql "INSERT INTO invoice" & _
+					  " (description," & _
+					  "date_sent," & _
+					  "date_expected_rec," & _
+					  "contact_id_remit_to," & _
+					  "contact_id_send_to," & _
+					  "status," & _
+					   OwnerIdField & ")" & _
+					   " VALUES(" & _
+					   pInvoiceDescription & "," & _
+					   pDateSent & "," & _
+					   pDateExpRec & "," & _
+					   pRemitTo & "," & _
+					   pSendTo & "," & _
+					   IssueInvoice & "," & _
+					   OwnerId & ")"
+
+		'--- We get the invoice number from the max of all invoices.
+
+		rs.Open "SELECT MAX(invoice_id) FROM invoice"
+		NewInvoiceNumber = "'" & rs.Fields(0).Value & "'"
+		rs.Close
+
+		'--- we call the sub to update costs and load the results view
+
+		UpdatePresent NewInvoiceNumber, SelRecords, OwnerIdField
+	End If
+End Sub
+
+Sub UpdatePresent (InvoiceCode As String, SelRecords As String, _
+			    OwnerIdField As String)
+
+	Dim ed As Editor
+
+	'--- We assign the selected costs to this invoice
+	ProjDb.ExecuteSql "UPDATE cost_tran" & _
+				   " SET invoice_id = " & InvoiceCode & _
+				   ",status = 'RECEIVABLE'" & _
+				   " WHERE " & SelRecords & _
+				   " AND invoice_id IS NULL"
+
+	'--- We calculate the total income for this invoice
+	ProjDb.ExecuteSql "UPDATE invoice" & _
+				   " SET amount_tot_invoice =" & _
+				   "(SELECT SUM(amount_income - amount_expense)" & _
+				   " FROM cost_tran" & _
+				   " WHERE invoice_id = " & InvoiceCode & ")" & _
+				   " WHERE invoice_id = " & InvoiceCode
+
+	'--- If the user selected to see the result in a report we do that.
+
+	If pPrintInvoiceFlag Then
+		Call invcosts
+		Avw.FldOn	"cost_tran." & OwnerIdField
+		Avw.ClearAllRest
+		Avw.AddPermRest "invoice", _
+				  "", _
+				  "invoice.invoice_id", _
+				  "=", _					  
+				  InvoiceCode
+		Avw.SetSys	"Grid Windows?", 0
+		Avw.SetSys	"Report Window?", 1
+		Avw.AddAction kReturnToPreviousMsg, _
+				    "invoice.abs", "ReturnToView"
+		Avw.Display
+
+	'--- Else we display a message and requery the costs table.
+
+	Else
+		If pCreateInvoice Then
+			MsgBox kInvoiceCreatedMsg & " " & InvoiceCode,ebInformation, _
+			  pDialogHeadingMsg
+		Else
+			MsgBox kAddedCostsMsg & " " & InvoiceCode,ebInformation, _
+			  pDialogHeadingMsg	
+		End If
+
+		Set ed = Avw.GetEditor ( "cost_tran" )
+			If ed is Not Nothing Then
+				Avw.SetTblChanged "cost_tran", AVW_TBLCHANGE_UPDATE
+				Avw.SetTblChanged "cost_tran", AVW_TBLCHANGE_INSERT
+				Avw.Requery
+			End If
+	End If
+End Sub
+
+
+/* Dialog Form */
+
+Sub CreateInvoiceDlg()
+
+Begin Dialog CreateInvoice ,,253,169,pDialogHeadingMsg,.CreateInvoiceDlgProc
+	GroupBox 6,2,242,147,"",.GroupBox1
+
+	Text 12,12,230,8,kInvoiceDescrMsg,.InvDescrText
+	TextBox 12,24,230,46,.InvDescrTextBox,1
+
+	Text 12,76,104,8,kSendToMsg,.SendToText
+	TextBox 12,86,93,12,.SendToTextBox
+	PushButton 106,86,10,12,"...",.SendToPushButton
+
+	Text 136,76,104,8,kRemitPaymentToMsg,.RemitToText
+	TextBox 136,86,93,12,.RemitToTextBox
+	PushButton 230,86,10,12,"...",.RemitToPushButton
+
+	Text 12,106,104,8,kDateSentMsg,.DateSentText
+	TextBox 12,116,93,12,.DateSentTextBox
+	PushButton 106,116,10,12,"...",.DateSentPushButton
+
+	Text 136,106,104,8,kDateExpRecMsg,.DateExpRecText
+	TextBox 136,116,93,12,.DateExpRecTextBox
+	PushButton 230,116,10,12,"...",.DateExpRecPushButton
+
+	CheckBox 12,136,104,8,kPrintInvoiceMsg,.PrintInvoiceCheckBox
+	CheckBox 136,136,104,8,kIssueInvoiceMsg,.IssueInvoiceCheckBox
+
+	PushButton 33,152,40,14,kOKMsg,.OKButton
+	PushButton 106,152,40,14,kCancelMsg,.CancelButton
+	PushButton 179,152,40,14,kHelpMsg,.HelpButton
+End Dialog
+	
+	Dim CreateInv As CreateInvoice
+
+	Dialog CreateInv
+End Sub
+
+
+/* Proc function for the above dialog */
+
+Function CreateInvoiceDlgProc (ControlName$, Action%, SuppValue%)
+
+	Dim selVals$()
+	Dim ownerKeys$()
+	Dim rsTest As New RecordSet
+	Dim dfltDate As Date
+	Dim sFixedDate As String
+
+	Select Case Action
+	Case 1
+		'--- Set the default to Print
+		DlgValue "PrintInvoiceCheckBox", 1
+		pPrintInvoiceFlag = True
+
+		'--- Set the default to Issue
+		DlgValue "IssueInvoiceCheckBox", 1
+		pIssueInvoiceFlag = True
+
+		DlgText "RemitToTextBox", pRemitTo
+		DlgText "SendToTextBox", pSendTo
+		DlgText "DateSentTextBox", pDateSent
+		DlgText "DateExpRecTextBox", pDateExpRec
+		DlgText "InvDescrTextBox", pInvoiceDescription
+
+	Case 2		
+		Select Case ControlName
+		Case "OKButton"
+			pAuthorizedToCreateInvoice = True
+			pInvoiceDescription = _
+				sup_MakeLiteralOrNull(Trim(DlgText$("InvDescrTextBox")))
+			pRemitTo = _
+				sup_MakeLiteralOrNull(Trim(DlgText$("RemitToTextBox")))
+			pSendTo = _
+				sup_MakeLiteralOrNull(Trim(DlgText$("SendToTextBox")))
+
+			pDateSent = Trim(DlgText$("DateSentTextBox"))
+			If pDateSent = "" Then
+				pDateSent = "NULL"
+			Else		
+				pDateSent = ProjDb.ISOToNativeDate(sup_ISO_Date(pDateSent))
+			End If
+
+			pDateExpRec = _
+				Trim(DlgText$("DateExpRecTextBox"))
+			If pDateExpRec = "" Then
+				pDateExpRec = "NULL"
+			Else
+				pDateExpRec = ProjDb.ISOToNativeDate _
+					(sup_ISO_Date(pDateExpRec))
+			End If
+
+		Case "CancelButton"
+			pAuthorizedToCreateInvoice = False
+
+		Case "HelpButton"
+			sup_Show_Help "Create_Invoices_for_actions"
+			CreateInvoiceDlgProc = 1
+
+		Case "RemitToPushButton"
+			If Avw.PromptFld( selVals, "contact.contact_id") Then
+				DlgText "RemitToTextBox", selVals( 0 )
+			End If
+			CreateInvoiceDlgProc = 1
+
+		Case "SendToPushButton"
+			If Avw.PromptFld( selVals, "contact.contact_id") Then
+				DlgText "SendToTextBox", selVals( 0 )
+			End If
+			CreateInvoiceDlgProc = 1
+
+		Case "DateSentPushButton"
+			'--- Use the current date as the default date
+			dfltDate = DateValue( Date() )
+			dfltDate = DateValue(Format$(dfltDate,WindowShortDateWithFourDigitYear)) 
+			If PopupCalendar( dfltDate ) Then
+				DlgText "DateSentTextBox", sup_AdjustShortDateCentury( _
+					Format$(dfltDate, WindowShortDateWithFourDigitYear) )
+			End If
+			CreateInvoiceDlgProc = 1
+
+		Case "DateExpRecPushButton"
+			dfltDate = DateValue( Date() )
+			dfltDate = DateValue(Format$(dfltDate,WindowShortDateWithFourDigitYear)) 
+			If PopupCalendar( dfltDate ) Then
+				DlgText "DateExpRecTextBox", sup_AdjustShortDateCentury( _
+					Format$(dfltDate,WindowShortDateWithFourDigitYear) )
+			End If
+			CreateInvoiceDlgProc = 1
+
+		Case "PrintInvoiceCheckBox"
+			If DlgValue("PrintInvoiceCheckBox") = 1 Then
+				pPrintInvoiceFlag = True
+			Else
+				pPrintInvoiceFlag = False
+			End If
+
+		Case	"IssueInvoiceCheckBox"
+			If DlgValue("IssueInvoiceCheckBox") = 1 Then
+				pIssueInvoiceFlag = True
+			Else
+				pIssueInvoiceFlag = False
+			End If
+		End Select	'---- Case ControlName
+
+	Case 3		
+		Select Case ControlName
+		'--- This will take place if the user manually changes a value.
+		'--- This is where we check all the validations.
+		Case "RemitToTextBox"
+			If Trim(DlgText$("RemitToTextBox")) <> "" Then
+				rsTest.Open "SELECT contact_id FROM contact" & _
+						  " WHERE contact_id ='" & _
+						  Trim(DlgText$("RemitToTextBox")) & "'"
+				If rsTest.EOF Then 
+					MsgBox kInvalidRemitToMsg & " " & _
+					    Trim(DlgText$("RemitToTextBox")) & _
+					    kCrlf & kPleaseClearValMsg, _
+					    ebExclamation, kSelectRemitToMsg
+
+					DlgFocus "RemitToTextBox"
+					DlgText "RemitToTextBox", _
+						   DlgText$("RemitToTextBox")
+				End If
+				rsTest.Close
+			End If
+
+		Case "SendToTextBox"			
+			If Trim(DlgText$("SendToTextBox")) <> "" Then
+				rsTest.Open "SELECT contact_id FROM contact" & _
+						  " WHERE contact_id='" & _
+						  Trim(DlgText$("SendToTextBox")) & "'"
+				If rsTest.EOF Then 
+					MsgBox kInvalidSendToMsg & " " & _
+						  Trim(DlgText$("SendToTextBox")) & _
+						  kCrlf & kPleaseClearValMsg, _
+						  ebExclamation, kSelectSendToMsg
+					DlgFocus "SendToTextBox"
+					DlgText "SendToTextBox", _
+						   DlgText$("SendToTextBox")
+				End If
+				rsTest.Close
+			End If
+
+		Case "DateSentTextBox"
+			sFixedDate = sup_AdjustShortDateCentury( Dlgtext$( "DateSentTextBox" ) )
+			If sFixedDate = "BADDATE" Then 
+				DlgFocus "DateSentTextBox"
+			Else
+				DlgText "DateSentTextBox", sFixedDate
+			End If
+
+		Case "DateExpRecTextBox"
+			sFixedDate = sup_AdjustShortDateCentury( Dlgtext$( "DateExpRecTextBox" ) )
+			If sFixedDate = "BADDATE" Then 
+				DlgFocus "DateExpRecTextBox"
+			Else
+				DlgText "DateExpRecTextBox", sFixedDate
+			End If
+
+		End Select
+	End Select	'---- Case Action
+
+End Function
+
+/* 
+   This function gets the current key from the table in the form:
+   (key_id = 'JOHN') and gets the value 'JOHN' and returns it.
+   Also works for (key_id=9)
+*/
+
+Function GetIdFromKey (KeyString As String) As String
+
+	'start with after the = sign
+	KeyString = Trim(Mid(KeyString,InStr(KeyString,"=") + 1))
+
+	'eliminate the last character which is a ) right parenthesis
+	KeyString = Mid(KeyString,1,Len(KeyString) - 1)
+
+	'if the string has ' single quotes in the beginning and end we remove them
+	If Mid(KeyString,1,1) = "'" Then
+		KeyString = Mid(KeyString,2)
+		KeyString = Mid(KeyString,1, Len(KeyString) - 1)
+	End If
+
+	GetIdFromKey = KeyString
+End Function
+
+Sub ReturnToView()
+
+	Select Case pbPreviousViewName
+		Case "invcrels"
+			Call invcrels
+			Avw.Display
+		Case "invcrebl"
+			Call invcrebl
+			Avw.Display
+		Case "invcrepr"
+			Call invcrepr
+			Avw.Display
+		Case "invcreac"
+			Call invcreac
+			Avw.Display
+	End Select
+End Sub
+
+Sub CreateInvoiceLs ()
+	MainInvoice "ls", "ls_id", "invcrels", TRUE
+End Sub
+
+Sub CreateInvoicePr ()
+	MainInvoice "property", "pr_id", "invcrepr", TRUE
+End Sub
+
+Sub CreateInvoiceBl ()
+	MainInvoice "bl", "bl_id", "invcrebl", TRUE
+End Sub
+
+Sub CreateInvoiceAc ()
+	MainInvoice "ac", "ac_id", "invcreac", TRUE
+End Sub
+
+Sub AddToInvoiceLs ()
+	MainInvoice "ls", "ls_id", "invcrels", FALSE
+End Sub
+
+Sub AddToInvoicePr ()
+	MainInvoice "property", "pr_id", "invcrepr", FALSE
+End Sub
+
+Sub AddToInvoiceBl ()
+	MainInvoice "bl", "bl_id", "invcrebl", FALSE
+End Sub
+
+Sub AddToInvoiceAc ()
+	MainInvoice "ac", "ac_id", "invcreac", FALSE
+End Sub
+
+
+/* Sub to review an invoice for printing or browsing.
+   It prompts for an invoice number and loads the invcosts.avw 
+*/
+
+Sub ReviewInvoice()
+
+	Dim InvoiceId As String
+	Dim bCanceled As Boolean
+
+	SelId_Main "invoice", "invoice_id", _
+			 FALSE, "", _
+			 "", "", _
+			 FALSE, "", _
+			 kInvoiceCodeMsg, "", _
+			 TRUE, kHeadingAddMsg, _
+			 InvoiceId, "", bCanceled
+
+	If bCanceled Then End
+
+	Call invcosts
+	Avw.ClearAllRest
+	Avw.SetSqlRest	"invoice", _
+		SqlFunc_SQLConvertIntToChar( "invoice.invoice_id" ) & _
+		" LIKE '" & CStr( InvoiceId ) & "%'"
+
+	Avw.SetSys	"Grid Windows?", 0
+	Avw.SetSys	"Report Window?", 1
+	Avw.Display
+End Sub

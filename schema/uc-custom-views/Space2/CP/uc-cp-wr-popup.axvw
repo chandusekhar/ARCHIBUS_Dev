@@ -1,0 +1,165 @@
+<!-- CHANGE LOG                                                            -->
+<!-- 2011/01/06 - JJYCHAN - Changed all references of 'Audit' to 'Walkthrough -->
+<!-- 2011/01/12 - EWONG - Send email to assigned when issued. -->
+
+<view version="2.0">
+	<js file="uc-cp-wr-popup.js" />
+
+	<js file="uc-common-functions-data.js" />
+	<script type="text/javascript" src="/resource/uc-email.js"></script>
+
+	<message name="rejectConfirm">Are you sure you want reject this Walkthrough?</message>
+    <message name="issueConfirm">Are you sure you want issue this walkthrough?</message>
+	<message name="rejectDone">The request has been rejected</message>
+
+	<!-- ************************ POPUP PANELS ******************************** -->
+	<!-- DataSource for Auditing any WR changes -->
+	<dataSource id="ds_audit_log">
+		<table name="audit_log" role="main"/>
+		<field table="audit_log" name="table_name"/>
+		<field table="audit_log" name="modified_by_username"/>
+		<field table="audit_log" name="modified_on_date"/>
+		<field table="audit_log" name="modified_at_time"/>
+		<field table="audit_log" name="modification_type"/>
+		<field table="audit_log" name="description"/>
+	</dataSource>
+
+	<!-- ***************************************************************  -->
+	<!-- Details Panel                                                    -->
+	<!-- Details of the selected work request                             -->
+	<!-- ***************************************************************  -->
+
+	<dataSource id="wr_Ds" >
+		<table name="wr" role="main" />
+		<field table="wr" name="wr_id" />
+		<field table="wr" name="requestor" />
+		<field table="wr" name="phone"/>
+		<field table="wr" name="dv_id" />
+		<field table="wr" name="dp_id" />
+		<field table="wr" name="bl_id" />
+		<field table="wr" name="fl_id" />
+		<field table="wr" name="rm_id" />
+		<field table="wr" name="prob_type" />
+		<field table="wr" name="description" />
+		<field table="wr" name="eq_id" />
+		<field table="wr" name="date_requested" />
+		<field table="wr" name="ac_id" />
+		<field table="wr" name="location"/>
+		<field table="wr" name="cf_notes" />
+		<field table="wr" name="status"/>
+		<field table="wr" name="wo_id"/>
+	</dataSource>
+
+    <dataSource id="approvalReqCountDs">
+        <table name="uc_space_approval" role="main"/>
+        <field name="sa_id" table="uc_space_approval"/>
+        <restrictions>
+            <restriction type="sql" sql="approved=0" />
+        </restrictions>
+    </dataSource>
+
+	<!-- ***************************************************************  -->
+	<!-- Assign Panel                                                     -->
+	<!-- Assign a Space Liaison to a Request                               -->
+	<!-- ***************************************************************  -->
+	<dataSource id="wrcf_save_ds">
+		<table name="wrcf" role="main" />
+		<field table="wrcf" name="cf_id"/>
+		<field table="wrcf" name="wr_id"/>
+		<field table="wrcf" name="date_assigned"/>
+		<field table="wrcf" name="time_assigned"/>
+	</dataSource>
+
+	<tabs id="details_tabs" >
+		<tab name="wr_tab" selected="true">
+			<title>Details</title>
+            <panel type="form" id="wr_report" dataSource="wr_Ds" columns="2" >
+                <title>Request Details</title>
+                <action id="rejectWR" hidden="${record['wr.status'] != 'AA'}">
+                    <title>Reject</title>
+                    <command type="callFunction" functionName="cpWrPopupController.rejectWorkRequest()"/>
+                </action>
+                <action id="issueWR" hidden="${record['wr.status'] != 'AA'}">
+                    <title>Issue Walkthrough Request</title>
+                    <command type="saveForm"/>
+                    <command type="callFunction" functionName="cpWrPopupController.issueWorkRequest()"/>
+                </action>
+				<action id="approveAudit" hidden="${record['wr.status'] != 'CPA'}">
+                    <title>Finalize Walkthrough Results</title>
+                    <command type="saveForm"/>
+                    <command type="callFunction" functionName="cpWrPopupController.approveAudit()"/>
+				</action>
+                <action id="saveWrNotes">
+                    <title>Save</title>
+                    <command type="saveForm"/>
+                    <!-- Auto-wired event handler. wr_report_onSaveWrNotes -->
+                </action>
+                <action id="closePopup">
+                    <title>Close</title>
+                    <command type="closeDialog"/>
+                </action>
+                <field table="wr" name="wr_id" readOnly="true"></field>
+				<field table="wr" name="wo_id" hidden="true"/>
+                <field table="wr" name="date_requested" readOnly="true" />
+                <field table="wr" name="requestor" readOnly="true"/>
+                <field table="wr" name="phone" readOnly="true"/>
+
+                <!--field table="wr" name="dv_id" readOnly="true" /-->
+                <!--field table="wr" name="dp_id" readOnly="true" /-->
+
+				<field table="wr" name="status" readOnly="true" hidden="true"/>
+                <field table="wr" name="bl_id" readOnly="true" />
+                <field table="wr" name="prob_type" readOnly="true"/>
+
+
+                <field table="wr" name="fl_id" readOnly="true" />
+                <field/>
+
+                <!--field table="wr" name="eq_id" readOnly="true" /-->
+
+                <field table="wr" name="rm_id" readOnly="true" />
+                <field/>
+
+                <field table="wr" name="ac_id" readOnly="true" colspan="2"/>
+
+                <!--field table="wr" name="ac_id" readOnly="true" /-->
+                <!--field/-->
+
+                <!--field table="wr" name="prob_type" readOnly="true" hidden="true"/-->
+                <field table="wr" name="description" colspan="2" rowspan="3" readOnly="true"><title>Description</title></field>
+                <field table="wr" name="cf_notes" colspan="2" rowspan="3" readOnly="true"/>
+
+                <field table="wr" name="cf_notes" alias="wr.cf_notes.new" colspan="2" rowspan="3">
+                    <title>Add additional Notes</title>
+                </field>
+
+                <!--field table="wr" name="requestor" alias="wr.wrcf.cf_id" readOnly="${record['wr.status'] != 'AA'}"-->
+				<field table="wr" name="requestor" alias="wr.wrcf.cf_id">
+                    <title>Assign to Liaison</title>
+                    <action id="cfSelVal">
+                        <title>...</title>
+                        <command type="selectValue"
+                            dialogTitle='Select Liaison'
+                            fieldNames="wr.wrcf.cf_id"
+                            selectFieldNames="cf.cf_id"
+                            visibleFieldNames="cf.cf_id" showIndex="false"
+                            restriction=""
+                        />
+                    </action>
+                </field>
+            </panel>
+            <panel type="form" id="wrcf_assigned_hidden" dataSource="wrcf_save_ds" showOnLoad="false" hidden="true">
+                <field table="wrcf" name="cf_id" required="false"/>
+                <field table="wrcf" name="wr_id" required="false"/>
+                <field table="wrcf" name="date_assigned" required="false"/>
+                <field table="wrcf" name="time_assigned" required="false"/>
+            </panel>
+		</tab>
+        <tab name="approvalDrawing" file="uc-cp-audit-approve.axvw" hidden="${View.panels.get('wr_report').record.getValue('wr.status') != 'CPA'}" useFrame="true" >
+            <title>Proposed Changes</title>
+        </tab>
+	</tabs>
+
+
+
+</view>

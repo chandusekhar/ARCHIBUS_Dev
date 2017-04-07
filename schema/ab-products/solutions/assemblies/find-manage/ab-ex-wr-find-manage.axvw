@@ -1,0 +1,280 @@
+
+<!-- Find-manage example for managing work requests. -->
+<view version="2.0">
+    <title>Review/Create Work Requests</title>
+
+    <js file="ab-ex-wr-find-manage.js"/>
+    <css file="ab-ex-wr-find-manage.css"/>
+
+    <message name="error_bl_id">Please select a Building Code</message>
+    <message name="error_fl_id">Please select a Floor Code</message>
+    <message name="error_rm_id">Please select a Room Code</message>
+
+    <layout type="borderLayout" id="mainLayout">
+        <north autoScroll="true" split="true" initialSize="150"/>
+        <west autoScroll="true" split="true" initialSize="50%" minSize="500"/>
+        <center autoScroll="true"/>
+    </layout>
+    
+    <dataSource id="exWrFindManage_wrDs">
+        <table name="wr" role="main"/>
+        
+        <field table="wr" name="wr_id"/>
+        <field table="wr" name="bl_id"/>
+        <field table="wr" name="requestor"/>
+        <field table="wr" name="phone"/>
+        <field table="wr" name="eq_id"/>
+        <field table="wr" name="fl_id"/>
+        <field table="wr" name="rm_id"/>
+        <field table="wr" name="prob_type"/>
+        <field table="wr" name="location"/>
+        <field table="wr" name="description"/>
+        <field table="wr" name="priority"/>
+        <field table="wr" name="date_requested"/>
+        <field table="wr" name="time_requested"/>
+        <field table="wr" name="status"/>
+        <field table="wr" name="est_labor_hours"/>
+    </dataSource>
+    
+    <!-- The work request console -->
+    <panel type="console" id="exWrFindManage_wrConsole" columns="3" dataSource="exWrFindManage_wrDs" region="north">
+        <title>Filter</title>
+        
+        <!-- Prepare custom console restriction and apply it to the work request report -->
+        <action id="search" imageName="/schema/ab-core/graphics/refresh.gif" cssClass="defaultButton">
+            <title>Show</title>
+            <command type="callFunction" functionName="exWrFindManage_wrConsole_applyRestriction"/>
+        </action>
+        
+        <action id="clear_search">
+            <title>Clear</title>
+            <command type="showPanel" panelId="exWrFindManage_wrReport" clearRestriction="true"/>
+            <command type="clearPanel" panelId="exWrFindManage_wrConsole"/>
+        </action>
+        
+        <!-- Open the work request edit form to add new work request -->
+        <action id="addNew" imageName="/schema/ab-core/graphics/icons/add.png">
+            <title>Create Work Request</title>
+            <command type="showPanel" panelId="exWrFindManage_wrForm" newRecord="true" applyParentRestriction="false"/>
+            <command type="callFunction" functionName="wr_copy_console_values"/>                    
+        </action>
+        
+        <!-- field table="wr" name="wr_id" readOnly="false"/ -->
+        <field table="wr" name="requestor">
+            <action>
+                <title>...</title>
+                <command type="selectValue"
+                         fieldNames="wr.requestor, wr.phone"
+                         selectFieldNames="em.em_id,em.phone"
+                         visibleFieldNames="em.em_id,em.dv_id,em.dp_id,em.phone,em.email" />
+            </action> 
+        </field>
+        <field table="wr" name="phone"/> 
+        <field/>
+        <field table="wr" name="prob_type"/>
+        <field table="wr" name="eq_id">
+            <action>
+                <title>...</title>
+                <command type="selectValue"
+                         fieldNames="wr.eq_id, wr.fl_id, wr.rm_id"
+                         selectFieldNames="eq.eq_id, eq.fl_id, eq.rm_id"
+                         visibleFieldNames="eq.eq_id, eq.eq_std, eq.bl_id, eq.fl_id, eq.rm_id" />
+            </action> 
+        </field>
+        <!-- Custom field: drop-down list based on wr.priority numeric value ranges -->
+        <field>
+            <title>Work Urgency</title>
+            <html>
+                <select class="inputField_box" id="exWrFindManage_urgency" name="exWrFindManage_urgency">
+                    <option value="all" selected="1"><span translatable="true">All</span></option>
+                    <option value="emergency"><span translatable="true">Emergency</span></option>
+                    <option value="oneDay"><span translatable="true">One Day</span></option>
+                    <option value="oneWeek"><span translatable="true">One Week</span></option>
+                    <option value="oneMonth"><span translatable="true">One Month</span></option>
+                    <option value="eventually"><span translatable="true">No Urgency</span></option>
+                </select>
+            </html>
+        </field>
+        
+        <field table="wr" name="bl_id">
+            <action>
+                <title>...</title>
+                <command type="selectValue"
+                         fieldNames="wr.bl_id"
+                         selectFieldNames="bl.bl_id"
+                         visibleFieldNames="bl.bl_id, bl.name"
+			 showNullFilters="true" />
+            </action> 
+        </field>
+        <field table="wr" name="fl_id"/>
+        <field table="wr" name="rm_id"/>
+                
+        <!-- Custom field: drop-down list that produce one of predefined wr.date_requested value ranges -->
+        <field>
+            <title translatable="true">Requested</title>
+            <html>
+                <select class="inputField_box" id="exWrFindManage_requested" name="exWrFindManage_requested" onchange="exWrFindManage_wrConsole_checkDateRange()">
+                    <option value="Today" ><span translatable="true">Today</span></option>
+                    <option value="This Week"><span translatable="true">This Week</span></option>
+                    <option value="This Month"><span translatable="true">This Month</span></option>
+                    <option value="This Year"><span translatable="true">This Year</span></option>
+                    <option value="Date Range" selected="1"><span translatable="true">Date Range</span></option>
+                </select>
+            </html>
+        </field>
+        
+        <!-- Aliased fields based on wr.date_requested -->
+        <field table="wr" name="date_requested" alias="wr.date_requested.from">
+            <title>From</title>
+        </field>
+        <field table="wr" name="date_requested" alias="wr.date_requested.to">
+            <title>To</title>
+        </field>
+    </panel>
+
+    <!-- List of work requests restricted by the console -->
+    <panel type="grid" id="exWrFindManage_wrReport" showOnLoad="false" dataSource="exWrFindManage_wrDs" region="west" showCounts="true">
+        <title>Work Requests</title>
+	<sortField table="wr" name="wr_id"/>
+	<indexField table="wr" name="requestor"/>
+
+        <action id="exportXLS">
+            <title>XLS</title>
+            <command type="exportPanel" outputType="xls" panelId="exWorkRequest_wrReport"/>
+        </action>
+
+        <action id="refresh" imageName="/schema/ab-core/graphics/refresh.gif">
+            <title>Refresh</title>
+            <command type="showPanel" panelId="exWrFindManage_wrReport"/>
+        </action>
+
+        <field table="wr" name="wr_id" hidden="true">
+            <title>Code</title>
+        </field>
+        <field table="wr" name="requestor">
+            <title>Requestor</title>
+        </field>
+        <field table="wr" name="date_requested">
+            <title>Date</title>
+        </field>
+        <field table="wr" name="prob_type">
+            <title>Type</title>
+        </field>
+        <field name="description" width="300">
+            <title>Description</title>
+        </field>
+
+        <event type="onClickItem">
+            <!-- Display the selected work request in the form -->
+            <command type="showPanel" panelId="exWrFindManage_wrForm"/>
+        </event>
+    </panel>
+        
+    <!-- Work request edit form -->
+    <!-- Specify custom event handlers to map custom controls to/from standard fields -->
+    <panel type="form" id="exWrFindManage_wrForm" showOnLoad="false" columns="1" dataSource="exWrFindManage_wrDs" region="center"
+           afterRefresh="exWrFindManage_wrForm_afterRefresh" beforeSave="exWrFindManage_wrForm_beforeSave">
+        <title>Review or Edit Work Request</title>
+
+        <!-- Save work request, send email notification and refresh the work request report -->
+        <action id="save" imageName="/schema/ab-core/graphics/icons/accept.png">
+            <title>Save</title>
+            <command type="saveForm"/>
+            <command type="callFunction" functionName="exWrFindManage_wrForm_sendEmail"/>
+            <command type="callFunction" functionName="exWrFindManage_wrForm_refreshReport"/>
+        </action>
+        <!-- Cancel hides the form -->
+        <action id="cancel" imageName="/schema/ab-core/graphics/icons/cancel.png">
+            <title>Cancel</title>
+            <command type="showPanel" panelId="exWrFindManage_wrForm" show="false"/>
+        </action>
+
+        <fieldset>
+            <title>Requestor</title>
+        <field table="wr" name="wr_id" readOnly="true"/>
+        <field table="wr" name="requestor" value="${user.employee.id}">
+            <action>
+                <title>...</title>
+                <command type="selectValue"
+                         fieldNames="wr.requestor, wr.phone, wr.bl_id, wr.fl_id, wr.rm_id"
+                         selectFieldNames="em.em_id, em.phone, em.bl_id, em.fl_id, em.rm_id"
+                         visibleFieldNames="em.em_id, em.em_std, em.bl_id, em.fl_id, em.rm_id, em.phone"
+			 />
+            </action> 
+        </field>
+        <field table="wr" name="phone"/>
+        <field table="wr" name="bl_id"/>
+        <field table="wr" name="fl_id"/>
+        <field table="wr" name="rm_id">
+            <!-- This is equivalent to the standard Select Value button.
+                 We need to add it because of the second, custom Select Value button below. -->
+            <action>
+                <title>...</title>               
+                <command type="selectValue" 
+                         fieldNames="wr.bl_id, wr.fl_id, wr.rm_id"
+                         selectFieldNames="rm.bl_id, rm.fl_id, rm.rm_id"
+                         visibleFieldNames="rm.bl_id, rm.fl_id, rm.rm_id"
+                />
+            </action>
+            <!-- Custom Select Value from Drawing button. -->
+            <action id="selectRoom">
+				<title>Drawing</title>
+                <command type="callFunction" functionName="exWrFindManage_wrForm_selectRoomFromDrawing"/>                            
+            </action>
+        </field>
+        <field table="wr" name="eq_id"/>
+        </fieldset>
+
+        <fieldset>
+            <title>Problem</title>
+        <field table="wr" name="prob_type"/>
+        <field table="wr" name="location"/>
+        <field table="wr" name="description"/>
+        </fieldset>
+
+        <fieldset>
+            <title>Time</title>
+        <field table="wr" name="date_requested"/>
+        <field table="wr" name="time_requested"/>
+        <field table="wr" name="status"/>
+        </fieldset>
+
+        <fieldset>
+            <title>Estimate</title>
+        <field table="wr" name="est_labor_hours"/>
+        <field table="wr" name="priority" hidden="true"/>
+        
+        <!-- Custom field: radio buttons based on wr.priority numeric value ranges -->
+        <field>
+            <title>Urgency</title>
+            <html>
+                <input type="radio" name="exWrFindManage_wr.priority" id="exWrFindManage_wr.priority.emergency" value="Emergency"/><span translatable="true">Emergency</span><br/>
+                <input type="radio" name="exWrFindManage_wr.priority" id="exWrFindManage_wr.priority.oneDay" value="One Day"/><span translatable="true">One Day</span><br/>
+                <input type="radio" name="exWrFindManage_wr.priority" id="exWrFindManage_wr.priority.oneWeek" value="One Week"/><span translatable="true">One Week</span><br/>
+                <input type="radio" name="exWrFindManage_wr.priority" id="exWrFindManage_wr.priority.oneMonth" value="One Month"/><span translatable="true">One Month</span><br/>
+                <input type="radio" name="exWrFindManage_wr.priority" id="exWrFindManage_wr.priority.eventually" value="Eventually"/><span translatable="true">No Urgency</span>
+            </html>
+        </field>
+        
+        <!-- Custom field: email To: and Cc: addresses for custom email notification -->
+        <field>
+            <title>Send Email</title>
+            <html>
+                <table border="0">
+                <tr>
+                    <td><input type="checkbox" id="exWrFindManage_sendEmail" onclick="exWrFindManage_wrForm_checkEmail()"/></td>
+                    <td><span translatable="true">To:</span><input id="exWrFindManage_emailTo" disabled="true"/></td>
+                </tr>
+                <tr>
+                    <td></td>
+                    <td><span translatable="true">Cc:</span><input id="exWrFindManage_emailCc" disabled="true"/></td>
+                </tr>
+                </table>
+            </html>
+        </field>
+        </fieldset>
+    </panel>
+    
+    <message name="formTitleReview">Review or Edit Work Request</message>
+    <message name="formTitleAddNew">Add New Work Request</message>
+</view>

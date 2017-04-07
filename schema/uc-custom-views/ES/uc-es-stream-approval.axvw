@@ -1,0 +1,134 @@
+<view version="2.0">
+    <designInfo type="edit" pattern="ab-viewdef-editform-drilldown" isAlterable="true"/>
+    <layout file="pkey-tree.axvw"/>
+	
+	<js file="uc-es-stream-approval.js"/>
+	
+    <title translatable="true">Streams Approval</title>
+	
+	<dataSource id="abEnergyBillTypeDefine_ds_0">
+        <table name="bill_type" role="main"/>
+		<field table="bill_type" name="bill_type_id"/>
+		<restrictions>
+			<restriction type="sql" sql="bill_type.activity_id='AbRiskES' and exists (select 1 from bill a inner join bill_type b on b.bill_type_id=a.bill_type_id where a.status = 'Pending Approval' and bill_type.bill_type_id = isnull(b.parent,b.bill_type_id))"/>
+		</restrictions>
+    </dataSource>
+	
+	<dataSource id="abEnergyBillTypeDefine_ds_2">
+        <table name="bill_typev1" role="main"/>
+		<field table="bill_typev1" name="type_id"/>
+		<restrictions>
+			<restriction type="sql" sql="bill_typev1.activity_id = 'AbRiskES' and exists (select 1 from bill a where a.bill_type_id=bill_typev1.type_id and a.status = 'Pending Approval')"/>
+		</restrictions>
+    </dataSource>
+	
+
+    
+    <panel type="tree" id="abEnergyBillTypeDefine_treePanel" dataSource="abEnergyBillTypeDefine_ds_0" showOnLoad="true" selectionEnabled="true" region="west">
+        <title translatable="true">Stream</title>
+        <action id="showall">
+		   <title translatable="true">ShowAll</title>
+		   <command type="showPanel" panelId="pnlApproval"/>
+		</action>
+		<action id="abEnergyBillTypeDefine_refresh">
+		   <title translatable="true">Refresh</title>
+		   <command type="showPanel" panelId="abEnergyBillTypeDefine_treePanel"/>
+		</action>    
+		<event type="onClickNode">
+			 <!--command type="showPanel" panelId="abEnergyBillTypeDefine_detailsPanel"/-->
+			  <command type="callFunction" functionName="resController.onClickNode()"/>
+		</event>
+			
+			<panel type="tree" id="abEnergyBillTypeDefine_SubTree" dataSource="abEnergyBillTypeDefine_ds_2">
+               <event type="onClickNode">
+                  <command type="callFunction" functionName="resController.onClickChildNode()"/>
+               </event>
+			    <field name="bill_type" table="bill_typev1"/>
+			    <field name="bill_type_id" table="bill_typev1"/> 
+		    </panel>
+			
+		<field name="bill_type_id" table="bill_type">
+		</field>
+    </panel>
+    
+    <dataSource id="abEnergyBillTypeDefine_ds_form1">
+        <table name="bill" role="main"/>
+        <field table="bill" name="bill_id"/>
+        <field table="bill" name="date_issued"/>
+       
+		<field table="bill" name="qty_energy"/>
+		<field table="bill" name="time_period"/>
+		<field table="bill" name="description"/>
+		<field table="bill" name="vn_id"/>
+		<field table="bill" name="vn_ac_id"/>
+		<field table="bill" name="status"/>
+		
+		 <table name="vn" role="standard"/>
+        <field table="vn" name="company"/>
+		
+		 <table name="bill_type" role="standard"/>
+		<field table="bill_type" name="unit_report"/>
+		 <field table="bill_type" name="parent" dataType="text">
+			<title >Stream</title>
+			<sql dialect="generic">
+				isnull(bill_type.parent,bill.bill_type_id)
+			</sql>
+		</field>
+		<field table="bill" name="bill_type_id" dataType="text">
+			<title >Substream</title>
+			<sql dialect="generic">
+				case when bill_type.parent is not null then bill.bill_type_id else null end
+			</sql>
+		</field> 	
+		<restriction type="sql" sql="bill_type.activity_id='AbRiskES' and bill.status='Pending Approval'"/>
+    </dataSource>
+    
+    <panel type="grid" id="pnlApproval" dataSource="abEnergyBillTypeDefine_ds_form1" showOnLoad="false" multipleSelectionEnabled="true"  region="center">
+        <title translatable="true">Stream</title>        
+       <action id="approve">
+            <title translatable="true">Approve</title>
+			<command type="callFunction" functionName="resController.updateSelectedStatus('Approved')"/>
+	    </action>
+        <action id="reject">
+            <title translatable="true">Reject</title>
+			<command type="callFunction" functionName="resController.rejectSelectedStatus()"/>
+	    </action>
+		<field controlType="button" >
+			<title>Details</title>
+			<command type="callFunction" functionName="resController.openDetails(this)"/>
+		</field>
+		<field table="bill" name="vn_id" hidden="true"/>
+		<field table="bill" name="vn_ac_id" hidden="true"/>
+        <field table="bill" name="bill_id"><title>Bill #</title></field>
+        <field table="bill" name="date_issued"><title>Date Issued</title></field>
+		<field table="vn" name="company"/>
+		  <field table="bill_type" name="parent">
+			<title >Stream</title>
+		</field>
+		<field table="bill" name="bill_type_id">
+			<title >Substream</title>
+		</field> 
+		<field table="bill" name="qty_energy"><title>Amount</title></field>
+ 		<field name="unit_report" table="bill_type">
+			<title translatable="true">Unit</title>
+		</field> 
+		<field table="bill" name="time_period"/>
+		<field table="bill" name="description"/>
+    </panel>
+	<panel type="form" id="pnlemail" dataSource="abEnergyBillTypeDefine_ds_form1" showOnLoad="false" labelsPosition="top">
+        <title translatable="true">Rejection Email</title>        
+        <action id="cancel">
+            <title translatable="true">Cancel</title>
+			<command type="closeDialog"/>
+	    </action>
+        <action id="emailReject">
+            <title translatable="true">Reject</title>
+			<command type="callFunction" functionName="resController.updateSelectedStatus('Rejected')"/>
+			<!--command type="closeDialog" /-->
+	    </action>
+		<field table="bill" name="description" rowspan="3" required="true">
+			<title>Rejection Comments</title>
+		</field>
+		<field/>
+    </panel>
+</view>

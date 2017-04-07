@@ -1,0 +1,360 @@
+<view version="2.0">
+    <title translatable="true">Highlight Hotelable Rooms</title>
+    <message name="drawTitle" translatable="true">Highlight Rooms:</message>
+	<message name="dvdpAlert" translatable="true">Division Code cannot be empty.</message>
+    <message name="drawTitle1" translatable="true">Highlight Hotelable Rooms</message>
+    <layout id="main">
+        <north id="filterPosition" initialSize="132" split="true"/>
+        <west id="selectedPosition" initialSize="20%" />
+        <center/>
+    </layout>
+    
+	<layout id="nested_west" containingLayout="main" region="west">
+        <north id="nestedWestNorth" initialSize="100%" />
+        <center id="nestedWestCenter" initialSize="0%"/>
+    </layout>
+	
+    <layout id="nested_center" containingLayout="main" region="center">
+        <center id="dwgPosition"/>
+        <south id="legentPosition" initialSize="20%" split="true"/>
+    </layout>
+    
+    
+    <dataSource id="searchBookingControlDS">
+        <table name="rmpct" role="main"/>
+        <field table="rmpct" name="date_start"/>
+        <field table="rmpct" name="date_end"/>
+		<field table="rmpct" name="dv_id"/>
+		<field table="rmpct" name="dp_id"/>
+    </dataSource>
+    <panel type="console" id="searchBookingConsole" labelsPosition="top" columns="3" dataSource="searchBookingControlDS" layoutRegion="filterPosition">
+        <title translatable="true">Filter</title>
+        <action id="search">
+            <title translatable="true">Show</title>
+        </action>
+        <action id="clear">
+            <title translatable="true">Clear</title>
+        </action>
+        <field table="rmpct" name="date_start">
+        	 <title translatable="true">Date Interval From</title>
+        </field>
+        <field table="rmpct" name="date_end">
+        	 <title translatable="true">Date Interval To</title>
+        </field>
+	    <field table="rmpct" name="dv_id"/>
+		<field table="rmpct" name="dp_id"/>
+		<field>
+			<title translatable="true">Booked?</title>
+			<html>
+				<select id="booked"  onchange="afterChangeBookedFlag()">
+                    <option value="yes" selected="selected">
+                        <span translatable="true">Yes</span>
+                    </option>
+                    <option value="no">
+                        <span translatable="true">No</span>
+                    </option>
+                </select>
+			</html>
+		</field>
+		<field>
+			<html>
+			</html>
+		</field>
+    </panel>
+    
+    
+    <dataSource id="treeBl">
+        <table name="bl" role="main"/>
+        <field table="bl" name="bl_id"/>
+        <field table="bl" name="name"/>
+        <parameter name="startDateRes" dataType="text" value="1900-12-15"/>
+        <parameter name="endDateRes" dataType="text" value="2200-12-15"/>
+        <parameter name="dvIdRes" dataType="verbatim" value="1=1"/>
+		<parameter name="dpIdRes" dataType="verbatim" value="1=1"/>
+        <restriction type="sql" sql="EXISTS ( SELECT 1 FROM rmpct, activity_log
+													WHERE bl.bl_id = rmpct.bl_id and rmpct.activity_log_id IS NOT NULL and rmpct.activity_log_id = activity_log.activity_log_id
+                                                            AND activity_log.activity_type = 'SERVICE DESK - HOTELING'
+															AND ${sql.yearMonthDayOf('rmpct.date_start')} &lt;= ${parameters['endDateRes']} 
+															AND ${sql.yearMonthDayOf('rmpct.date_end')} &gt;=${parameters['startDateRes']}
+															and ${parameters['dvIdRes']}
+															and ${parameters['dpIdRes']}
+											)"/>
+        <sortField table="bl" name="bl_id" ascending="true"/>
+    </dataSource>
+    
+    <dataSource id="treeFl">
+        <sql dialect="generic">
+            SELECT
+            rm.bl_id ${sql.as} bl_id,
+            rm.fl_id ${sql.as} fl_id,
+            fl.name ${sql.as} name,
+            rm.dwgname ${sql.as} dwgname
+            FROM rm ,fl WHERE fl.bl_id = rm.bl_id and fl.fl_id =rm.fl_id AND rm.dwgname IS NOT NULL GROUP BY rm.bl_id,rm.fl_id,rm.dwgname,fl.name
+        </sql>
+        <table name="fl" role="main"/>
+        <field table="fl" name="bl_id" />
+        <field table="fl" name="fl_id"/>
+        <field table="fl" name="name"/>
+        <field table="fl" name="dwgname"/>
+        <parameter name="startDateRes" dataType="text" value="1900-12-15"/>
+        <parameter name="endDateRes" dataType="text" value="2200-12-15"/>
+        <parameter name="dvIdRes" dataType="verbatim" value="1=1"/>
+		<parameter name="dpIdRes" dataType="verbatim" value="1=1"/>
+        <restriction type="sql" sql="EXISTS ( SELECT 1 FROM rmpct, activity_log
+											  WHERE  fl.bl_id = rmpct.bl_id and fl.fl_id=rmpct.fl_id  and rmpct.activity_log_id = activity_log.activity_log_id
+                                                    AND activity_log.activity_type = 'SERVICE DESK - HOTELING'
+													AND rmpct.activity_log_id IS NOT NULL  
+													AND ${sql.yearMonthDayOf('rmpct.date_start')} &lt;= ${parameters['endDateRes']} 
+													AND ${sql.yearMonthDayOf('rmpct.date_end')} &gt;=${parameters['startDateRes']}
+													and ${parameters['dvIdRes']}
+													and ${parameters['dpIdRes']}
+											)"/>
+        <sortField table="fl" name="fl_id" ascending="true"/>
+    </dataSource>
+    
+    <dataSource id="treeRm">
+        <table name="rm" role="main"/>
+        <field table="rm" name="bl_id"/>
+        <field table="rm" name="fl_id"/>
+        <field table="rm" name="rm_id"/>
+        <field table="rm" name="dwgname"/>
+        <parameter name="startDateRes" dataType="text" value="1900-12-15"/>
+        <parameter name="endDateRes" dataType="text" value="2200-12-15"/>
+		<parameter name="dvIdRes" dataType="verbatim" value="1=1"/>
+		<parameter name="dpIdRes" dataType="verbatim" value="1=1"/>
+        <restriction type="sql" sql="EXISTS ( SELECT 1 FROM rmpct, activity_log 
+											WHERE rm.bl_id = rmpct.bl_id and rm.fl_id=rmpct.fl_id  and rm.rm_id =rmpct.rm_id and rmpct.activity_log_id = activity_log.activity_log_id
+													AND rmpct.activity_log_id IS NOT NULL 
+                                                    AND activity_log.activity_type = 'SERVICE DESK - HOTELING'
+													AND ${sql.yearMonthDayOf('rmpct.date_start')} &lt;= ${parameters['endDateRes']} 
+													AND ${sql.yearMonthDayOf('rmpct.date_end')} &gt;=${parameters['startDateRes']}
+													and ${parameters['dvIdRes']}
+													and ${parameters['dpIdRes']}
+											)"/>
+        <sortField table="rm" name="rm_id" ascending="true"/>
+    </dataSource>
+    
+    <panel type="tree" showOnLoad="false" id="abHotelBlTree" dataSource="treeBl" layoutRegion="nestedWestNorth">
+        <title translatable="true">Select Floor</title>
+        <panel type="tree" showOnLoad="false" id="abHotelFlTree" dataSource="treeFl">
+            <event type="onClickNode">
+                <command type="callFunction" functionName="onFlNodeClick"/>
+            </event>
+			<field table="fl" name="fl_id"/>
+        	<field table="fl" name="name"/>
+        	<field table="fl" name="dwgname"/>
+        </panel>
+        <panel type="tree" showOnLoad="false" id="abHotelRmTree" dataSource="treeRm">
+            <event type="onClickNode">
+                <command type="callFunction" functionName="onRmNodeClick"/>
+            </event>
+      		<field table="rm" name="rm_id"/>
+       		<field table="rm" name="dwgname"/>			
+        </panel>
+		<field table="bl" name="bl_id"/>
+        <field table="bl" name="name"/>
+    </panel>
+    
+    <dataSource id="abHotelRmHighlightDS" >
+        <table name="rm" role="main"/>
+        <field table="rm" name="bl_id"/>
+        <field table="rm" name="fl_id"/>
+        <field table="rm" name="rm_id"/>
+        <field table="rm" name="hpattern_acad" dataType="text" legendKey="true">
+            <sql dialect="generic">
+                '0 2'
+            </sql>
+        </field>
+        <parameter name="startDateRes" dataType="text" value="1900-12-15"/>
+        <parameter name="endDateRes" dataType="text" value="2200-12-15"/>
+		<parameter name="dvIdRes" dataType="verbatim" value="1=1"/>
+		<parameter name="dpIdRes" dataType="verbatim" value="1=1"/>
+        <restriction type="sql" sql="EXISTS ( SELECT 1 FROM rmpct, activity_log 
+											  WHERE  rm.bl_id = rmpct.bl_id and rm.fl_id=rmpct.fl_id  and rm.rm_id =rmpct.rm_id 
+											  		AND  rmpct.activity_log_id IS NOT NULL 
+                                                    AND  rmpct.activity_log_id = activity_log.activity_log_id
+                                                    AND  activity_log.activity_type = 'SERVICE DESK - HOTELING'
+													AND ${sql.yearMonthDayOf('rmpct.date_start')} &lt;= ${parameters['endDateRes']} 
+													AND ${sql.yearMonthDayOf('rmpct.date_end')} &gt;=${parameters['startDateRes']}
+													and ${parameters['dvIdRes']}
+													and ${parameters['dpIdRes']}
+											)"/>
+    </dataSource>
+
+    
+    <dataSource id="abHotelRmHighlightLabelDS" >
+        <title translatable="true"></title>
+        <table name="rm" role="main"/>
+        <field table="rm" name="bl_id" hidden="true"/>
+        <field table="rm" name="fl_id" hidden="true"/>
+        <field table="rm" name="rm_id"/>
+		<field table="rm" name="dv_id"/>
+		<field table="rm" name="dp_id"/>
+    </dataSource>
+    
+    <dataSource id="abHotelRmHighlightDS1" >
+        <table name="rm" role="main"/>
+        <field table="rm" name="bl_id"/>
+        <field table="rm" name="fl_id"/>
+        <field table="rm" name="rm_id"/>
+        <field table="rm" name="hpattern_acad" dataType="text" legendKey="true">
+            <sql dialect="generic">
+                '0 2'
+            </sql>
+        </field>
+		<field table="rm" name="hotelable"/>
+        <parameter name="startDateRes" dataType="text" value="1900-12-15"/>
+        <parameter name="endDateRes" dataType="text" value="2200-12-15"/>
+		<parameter name="dvIdRes" dataType="verbatim" value="1=1"/>
+		<parameter name="dpIdRes" dataType="verbatim" value="1=1"/>
+        <restriction type="sql" sql=" rm.hotelable=1 AND ${parameters['dvIdRes']} AND ${parameters['dpIdRes']}
+						  AND NOT EXISTS ( SELECT 1 FROM rmpct, activity_log
+												WHERE  rm.bl_id = rmpct.bl_id and rm.fl_id=rmpct.fl_id  and rm.rm_id =rmpct.rm_id 
+													AND  rmpct.activity_log_id IS NOT NULL 
+                                                    AND  rmpct.activity_log_id = activity_log.activity_log_id
+                                                    AND  activity_log.activity_type = 'SERVICE DESK - HOTELING' 
+													AND ${sql.yearMonthDayOf('rmpct.date_start')} &lt;= ${parameters['endDateRes']} 
+													AND ${sql.yearMonthDayOf('rmpct.date_end')} &gt;=${parameters['startDateRes']}
+										)"/>
+    </dataSource>
+    
+    <panel type="drawing"  id="abHotelDrawingPanel" layoutRegion="dwgPosition" multiple="false"
+     highlightDataSource="abHotelRmHighlightDS"
+     labelsDataSource="abHotelRmHighlightLabelDS"
+     selectionMode="0"
+     assetTypes="rm">
+        <title translatable="true">Highlight Bookings for a Date Range</title>
+    </panel>
+    
+    <dataSource id="treeBl1">
+        <table name="bl" role="main"/>
+        <field table="bl" name="bl_id"/>
+        <field table="bl" name="name"/>
+        <parameter name="startDateRes" dataType="text" value="1900-12-15"/>
+        <parameter name="endDateRes" dataType="text" value="2200-12-15"/>
+        <parameter name="rmCat" dataType="verbatim" value="IS NOT NULL"/>
+		<parameter name="dvIdRes" dataType="verbatim" value="1=1"/>
+		<parameter name="dpIdRes" dataType="verbatim" value="1=1"/>
+        <restriction type="sql" sql=" EXISTS(SELECT 1 FROM rm WHERE bl.bl_id=rm.bl_id AND rm.hotelable = 1 
+												AND ${parameters['dvIdRes']} 
+												AND ${parameters['dpIdRes']} 
+												AND NOT EXISTS(  SELECT 1 FROM rmpct, activity_log
+																WHERE  rm.bl_id = rmpct.bl_id  AND rm.fl_id=rmpct.fl_id AND rm.rm_id=rmpct.rm_id 
+																AND rmpct.activity_log_id IS NOT NULL
+                                                                AND  rmpct.activity_log_id = activity_log.activity_log_id
+                                                                AND  activity_log.activity_type = 'SERVICE DESK - HOTELING' 
+																AND ${sql.yearMonthDayOf('rmpct.date_start')} &lt;= ${parameters['endDateRes']} 
+																AND ${sql.yearMonthDayOf('rmpct.date_end')} &gt;=${parameters['startDateRes']} )
+								 )"
+	/>
+        <sortField table="bl" name="bl_id" ascending="true"/>
+    </dataSource>
+    
+    <dataSource id="treeFl1">
+        <sql dialect="generic">
+            SELECT
+            rm.bl_id ${sql.as} bl_id,
+            rm.fl_id ${sql.as} fl_id,
+            fl.name ${sql.as} name,
+            rm.dwgname ${sql.as} dwgname
+            FROM rm ,fl WHERE fl.fl_id =rm.fl_id and fl.bl_id=rm.bl_id AND rm.dwgname IS NOT NULL GROUP BY rm.bl_id,rm.fl_id,rm.dwgname,fl.name
+        </sql>
+        <table name="fl" role="main"/>
+        <field table="fl" name="bl_id"/>
+        <field table="fl" name="fl_id"/>
+        <field table="fl" name="name"/>
+        <field table="fl" name="dwgname" hidden="true"/>
+        <parameter name="startDateRes" dataType="text" value="1900-12-15"/>
+        <parameter name="endDateRes" dataType="text" value="2200-12-15"/>
+		<parameter name="dvIdRes" dataType="verbatim" value="1=1"/>
+		<parameter name="dpIdRes" dataType="verbatim" value="1=1"/>
+        <restriction type="sql" sql="  EXISTS(SELECT 1 FROM rm WHERE fl.bl_id=rm.bl_id AND fl.fl_id=rm.fl_id AND rm.hotelable = 1 
+														AND  ${parameters['dvIdRes']} 
+														AND  ${parameters['dpIdRes']} 
+														AND NOT EXISTS( SELECT 1 FROM rmpct, activity_log WHERE 
+																		 rmpct.bl_id=rm.bl_id AND rmpct.fl_id=rm.fl_id AND rmpct.rm_id=rm.rm_id 
+																		AND rmpct.activity_log_id IS NOT NULL 
+                                                                        AND  rmpct.activity_log_id = activity_log.activity_log_id
+                                                                        AND  activity_log.activity_type = 'SERVICE DESK - HOTELING'
+																		AND ${sql.yearMonthDayOf('rmpct.date_start')} &lt;= ${parameters['endDateRes']} 
+																		AND ${sql.yearMonthDayOf('rmpct.date_end')} &gt;=${parameters['startDateRes']} ) 
+								)" />
+        <sortField table="fl" name="fl_id" ascending="true"/>
+    </dataSource>
+    
+    <panel type="tree" showOnLoad="false" id="abHotelBlTree1" dataSource="treeBl1" layoutRegion="nestedWestCenter">
+        <title translatable="true">Select Floor</title>
+        <panel type="tree" showOnLoad="false" id="abHotelFlTree1" dataSource="treeFl1">
+            <event type="onClickNode">
+                <command type="callFunction" functionName="onFlNodeClick"/>
+            </event>
+			<field table="fl" name="fl_id"/>
+        	<field table="fl" name="name"/>
+        	<field table="fl" name="dwgname"/>
+        </panel>
+		<field table="bl" name="bl_id"/>
+        <field table="bl" name="name"/>
+    </panel>
+    
+	
+    <dataSource id="abHotelRmGridDS">
+        <table name="rmpct" role="main"/>
+        <table name="activity_log" role="standard"/>
+        <field table="rmpct" name="date_start"/>
+        <field table="rmpct" name="date_end"/>
+        <field table="rmpct" name="bl_id"/>
+        <field table="rmpct" name="fl_id"/>
+        <field table="rmpct" name="rm_id"/>
+        <field table="rmpct" name="rm_cat"/>
+        <field table="rmpct" name="rm_type"/>
+        <field table="rmpct" name="dv_id"/>
+        <field table="rmpct" name="dp_id"/>
+        <field table="rmpct" name="em_id"/>
+		<field table="rmpct" name="visitor_id"/>
+		<field table="rmpct" name="visitor_name" baseField="rmpct.visitor_id" dataType="text">
+			<title translatable="true">Visitor Name</title>
+			 <sql dialect="generic">(select name_last${sql.concat}' '${sql.concat}name_first  from visitors  where visitors.visitor_id = rmpct.visitor_id) </sql>
+		</field>
+        <field table="rmpct" name="day_part"/>
+        <field table="rmpct" name="resources"/>
+        <field table="rmpct" name="status"/>
+        <field table="rmpct" name="parent_pct_id"/>
+        <field table="activity_log" name="activity_type"/>
+        <parameter name="startDateRes" dataType="text" value="1900-12-15"/>
+        <parameter name="endDateRes" dataType="text" value="2200-12-15"/>
+		<parameter name="dvIdRes" dataType="verbatim" value="1=1"/>
+		<parameter name="dpIdRes" dataType="verbatim" value="1=1"/>
+
+        <restriction type="sql" sql=" rmpct.activity_log_id IS NOT NULL AND activity_log.activity_type = 'SERVICE DESK - HOTELING' AND EXISTS ( SELECT 1 FROM rm 
+								      WHERE  rm.bl_id = rmpct.bl_id AND rm.fl_id=rmpct.fl_id  AND rm.rm_id =rmpct.rm_id
+													AND ${parameters['dvIdRes']}
+													AND ${parameters['dpIdRes']}
+													AND ${sql.yearMonthDayOf('rmpct.date_start')} &lt;= ${parameters['endDateRes']} 
+													AND ${sql.yearMonthDayOf('rmpct.date_end')} &gt;= ${parameters['startDateRes']}												
+											)"/>
+    </dataSource>
+	
+    <panel type="grid" id="abHotelRmGrid" dataSource="abHotelRmGridDS" showOnLoad="false" layoutRegion="legentPosition">
+        <title translatable="true">All Bookings within the Date Range</title>
+        <sortField table="rmpct" name="date_start" ascending="true"/>
+        <sortField table="rmpct" name="date_end" ascending="true"/>
+        <field table="rmpct" name="date_start"/>
+        <field table="rmpct" name="date_end"/>
+        <field table="rmpct" name="bl_id"/>
+        <field table="rmpct" name="fl_id"/>
+        <field table="rmpct" name="rm_id"/>
+        <field table="rmpct" name="rm_cat"/>
+        <field table="rmpct" name="rm_type"/>
+        <field table="rmpct" name="dv_id"/>
+        <field table="rmpct" name="dp_id"/>
+        <field table="rmpct" name="em_id"/>
+		<field table="rmpct" name="visitor_name" dataType="text">
+			<title translatable="true">Visitor Name</title>
+		</field>
+        <field table="rmpct" name="day_part"/>
+        <field table="rmpct" name="resources"/>
+        <field table="rmpct" name="status"/>
+        <field table="rmpct" name="parent_pct_id"/>
+    </panel>
+    <js file="ab-ht-rpt-hl-rm-booking.js"/>
+</view>

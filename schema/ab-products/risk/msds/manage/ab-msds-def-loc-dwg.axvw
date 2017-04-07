@@ -1,0 +1,305 @@
+<view version="2.0">
+
+	<js file="ab-msds-def-loc-dwg.js"/>
+
+	<layout id="main">
+		<west initialSize="28%" split="true"/>
+		<center/>
+	</layout>
+
+	<layout id="nested_west" containingLayout="main" region="west">
+		<north initialSize="40%" split="true"/>
+		<center/>
+	</layout>
+
+	<layout id="nested_center" containingLayout="main" region="center">
+		<center/>
+		<south initialSize="20%" split="true"/>
+	</layout>
+
+	<message name="selectFloor" translatable="true">Material Assignment: Select a floor</message>
+	<message name="selectMsds" translatable="true">Material Assignment: Select one or more materials</message>
+	<message name="selectRoom" translatable="true">Select a room to which to assign the material(s)</message>
+	<message name="error_noselection" translatable="true">You must first make a selection</message>
+    <message name="docxTitle" translatable="true">Material Locations</message>
+    <message name="z_DRAWING_PRINTING" translatable="true">It will take a moment to export the drawing into Microsoft Word, do you want to continue?</message>    
+    <message name="prompt_unassignSelected" translatable="true">This action will remove room and floor location assignment details from all selected records.  \nThe material quantities and containers will appear at the building level only.  \nTo re-assign locations, use the 'Assign Material Locations' task.  \nProceed?</message>
+    <message name="prompt_disposeSelected" translatable="true">This action will remove all selected location records from the active \ninventory and archive them with status 'Disposed.'  \nProceed?</message>
+    <message name="prompt_disposeEditForm" translatable="true">You have set the container status to 'Disposed.'  \nSaving the item with this status will remove it from the active inventory and cannot be undone.  \nProceed?</message>
+
+	<title translatable="true">Assign Material to Rooms Using a Floor Plan</title>
+
+	<panel type="view" id="msdsDataSharedDataSourceView" file="ab-msds-data-ds.axvw" layoutRegion="invisible"/>
+    <panel type="view" id="msdsDataLocationsDataSourceView" file="ab-msds-locations-ds.axvw" layoutRegion="invisible"/>
+
+	<dataSource id="abRiskMsdsDefLocDwgTreeSiteDS">
+		<table name="site" role="main"/>
+		<field table="site" name="site_id"/>
+		<restriction type="sql" sql="EXISTS (SELECT 1 FROM rm left join bl on rm.bl_id=bl.bl_id WHERE rm.dwgname IS NOT NULL AND bl.site_id = site.site_id)"/>
+		<sortField name="site_id" table="site" ascending="true"/>
+	</dataSource>
+
+	<dataSource id="abRiskMsdsDefLocDwgTreeBlDS">
+		<table name="bl" role="main"/>
+		<field table="bl" name="bl_id"/>
+		<restriction type="sql" sql="EXISTS (SELECT 1 FROM rm WHERE rm.dwgname IS NOT NULL AND rm.bl_id = bl.bl_id)"/>
+		<sortField name="bl_id" table="bl" ascending="true"/>
+	</dataSource>
+
+	<dataSource id="abRiskMsdsDefLocDwgTreeFlDS">
+		<sql dialect="generic">
+			SELECT
+			rm.bl_id ${sql.as} bl_id,
+			rm.fl_id ${sql.as} fl_id,
+			rm.dwgname ${sql.as} dwgname
+			FROM rm WHERE rm.dwgname IS NOT NULL GROUP BY rm.bl_id,rm.fl_id,rm.dwgname
+        </sql>
+		<table name="fl" role="main"/>
+		<field name="fl_id"/>
+		<field name="dwgname"/>
+		<sortField name="fl_id" table="fl" ascending="true"/>
+	</dataSource>
+
+	<dataSource id="abRiskMsdsDefLocDwgHlTypeDS" type="DrawingControlHighlight">
+		<table name="rm" role="main"/>
+		<table name="rmtype" role="standard"/>
+		<field table="rm" name="bl_id"/>
+		<field table="rm" name="fl_id"/>
+		<field table="rm" name="rm_id"/>
+		<field table="rm" name="hpattern_acad" dataType="text" legendKey="true">
+			<sql dialect="generic">
+				case when exists(select 1 from msds_location where msds_location.bl_id=rm.bl_id and msds_location.fl_id=rm.fl_id and msds_location.rm_id=rm.rm_id and ${parameters['msdsRes']} )
+				then '14 0 7 16750899'
+				else null end
+            </sql>
+		</field>
+		<parameter name="msdsRes" dataType="verbatim" value="1=1"/>
+	</dataSource>
+
+	<dataSource id="abRiskMsdsDefLocDwgLabelTypeDS" type="DrawingControlLabels">
+		<sql dialect="generic">
+			SELECT
+			msds_location.bl_id ${sql.as} bl_id,
+			msds_location.fl_id ${sql.as} fl_id,
+			msds_location.rm_id ${sql.as} rm_id,
+			rm.rm_type ${sql.as} rm_type,
+			rm.rm_use ${sql.as} rm_use,
+			(select count(*) from msds_location a where a.bl_id=msds_location.bl_id and a.fl_id=msds_location.fl_id and a.rm_id=msds_location.rm_id) ${sql.as} count_em,
+			msds_data.product_name ${sql.as} dwgname
+			from msds_location left join msds_data on msds_location.msds_id = msds_data.msds_id
+			left join rm on rm.bl_id = msds_location.bl_id and rm.fl_id = msds_location.fl_id and rm.rm_id = msds_location.rm_id
+
+			union
+
+			SELECT
+			rm.bl_id ${sql.as} bl_id,
+			rm.fl_id ${sql.as} fl_id,
+			rm.rm_id ${sql.as} rm_id,
+			rm.rm_type ${sql.as} rm_type,
+			rm.rm_use ${sql.as} rm_use,
+			0 ${sql.as} count_em,
+			'' ${sql.as} dwgname from rm where not exists(select 1 from msds_location where msds_location.bl_id=rm.bl_id and msds_location.fl_id=rm.fl_id and msds_location.rm_id=rm.rm_id)
+        </sql>
+		<table name="rm" role="main"/>
+		<field name="bl_id" hidden="true"/>
+		<field name="fl_id" hidden="true"/>
+		<field name="rm_id"/>
+		<field name="rm_type"/>
+		<field name="rm_use"/>
+		<field name="count_em"/>
+		<field name="dwgname"/>
+	</dataSource>
+
+	<panel type="tree" id="abRiskMsdsDefLocDwgTreeBl" dataSource="abRiskMsdsDefLocDwgTreeSiteDS" layout="nested_west" region="north">
+		<title translatable="true">Select Floor</title>
+		<action id="showSeletedFloorPlan">
+			<title translatable="true">Show Selected</title>
+		</action>
+		<panel type="tree" id="abRiskMsdsDefLocDwgTreeBlLevel" dataSource="abRiskMsdsDefLocDwgTreeBlDS">
+		</panel>
+		<panel type="tree" id="abRiskMsdsDefLocDwgTreeFl" dataSource="abRiskMsdsDefLocDwgTreeFlDS">
+			<event type="onClickNode">
+				<command type="callFunction" functionName="onTreeClick"/>
+			</event>
+		</panel>
+	</panel>
+
+	<panel type="grid" id="abRiskMsdsDefLocDwgGridMsds" dataSource="abRiskMsdsDataDS" multipleSelectionEnabled="true" layout="nested_west" region="center">
+		<title translatable="true">Materials</title>
+        <action id="clearMSDS">
+            <title translatable="true">Clear Selection</title>
+        </action>
+		<field table="msds_data" name="manufacturer_id" controlType="link" onclick="selectMSDS"/>
+		<field table="msds_data" name="product_name" controlType="link" onclick="selectMSDS"/>
+		<field table="msds_data" name="chemical_name" controlType="link" onclick="selectMSDS"/>
+		<field table="msds_data" name="ghs_id" controlType="link" onclick="selectMSDS"/>
+		<field table="msds_data" name="msds_id" hidden="true"/>
+	</panel>
+
+	<panel type="drawing" id="abRiskMsdsDefLocDwgDrawingPanel" selectionMode="1" assignMode="1" layout="nested_center" region="center" multiple="true" highlightDataSource="abRiskMsdsDefLocDwgHlTypeDS" labelsDataSource="abRiskMsdsDefLocDwgLabelTypeDS">
+        <action id="exportDOCX">
+			<title translatable="true">DOC</title>
+			<tooltip translatable="true">Export current view of drawing to Docx file.</tooltip>
+		</action>
+	</panel>
+
+	<panel type="grid" controlType="reportGrid" id="abRiskMsdsDefLocDwgAssignment" multipleSelectionEnabled="true" dataSource="abRiskMsdsDefLocsAssignmentDS" layout="nested_center" region="south" showOnLoad="false">
+		<title translatable="true">Material Locations</title>
+		<action id="unAssign">
+			<title translatable="true">Unassign</title>
+            <tooltip translatable="true">Remove floor, room, subroom, and equipment location information from the selected record(s).</tooltip>
+			<command type="callFunction" functionName="unassignSelected"/>
+		</action>
+        <action id="disposeSelected">
+            <title translatable="true">Dispose</title>
+            <tooltip translatable="true">Delete the selected record(s) from the current material inventory and archive with status of 'Disposed'.</tooltip>
+            <command type="callFunction" functionName="disposeSelected"/>
+        </action>
+		<field table="msds_location" name="msds_id" hidden="true"/>
+		<field table="msds_data" name="ghs_id" controlType="link" onclick="selectMSDSLocation"/>
+		<field table="msds_data" name="manufacturer_id" controlType="link" onclick="selectMSDSLocation"/>
+		<field table="msds_data" name="product_name" controlType="link" onclick="selectMSDSLocation"/>
+		<field table="msds_location" name="site_id" controlType="link" onclick="selectMSDSLocation"/>
+		<field table="msds_location" name="bl_id" controlType="link" onclick="selectMSDSLocation"/>
+		<field table="msds_location" name="fl_id" controlType="link" onclick="selectMSDSLocation"/>
+		<field table="msds_location" name="rm_id" controlType="link" onclick="selectMSDSLocation"/>
+		<field table="msds_location" name="quantity" controlType="link" onclick="selectMSDSLocation"/>
+		<field table="msds_location" name="quantity_units" controlType="link" onclick="selectMSDSLocation"/>
+		<field table="msds_location" name="quantity_units_type" hidden="true"/>
+		<field table="msds_location" name="auto_number" hidden="true"/>
+	</panel>
+
+  <panel type="form" columns="2" id="abRiskMsdsDefLocDwgAssignmentForm" dataSource="abRiskMsdsDefLocsAssignmentDS" showOnLoad="false" hidden="true">    
+    <title translatable="true">Edit Material Location Details</title>
+        <action id="update">
+            <title translatable="true">Save</title>
+            <command type="saveForm"/>
+            <command type="showPanel" panelId="abRiskMsdsDefLocDwgAssignment" applyParentRestriction="false"/>
+            <command type="closeDialog"/>
+        </action>
+        <action id="cancel">
+            <title translatable="true">Cancel</title>
+            <command type="closeDialog"/>
+        </action>        
+    <field table="msds_data" name="manufacturer_id" required="false" readOnly="true" colspan="2"/>
+    <field table="msds_data" name="product_name" required="false" readOnly="true" colspan="2"/>
+    <field table="msds_location" name="quantity"/>
+    <field table="msds_location" name="quantity_units_type" hidden="true"/>
+    <field table="msds_location" name="quantity_units">
+      <action>
+                <command type="selectValue"
+                 applyFilter="true" 
+                 fieldNames="msds_location.quantity_units,msds_location.quantity_units_type" 
+                 selectFieldNames="bill_unit.bill_unit_id,bill_unit.bill_type_id" 
+                 visibleFieldNames="bill_unit.bill_type_id,bill_unit.bill_unit_id" 
+                 restriction="EXISTS(SELECT 1 FROM bill_type WHERE bill_type.bill_type_id=bill_unit.bill_type_id AND (bill_unit.bill_type_id='MSDS - VOLUME' OR bill_unit.bill_type_id='MSDS - MASS'))" 
+                 >
+        </command>
+      </action>
+    </field>
+    <field table="msds_location" name="date_start"/>    
+    <field table="msds_location" name="date_end"/>
+    <field table="msds_location" name="custodian_id">
+        <action>
+                <command type="selectValue" 
+                 fieldNames="msds_location.custodian_id" 
+                 selectFieldNames="em.em_id" 
+                 visibleFieldNames="em.em_id,em.em_std,em.bl_id,em.fl_id,em.rm_id" 
+                 restriction="" 
+                 >
+          <title>Custodian</title>
+        </command>
+      </action>
+    </field>
+    <field table="msds_location" name="container_status"/>
+    <field table="msds_location" name="container_cat">
+      <action>
+                <command type="selectValue" 
+                 fieldNames="msds_location.container_cat" 
+                 selectFieldNames="hazard_container_cat.container_cat" 
+                 visibleFieldNames="hazard_container_cat.container_cat,hazard_container_cat.description" 
+                 restriction="hazard_container_cat.activity_id='AbRiskMSDS'" 
+                 >
+        </command>
+      </action>
+    </field>
+    <field table="msds_location" name="container_type">
+      <action>
+                <command type="selectValue"
+                 applyFilter="true"              
+                 fieldNames="msds_location.container_cat,msds_location.container_type" 
+                 selectFieldNames="hazard_container_type.container_cat, hazard_container_type.container_type" 
+                 visibleFieldNames="hazard_container_type.container_cat, hazard_container_type.container_type" 
+                 restriction="EXISTS(SELECT 1 FROM hazard_container_cat WHERE hazard_container_cat.container_cat= hazard_container_type.container_cat AND hazard_container_cat.activity_id='AbRiskMSDS')" 
+                 >
+        </command>
+      </action>
+    </field>
+    <field table="msds_location" name="container_code" onchange="containerCodeAndNumberFieldCheck()"/>
+    <field table="msds_location" name="num_containers" onchange="containerCodeAndNumberFieldCheck()"/>
+    
+    <field table="msds_location" name="temperature"/>    
+    <field table="msds_location" name="temperature_units"/>   
+    <field table="msds_location" name="pressure"/>    
+    <field table="msds_location" name="pressure_units">    
+      <action>
+                <command type="selectValue" 
+                 fieldNames="msds_location.pressure_units,msds_location.pressure_units_type" 
+                 selectFieldNames="bill_unit.bill_unit_id,bill_unit.bill_type_id" 
+                 visibleFieldNames="bill_unit.bill_type_id,bill_unit.bill_unit_id" 
+                 restriction="bill_unit.bill_type_id='MSDS - PRESSURE'" 
+                 >
+          <title>Pressure Units</title>
+        </command>
+      </action>
+    </field>    
+    <field table="msds_location" name="pressure_units_type" hidden="true"/>
+        
+    <field table="msds_location" name="evacuation_radius"/>    
+    <field table="msds_location" name="evacuation_radius_units_type" hidden="true"/>
+    <field table="msds_location" name="evacuation_radius_units">
+      <action>
+                <command type="selectValue" 
+                 fieldNames="msds_location.evacuation_radius_units,msds_location.evacuation_radius_units_type" 
+                 selectFieldNames="bill_unit.bill_unit_id,bill_unit.bill_type_id" 
+                 visibleFieldNames="bill_unit.bill_type_id,bill_unit.bill_unit_id" 
+                 restriction="bill_unit.bill_type_id='MSDS - DISTANCE'" 
+                 >
+          <title>Evacuation Radius Units</title>
+        </command>
+      </action>
+    </field>
+    <field table="msds_location" name="description" colspan="2"/>
+        
+    <field table="msds_location" name="bl_id"/>
+    <field table="msds_location" name="fl_id"/>
+    <field table="msds_location" name="rm_id"/>
+    <field table="msds_location" name="eq_id">
+        <action id="abMsdsDefLocDwg_eqSelect">
+                <command type="selectValue" 
+                 fieldNames="msds_location.eq_id,msds_location.rm_id,msds_location.fl_id,msds_location.bl_id" 
+                 selectFieldNames="eq.eq_id,eq.rm_id,eq.fl_id,eq.bl_id" 
+                 visibleFieldNames="eq.eq_id,eq.eq_std,eq.bl_id,eq.fl_id,eq.rm_id" 
+                 restriction="(eq.bl_id = '${record['msds_location.bl_id']}' OR '${record['msds_location.bl_id']}' = '')
+                          AND (eq.fl_id = '${record['msds_location.fl_id']}' OR '${record['msds_location.fl_id']}' = '')
+                          AND (eq.rm_id = '${record['msds_location.rm_id']}' OR '${record['msds_location.rm_id']}' = '')" 
+                 >
+                <title>Equipment</title>
+            </command>
+        </action>
+    </field>
+    <field table="msds_location" name="aisle_id"/>
+    <field table="msds_location" name="cabinet_id"/>
+    <field table="msds_location" name="shelf_id"/>
+    <field table="msds_location" name="bin_id"/>
+    
+    <field table="msds_location" name="date_updated" readOnly="true"/>
+    <field table="msds_location" name="date_last_inv" readOnly="false"/>
+    <field table="msds_location" name="last_edited_by" readOnly="true"/>
+    <field/>
+    <!--field table="msds_location" name="doc_custody"-->
+    <field table="msds_location" name="comments" colspan="2"/>            
+    <field table="msds_location" name="auto_number" hidden="true"/>    
+  </panel>
+
+</view>

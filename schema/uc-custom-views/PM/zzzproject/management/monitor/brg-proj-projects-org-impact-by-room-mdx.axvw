@@ -1,0 +1,168 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<afmXmlView>
+
+	<preferences>
+        <viewTitleBar show="false"/>
+    </preferences>
+	<title translatable="true">View Organization Impact by Room</title>
+	<afmTableGroup type="report" format="table" defaultActions="false" isRegularView="true" column="1" showGrid="false">
+	<title translatable="true">Departments</title>
+		 <dataSource>
+            <database>
+                <tables>
+					<table name="activity_log" role="standard"/>
+          <table name="project" role="main" />
+                 </tables>
+
+                <sort>
+                    <order>
+                  		<field name="project_id" table="project" ascending="true"/>
+					</order>
+                </sort>
+
+			<fields>
+          <field name="activity_log_id" table="activity_log" />
+          <field name="project_id" table="project" />
+				  <field name="site_id" table="project" hidden="true"/>
+				  <field name="bl_id" table="project" hidden="true"/>
+				  <field name="dv_id" table="project" hidden="true"/>
+				  <field name="dp_id" table="project" hidden="true"/>
+				  <field name="program_id" table="project" hidden="true"/>
+				  <field name="project_type" table="project" hidden="true"/>
+				  <field name="proj_mgr" table="project" hidden="true"/>
+			</fields>
+            </database>
+
+            <mdx>
+			<afmAction type="render" newWindow="false" response="true" name="ab-proj-projects-org-impact-by-room-details.axvw">
+			</afmAction>
+				
+                <preferences dimensions="1" format="table">
+				  <query>
+						<queryParameters>
+							<queryParameter name="date_start" value="0001-01-01" type="java.sql.Date"/>
+							<queryParameter name="date_end" value="9999-12-31" type="java.sql.Date"/>
+							<queryParameter name="state_id" value="%%" type="java.lang.String"/>
+							<queryParameter name="city_id" value="%%" type="java.lang.String"/>
+							<queryParameter name="site_id" value="%%" type="java.lang.String"/>
+							<queryParameter name="bl_id" value="%%" type="java.lang.String"/>
+							<queryParameter name="dv_id" value="%%" type="java.lang.String"/>
+							<queryParameter name="dp_id" value="%%" type="java.lang.String"/>
+							<queryParameter name="program_type" value="%%" type="java.lang.String"/>
+							<queryParameter name="program_id" value="%%" type="java.lang.String"/>
+							<queryParameter name="project_type" value="%%" type="java.lang.String"/>
+							<queryParameter name="proj_mgr" value="%%" type="java.lang.String"/>
+							<queryParameter name="project_id" value="%%" type="java.lang.String"/>
+							<queryParameter name="proj_status1" value="%%" type="java.lang.String"/>
+							<queryParameter name="proj_status2" value="%%" type="java.lang.String"/>
+							<queryParameter name="proj_status3" value="%%" type="java.lang.String"/>
+							<queryParameter name="proj_status4" value="%%" type="java.lang.String"/>
+							<queryParameter name="proj_status5" value="%%" type="java.lang.String"/>
+						</queryParameters>						                    
+                        <sql dialect="generic">
+		
+			SELECT DISTINCT rm.dv_id, rm.dp_id, rm.bl_id, rm.fl_id, rm.rm_id, log_count.count_activity_log_ids, 'NA' AS status
+FROM (SELECT rm.dv_id, rm.dp_id, activity_log.project_id, rm.bl_id, rm.fl_id, rm.rm_id, COUNT (DISTINCT activity_log_id) AS count_activity_log_ids
+FROM activity_log, rm
+WHERE  activity_log.bl_id= rm.bl_id  AND activity_log.fl_id = rm.fl_id AND activity_log.rm_id=rm.rm_id
+AND rm.dv_id LIKE #SqlParameter%dv_id% AND rm.dp_id LIKE #SqlParameter%dp_id% AND rm.bl_id LIKE #SqlParameter%bl_id%
+AND (
+(CAST(DATEPART(yy,date_scheduled) AS VARCHAR) #Concat%% '-' #Concat%% CAST(DATEPART(mm,date_scheduled) AS VARCHAR) #Concat%%  '-' #Concat%% CAST(DATEPART(dd,date_scheduled) AS VARCHAR) &gt;= #SqlParameter%date_start% AND CAST(DATEPART(yy,date_scheduled) AS VARCHAR) #Concat%% '-' #Concat%% CAST(DATEPART(mm,date_scheduled) AS VARCHAR) #Concat%%  '-' #Concat%% CAST(DATEPART(dd,date_scheduled) AS VARCHAR) &lt;= #SqlParameter%date_end%)
+OR
+(CAST(DATEPART(yy,date_scheduled_end) AS VARCHAR) #Concat%% '-' #Concat%% CAST(DATEPART(mm,date_scheduled_end) AS VARCHAR) #Concat%%  '-' #Concat%% CAST(DATEPART(dd,date_scheduled_end) AS VARCHAR) &gt;= #SqlParameter%date_start% AND CAST(DATEPART(yy,date_scheduled_end) AS VARCHAR) #Concat%% '-' #Concat%% CAST(DATEPART(mm,date_scheduled_end) AS VARCHAR) #Concat%%  '-' #Concat%% CAST(DATEPART(dd,date_scheduled_end) AS VARCHAR) &lt;= #SqlParameter%date_end%)
+OR
+(CAST(DATEPART(yy,date_scheduled) AS VARCHAR) #Concat%% '-' #Concat%% CAST(DATEPART(mm,date_scheduled) AS VARCHAR) #Concat%%  '-' #Concat%% CAST(DATEPART(dd,date_scheduled) AS VARCHAR) &lt;= #SqlParameter%date_start% AND CAST(DATEPART(yy,date_scheduled_end) AS VARCHAR) #Concat%% '-' #Concat%% CAST(DATEPART(mm,date_scheduled_end) AS VARCHAR) #Concat%%  '-' #Concat%% CAST(DATEPART(dd,date_scheduled_end) AS VARCHAR) &gt;= #SqlParameter%date_end%)
+OR 
+(date_scheduled IS NULL AND date_scheduled_end IS NULL AND #SqlParameter%date_start%=#Date%0001-01-01% AND #SqlParameter%date_end%=#Date%9999-12-31%)
+)
+GROUP BY rm.dv_id, rm.dp_id, activity_log.project_id,rm.bl_id, rm.fl_id, rm.rm_id ) AS log_count
+JOIN project ON log_count.project_id = project.project_id
+JOIN rm ON rm.dv_id=log_count.dv_id AND rm.dp_id=log_count.dp_id AND rm.bl_id=log_count.bl_id AND rm.fl_id=log_count.fl_id AND rm.rm_id=log_count.rm_id
+JOIN bl ON bl.bl_id=log_count.bl_id
+LEFT OUTER JOIN program ON program.program_id=project.program_id
+WHERE log_count.dv_id IS NOT NULL AND log_count.rm_id IS NOT NULL
+AND (bl.state_id LIKE #SqlParameter%state_id% OR (bl.state_id IS NULL AND #SqlParameter%state_id%='%%'))
+AND (bl.city_id LIKE #SqlParameter%city_id% OR (bl.city_id IS NULL AND #SqlParameter%city_id%='%%'))
+AND (project.site_id LIKE #SqlParameter%site_id% OR (project.site_id IS NULL AND #SqlParameter%site_id%='%%'))
+AND (project.bl_id LIKE #SqlParameter%bl_id% OR (project.bl_id IS NULL AND #SqlParameter%bl_id%='%%'))
+AND (program.program_type LIKE #SqlParameter%program_type% OR (program.program_type IS NULL AND #SqlParameter%program_type%='%%')) 
+AND (project.program_id LIKE #SqlParameter%program_id% OR (project.program_id IS NULL AND #SqlParameter%program_id%='%%'))
+AND (project.project_type LIKE #SqlParameter%project_type% OR (project.project_type IS NULL AND #SqlParameter%project_type%='%%')) 
+AND (project.proj_mgr LIKE #SqlParameter%proj_mgr% OR (project.proj_mgr IS NULL AND #SqlParameter%proj_mgr%='%%')) 
+AND project.project_id LIKE #SqlParameter%project_id% 
+AND (project.status IN (#SqlParameter%proj_status1%,#SqlParameter%proj_status2%,#SqlParameter%proj_status3%,#SqlParameter%proj_status4%,#SqlParameter%proj_status5%) OR project.status LIKE #SqlParameter%proj_status1%)
+AND project.is_template=0
+                        </sql>
+                          <sql dialect="oracle">
+		
+			SELECT DISTINCT rm.dv_id, rm.dp_id, rm.bl_id, rm.fl_id, rm.rm_id, log_count.count_activity_log_ids, 'NA' AS status
+FROM 
+	(SELECT rm.dv_id, rm.dp_id, activity_log.project_id, rm.bl_id, rm.fl_id, 
+		rm.rm_id, COUNT (DISTINCT activity_log_id) AS count_activity_log_ids
+	FROM 	activity_log, rm
+	WHERE  	activity_log.bl_id= rm.bl_id  AND activity_log.fl_id = rm.fl_id AND activity_log.rm_id=rm.rm_id
+		AND rm.dv_id LIKE #SqlParameter%dv_id% AND rm.dp_id LIKE #SqlParameter%dp_id% AND rm.bl_id LIKE #SqlParameter%bl_id%
+		AND 
+		(
+			(date_scheduled &gt;= #SqlParameter%date_start% AND date_scheduled &lt;= #SqlParameter%date_end%)
+			OR
+			(date_scheduled_end &gt;= #SqlParameter%date_start% AND date_scheduled_end &lt;= #SqlParameter%date_end%)
+			OR
+			(date_scheduled &lt;= #SqlParameter%date_start% AND date_scheduled_end &gt;= #SqlParameter%date_end%)
+			OR 
+			(date_scheduled IS NULL AND date_scheduled_end IS NULL AND #SqlParameter%date_start%=#Date%0001-01-01% AND 					#SqlParameter%date_end%=#Date%9999-12-31%)
+		)
+	GROUP BY rm.dv_id, rm.dp_id, activity_log.project_id,rm.bl_id, rm.fl_id, rm.rm_id ) log_count,project, rm, bl, program 
+WHERE 
+log_count.project_id = project.project_id AND
+rm.dv_id=log_count.dv_id AND rm.dp_id=log_count.dp_id AND rm.bl_id=log_count.bl_id AND rm.fl_id=log_count.fl_id AND	   rm.rm_id=log_count.rm_id AND
+bl.bl_id=log_count.bl_id AND
+program.program_id(+)=project.program_id AND
+log_count.dv_id IS NOT NULL AND log_count.rm_id IS NOT NULL
+AND (bl.state_id LIKE #SqlParameter%state_id% OR (bl.state_id IS NULL AND #SqlParameter%state_id%='%%'))
+AND (bl.city_id LIKE #SqlParameter%city_id% OR (bl.city_id IS NULL AND #SqlParameter%city_id%='%%'))
+AND (project.site_id LIKE #SqlParameter%site_id% OR (project.site_id IS NULL AND #SqlParameter%site_id%='%%'))
+AND (project.bl_id LIKE #SqlParameter%bl_id% OR (project.bl_id IS NULL AND #SqlParameter%bl_id%='%%'))
+AND (program.program_type LIKE #SqlParameter%program_type% OR (program.program_type IS NULL AND #SqlParameter%program_type%='%%')) 
+AND (project.program_id LIKE #SqlParameter%program_id% OR (project.program_id IS NULL AND #SqlParameter%program_id%='%%'))
+AND (project.project_type LIKE #SqlParameter%project_type% OR (project.project_type IS NULL AND #SqlParameter%project_type%='%%')) 
+AND (project.proj_mgr LIKE #SqlParameter%proj_mgr% OR (project.proj_mgr IS NULL AND #SqlParameter%proj_mgr%='%%')) 
+AND project.project_id LIKE #SqlParameter%project_id% 
+AND (project.status IN (#SqlParameter%proj_status1%,#SqlParameter%proj_status2%,#SqlParameter%proj_status3%,#SqlParameter%proj_status4%,#SqlParameter%proj_status5%) OR project.status LIKE #SqlParameter%proj_status1%)
+AND project.is_template=0
+
+                        </sql>
+                     
+                       </query> 
+                    
+            
+                       <dimensions>
+                        <dimension name="Division - Department" table="rm" column="dp_id" hasAll="true">
+				<title translatable="true">Division - Department</title>
+				<allMemberTitle translatable="true">Division - Departments</allMemberTitle>
+				<expression>
+					<sql dialect="generic">
+						dv_id #Concat%% '-' #Concat%% dp_id
+					</sql>
+				</expression>
+			</dimension>
+                       </dimensions>              
+                      
+                       <measures>
+				<measure name="Action Items" aggregator="sum" column="count_activity_log_ids" type="calculated" decimals="0">
+					<title translatable="true">Action Items</title>
+				</measure>
+		       </measures>
+
+                </preferences>
+            </mdx>
+        </dataSource>
+	
+	</afmTableGroup>
+
+  	<formatting>
+		<xsl file="brg-proj-projects-org-impact-by-room.xsl"/>
+	</formatting>
+  
+ 
+</afmXmlView>

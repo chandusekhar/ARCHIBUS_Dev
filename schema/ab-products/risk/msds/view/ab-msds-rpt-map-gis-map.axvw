@@ -1,0 +1,168 @@
+<view version="2.0">
+  	<!-- esri js library -->
+  	<js url="//js.arcgis.com/3.9/"/>
+  	<css url="//js.arcgis.com/3.9/js/esri/css/esri.css" />
+  	<!-- ab-core js library -->
+  	<js file="ab-arcgis-map.js"/>
+  	<css file="ab-arcgis-map.css"/>
+  	<js file="colorbrewer.js"/>
+  	<!-- view js -->
+	<js file="ab-msds-rpt-map-gis-map.js"/>
+	<js file="ab-msds-rpt-map-gis-map-config.js"/>
+	<style type="text/css">
+		.x-layer[style]{width: auto !important;}
+	</style>
+
+	<message name="not_geocoded" translatable="true">You have selected at least one item that is not geocoded. Non-geocoded items will not be shown on the map.</message>
+	<message name="makerSize" translatable="true">Marker Size by</message>
+	<message name="makerColor" translatable="true">Marker Color by</message>
+	<message name="option_msds_num" translatable="true">Number of Materials</message>
+	<message name="option_max_radius" translatable="true">Evacuation Radius</message>
+	<message name="option_total_mass" translatable="true">Total Mass</message>
+	<message name="option_total_volume" translatable="true">Total Volume</message>
+	<message name="option_tierII_hazard_count" translatable="true">Hazard Count</message>
+	<message name="option_highest_tierII_hazard_present" translatable="true">Highest Tier II Hazard</message>
+
+	<dataSource id="dsBuilding">
+		<table name="bl" role="main"/>
+		<field table="bl" name="site_id"/>
+		<field table="bl" name="bl_id"/>
+		<field table="bl" name="name"/>
+		<field table="bl" name="lat"/>
+		<field table="bl" name="lon"/>
+		<field name="msds_num" dataType="integer">
+			<title>Number of SDS</title>
+			<sql dialect="generic">(SELECT count(*) from msds_location where msds_location.bl_id = bl.bl_id)</sql>
+		</field>
+		<field name="max_radius_txt" dataType="text">
+			<title>Evacuation Radius</title>
+			<sql dialect="generic">
+                (select case 
+                    when 
+                        (max(msds_location.evacuation_radius * (select bill_unit.conversion_factor from bill_unit where bill_unit.bill_unit_id = msds_location.evacuation_radius_units and bill_unit.bill_type_id = 'MSDS - DISTANCE')) IS NULL 
+                         OR max(msds_location.evacuation_radius * (select bill_unit.conversion_factor from bill_unit where bill_unit.bill_unit_id = msds_location.evacuation_radius_units and bill_unit.bill_type_id = 'MSDS - DISTANCE')) = 0)
+                        and (max(msds_data.evacuation_radius * (select bill_unit.conversion_factor from bill_unit where bill_unit.bill_unit_id = msds_data.evacuation_radius_units and bill_unit.bill_type_id = 'MSDS - DISTANCE')) IS NULL 
+                         OR max(msds_data.evacuation_radius * (select bill_unit.conversion_factor from bill_unit where bill_unit.bill_unit_id = msds_data.evacuation_radius_units and bill_unit.bill_type_id = 'MSDS - DISTANCE')) = 0) 
+                    then 0 
+                    when 
+                        (max(msds_location.evacuation_radius * (select bill_unit.conversion_factor from bill_unit where bill_unit.bill_unit_id = msds_location.evacuation_radius_units and bill_unit.bill_type_id = 'MSDS - DISTANCE')) IS NULL
+                         OR max(msds_location.evacuation_radius * (select bill_unit.conversion_factor from bill_unit where bill_unit.bill_unit_id = msds_location.evacuation_radius_units and bill_unit.bill_type_id = 'MSDS - DISTANCE')) = 0) 
+                    then 
+                        max(msds_data.evacuation_radius * (select bill_unit.conversion_factor from bill_unit where bill_unit.bill_unit_id = msds_data.evacuation_radius_units and bill_unit.bill_type_id = 'MSDS - DISTANCE')) 
+                    else max(msds_location.evacuation_radius * (select bill_unit.conversion_factor from bill_unit where bill_unit.bill_unit_id = msds_location.evacuation_radius_units and bill_unit.bill_type_id = 'MSDS - DISTANCE')) 
+                    end
+                from msds_location left join msds_data on msds_location.msds_id = msds_data.msds_id where msds_location.bl_id = bl.bl_id)
+            </sql>
+			<sql dialect="sqlserver">(select case when max(msds_location.evacuation_radius * b.conversion_factor) IS NULL
+             and max(msds_data.evacuation_radius *  b.conversion_factor) IS NULL then 0 
+             when max(msds_location.evacuation_radius *  b.conversion_factor) IS NULL 
+             then max(msds_data.evacuation_radius *  b.conversion_factor) 
+             else max(msds_location.evacuation_radius *  b.conversion_factor) end
+				from msds_location left join msds_data on msds_location.msds_id = msds_data.msds_id 
+			cross apply (select bill_unit.conversion_factor from bill_unit where bill_unit.bill_unit_id = msds_location.evacuation_radius_units and bill_unit.bill_type_id = 'MSDS - DISTANCE') b
+			where msds_location.bl_id = bl.bl_id)</sql>	
+		</field>
+		<field name="max_radius" dataType="number" decimals="3">
+			<title>Evacuation Radius</title>
+			<sql dialect="generic">(select case when max(msds_location.evacuation_radius * (select bill_unit.conversion_factor from bill_unit where bill_unit.bill_unit_id = msds_location.evacuation_radius_units and bill_unit.bill_type_id = 'MSDS - DISTANCE')) IS NULL
+             and max(msds_data.evacuation_radius * (select bill_unit.conversion_factor from bill_unit where bill_unit.bill_unit_id = msds_data.evacuation_radius_units and bill_unit.bill_type_id = 'MSDS - DISTANCE')) IS NULL then 0 
+             when max(msds_location.evacuation_radius * (select bill_unit.conversion_factor from bill_unit where bill_unit.bill_unit_id = msds_location.evacuation_radius_units and bill_unit.bill_type_id = 'MSDS - DISTANCE')) IS NULL 
+             then max(msds_data.evacuation_radius * (select bill_unit.conversion_factor from bill_unit where bill_unit.bill_unit_id = msds_data.evacuation_radius_units and bill_unit.bill_type_id = 'MSDS - DISTANCE')) 
+             else max(msds_location.evacuation_radius * (select bill_unit.conversion_factor from bill_unit where bill_unit.bill_unit_id = msds_location.evacuation_radius_units and bill_unit.bill_type_id = 'MSDS - DISTANCE')) end
+				from msds_location left join msds_data on msds_location.msds_id = msds_data.msds_id where msds_location.bl_id = bl.bl_id)</sql>
+			
+			<sql dialect="sqlserver">(select case when max(msds_location.evacuation_radius * b.conversion_factor) IS NULL
+             and max(msds_data.evacuation_radius * b.conversion_factor) IS NULL then 0 
+             when max(msds_location.evacuation_radius * b.conversion_factor) IS NULL 
+             then max(msds_data.evacuation_radius * b.conversion_factor) 
+             else max(msds_location.evacuation_radius * b.conversion_factor) end
+				from msds_location left join msds_data on msds_location.msds_id = msds_data.msds_id 
+			cross apply (select bill_unit.conversion_factor from bill_unit where bill_unit.bill_unit_id = msds_location.evacuation_radius_units and bill_unit.bill_type_id = 'MSDS - DISTANCE') b
+			where msds_location.bl_id = bl.bl_id)</sql>	
+		</field>
+		<field name="total_mass" dataType="number" decimals="4">
+			<title>Total Mass</title>
+			<sql dialect="generic">${sql.isNull ( "(SELECT 
+                  sum(msds_location.quantity * 
+			           (case when (select bill_unit.conversion_factor from bill_unit where bill_unit.bill_unit_id 
+			               = msds_location.quantity_units and bill_unit.bill_type_id = 'MSDS - MASS') IS NULL THEN 0 
+			            ELSE (select bill_unit.conversion_factor from bill_unit where bill_unit.bill_unit_id 
+			               = msds_location.quantity_units and bill_unit.bill_type_id = 'MSDS - MASS') END)
+			       / (select bill_unit.conversion_factor from bill_unit where bill_unit.is_dflt=1 and bill_unit.bill_type_id = 'MSDS - MASS') )
+                 from msds_location where msds_location.bl_id = bl.bl_id and msds_location.quantity_units_type='MSDS - MASS')" , "0") }</sql>
+             <sql dialect="sqlserver">${sql.isNull ( "(SELECT 
+                  sum(msds_location.quantity * 
+			           (case when billUnit.conversion_factor IS NULL THEN 0 
+			            ELSE billUnit.conversion_factor END)
+			       / defaultBillUnit.conversion_factor )
+                 from msds_location 
+                 cross apply (select bill_unit.conversion_factor from bill_unit where bill_unit.bill_unit_id  = msds_location.quantity_units and bill_unit.bill_type_id = 'MSDS - MASS') billUnit 
+                 cross apply (select bill_unit.conversion_factor from bill_unit where bill_unit.is_dflt=1 and bill_unit.bill_type_id = 'MSDS - MASS') defaultBillUnit
+                 where msds_location.bl_id = bl.bl_id and msds_location.quantity_units_type='MSDS - MASS')" , "0") }</sql>    
+		</field>
+		<field name="total_volume" dataType="number" decimals="4">
+			<title>Total Volume</title>
+			<sql dialect="generic">${sql.isNull ( "(SELECT 
+                  sum(msds_location.quantity * 
+			           (case when (select bill_unit.conversion_factor from bill_unit where bill_unit.bill_unit_id 
+			               = msds_location.quantity_units and bill_unit.bill_type_id = 'MSDS - VOLUME') IS NULL THEN 0 
+			            ELSE (select bill_unit.conversion_factor from bill_unit where bill_unit.bill_unit_id 
+			               = msds_location.quantity_units and bill_unit.bill_type_id = 'MSDS - VOLUME') END)
+			       / (select bill_unit.conversion_factor from bill_unit where bill_unit.is_dflt=1 and bill_unit.bill_type_id = 'MSDS - VOLUME') )
+                 from msds_location where msds_location.bl_id = bl.bl_id and msds_location.quantity_units_type='MSDS - VOLUME')" , "0") }</sql>
+            <sql dialect="sqlserver">${sql.isNull ( "(SELECT 
+                  sum(msds_location.quantity * 
+			           (case when billUnit.conversion_factor IS NULL THEN 0 
+			            ELSE billUnit.conversion_factor END)
+			       / defaultBillUnit.conversion_factor )
+                 from msds_location 
+                 cross apply (select bill_unit.conversion_factor from bill_unit where bill_unit.bill_unit_id  = msds_location.quantity_units and bill_unit.bill_type_id = 'MSDS - VOLUME') billUnit 
+                 cross apply (select bill_unit.conversion_factor from bill_unit where bill_unit.is_dflt=1 and bill_unit.bill_type_id = 'MSDS - VOLUME') defaultBillUnit
+                 where msds_location.bl_id = bl.bl_id and msds_location.quantity_units_type='MSDS - VOLUME')" , "0") }</sql>     
+		</field>
+		<field name="tierII_hazard_count" dataType="integer">
+			<title>Tier II Hazard Count</title>
+			<sql dialect="generic">
+				(SELECT COUNT(*) FROM ${parameters['locationJoinchemical']} WHERE msds_location.bl_id = bl.bl_id and msds_chemical.tier2!='Unknown/Not Listed')
+			 </sql>
+		</field>
+		<field name="highest_tierII_hazard_present" dataType="number" decimals="0">
+			<title>Highest Tier II Hazard</title>
+			<sql dialect="generic">
+				(case when exists(select 1 from ${parameters['locationJoinchemical']} WHERE msds_location.bl_id = bl.bl_id and msds_chemical.tier2='Extremely Hazardous')
+				then 100
+				when exists(select 1 from ${parameters['locationJoinchemical']} WHERE msds_location.bl_id = bl.bl_id and msds_chemical.tier2='Hazardous')
+				then 200 else 300 end)
+			</sql>
+		</field>
+		<field name="highest_tierII_txt" dataType="text">
+			<title>Highest Tier II Hazard</title>
+			<sql dialect="generic">
+				(case when exists(select 1 from ${parameters['locationJoinchemical']} WHERE msds_location.bl_id = bl.bl_id and msds_chemical.tier2='Extremely Hazardous')
+				then 'Extremely Hazardous'
+				when exists(select 1 from ${parameters['locationJoinchemical']} WHERE msds_location.bl_id = bl.bl_id and msds_chemical.tier2='Hazardous')
+				then 'Hazardous' else 'Not Listed' end)
+			</sql>
+		</field>
+		<parameter name="locationJoinchemical" dataType="verbatim" value=" msds_location left join msds_data on msds_location.msds_id = msds_data.msds_id left join msds_constituent on msds_constituent.msds_id = msds_data.msds_id left join msds_chemical on msds_chemical.chemical_id = msds_constituent.chemical_id"/>
+	</dataSource>
+
+	<dataSource id="dsDisplayUnit">
+		<table name="bill_unit"/>
+		<field name="bill_type_id"/>
+		<field name="bill_unit_id"/>
+		<field name="is_dflt"/>
+        <sortField name="bill_type_id"/>
+		<restriction type="sql" sql=" is_dflt = 1 and bill_type_id IN ('MSDS - DISTANCE', 'MSDS - VOLUME', 'MSDS - MASS') "/>
+	</dataSource>
+
+	<panel type="html" id="mapPanel" dataSource="dsBuilding">
+		<title></title>
+		<action id="basemapLayerMenu" type="menu" imageName="/schema/ab-core/graphics/icons/view/ab-arcgis-basemap-16.png">
+      		<tooltip translatable="true">Basemaps</tooltip>
+    	</action> 
+		<html>
+			<div id="mapDiv"></div>
+		</html>
+	</panel>
+</view>

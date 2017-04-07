@@ -1,0 +1,117 @@
+<view version="2.0">
+	<!-- 
+		@summary
+		Supervisor - Issue Work Order<br />
+		This view allows the user to:
+		<ul>
+		<li>View a list of work orders to issue</li>
+		<li>Select a work order to issue</li>
+		</ul>
+	-->
+	<message name="error_date_range" translatable="true">Given dates are invalid.</message>
+	<message name="noItems" translatable="true">Please make selection first.</message>
+	<message name="DOCX" translatable="true">DOCX</message>
+	<message name="DOCXDRAWING" translatable="true">DOCX of Floor Plans</message>
+	<message name="PDF" translatable="true">PDF</message>
+    <message name="substituteLegend" translatable="true">Work Orders assigned to you as substitute</message>
+ 
+	<js file="ab-helpdesk-workrequest-issue-select.js" />
+	<js file="../ab-ondemand-common.js" />
+	<js file="ab-helpdesk-workorder-print-common.js"/>
+	<js file="ab-pdf-livecycle-command.js"/>
+    <js file="ab-helpdesk-common-v2.js"/>
+    <js file="ab-helpdesk-request-shared-para.js" />
+ 
+	<dataSource id="consoleDS">
+		<table name="wo" role="main" />
+
+		<field table="wo" name="date_assigned" />
+		<field table="wo" name="wo_id" />
+		<field table="wo" name="bl_id" />
+		<field table="wo" name="wo_type" />
+	</dataSource>
+
+	<dataSource id="requestReportGridDS">
+		<table name="wo" role="main" />
+
+		<field name="wo_id" table="wo" />
+		<field name="date_created" table="wo" />
+		<field name="supervisor" table="wo" />
+		<field name="bl_id" table="wo" />
+		<field name="description" table="wo" />
+		<field name="date_assigned" table="wo"/>
+        <parameter name="emWorkflowSubstitutes" dataType="verbatim" value="''"/>
+		<restriction type="sql"
+			sql="((supervisor IS NULL AND work_team_id IS NULL) OR 
+						(supervisor =${sql.literal(user.employee.id)}
+						 OR (supervisor IS NULL AND NOT work_team_id IS NULL
+							 AND (work_team_id IN (SELECT work_team_id FROM cf WHERE email = ${sql.literal(user.email)} AND is_supervisor = 1)
+                             OR work_team_id IN (SELECT work_team_id FROM cf WHERE email IN (SELECT email FROM em WHERE em_id ${sql.concat} 'supervisor' IN
+                  (${parameters['emWorkflowSubstitutes']})))
+							 ))
+						) OR supervisor ${sql.concat} 'supervisor' IN (${parameters['emWorkflowSubstitutes']})
+					) AND date_completed IS NULL AND date_issued IS NULL
+					AND NOT EXISTS (select wo_id from wr where (
+							(status = 'AA' and step_status is not null AND step_status != 'none') OR status NOT IN('AA','Can','Rej')
+						) and wr.wo_id = wo.wo_id)  ">
+		</restriction>
+	</dataSource>
+
+	<panel type="console" columns="3" id="requestConsole" dataSource="consoleDS">
+		<title translatable="true">Filter</title>
+		<action id="filter">
+			<title translatable="true">Show</title>
+		</action>
+		<action id="clear">
+			<title translatable="true">Clear</title>
+		</action>
+
+		<field table="wo" name="bl_id" />
+		<field table="wo" name="wo_id" alias="wo.wo_id.from"
+			readOnly="false">
+			<title translatable="true">Work Order Code From</title>
+		</field>
+		<field table="wo" name="wo_id" alias="wo.wo_id.to"
+			readOnly="false">
+			<title translatable="true">Work Order Code To</title>
+		</field>
+		<field table="wo" name="wo_type" />
+		<field table="wo" name="date_assigned"
+			alias="wo.date_assigned.from">
+			<title translatable="true">Date to Perform From</title>
+		</field>
+		<field table="wo" name="date_assigned"
+			alias="wo.date_assigned.to">
+			<title translatable="true">Date to Perform To</title>
+		</field>
+	</panel>
+
+	<panel type="grid" id="requestReportGrid" showCounts="true"
+		useParentRestriction="false" multipleSelectionEnabled="true"
+		 dataSource="requestReportGridDS">
+		 
+		<title translatable="true">Select Open Work Order</title>
+        <indexField table="wo" name="wo_id"/>
+		<sortField table="wo" name="date_created" ascending="false" />
+		<sortField table="wo" name="wo_id" ascending="false" />
+		<action id="issue">
+			<title translatable="true">Issue Selected</title>
+			<command type="callFunction" functionName="issueSelected" />
+		</action>
+	    <action id="printWO">
+			<title translatable="true">Print Selected</title>
+		</action>
+
+		<field controlType="button">
+			<title translatable="true">Select</title>
+			<command type="selectTabPage" tabPageName="issue" />
+		</field>
+
+		<field table="wo" name="wo_id" />
+		<field table="wo" name="date_created" />
+		<field name="date_assigned" table="wo"/>
+		<field table="wo" name="supervisor" />
+		<field table="wo" name="bl_id" />
+		<field table="wo" name="description" />
+	</panel>
+</view>

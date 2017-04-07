@@ -1,0 +1,158 @@
+<view version="2.0">
+    <title translatable="true">Highlight Common Area Rooms</title>
+    
+    <layout id="main">
+        <north id="filterPosition" initialSize="13%" split="true"/>
+        <west id="selectedPosition" initialSize="20%" split="true"/>
+        <center/>
+    </layout>
+    
+    <layout id="nested_center" containingLayout="main" region="center">
+        <center id="dwgPosition"/>
+        <south id="legentPosition" initialSize="20%" split="true"/>
+    </layout>
+    
+    <message name="total" translatable="true">Total</message>
+    <message name="drawingPanelTitle1" translatable="true">Highlight Common Area Rooms</message>
+    <message name="drawingPanelTitle2" translatable="true">Highlight Common Area Rooms for Floor: {0}</message>
+    
+    <dataSource id="ds_ab-sp-hl-comn-rm_console_rm">
+        <table name="rm" role="main"/>
+        <field table="rm" name="bl_id"/>
+    </dataSource>
+    
+    <dataSource id="ds_ab-sp-hl-comn-rm_tree_bl">
+        <table name="bl" role="main"/>
+        <field table="bl" name="bl_id"/>
+        <parameter name="blId" dataType="verbatim" value="IS NOT NULL"/>
+        <restriction type="sql" sql="bl.bl_id ${parameters['blId']} AND EXISTS (SELECT 1 FROM rm WHERE rm.prorate != 'NONE' AND rm.bl_id = bl.bl_id AND rm.dwgname IS NOT NULL)"/>
+        <sortField table="bl" name="bl_id" ascending="true"/>
+    </dataSource>
+    
+    <dataSource id="ds_ab-sp-hl-comn-rm_tree_fl">
+        <sql dialect="generic">
+            SELECT
+            rm.bl_id ${sql.as} bl_id,
+            rm.fl_id ${sql.as} fl_id,
+            rm.dwgname ${sql.as} dwgname
+            FROM rm WHERE rm.dwgname IS NOT NULL GROUP BY rm.bl_id,rm.fl_id,rm.dwgname
+        </sql>
+        <table name="fl" role="main"/>
+        <field name="fl_id"/>
+        <field name="dwgname"/>
+        <restriction type="sql" sql="EXISTS (SELECT 1 FROM rm WHERE rm.prorate != 'NONE' AND rm.bl_id = fl.bl_id AND rm.fl_id = fl.fl_id)"/>
+        <sortField table="fl" name="fl_id" ascending="true"/>
+    </dataSource>
+    
+    <dataSource id="ds_ab-sp-hl-comn-rm_grid_rm" type="grouping">
+        <table name="rm" role="main"/>
+        <table name="hprorate" role="standard"/>
+        <field name="prorate" table="rm" groupBy="true"/>
+        <field name="description" table="hprorate" groupBy="true"/>
+        <field name="hpattern_acad" table="hprorate" groupBy="true"/>
+        <field name="total_count" formula="count" baseField="rm.rm_id" dataType="number" decimals="0"/>
+        <field name="total_area" formula="sum" baseField="rm.area" dataType="number" decimals="2"/>
+        <field name="avg_area" formula="avg" baseField="rm.area" dataType="number" decimals="2"/>
+        <restriction type="sql" sql="rm.prorate != 'NONE'"/>
+    </dataSource>
+    
+    <dataSource id="ds_ab-sp-hl-comn-rm_drawing_rmHighlight" type="DrawingControlHighlight">
+        <table name="rm" role="main"/>
+        <table name="hprorate" role="standard"/>
+        <field table="rm" name="bl_id"/>
+        <field table="rm" name="fl_id"/>
+        <field table="rm" name="rm_id"/>
+        <field table="rm" name="rm_std"/>
+        <field table="rm" name="prorate" legendKey="true"/>
+        <field table="hprorate" name="hpattern_acad"/>
+        <restriction type="sql" sql="rm.prorate != 'NONE'"/>
+    </dataSource>
+    
+    <dataSource id="ds_ab-sp-hl-comn-rm_drawing_rmLabel">
+        <table name="rm" role="main"/>
+        <field name="bl_id" hidden="true"/>
+        <field name="fl_id" hidden="true"/>
+        <field name="rm_id"/>
+        <field name="prorate"/>
+        <field name="area"/>
+    </dataSource>
+    
+    <dataSource id="ds_ab-sp-hl-comn-rm_columnReport_rm">
+        <table name="rm" role="main"/>
+        <table name="dp" role="standard"/>
+        <field table="rm" name="bl_id"/>
+        <field table="rm" name="rm_cat"/>
+        <field table="rm" name="fl_id"/>
+        <field table="rm" name="rm_type"/>
+        <field table="rm" name="rm_id"/>
+        <field table="rm" name="rm_std"/>
+        <field table="rm" name="rm_use"/>
+        <field table="dp" name="name"/>
+        <field table="rm" name="phone"/>
+        <field table="rm" name="count_em"/>
+        <field table="rm" name="area"/>
+        <field table="rm" name="area_alloc"/>
+    </dataSource>
+    
+    <panel type="console" id="abSpHlComnRm_filterConsole" columns="1" dataSource="ds_ab-sp-hl-comn-rm_console_rm" layoutRegion="filterPosition">
+        <title translatable="true">Filter</title>
+        <action id="showTree">
+            <title translatable="true">Show</title>
+        </action>
+        <action id="clear">
+            <title translatable="true">Clear</title>
+            <command type="clearPanel" panelId="abSpHlComnRm_filterConsole"/>
+        </action>
+        <action>
+            <title translatable="true">Paginated Report</title>
+            <command type="callFunction" functionName="generateReport"/>
+        </action>
+        <field table="rm" name="bl_id"/>
+    </panel>
+    
+    <panel type="tree" id="abSpHlComnRm_BlTree" dataSource="ds_ab-sp-hl-comn-rm_tree_bl" layoutRegion="selectedPosition">
+        <title translatable="true">Select Floor</title>
+        <panel type="tree" id="abSpHlComnRm_FlTree" dataSource="ds_ab-sp-hl-comn-rm_tree_fl">
+            <event type="onClickNode">
+                <command type="callFunction" functionName="onFlTreeClick"/>
+            </event>
+        </panel>
+    </panel>
+    
+    <panel type="drawing" id="abSpHlComnRm_DrawingPanel" layoutRegion="dwgPosition" multiple="false"
+     highlightDataSource="ds_ab-sp-hl-comn-rm_drawing_rmHighlight"
+     labelsDataSource="ds_ab-sp-hl-comn-rm_drawing_rmLabel">
+     	<action id="exportDOCX">
+			<title translatable="true">DOC</title>
+			<tooltip translatable="true">Export current view of drawing to Docx file.</tooltip>
+			<command type="exportPanel" outputType="docx" panelId="abSpHlComnRm_DrawingPanel"/>
+		</action>
+        <title></title>
+    </panel>
+    
+    <panel type="grid" id="abSpHlComnRm_SumGrid" dataSource="ds_ab-sp-hl-comn-rm_grid_rm" showOnLoad="false" layoutRegion="legentPosition">
+        <title translatable="true">Summary by Prorate</title>
+        <sortField table="rm" name="prorate" ascending="true"/>
+        <field id="abSpHlComnRm_SumGrid_legend" table="hprorate" name="hpattern_acad" controlType="color">
+            <title translatable="true">Legend</title>
+        </field>
+        <field name="prorate" table="rm"/>
+        <field name="description" table="hprorate"/>
+        <field name="total_count" dataType="number" decimals="0">
+            <title translatable="true">Total Count</title>
+        </field>
+        <field name="total_area" dataType="number" decimals="2">
+            <title translatable="true">Total Area</title>
+        </field>
+        <field name="avg_area" dataType="number" decimals="2">
+            <title translatable="true">Average Area</title>
+        </field>
+    </panel>
+    
+    <panel type="columnReport" id="abSpHlComnRm_RmDetailPanel" columns="2" dataSource="ds_ab-sp-hl-comn-rm_columnReport_rm" showOnLoad="false" hidden="true" layoutRegion="dwgPosition">
+        <title translatable="true">Room Details</title>
+    </panel>
+    
+    <js file="ab-sp-hl-comn-rm.js"/>
+    <js file="ab-sp-common.js"/>
+</view>

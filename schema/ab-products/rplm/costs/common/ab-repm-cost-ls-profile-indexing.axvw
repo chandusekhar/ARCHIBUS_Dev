@@ -1,0 +1,218 @@
+<view version="2.0">
+    <js file="ab-repm-cost-ls-profile-indexing.js"/>
+    
+    <message name="titleLeaseIndexHistory" translatable="true">Lease {0} History for lease {1}</message>
+    <message name="errDateInFuture" translatable="true">{0} should be greater or equal than current date!</message>
+    <message name="errDate0AfterDate1" translatable="true">{0} cannot be after {1}!</message>
+    <message name="errDateStartBeforeLsStartDate" translatable="true">Date - First Indexing should be after or equal to Lease Start Date.</message>
+    <message name="msgLeaseIndexCostsActive" translatable="true">Index Costs option should be selected to activate index profile. Do you want to continue?</message>
+    <message name="confirmDeleteIndexProfile" translatable="true">Do you want to delete Index profile for lease {0}?</message>
+    <message name="rentInitialTitle" translatable="true">Rent Initial</message>
+    
+    <!--  Lease index profile -->
+    <dataSource id="abRepmCostLsProfileLsIndex_ds">
+        <table name="ls_index_profile" role="main"/>
+        <table name="ls" role="standard"/>
+        <field table="ls_index_profile" name="ls_id"/>
+        <field table="ls_index_profile" name="cost_index_id"/>
+        <field table="ls_index_profile" name="index_value_initial"/>
+        <field table="ls_index_profile" name="indexing_frequency"/>
+        <field table="ls_index_profile" name="pct_change_adjust"/>
+        <field table="ls_index_profile" name="limit_max"/>
+        <field table="ls_index_profile" name="limit_min"/>
+        <field table="ls_index_profile" name="date_index_start"/>
+        <field table="ls_index_profile" name="date_index_next"/>
+        <field table="ls_index_profile" name="date_index_end"/>
+        <field table="ls_index_profile" name="rent_round_to"/>
+        <field table="ls_index_profile" name="rent_initial"/>
+        <field table="ls_index_profile" name="reset_initial_values"/>
+        <field table="ls_index_profile" name="comments"/>
+        <field table="ls_index_profile" name="ls_section"/>
+        <field table="ls_index_profile" name="ls_page"/>
+        <field table="ls" name="cost_index"/>
+        <field table="ls_index_profile" name="cost_index_trans_no" dataType="number" decimals="0">
+            <sql dialect="generic">
+                (SELECT COUNT(cost_index_trans.cost_index_trans_id) FROM cost_index_trans WHERE cost_index_trans.ls_id = ls_index_profile.ls_id)
+            </sql>
+        </field>
+    </dataSource>
+    
+    <panel type="form" id="abRepmCostLsProfileLsIndex" dataSource="abRepmCostLsProfileLsIndex_ds" showOnLoad="false" columns="2">
+        <action id="save">
+            <title>Save</title>
+        </action>
+        <action id="delete" enabled="${!panel.newRecord &amp;&amp; record['ls_index_profile.cost_index_trans_no'] == 0}">
+            <title>Delete</title>
+        </action>
+        <action id="runWfr">
+            <title>Generate Indexed Rent</title>
+        </action>
+        <field table="ls_index_profile" name="ls_id" readOnly="true"/>
+        <field table="ls_index_profile" name="index_value_initial"/>
+        <field>
+            <title>Index Costs?</title>
+            <html>
+                <input type="checkbox" id="chkIndexCosts" name="chkIndexCosts" onclick="(this.checked?View.panels.get('abRepmCostLsProfileLsIndex').setFieldValue('ls.cost_index', 1):View.panels.get('abRepmCostLsProfileLsIndex').setFieldValue('ls.cost_index', 0));"/>
+            </html>
+        </field>
+        <field table="ls_index_profile" name="rent_initial"/>
+        <field table="ls_index_profile" name="cost_index_id" onchange="afterSelectCostIndex('ls_index_profile.cost_index_id', this.value);">
+            <action id="costIndexId" enabled="${panel.newRecord}">
+                <title>...</title>
+                <tooltip>Select Value</tooltip>
+                <command type="selectValue" 
+                    fieldNames="ls_index_profile.cost_index_id"
+                    selectFieldNames="cost_index.cost_index_id"
+                    visibleFieldNames="cost_index.cost_index_id,cost_index.cost_index_name,cost_index.description" 
+                    addNewDialog="ab-repm-cost-def-idx-basic.axvw"
+                    actionListener="afterSelectCostIndex"/>
+            </action>
+        </field>
+        <field table="ls_index_profile" name="pct_change_adjust"/>
+        
+        <field table="ls_index_profile" name="indexing_frequency" onchange="onChangeField('ls_index_profile.indexing_frequency', this.value)"/>
+        <field table="ls_index_profile" name="limit_max"/>
+        <field table="ls_index_profile" name="date_index_start" onchange="onChangeField('ls_index_profile.date_index_start', this.value)"/>
+        <field table="ls_index_profile" name="limit_min"/>
+        <field table="ls_index_profile" name="date_index_next"/>
+        <field table="ls_index_profile" name="rent_round_to"/>
+        <field table="ls_index_profile" name="date_index_end"/>
+        <field>
+            <title>Reset Initial Values?</title>
+            <html>
+                <input type="checkbox" id="chkResetInitialValues" name="chkResetInitialValues" onclick="(this.checked?View.panels.get('abRepmCostLsProfileLsIndex').setFieldValue('ls_index_profile.reset_initial_values', 1):View.panels.get('abRepmCostLsProfileLsIndex').setFieldValue('ls_index_profile.reset_initial_values', 0));"/>
+            </html>
+        </field>
+        <field table="ls_index_profile" name="comments" rowspan="2"/>
+        <field table="ls_index_profile" name="ls_section"/>
+        <field table="ls_index_profile" name="ls_page"/>
+        
+        <field table="ls" name="cost_index" hidden="true"/> 
+        <field table="ls_index_profile" name="reset_initial_values" hidden="true"/>      
+    </panel>
+    
+    <dataSource id="abRepmCostLsProfileCostTranRecur_ds" applyVpaRestrictions="false">
+        <sql dialect="generic">
+            SELECT 
+                cost_tran_recur.cost_tran_recur_id ${sql.as} cost_tran_recur_id,
+                cost_index_trans.cost_index_trans_id ${sql.as} cost_index_trans_id,
+                cost_index_trans.cost_index_id ${sql.as} cost_index_id,
+                cost_index_trans.index_value_new ${sql.as} index_value_new,
+                cost_tran_recur.status_active ${sql.as} status_active,
+                cost_tran_recur.date_start ${sql.as} date_start,
+                cost_tran_recur.date_end ${sql.as} date_end,
+                cost_tran_recur.yearly_factor ${sql.as} yearly_factor,
+                cost_tran_recur.period ${sql.as} period,
+                cost_tran_recur.amount_income ${sql.as} amount_income,
+                cost_tran_recur.amount_expense ${sql.as} amount_expense,
+                cost_tran_recur.amount_income_base_payment ${sql.as} amount_income_base_payment,
+                cost_tran_recur.amount_expense_base_payment ${sql.as} amount_expense_base_payment,
+                cost_tran_recur.ls_id ${sql.as} ls_id,
+                cost_tran_recur.cost_cat_id ${sql.as} cost_cat_id,
+                cost_tran_recur.currency_budget ${sql.as} currency_budget,
+                cost_tran_recur.currency_payment ${sql.as} currency_payment,
+                cost_tran_recur.date_trans_created ${sql.as} date_trans_created
+            FROM cost_tran_recur
+                LEFT OUTER JOIN cost_index_trans ON cost_index_trans.cost_tran_recur_id = cost_tran_recur.cost_tran_recur_id
+            WHERE ${sql.vpaRestriction}
+        </sql>
+        <table name="cost_tran_recur" role="main"/>
+        <field name="cost_index_trans_id" dataType="number" decimals="0">
+            <title>Cost Index Transaction Id</title>
+        </field>
+        <field name="cost_index_id" dataType="text">
+            <title>Index Code</title>
+        </field>
+        <field name="index_value_new" dataType="number" size="20" decimals="4">
+            <title>Index Value New</title>
+        </field>
+        <field name="cost_cat_id"/>
+        <field name="date_start"/>
+        <field name="date_end"/>
+        <field name="cost_tran_recur_id"/>
+        <field name="status_active"/>
+        <field name="yearly_factor"/>
+        <field name="period"/>
+        <field name="amount_income"/>
+        <field name="amount_expense"/>
+        <field name="amount_income_base_payment"/>
+        <field name="amount_expense_base_payment"/>
+        <field name="ls_id"/>
+        <field name="currency_budget"/>
+        <field name="currency_payment"/>
+        <field name="date_trans_created"/>
+    </dataSource>
+    
+    <panel type="grid" id="abRepmCostLsProfileCostTranRecur" dataSource="abRepmCostLsProfileCostTranRecur_ds" showOnLoad="false">
+        <sortField table="cost_tran_recur" name="cost_tran_recur_id" ascending="false"/>
+        <title>&#160;</title>
+        <action id="refresh">
+            <title>Refresh</title>
+        </action>
+        <action id="exportXLS">
+            <title>XLS</title>
+            <command type="exportPanel" outputType="xls" panelId="abRepmCostLsProfileCostTranRecur"/>
+        </action>
+        <field name="cost_cat_id"/>
+        <field name="date_start"/>
+        <field name="date_end"/>
+        <field name="cost_index_id" dataType="text">
+            <title>Index Code</title>
+        </field>
+        <field name="index_value_new" dataType="number" size="20" decimals="4">
+            <title>Index Value New</title>
+        </field>
+        <field name="amount_income" hidden="${View.activityParameters['AbCommonResources-EnableVatAndMultiCurrency'] == 1}"/>
+        <field name="amount_income_base_payment" hidden="${View.activityParameters['AbCommonResources-EnableVatAndMultiCurrency'] == 0}"/>
+        <field name="amount_expense" hidden="${View.activityParameters['AbCommonResources-EnableVatAndMultiCurrency'] == 1}"/>
+        <field name="amount_expense_base_payment" hidden="${View.activityParameters['AbCommonResources-EnableVatAndMultiCurrency'] == 0}"/>
+        <field name="status_active" hidden="true"/>
+        <field name="yearly_factor"/>
+        <field name="period"/>
+        <field name="date_trans_created"/>
+        <field name="cost_tran_recur_id"/>
+        <field controlType="button" onclick="showCostIndexTransDetails" enabled="${valueExistsNotEmpty(record['cost_tran_recur.cost_index_trans_id'])}">
+            <title>Details</title>
+        </field>
+        <field name="cost_index_trans_id" dataType="number" decimals="0" hidden="true">
+            <title>Cost Index Transaction Id</title>
+        </field>
+        <field name="currency_budget" hidden="true"/>
+        <field name="currency_payment" hidden="true"/>
+    </panel>
+    
+    <dataSource id="abRepmCostLsProfileCostIndexTrans_ds">
+        <table name="cost_index_trans"/>
+        <field name="date_index"/>
+        <field name="cost_index_id"/>
+        <field name="index_value_new"/>
+        <field name="date_index_value_new"/>
+        <field name="index_value_initial"/>
+        <field name="pct_change_adjust"/>
+        <field name="rent_pct_change_calc"/>
+        <field name="rent_initial"/>
+        
+        <field name="rent_indexed"/>
+        <field name="rent_round_to"/>
+        <field name="rent_new"/>
+        <field name="rent_pct_change_act"/>
+    </dataSource>
+    
+    <panel type="grid" id="abRepmCostLsProfileCostIndexTrans" dataSource="abRepmCostLsProfileCostIndexTrans_ds" showOnLoad="false" hidden="true">
+        <title>Lease Index Transaction Details</title>
+        <field name="date_index"/>
+        <field name="cost_index_id"/>
+        <field name="index_value_new"/>
+        <field name="date_index_value_new"/>
+        <field name="index_value_initial"/>
+        <field name="pct_change_adjust"/>
+        <field name="rent_pct_change_calc"/>
+        <field name="rent_initial"/>
+        
+        <field name="rent_indexed"/>
+        <field name="rent_round_to"/>
+        <field name="rent_new"/>
+        <field name="rent_pct_change_act"/>
+    </panel>
+    
+</view>

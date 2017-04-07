@@ -1,0 +1,237 @@
+<view version="2.0">
+    <title translatable="true">Waste Summary</title>
+    <style type="text/css">
+        .labelBold { font-weight: bold; color: #000000; } 
+    </style>
+    <message name="summaryTop" translatable="true">Summary Information</message>
+    <message name="massTop" translatable="true">MASS</message>
+    <message name="liquidTop" translatable="true">VOLUME-LIQUID</message>
+    <message name="gasTop" translatable="true">VOLUME-GAS</message>
+    <message name="siteId" translatable="true">Site Code</message>
+    <message name="blId" translatable="true">Building Code</message>
+    <message name="profileId" translatable="true">Waste Profile</message>
+    <message name="typeId" translatable="true">Waste Type</message>
+    <message name="dispositionId" translatable="true">Waste Disposition</message>
+    <message name="dispTypeId" translatable="true">Waste Disposition Type</message>
+    <message name="status" translatable="true">Waste Status</message>
+    <message name="isRecyclable" translatable="true">Is Recyclable</message>
+    <message name="yes" translatable="true">Yes</message>
+    <message name="no" translatable="true">No</message>
+    <message name="startFrom" translatable="true">Date Start From</message>
+    <message name="startTo" translatable="true">Date Start To</message>
+    <message name="endFrom" translatable="true">Date End From</message>
+    <message name="endTo" translatable="true">Date End To</message>
+    <message name="allWasteProduce" translatable="true">All Waste Produced</message>
+    
+
+    <js file="ab-waste-rpt-map-bl-loc-details-tab2.js"/>
+    <js file="ab-waste-track-common.js"/>
+
+    <layout type="borderLayout">
+      <north initialSize="175" split="true"/>
+      <center autoScroll="true"/>
+    </layout>
+    
+    <dataSource id="abWasteRptSummaryConsoleDS">
+        <table name="waste_out" role="main"/>
+        <table name="waste_profiles" role="standard"/>
+        <table name="waste_dispositions" role="standard"/>
+
+        <field table="waste_out" name="site_id"/> 
+        <field table="waste_out" name="waste_profile"/>  
+        <field table="waste_out" name="waste_disposition"/>  
+         <field table="waste_out" name="bl_id"/>      
+        <field table="waste_profiles" name="waste_type"/>  
+        <field table="waste_dispositions" name="disposition_type"/> 
+       <field table="waste_profiles" name="is_recyclable"/> 
+        <field table="waste_out" name="status"/>      
+        <field table="waste_out" name="date_end"/>      
+        <field table="waste_out" name="date_start"/>  
+        <field table="waste_out" name="storage_location"/>    
+    </dataSource>
+    
+    <panel type="console" columns="3" id="abWasteRptSummaryConsole" dataSource="abWasteRptSummaryConsoleDS" region="north" >
+        <title translatable="true">Filter</title>
+        <action id="show">
+            <title translatable="true">Show</title>
+        </action>
+        <action id="clear">
+            <title translatable="true">Clear</title>
+        </action>
+        <field table="waste_out" name="site_id" selectValueType="multiple"/>  
+        <field table="waste_out" name="waste_profile" >
+            <action>
+                <title>...</title>
+                <command 
+                         type="selectValue"
+                         selectValueType="multiple"
+                         fieldNames="waste_out.waste_profile"
+                         selectFieldNames="waste_profiles.waste_profile"
+                         visibleFieldNames="waste_profiles.waste_profile,waste_profiles.waste_name,waste_profiles.units_type" 
+                         applyFilter="false">
+                </command>
+            </action>
+        </field>  
+        <field table="waste_out" name="waste_disposition" >
+           <action>
+             <title>...</title>
+             <tooltip translatable="true">Select Value</tooltip>
+                <command type="selectValue" 
+                applyFilter="true"
+                selectValueType="multiple"
+                fieldNames="waste_out.waste_disposition" 
+                selectFieldNames="waste_dispositions.waste_disposition"
+                visibleFieldNames="waste_dispositions.waste_disposition,waste_dispositions.disposition_type,waste_dispositions.description" 
+                />
+            </action>
+        </field>  
+        <field table="waste_out" name="bl_id" selectValueType="multiple" >
+        	<action>
+        		<title translatable="false">...</title>
+				<command type="selectValue"
+					selectValueType="multiple" 
+					fieldNames="waste_out.site_id,waste_out.bl_id"
+					selectFieldNames="bl.site_id,bl.bl_id"
+					visibleFieldNames="bl.site_id,bl.bl_id,bl.name">
+					<title>Building Code</title>
+				</command>
+        	</action>
+        </field>
+        <field table="waste_profiles" name="waste_type"/>  
+        <field table="waste_dispositions" name="disposition_type"/> 
+        <field table="waste_out" name="date_end" alias="date_end.from" op="&gt;=" >
+            <title translatable="true">End Date From</title>
+        </field>
+        <field table="waste_out" name="date_start" alias="date_start.from" op="&gt;=" >
+            <title translatable="true">Date Start From</title>
+        </field>
+        <field table="waste_out" name="status" required="true">
+            <title translatable="true">Waste Status</title>
+        </field>
+        <field table="waste_out" name="date_end" alias="date_end.to" op="&lt;=" >
+            <title translatable="true">End Date To</title>
+        </field>
+        <field table="waste_out" name="date_start" alias="date_start.to" op="&lt;=">
+            <title translatable="true">Date Start To</title>
+        </field>
+        <field table="waste_out" name="storage_location"/>
+    </panel>
+
+    <dataSource id="abWasteRptSummaryFormDS" type="grouping">
+        <table name="waste_out"/>
+        <sql dialect="generic">select waste_out.number_containers from waste_out,waste_profiles where waste_out.waste_profile=waste_profiles.waste_profile and ${parameters['consoleRes']} </sql> 
+        <field  name="total_container" formula="sum" baseField="waste_out.number_containers" dataType="number" decimals="0">
+        </field>
+        <parameter name="consoleRes" dataType="verbatim" value=" 1=1 "/>
+    </dataSource>
+
+    <dataSource id="abWasteRptSummaryFormGroupDS" type="grouping"> 
+        <sql dialect="generic">
+           select waste_out.*,waste_profiles.is_recyclable,case when waste_out.waste_disposition is null then null else (select waste_dispositions.disposition_type from waste_dispositions where waste_out.waste_disposition=waste_dispositions.waste_disposition) end ${sql.as} disposition_type,
+             (waste_out.quantity* (select bill_unit.conversion_factor from bill_unit where bill_unit.bill_unit_id=waste_out.units  and bill_unit.bill_type_id=waste_out.units_type ) /
+                case when 
+                    ( select bu.conversion_factor from bill_unit  ${sql.as}  bu ,bill_type ${sql.as}  bt where  bt.bill_type_id = bu.bill_type_id 
+                     and bt.bill_type_id='REPORTS '${sql.concat}waste_out.units_type and bt.activity_id = 'AbRiskWasteMgmt' and bu.is_dflt=1)
+                is null 
+                then 
+                    (select bu.conversion_factor from bill_unit ${sql.as}  bu where  
+                        bu.bill_unit_id =( select min(bu1.bill_unit_id)  from bill_unit ${sql.as}  bu1,bill_type ${sql.as}  bt1 where  bt1.bill_type_id =    bu1.bill_type_id and bt1.activity_id = 'AbRiskWasteMgmt'  and bt1.bill_type_id='REPORTS '${sql.concat}waste_out.units_type )
+                        and bu.bill_type_id='REPORTS '${sql.concat}waste_out.units_type 
+                    )
+                else
+                    ( select bu.conversion_factor from bill_unit  ${sql.as}  bu ,bill_type ${sql.as}  bt where  bt.bill_type_id = bu.bill_type_id 
+                     and bt.bill_type_id='REPORTS '${sql.concat}waste_out.units_type and bt.activity_id = 'AbRiskWasteMgmt' and bu.is_dflt=1)
+                end
+            ) ${sql.as} newQuantity
+             from waste_out,waste_profiles where waste_out.waste_profile=waste_profiles.waste_profile and ${parameters['consoleRes']}
+        </sql> 
+    <table name="waste_out" role="main"/>
+	<field  name="units_type"  dataType="text" groupBy="true"/>
+	<field  name="is_recyclable"  dataType="number" groupBy="true"/>
+	<field  name="status" dataType="text" groupBy="true"/>
+	<field  name="disposition_type" dataType="text" groupBy="true"/>
+	<field  name="units" dataType="text" >
+	        <sql dialect="generic">
+					case when 
+						( select bu.bill_unit_id from bill_unit  ${sql.as}  bu ,bill_type ${sql.as}  bt where  bt.bill_type_id = bu.bill_type_id 
+						 and bt.bill_type_id='REPORTS '${sql.concat}waste_out.units_type and bt.activity_id = 'AbRiskWasteMgmt' and bu.is_dflt=1)
+					is null 
+					then 
+						(select bu.bill_unit_id from bill_unit ${sql.as}  bu where  
+							bu.bill_unit_id =( select min(bu1.bill_unit_id)  from bill_unit ${sql.as}  bu1,bill_type ${sql.as}  bt1 where  bt1.bill_type_id =	 bu1.bill_type_id and bt1.activity_id = 'AbRiskWasteMgmt'  and bt1.bill_type_id='REPORTS '${sql.concat}waste_out.units_type )
+							and bu.bill_type_id='REPORTS '${sql.concat}waste_out.units_type 
+						)
+					else
+						( select bu.bill_unit_id from bill_unit  ${sql.as}  bu ,bill_type ${sql.as}  bt where  bt.bill_type_id = bu.bill_type_id 
+						 and bt.bill_type_id='REPORTS '${sql.concat}waste_out.units_type and bt.activity_id = 'AbRiskWasteMgmt' and bu.is_dflt=1)
+					end
+		</sql>
+        </field>
+        <field name="total_quantity" formula="sum" numericFormat="Default" dataType="number" baseField="waste_out.newQuantity" decimals="4"/>
+	<parameter name="consoleRes" dataType="verbatim" value=" 1=1 "/>
+  </dataSource>
+
+    <panel id="abWasteRptSummaryForm" type="form" showOnLoad="false" dataSource="abWasteRptSummaryFormDS">
+	<title translatable="true">Waste Summary Details</title>
+	<action id="generateReport"> 
+	    <title>DOCX</title> 
+	 </action>
+        <field>
+            <html>
+                <span class="labelBold" id="summaryTop"></span>
+            </html>
+        </field>
+         <field table="waste_out" name="total_container"  dataType="number"  readOnly="true">
+            <title translatable="true">Total Number of Containers </title>
+        </field>
+        <field>
+            <html>
+                <span class="labelBold" id="massTop"></span>
+            </html>
+        </field>
+         <field id="total_mass_quantity">
+            <title translatable="true">Total Waste Generated</title>
+        </field>
+         <field id="total_mass_recyclable">
+            <title translatable="true">Total Waste Recyclable</title>
+        </field>
+         <field id="total_mass_shipped">
+            <title translatable="true">Total Waste Shipped to Facilities</title>
+        </field>
+        <field>
+            <html>
+                <span class="labelBold" id="liquidTop"></span>
+            </html>
+        </field>
+         <field id="total_liquid_quantity">
+            <title translatable="true">Total Waste Generated</title>
+        </field>
+         <field id="total_liquid_recyclable">
+            <title translatable="true">Total Waste Recyclable</title>
+        </field>
+         <field id="total_liquid_shipped">
+            <title translatable="true">Total Waste Shipped to Facilities</title>
+        </field>
+         <field id="total_liquid_discharged">
+            <title translatable="true">Total Waste Discharged</title>
+        </field>
+        <field>
+            <html>
+                <span class="labelBold" id="gasTop"></span>
+            </html>
+        </field>
+         <field id="total_gas_quantity">
+            <title translatable="true">Total Waste Generated</title>
+        </field>
+         <field id="total_gas_recyclable">
+            <title translatable="true">Total Waste Recyclable</title>
+        </field>
+         <field id="total_gas_shipped">
+            <title translatable="true">Total Waste Shipped to Facilities</title>
+        </field>
+         <field id="total_gas_discharged">
+            <title translatable="true">Total Waste Discharged</title>
+        </field>
+  </panel>
+
+</view>

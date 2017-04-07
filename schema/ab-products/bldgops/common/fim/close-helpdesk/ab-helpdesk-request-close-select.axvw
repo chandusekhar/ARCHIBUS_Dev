@@ -1,0 +1,119 @@
+<view version="2.0">
+	<message name="selectTitle" translatable="true">-select-</message>
+	<message name="requestType" translatable="true">Service Desk Request Type</message>
+	
+	<message name="errorDateRange" translatable="true">Given dates are invalid.</message>
+        <message name="noRecordSelected" translatable="true">Please make selection first</message>
+	
+	<!-- 
+		@summary
+		Assignee - Close request - Completed requests<br>
+		This view allows the user to:
+		<ul>
+		<li>View a list of requests completed by himself</li>
+		<li>Filter the list on request type and date completed</li>
+		<li>Select a request to view details and close it</li>
+		</ul>
+		
+		@console
+		Console restriction on :
+		<ul>
+		<li>activity_type : request type</li>
+		<li>date_completed : start and end of the date the request was closed</li>
+		</ul>
+	-->
+	<js file="ab-helpdesk-request-close-select.js" />
+    <js file="ab-helpdesk-request-shared-para.js" />
+	
+	<dataSource id="consoleDS">
+		<table name="activity_log" role="main" />
+
+		<field table="activity_log" name="activity_log_id" />
+		<field table="activity_log" name="date_completed" />
+		<field table="activity_log" name="activity_type"
+			required="false" />
+
+		<sortField table="activity_log" name="date_completed"
+			ascending="false" />
+	</dataSource>
+
+	<dataSource id="reportGridDS">
+		<table name="activity_log" role="main" />
+
+		<field table="activity_log" name="activity_log_id" />
+		<field table="activity_log" name="requestor" />
+		<field table="activity_log" name="created_by" />
+		<field table="activity_log" name="status" />
+		<field table="activity_log" name="date_requested" />
+		<field table="activity_log" name="date_completed" />
+		<field table="activity_log" name="activity_type" />
+        <parameter name="emWorkflowSubstitutes" dataType="verbatim" value="''"/>
+
+
+		<restriction type="sql"
+			sql="activity_type LIKE 'SERVICE DESK%' AND activity_type != 'SERVICE DESK - MAINTENANCE' 
+					AND status IN  ('COMPLETED','STOPPED') AND  
+					(step_status IS NULL OR step_status = 'none')
+                    AND (manager = ${sql.literal(user.employee.id)}
+                       OR manager${sql.concat}'manager' IN (${parameters['emWorkflowSubstitutes']}))" />
+
+	</dataSource>
+
+
+	<panel type="console" columns="3" labelsPosition="top"
+		id="requestConsole" dataSource="consoleDS">
+		<title translatable="true">Filter</title>
+		
+		<action id="filter">
+			<title translatable="true">Show</title>
+		</action>
+		<action id="clear">
+			<title translatable="true">Clear</title>
+		</action>
+
+		<field table="activity_log" name="activity_type" value=""
+			required="false">
+			<title translatable="true">Request Type</title>
+			<action>
+				<title>...</title>
+				<command type="callFunction"
+					functionName="onSelectActivityType('activity_log','requestConsole')" />
+			</action>
+		</field>
+
+		<field table="activity_log" name="date_completed"
+			alias="activity_log.date_completed.from">
+			<title translatable="true">Date Completed From</title>
+		</field>
+
+		<field table="activity_log" name="date_completed"
+			alias="activity_log.date_completed.to">
+			<title translatable="true">Date Completed To</title>
+		</field>
+	</panel>
+
+	<panel type="grid" id="requestReportGrid" controlType="reportGrid"
+		multipleSelectionEnabled="true" useParentRestriction="false"
+		dataSource="reportGridDS">
+		<title translatable="true">Completed, Stopped Requests</title>
+		<sortField table="activity_log" name="date_completed"
+			ascending="false" />
+		<action id="close">
+			<title translatable="true">Close Selected</title>
+		</action>
+		<field controlType="button">
+			<title translatable="true">Select</title>
+			<command type="selectTabPage" tabPageName="details" />
+		</field>
+		<field table="activity_log" name="activity_log_id">
+			<title translatable="true">Service Request ID</title>
+		</field>
+		<field table="activity_log" name="requestor" />
+		<field table="activity_log" name="created_by" />
+		<field table="activity_log" name="activity_type">
+			<title translatable="true">Request Type</title>
+		</field>
+		<field table="activity_log" name="status" />
+		<field table="activity_log" name="date_completed" />
+	</panel>
+</view>

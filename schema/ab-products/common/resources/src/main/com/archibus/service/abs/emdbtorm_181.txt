@@ -1,0 +1,153 @@
+/*****************************************************************************
+emdptorm.abs 
+08.10.98 - JH
+
+Infer Department Assignments from Employees - action. 
+Prompts user to select rooms if none selected.  
+If a single employee in a room sets the rm.dv_id = em.dv_id 
+and rm.dp_id = em.dp_id.
+If two or more employees in a room, blanks the dv_id and dp_id in the rm.
+Prompts user to synch to see changes in the drawing.
+
+03-03-99 JH - Changed the rules:
+	1) If two or more employees in a room, the dv_id and dp_id in the rm
+	   gets set to that of the first (alphabetically) employee in the room.
+	2) Rooms withOUT employees get their dv, dp blanked out IF the
+	   rmstd.std_em > 0 AND rmstd.support = 0.
+	3) Added entry point for Updating ALL rooms instead of just those selected
+06-25-99 JH - Changed the warning message to be clearer.
+06-01-00 JH - emdptorm_UpdateRm() "em AS em_outer" changed to also work w/Oracle
+05.09.02 YQ change MsgBox to AfmMsgBox for localization
+
+
+
+*****************************************************************************/
+
+Option Explicit
+
+'---- External Functions
+Declare Function CurRec_ChosenRec( sTable As String, sTableTitle As String, _
+		sOperationMsg As String, bMultipleRecs As Boolean, _
+		bIsAutoNumberedTable As Boolean, bCheckIfSaved As Boolean ) As String
+
+'---- Internal Functions
+Declare Sub emdptorm_UpdateRm()
+
+'------------------------------------------------------------------------------
+'----							 TRANSLATE
+Const kIssueWarningMsg$		= "WARNING: Division and Department data for Rooms will be updated from Employee data!"
+Const kWarning2Msg$			= "Rooms will have their Division and Department set to blank if they meet the following criteria"
+Const kWarning3Msg$			= "    1) No employees assigned, are not prorated,"
+Const kWarning4Msg$			= "                  are occupiable according to their Room Category designation AND" 
+Const kWarning5Msg$			= "                  a Standard Employee Headcount greater than 0 or a Employee Capacity greater than 0"
+Const kWarning6Msg$			= " - OR -"
+Const kWarning7Msg$			= "    2) Employees assigned who do not have a division or department"
+Const kWarning8Msg$			= ""
+Const kDoYouWishDataUpdatedMsg$="Do you wish to have your Room data updated?"
+
+Const kRoomsMsg$			= "Rooms"
+Const kInferRmDpFromEmMsg$	= "Infer Room Department assignments from employees."
+
+Const kUpdatingRoomsMsg$		= "Updating room department assignments..."
+Const kPleaseWaitMsg$		= "     Please wait..."
+'------------------------------------------------------------------------------
+
+Private prisCurRecs As String
+
+
+'------------------------------------------------------------------------------
+Sub emdptorm_Main()
+
+	prisCurRecs = CurRec_ChosenRec( "rm", kRoomsMsg, _
+						kInferRmDpFromEmMsg, TRUE, FALSE, TRUE )
+	emdptorm_UpdateRm
+
+End Sub
+'------------------------------------------------------------------------------
+
+
+
+'------------------------------------------------------------------------------
+Sub emdptorm_UpdateRm()
+
+	Dim sSqlStmt As String
+	Dim sAs As String
+	Dim sEmForRmRest As String
+
+	MsgOpen kUpdatingRoomsMsg & BASIC.EOLN$ & BASIC.EOLN$ & _
+		   kPleaseWaitMsg, 0, FALSE, TRUE
+
+     If ProjDb.ServerType = "Oracle" Then sAs = "" Else sAs = "AS "
+
+	If prisCurRecs = "" Then prisCurRecs = "1 = 1"
+	sEmForRmRest = " em.bl_id = rm.bl_id" & _
+			 " AND em.fl_id = rm.fl_id" & _
+			 " AND em.rm_id = rm.rm_id"
+
+'	---- Update those rooms with NO employee assigned IF 
+'	----		    rm.prorate = 'NONE' 
+'	----		AND rmcat.occupiable = 1
+'	----		AND ( rm.cap_em > 0  OR rmstd.std_em > 0 )
+
+	sSqlStmt = "UPDATE rm SET dv_id = NULL, dp_id = NULL" & _
+	     " WHERE " & prisCurRecs & _
+	     " AND 0 = (SELECT COUNT(*) FROM em WHERE " & sEmForRmRest & ")" & _
+		" AND rm.prorate = 'NONE'" & _
+		" AND 1 = (SELECT occupiable FROM rmcat WHERE rmcat.rm_cat = rm.rm_cat )" & _
+		" AND ( 0 < rm.cap_em OR 0 < (SELECT std_em FROM rmstd WHERE rmstd.rm_std = rm.rm_std ) )"
+	ProjDb.ExecuteSQL sSqlStmt
+	MsgSetThermometer 30
+
+'	---- Update those rooms with ONLY ONE employee assigned
+	sSqlStmt = "UPDATE rm SET" & _
+		" dv_id = (SELECT dv_id FROM em WHERE " & sEmForRmRest & ")," & _
+		" dp_id = (SELECT dp_id FROM em WHERE " & sEmForRmRest & ")" & _
+	     " WHERE " & prisCurRecs & _
+	     " AND 1 = ( SELECT COUNT(*) FROM em WHERE " & sEmForRmRest & ")"
+	ProjDb.ExecuteSQL sSqlStmt
+	MsgSetThermometer 65
+
+'	---- Update those rooms with MORE THAN ONE employee assigned
+	sSqlStmt = "UPDATE rm SET" & _
+		" dv_id = (SELECT dv_id FROM em " & sAs & "em_outer" & _
+			    " WHERE em_outer.em_id = (SELECT MIN( em_id ) FROM em" & _
+								 " WHERE " & sEmForRmRest & " ) )," & _
+		" dp_id = (SELECT dp_id FROM em " & sAs & "em_outer" & _
+			    " WHERE em_outer.em_id = (SELECT MIN( em_id ) FROM em" & _
+						            " WHERE " & sEmForRmRest & " ) )" & _
+	     " WHERE " & prisCurRecs & _
+	     " AND 1 < ( SELECT COUNT(*) FROM em WHERE " & sEmForRmRest & ")"
+	ProjDb.ExecuteSQL sSqlStmt
+	MsgSetThermometer 100
+
+     Avw.SetTblChanged "rm", AVW_TBLCHANGE_UPDATE
+	Avw.Requery
+
+	MsgClose
+
+End Sub
+'------------------------------------------------------------------------------
+
+Declare Sub rm()
+
+Sub Main()
+
+	If AfmMsgBox( kIssueWarningMsg & BASIC.EOLN$ & BASIC.EOLN$ & _
+		   kWarning2Msg & BASIC.EOLN$ & _
+		   kWarning3Msg & BASIC.EOLN$ & _
+		   kWarning4Msg & BASIC.EOLN$ & _
+		   kWarning5Msg & BASIC.EOLN$ & _
+		   kWarning6Msg & BASIC.EOLN$ & _
+		   kWarning7Msg & BASIC.EOLN$ & BASIC.EOLN$ & _
+		   kWarning8Msg & BASIC.EOLN$ & BASIC.EOLN$ & _
+		kDoYouWishDataUpdatedMsg & BASIC.EOLN$, _
+		ebExclamation Or ebYesNo Or ebDefaultButton2, _
+		kInferRmDpFromEmMsg ) <> ebYes Then End
+
+	Call rm
+	Avw.SetSys	"Grid Windows?", 1, 0
+	Avw.SetSys	"Report Window?", 0, 1
+
+	emdptorm_UpdateRm
+	Avw.Display
+End Sub

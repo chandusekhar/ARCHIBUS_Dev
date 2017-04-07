@@ -1,0 +1,120 @@
+<view version="2.0">	
+		<js file="ab-proj-fcpm-invs-rcd-admin.js"/>
+  	<title>Record Invoices by Vendor</title>
+    
+    <dataSource id="projFcpmInvsRcdDs1" applyVpaRestrictions="false">
+        <table name="invoice" role="main" />
+        <field name="project_id" table="invoice"/>
+        <field name="work_pkg_id" table="invoice"/>
+        <field name="invoice_id" table="invoice" />        
+        <field name="status" table="invoice" />
+        <field name="date_expected_rec" table="invoice" />
+        <field name="vn_id" table="invoice" /> 
+        <field name="date_sent" table="invoice" />
+        <field name="contact_id_send_to" table="invoice" />
+        <field name="contact_id_remit_to" table="invoice" />
+        <field name="terms" table="invoice" />
+        <field name="amount_closed" table="invoice"  />
+        <field name="qty_invoiced" table="invoice" />
+        <field name="qty_received" table="invoice" />
+        <field name="qty_accepted" table="invoice" />
+        <field name="ac_id" table="invoice" />
+        <field name="bl_id" table="invoice" />
+        <field name="amount_billed" table="invoice"/>
+        <field name="amount_tax" table="invoice" />
+        <field name="tax_rate" table="invoice" />
+        <field name="amount_billed_total" table="invoice" />
+        <field name="amount_tot_invoice" table="invoice" />
+        <field name="doc" table="invoice" />
+        <field name="description" table="invoice" />  
+        <field name="amount_reimbursable" table="invoice" />
+        <field name="vn_invoice_num" table="invoice"  />
+        <field name="amount_lien" table="invoice" />
+        <field name="amount_lien_tax" table="invoice" />
+        <field name="amount_deficiency" table="invoice" /> 
+        <field name="amount_deficiency_tax" table="invoice" /> 
+				<field name="fac_org_level_01" table="invoice"/>
+				<field name="fac_org_level_02" table="invoice"/>
+				<field name="fac_org_level_03" table="invoice"/>
+				<field name="fac_org_level_04" table="invoice"/>
+				<field name="fac_org_level_05" table="invoice"/>
+				<field name="fac_org_level_06" table="invoice"/>
+    </dataSource>
+    
+						<panel type="form" id="projFcpmInvsRcd_inv" newRecord="true" dataSource="projFcpmInvsRcdDs1" showOnLoad="true" columns="2">
+				        <title>Record Invoice by Vendor</title>
+				        <action id="save">
+				        		<title>Save</title>
+				        		<command type="saveForm"/>
+				        </action>
+				        <action id="saveDis" enabled="false">
+				        		<title>Save</title>
+				        </action>		
+				        <field name="project_id" table="invoice" required="true" readOnly="${!panel.newRecord &amp;&amp; record['invoice.status'] != 'ISSUED'}">
+			    	  		<action id="projFcpmInvsRcd_selValProj">
+											<title>...</title>
+											<command type="selectValue"
+													fieldNames="invoice.project_id"
+									        selectFieldNames="project.project_id"
+									        visibleFieldNames="project.project_id, project.project_name, project.summary, project.proj_mgr"
+									        restriction="project.status NOT LIKE 'Requested%' AND project.status NOT IN ('Created','Approved-Cancelled','Closed')">
+									        <title>Select Project</title>  
+									    </command>         
+							    </action>
+							 </field>
+							 <field name="amount_billed" table="invoice" readOnly="${!panel.newRecord &amp;&amp; record['invoice.status'] != 'ISSUED'}" required="false" onchange="calculateTaxRate();onUpdateSubtotal()" style="text-align:right" />
+							 <field name="vn_id" table="invoice" required="true" readOnly="${!panel.newRecord &amp;&amp; record['invoice.status'] != 'ISSUED'}">
+							 		 <action id="projFcpmInvsRcd_selValVn">
+											<title>...</title>
+											<command type="selectValue"
+													fieldNames="invoice.project_id,invoice.work_pkg_id, invoice.vn_id"
+													selectFieldNames="work_pkg_bids.project_id, work_pkg_bids.work_pkg_id, work_pkg_bids.vn_id"
+									 				visibleFieldNames=" work_pkg_bids.vn_id, work_pkg_bids.work_pkg_id, work_pkg_bids.project_id"
+									 				restriction="work_pkg_bids.status IN ('Contract Signed','In Process','In Process-On Hold','Completed','Completed and Verified','Paid In Full') AND EXISTS (SELECT 1 FROM project WHERE project.project_id = work_pkg_bids.project_id AND project.is_template=0 AND project.status NOT LIKE 'Requested%' AND project.status NOT IN ('Created') AND ${sql.getVpaRestrictionForTable('project')})">
+									        <title>Vendor Work Packages</title>  
+									    </command>         
+									 </action>
+							 </field>							 							 
+							 <field name="amount_tax" table="invoice" readOnly="${!panel.newRecord &amp;&amp; record['invoice.status'] != 'ISSUED'}" onchange="calculateTaxRate();onUpdateSubtotal()" style="text-align:right"/>
+							 <field name="work_pkg_id" table="invoice" required="true" readOnly="${!panel.newRecord &amp;&amp; record['invoice.status'] != 'ISSUED'}">
+					        <action id="projFcpmInvsRcd_selValPkg">
+											<title>...</title>
+											<command type="selectValue"
+													fieldNames="invoice.project_id,invoice.work_pkg_id, invoice.vn_id"
+													selectFieldNames="work_pkg_bids.project_id, work_pkg_bids.work_pkg_id, work_pkg_bids.vn_id"
+									 				visibleFieldNames="work_pkg_bids.project_id, work_pkg_bids.work_pkg_id, work_pkg_bids.vn_id"
+									 				restriction="work_pkg_bids.status IN ('Contract Signed','In Process','In Process-On Hold','Completed','Completed and Verified','Paid In Full') AND EXISTS (SELECT 1 FROM project WHERE project.project_id = work_pkg_bids.project_id AND project.is_template=0 AND project.status NOT LIKE 'Requested%' AND project.status NOT IN ('Created') AND ${sql.getVpaRestrictionForTable('project')})">
+									        <title>Work Packages</title>  
+									    </command>         
+									 </action>
+							 </field>
+							 <field name="amount_reimbursable" table="invoice" onchange="onUpdateSubtotal()" style="text-align:right"  readOnly="${!panel.newRecord &amp;&amp; record['invoice.status'] != 'ISSUED'}"/>
+							 <field name="vn_invoice_num" table="invoice"  readOnly="${!panel.newRecord &amp;&amp; record['invoice.status'] != 'ISSUED'}" />
+							 <field name="amount_billed_total" dataType="number" decimals="2" required="false" onchange="onUpdateAmountTotInvoice();" style="text-align:right" readOnly="${!panel.newRecord &amp;&amp; record['invoice.status'] != 'ISSUED'}">
+							 		<title>Billed Total</title>
+							 </field>
+							 <field name="invoice_id" table="invoice" colspan="2" hidden="false" readOnly="true"/>
+							 <field name="status" table="invoice" value="ISSUED" readOnly="true" />
+							 <field>
+				       		<title>Apply Lien Holdback?</title>
+				       		<html>
+				       				<input type="radio" name="apply_lien_holdback" id="apply_lien_holdback_no" value="apply_lien_holdback_no" checked="true" onchange="onChangeApplyLien();">No</input>
+				       				<input type="radio" name="apply_lien_holdback" id="apply_lien_holdback_yes" value="apply_lien_holdback_yes" onchange="onChangeApplyLien();">Yes</input>																		
+									</html>
+				       </field>
+							 <field name="date_sent" table="invoice" required="true" onchange="setDateDue();" readOnly="${!panel.newRecord &amp;&amp; record['invoice.status'] != 'ISSUED'}"/>
+							 <field name="amount_lien" table="invoice"  onchange="calculateLienTax();onUpdateAmountTotInvoice();" style="text-align:right" readOnly="${!panel.newRecord &amp;&amp; record['invoice.status'] != 'ISSUED'}"/>
+							 <field name="date_expected_rec" table="invoice" readOnly="${!panel.newRecord &amp;&amp; record['invoice.status'] != 'ISSUED'}" />
+							 <field name="amount_lien_tax" table="invoice"  onchange="onUpdateAmountTotInvoice();" style="text-align:right" readOnly="${!panel.newRecord &amp;&amp; record['invoice.status'] != 'ISSUED'}"/>	        
+				       <field name="doc" table="invoice" readOnly="${!panel.newRecord &amp;&amp; record['invoice.status'] != 'ISSUED'}" />
+				       <field name="amount_deficiency" table="invoice"  onchange="calculateDeficiencyTax();onUpdateAmountTotInvoice();" style="text-align:right" readOnly="${!panel.newRecord &amp;&amp; record['invoice.status'] != 'ISSUED'}"/> 
+				       <field name="description" table="invoice" rowspan="3" readOnly="${!panel.newRecord &amp;&amp; record['invoice.status'] != 'ISSUED'}" />
+				       <field name="amount_deficiency_tax" table="invoice"  onchange="onUpdateAmountTotInvoice();" style="text-align:right" readOnly="${!panel.newRecord &amp;&amp; record['invoice.status'] != 'ISSUED'}"/>
+				       <field name="amount_tot_invoice" table="invoice" required="true" readOnly="${!panel.newRecord &amp;&amp; record['invoice.status'] != 'ISSUED'}" style="text-align:right">
+				       			<title>Total Amount Approved</title>
+				       </field>
+				       <field/> 
+				       <field name="tax_rate" table="invoice" hidden="true" required="false"/>      				       
+				    </panel>
+				
+</view>

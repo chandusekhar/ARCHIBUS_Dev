@@ -1,0 +1,88 @@
+<view version="2.0">
+    <js file="ab-proj-fcpm-cps-projs-alert.js"/>
+    <message name="noAlerts">No Alerts</message>
+    <message name="chgPendApprv1">Change Request Pending Approval</message>
+    <message name="chgPendApprv">Change Requests Pending Approval</message>
+    <message name="invPendApprv1">Invoices Pending Approval</message>
+    <message name="invPendApprv">Invoices Pending Approval</message>
+
+    <dataSource id="projFcpmCpsProjsAlert_ds" applyVpaRestrictions="false">
+        <table name="project" role="main"/> 
+        <field name="alert_id" dataType="text" > 
+            <title>ID</title> 
+        </field>
+        <field name="alert_msg" dataType="text"> 
+            <title>Message</title> 
+        </field> 
+        <field name="alert_count" dataType="number" decimals="0" size="6" > 
+            <title>Count</title> 
+        </field>
+        <sortField name="alert_id"/>
+        <restriction type="sql" sql="project.alert_count &gt; 0"/>
+        <sql dialect="sqlserver">
+        SELECT '0' ${sql.as} alert_id, 'Message text' ${sql.as} alert_msg, 0 ${sql.as} alert_count
+        FROM project
+        UNION (
+        	SELECT '1' ${sql.as} alert_id, 
+        	CASE WHEN COUNT(activity_log_id) = 1 THEN ${parameters['chgPendApprv1']} ELSE ${parameters['chgPendApprv']} END ${sql.concat} ' (' ${sql.concat} CAST(COUNT(activity_log_id) AS VARCHAR) ${sql.concat} ')' ${sql.as} alert_msg,      	
+        	COUNT(activity_log_id) ${sql.as} alert_count
+        	FROM activity_log
+        	LEFT OUTER JOIN project ON project.project_id = activity_log.project_id
+        	LEFT OUTER JOIN bl ON bl.bl_id = project.bl_id
+        	LEFT OUTER JOIN site ON site.site_id = project.site_id
+        	LEFT OUTER JOIN ctry ON ctry.ctry_id = bl.ctry_id
+        	LEFT OUTER JOIN program ON program.program_id = project.program_id
+        	WHERE activity_log.activity_type = 'PROJECT - CHANGE ORDER' AND activity_log.status = 'REQUESTED'
+        	AND ${parameters['projRestriction']} AND ${sql.getVpaRestrictionForTable('project')}
+        )
+        UNION (
+        	SELECT '2' ${sql.as} alert_id,
+        	CASE WHEN COUNT(invoice_id) = 1 THEN ${parameters['invPendApprv1']} ELSE ${parameters['invPendApprv']} END ${sql.concat} ' (' ${sql.concat} CAST(COUNT(invoice_id) AS VARCHAR) ${sql.concat} ')' ${sql.as} alert_msg,  	 
+        	COUNT(invoice_id) ${sql.as} alert_count
+        	FROM invoice
+        	LEFT OUTER JOIN project ON project.project_id = invoice.project_id
+        	LEFT OUTER JOIN bl ON bl.bl_id = project.bl_id
+        	LEFT OUTER JOIN site ON site.site_id = project.site_id
+        	LEFT OUTER JOIN ctry ON ctry.ctry_id = bl.ctry_id
+        	LEFT OUTER JOIN program ON program.program_id = project.program_id
+        	WHERE invoice.status='ISSUED' AND invoice.project_id IS NOT NULL
+        	AND ${parameters['projRestriction']} AND ${sql.getVpaRestrictionForTable('project')}
+        )
+        </sql>
+        <sql dialect="generic">
+        SELECT '0' ${sql.as} alert_id, 'Message text' ${sql.as} alert_msg, 0 ${sql.as} alert_count
+        FROM project
+        UNION (
+        	SELECT '1' ${sql.as} alert_id, 
+        	CASE WHEN COUNT(activity_log_id) = 1 THEN ${parameters['chgPendApprv1']} ELSE ${parameters['chgPendApprv']} END ${sql.concat} ' (' ${sql.concat} COUNT(activity_log_id) ${sql.concat} ')' ${sql.as} alert_msg,      	
+        	COUNT(activity_log_id) ${sql.as} alert_count
+        	FROM activity_log
+        	LEFT OUTER JOIN project ON project.project_id = activity_log.project_id
+        	LEFT OUTER JOIN bl ON bl.bl_id = project.bl_id
+        	LEFT OUTER JOIN site ON site.site_id = project.site_id
+        	LEFT OUTER JOIN ctry ON ctry.ctry_id = bl.ctry_id
+        	LEFT OUTER JOIN program ON program.program_id = project.program_id
+        	WHERE activity_log.activity_type = 'PROJECT - CHANGE ORDER' AND activity_log.status = 'REQUESTED'
+        	AND ${parameters['projRestriction']} AND ${sql.getVpaRestrictionForTable('project')}
+        )
+        UNION (
+        	SELECT '2' ${sql.as} alert_id,
+        	CASE WHEN COUNT(invoice_id) = 1 THEN ${parameters['invPendApprv1']} ELSE ${parameters['invPendApprv']} END ${sql.concat} ' (' ${sql.concat} COUNT(invoice_id) ${sql.concat} ')' ${sql.as} alert_msg,  	 
+        	COUNT(invoice_id) ${sql.as} alert_count
+        	FROM invoice
+        	LEFT OUTER JOIN project ON project.project_id = invoice.project_id
+        	LEFT OUTER JOIN bl ON bl.bl_id = project.bl_id
+        	LEFT OUTER JOIN site ON site.site_id = project.site_id
+        	LEFT OUTER JOIN ctry ON ctry.ctry_id = bl.ctry_id
+        	LEFT OUTER JOIN program ON program.program_id = project.program_id
+        	WHERE invoice.status='ISSUED' AND invoice.project_id IS NOT NULL
+        	AND ${parameters['projRestriction']} AND ${sql.getVpaRestrictionForTable('project')}
+        )
+        </sql>
+        <parameter name="projRestriction" dataType="verbatim" value="1=1"/>
+        <parameter name="chgPendApprv1" dataType="text" value="message"/>
+        <parameter name="chgPendApprv" dataType="text" value="message"/>
+        <parameter name="invPendApprv1" dataType="text" value="message"/>
+        <parameter name="invPendApprv" dataType="text" value="message"/>
+    </dataSource>
+</view>

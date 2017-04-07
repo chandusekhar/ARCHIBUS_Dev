@@ -1,0 +1,76 @@
+<view version="2.0">
+		<message name="expandAll">Expand All</message>
+		<message name="collapseAll">Collapse All</message>
+    <js file="ab-proj-mng-projs-alert-pkg.js"/>
+    
+    <dataSource id="projMngProjsAlertPkg_dsProj" applyVpaRestrictions="false">
+    		<table name="project" role="main"/>
+    		<sql dialect="generic">
+    		SELECT project.project_id, 
+    		CASE WHEN (project.date_commence_work IS NULL OR project.date_target_end IS NULL) 
+    				THEN project.date_start ELSE project.date_commence_work END ${sql.as} start_date,
+    		CASE WHEN (project.date_commence_work IS NULL OR project.date_target_end IS NULL) 
+            THEN project.date_end ELSE project.date_target_end END ${sql.as} end_date,
+        project.project_name, project.project_type, project.summary, project.proj_mgr
+        FROM project
+        LEFT OUTER JOIN program ON program.program_id = project.program_id
+        LEFT OUTER JOIN bl ON bl.bl_id = project.bl_id
+        LEFT OUTER JOIN site on site.site_id = project.site_id
+        LEFT OUTER JOIN ctry ON ctry.ctry_id = bl.ctry_id
+        WHERE ${parameters['projRestriction']} AND ${sql.vpaRestriction}
+    		</sql>
+    		<field table="project" name="project_id" dataType="text"/>
+    		<field table="project" name="start_date" dataType="date"/>
+    		<field table="project" name="end_date" dataType="date"/>
+        <field table="project" name="project_name" dataType="text"/>
+        <field table="project" name="project_type" dataType="text"/>
+        <field table="project" name="summary" dataType="text"/>
+        <field table="project" name="proj_mgr" dataType="text"/>
+        <restriction type="sql" sql="EXISTS (SELECT 1 FROM work_pkgs WHERE work_pkgs.status IN ('Approved-Out for Bid', 'Approved-Bid Review') AND work_pkgs.project_id = project.project_id)"/>
+        <parameter name="projRestriction" dataType="verbatim" value=" 1=1 "/>
+    </dataSource>
+    
+    <dataSource id="projMngProjsAlertPkg_dsPkg">
+        <table name="work_pkgs" role="main"/>
+        <table name="project" role="standard"/>
+        <field table="work_pkgs" name="project_id"/>
+        <field table="project" name="project_name" />
+        <field table="work_pkgs" name="work_pkg_id"/>
+        <field table="work_pkgs" name="status"/>
+        <field table="work_pkgs" name="date_est_start"/>
+        <field table="work_pkgs" name="date_est_end"/>
+        <field table="work_pkgs" name="summary"/>
+        <field table="work_pkgs" name="count_bids" dataType="number" decimals="0" size="6">
+        		<sql dialect="generic">(SELECT COUNT(work_pkg_id) from work_pkg_bids where work_pkg_bids.status LIKE 'Submitted%' 
+        															AND work_pkg_bids.project_id = work_pkgs.project_id
+																			AND work_pkg_bids.work_pkg_id = work_pkgs.work_pkg_id)
+						</sql>
+				</field>
+        <restriction type="sql" sql="work_pkgs.status IN ('Approved-Out for Bid', 'Approved-Bid Review')"/>
+    </dataSource>
+    
+    <panel type="tree" controlType="table" id="projMngProjsAlertPkg_projTree" dataSource="projMngProjsAlertPkg_dsProj">
+        <title>Work Packages Out for Bid</title>
+        <action id="collapse">
+        		<title>Collapse All</title>
+        </action>
+        <field table="project" name="project_id"/>
+        <field table="project" name="project_name"/>
+
+        <panel type="tree" controlType="table" id="projMngProjsAlertPkg_pkgTree" dataSource="projMngProjsAlertPkg_dsPkg" showLabels="true">
+		        <sortField table="work_pkgs" name="work_pkg_id" ascending="true"/>
+            <field table="work_pkgs" name="project_id" hidden="true"/>
+		        <field table="work_pkgs" name="work_pkg_id"/>
+		        <field table="work_pkgs" name="summary"/>
+		        <field table="work_pkgs" name="date_est_start"/>
+		        <field table="work_pkgs" name="date_est_end"/>	
+		        <field table="work_pkgs" name="status"/>	
+		        <field table="work_pkgs" name="count_bids">
+		        		<title># Bids Submitted</title>
+		        </field>        
+            <event type="onClickNode">
+                <command type="callFunction" functionName="projMngProjsAlertPkg_pkgTree_select"/>
+            </event>
+        </panel>
+    </panel> 
+</view>

@@ -1,0 +1,310 @@
+<view version="2.0">
+	<title translatable="true">Property and Building Benchmarks Details</title>
+	
+	<report orientation="landscape"/>
+
+	<dataSource id="abRepmLsadminPropAndBlBenchDetailsRpt_dsProp">
+        <sql dialect="generic">
+            SELECT
+                property.pr_id, property.prop_photo, property.ctry_id, property.name, property.city_id, property.site_id,
+                (CASE
+                    WHEN EXISTS (SELECT 1 FROM ot WHERE ot.pr_id = property.pr_id AND ot.status = 'Owned') THEN ${(parameters['owned'])}
+                    WHEN EXISTS (SELECT 1 FROM ls WHERE ls.use_as_template = 0 AND ls.pr_id = property.pr_id AND ls.signed = 1 AND (ls.date_end &gt;= ${sql.currentDate} OR ls.date_end IS NULL) AND ls.date_start &lt;= ${sql.currentDate}) THEN ${(parameters['leased'])}
+                    ELSE ${(parameters['neither'])}
+                END) ${sql.as} vf_prop_status,
+                property.use1, property.pct_own, property.zoning, 
+                (SELECT ot.date_purchase
+                    FROM ot WHERE 
+                    ot.ot_id = (SELECT MAX(x.ot_id) FROM ot x WHERE x.pr_id = property.pr_id AND x.status = 'Owned')) ${sql.as} vf_date_purchase,
+                (SELECT ot.date_sold FROM ot
+                WHERE ot.ot_id =
+                    (SELECT MAX(ot_int.ot_id) FROM ot ${sql.as} ot_int
+                    WHERE ot_int.pr_id = property.pr_id AND ot_int.status = 'Disposed' AND ot_int.date_sold IS NOT NULL)) ${sql.as} vf_date_sold,
+                property.area_land_acres, property.area_bl_est_rentable, property.area_cad, property.area_bl_gross_int, property.area_parcel,
+                property.area_bl_rentable, property.area_lease_neg, property.area_bl_usable, property.area_lease_meas,
+                ${sql.isNull('ccost_sum.cost_operating_total', 0)} ${sql.as} cost_operating_total,
+                property.qty_no_bldgs_calc,
+                ${sql.isNull('ccost_sum.cost_tax_total', 0)} ${sql.as} cost_tax_total, 
+                property.qty_occupancy,
+                ${sql.isNull('ccost_sum.cost_utility_total', 0)} ${sql.as} cost_utility_total,
+                property.date_costs_last_calcd,
+                ${sql.isNull('ccost_sum.cost_other_total', 0)} ${sql.as} cost_other_total,
+                property.date_costs_start,
+                ${sql.isNull('ccost_sum.income_total', 0)} ${sql.as} income_total,
+                property.date_costs_end,  
+                
+                (${sql.isNull('ccost_sum.cost_operating_total', 0)} / ${sql.replaceZero('area_bl_rentable')} * (365.25 / (date_costs_end - date_costs_start + 1))) ${sql.as} yearly_op_cost_rentarea,                
+                (${sql.isNull('ccost_sum.income_total', 0)} / ${sql.replaceZero('area_bl_rentable')} * (365.25 / (date_costs_end - date_costs_start + 1))) ${sql.as} yearly_rent_income_rentarea,                
+                ((${sql.isNull('ccost_sum.cost_operating_total + ccost_sum.cost_tax_total + ccost_sum.cost_utility_total + ccost_sum.cost_other_total + ccost_sum.income_total', 0)}) / ${sql.replaceZero('area_bl_rentable')} * (365.25 / (date_costs_end - date_costs_start + 1))) ${sql.as} yearly_tot_cost_rentarea,
+                (${sql.isNull('ccost_sum.income_total', 0)} / ${sql.replaceZero('qty_occupancy')} * (365.25 / (date_costs_end - date_costs_start + 1))) ${sql.as} yearly_income_occ, 
+                ((${sql.isNull('ccost_sum.cost_operating_total + ccost_sum.cost_tax_total + ccost_sum.cost_utility_total + ccost_sum.cost_other_total + ccost_sum.income_total', 0)}) / ${sql.replaceZero('qty_occupancy')} * (365.25 / (date_costs_end - date_costs_start + 1))) ${sql.as} yearly_tot_cost_occ, 
+                ${parameters['currencyCode']} ${sql.as} currency_code
+            FROM property
+                LEFT OUTER JOIN ccost_sum ON ccost_sum.pr_id = property.pr_id AND ccost_sum.report_name = 'pr' AND ccost_sum.user_name = ${parameters['user_name']}
+            WHERE property.pr_id =  ${(parameters['prId'])}
+        </sql>
+        <sql dialect="sqlserver">
+            SELECT
+                property.pr_id, property.prop_photo, property.ctry_id, property.name, property.city_id, property.site_id,
+                (CASE
+                    WHEN EXISTS (SELECT 1 FROM ot WHERE ot.pr_id = property.pr_id AND ot.status = 'Owned') THEN ${(parameters['owned'])}
+                    WHEN EXISTS (SELECT 1 FROM ls WHERE ls.use_as_template = 0 AND ls.pr_id = property.pr_id AND ls.signed = 1 AND (ls.date_end &gt;= ${sql.currentDate} OR ls.date_end IS NULL) AND ls.date_start &lt;= ${sql.currentDate}) THEN ${(parameters['leased'])}
+                    ELSE ${(parameters['neither'])}
+                END) ${sql.as} vf_prop_status,
+                property.use1, property.pct_own, property.zoning, 
+                (SELECT ot.date_purchase
+                    FROM ot WHERE 
+                    ot.ot_id = (SELECT MAX(x.ot_id) FROM ot x WHERE x.pr_id = property.pr_id AND x.status = 'Owned')) ${sql.as} vf_date_purchase,
+                (SELECT ot.date_sold FROM ot
+                WHERE ot.ot_id =
+                    (SELECT MAX(ot_int.ot_id) FROM ot ${sql.as} ot_int
+                    WHERE ot_int.pr_id = property.pr_id AND ot_int.status = 'Disposed' AND ot_int.date_sold IS NOT NULL)) ${sql.as} vf_date_sold,
+                property.area_land_acres, property.area_bl_est_rentable, property.area_cad, property.area_bl_gross_int, property.area_parcel,
+                property.area_bl_rentable, property.area_lease_neg, property.area_bl_usable, property.area_lease_meas,
+                ${sql.isNull('ccost_sum.cost_operating_total', 0)} ${sql.as} cost_operating_total,
+                property.qty_no_bldgs_calc,
+                ${sql.isNull('ccost_sum.cost_tax_total', 0)} ${sql.as} cost_tax_total, 
+                property.qty_occupancy,
+                ${sql.isNull('ccost_sum.cost_utility_total', 0)} ${sql.as} cost_utility_total,
+                property.date_costs_last_calcd,
+                ${sql.isNull('ccost_sum.cost_other_total', 0)} ${sql.as} cost_other_total,
+                property.date_costs_start,
+                ${sql.isNull('ccost_sum.income_total', 0)} ${sql.as} income_total,
+                property.date_costs_end,  
+                
+                (${sql.isNull('ccost_sum.cost_operating_total', 0)} / ${sql.replaceZero('area_bl_rentable')} * (365.25 / (CONVERT(INT,date_costs_end) - CONVERT(INT,date_costs_start) + 1))) ${sql.as} yearly_op_cost_rentarea,                
+                (${sql.isNull('ccost_sum.income_total', 0)} / ${sql.replaceZero('area_bl_rentable')} * (365.25 / (CONVERT(INT,date_costs_end) - CONVERT(INT,date_costs_start) + 1))) ${sql.as} yearly_rent_income_rentarea,                
+                ((${sql.isNull('ccost_sum.cost_operating_total + ccost_sum.cost_tax_total + ccost_sum.cost_utility_total + ccost_sum.cost_other_total + ccost_sum.income_total', 0)}) / ${sql.replaceZero('area_bl_rentable')} * (365.25 / (CONVERT(INT,date_costs_end) - CONVERT(INT,date_costs_start) + 1))) ${sql.as} yearly_tot_cost_rentarea,
+                (${sql.isNull('ccost_sum.income_total', 0)} / ${sql.replaceZero('qty_occupancy')} * (365.25 / (CONVERT(INT,date_costs_end) - CONVERT(INT,date_costs_start) + 1))) ${sql.as} yearly_income_occ, 
+                ((${sql.isNull('ccost_sum.cost_operating_total + ccost_sum.cost_tax_total + ccost_sum.cost_utility_total + ccost_sum.cost_other_total + ccost_sum.income_total', 0)}) / ${sql.replaceZero('qty_occupancy')} * (365.25 / (CONVERT(INT,date_costs_end) - CONVERT(INT,date_costs_start) + 1))) ${sql.as} yearly_tot_cost_occ, 
+                ${parameters['currencyCode']} ${sql.as} currency_code
+            FROM property
+                LEFT OUTER JOIN ccost_sum ON ccost_sum.pr_id = property.pr_id AND ccost_sum.report_name = 'pr' AND ccost_sum.user_name = ${parameters['user_name']}
+            WHERE property.pr_id =  ${(parameters['prId'])}
+        </sql>
+		<table name="property" role="main"/>
+		<field table="property" name="prop_photo" dataType="text"/>
+		<field table="property" name="pr_id" dataType="text"/>
+        <field table="property" name="site_id" dataType="text"/>
+		<field table="property" name="ctry_id" dataType="text"/>
+		<field table="property" name="name" dataType="text"/>
+		<field table="property" name="city_id" dataType="text"/>
+		<field name="vf_prop_status" dataType="text"/>
+		<field table="property" name="use1" dataType="text"/>
+		<field table="property" name="pct_own" dataType="number" decimals="2"/>
+		<field table="property" name="zoning" dataType="text"/>
+        <field name="vf_date_purchase" dataType="date"/>
+        <field name="vf_date_sold" dataType="date"/>
+
+		<field table="property" name="area_land_acres" dataType="number" numericFormat="area" decimals="2"/>
+		<field table="property" name="area_bl_est_rentable" numericFormat="area" dataType="number" decimals="2"/>
+		<field table="property" name="area_cad" dataType="number" numericFormat="area" decimals="2"/>
+		<field table="property" name="area_bl_gross_int" dataType="number" numericFormat="area" decimals="2"/>
+		<field table="property" name="area_parcel" dataType="number" numericFormat="area" decimals="2"/>
+		<field table="property" name="area_bl_rentable" dataType="number" numericFormat="area" decimals="2"/>
+		<field table="property" name="area_lease_neg" dataType="number" numericFormat="area" decimals="2"/>
+		<field table="property" name="area_bl_usable" dataType="number" numericFormat="area" decimals="2"/>
+		<field table="property" name="area_lease_meas" dataType="number" numericFormat="area" decimals="2"/>
+
+		<field table="property" name="cost_operating_total" dataType="number" decimals="2" currencyField="property.currency_code"/>
+		<field table="property" name="qty_no_bldgs_calc" dataType="number" decimals="0"/>
+		<field table="property" name="cost_tax_total" dataType="number" decimals="2" currencyField="property.currency_code"/>
+		<field table="property" name="qty_occupancy" dataType="number" decimals="0"/>
+		<field table="property" name="cost_utility_total" dataType="number" decimals="2" currencyField="property.currency_code"/>
+		<field table="property" name="date_costs_last_calcd" dataType="date"/>
+		<field table="property" name="cost_other_total" dataType="number" decimals="2" currencyField="property.currency_code"/>
+		<field table="property" name="date_costs_start" dataType="date"/>
+		<field table="property" name="income_total" dataType="number" decimals="2" currencyField="property.currency_code"/>
+		<field table="property" name="date_costs_end" dataType="date"/>
+
+		<field name="yearly_op_cost_rentarea" dataType="number" decimals="2" currencyField="property.currency_code"/>
+		<field name="yearly_rent_income_rentarea" dataType="number" decimals="2" currencyField="property.currency_code"/>
+		<field name="yearly_tot_cost_rentarea" dataType="number" decimals="2" currencyField="property.currency_code"/>
+		<field name="yearly_income_occ" dataType="number" decimals="2" currencyField="property.currency_code"/>
+		<field name="yearly_tot_cost_occ" dataType="number" decimals="2" currencyField="property.currency_code"/>
+		<field table="property" name="currency_code" dataType="text"/>
+        
+		<parameter name="prId" dataType="text" value=""/>
+		<parameter name="owned" dataType="text" value="Owned"/>
+		<parameter name="leased" dataType="text" value="Leased"/>
+		<parameter name="neither" dataType="text" value="Neither"/>
+        <parameter name="currencyCode" dataType="text" value=""/>
+        <parameter name="user_name" dataType="text" value="${user.name}"/>
+	</dataSource>
+
+	<dataSource id="abRepmLsadminPropAndBlBenchDetailsRpt_dsBldgs">
+		<table name="bl" role="main"/>
+		<table name="property" role="standard"/>
+		<field table="property" name="pr_id"/>
+		<field table="bl" name="bl_id"/>
+		<field table="bl" name="name"/>
+		<field table="bl" name="address1"/>
+		<field table="bl" name="address2"/>
+		<field table="bl" name="site_id"/>
+		<field table="bl" name="date_bl"/>
+		<field table="bl" name="count_fl"/>
+		<field table="bl" name="count_occup"/>
+		<field table="bl" name="count_max_occup"/>
+		<field table="bl" name="cost_sqft"/>
+		<field table="bl" name="area_gross_int"/>
+		<field table="bl" name="area_gross_ext"/>
+		<field table="bl" name="area_rentable"/>
+		<field table="bl" name="area_usable"/>
+		<field table="bl" name="ratio_ru"/>
+		<field table="bl" name="ratio_ur"/>
+		<field name="gu_ratio" dataType="number" decimals="2">
+			<sql dialect="generic">area_gross_int / ${sql.replaceZero('area_usable')}</sql>
+		</field>
+		<field table="bl" name="area_ls_negotiated"/>
+		
+		<restriction type="parsed">
+			<clause table="property" name="pr_id" op="=" value="${(parameters['prId'])}"/>
+		</restriction>
+		
+		<parameter name="prId" dataType="text" value=""/>
+	</dataSource>
+	
+	<panel id="abRepmLsadminPropAndBlBenchDetailsRpt_propPanel" dataSource="abRepmLsadminPropAndBlBenchDetailsRpt_dsProp" type="paginatedReport" format="column" columns="2" role="data">
+		<field table="property" name="prop_photo">
+			<title translatable="true">Property Photo</title>
+		</field>
+		<field table="property" name="pr_id">
+			<title translatable="true">Property Code</title>
+		</field>
+		<field table="property" name="ctry_id">
+			<title translatable="true">Country Code</title>
+		</field>
+		<field table="property" name="name">
+			<title translatable="true">Property Name</title>
+		</field>
+		<field table="property" name="city_id">
+			<title translatable="true">City Code</title>
+		</field>
+		<field name="vf_prop_status">
+			<title translatable="true">Status</title>
+		</field>
+		<field table="property" name="use1">
+			<title translatable="true">Property Use</title>
+		</field>
+		<field table="property" name="pct_own">
+			<title translatable="true">Percent Owned</title>
+		</field>
+		<field table="property" name="zoning">
+			<title translatable="true">Zoning Type</title>
+		</field>
+        <field name="vf_date_purchase">
+            <title translatable="true">Date Purchased</title>
+        </field>
+        <field name="vf_date_sold">
+            <title translatable="true">Date Sold</title>
+        </field>
+	</panel>
+
+	<panel id="abRepmLsadminPropAndBlBenchDetailsRpt_areasPanel" dataSource="abRepmLsadminPropAndBlBenchDetailsRpt_dsProp" type="paginatedReport" format="column" columns="2" role="data">
+		<field table="property" name="area_land_acres">
+            <title translatable="true">Land Acres ${user.areaUnits.title}</title>
+        </field>
+		<field table="property" name="area_bl_est_rentable">
+            <title translatable="true">Area - Bldg. Est. Rentable ${user.areaUnits.title}</title>
+        </field>
+		<field table="property" name="area_cad">
+            <title translatable="true">Area -  CAD ${user.areaUnits.title}</title>
+        </field>
+		<field table="property" name="area_bl_gross_int">
+            <title translatable="true">Area - Bldg. Int. Gross ${user.areaUnits.title}</title>
+        </field>
+		<field table="property" name="area_parcel">
+            <title translatable="true">Area - Parcel ${user.areaUnits.title}</title>
+        </field>
+		<field table="property" name="area_bl_rentable">
+            <title translatable="true">Area - Bldg. Rentable ${user.areaUnits.title}</title>
+        </field>
+		<field table="property" name="area_lease_neg">
+            <title translatable="true">Area - Lease Negotiated ${user.areaUnits.title}</title>
+        </field>
+		<field table="property" name="area_bl_usable">
+            <title translatable="true">Area - Bldg. Usable ${user.areaUnits.title}</title>
+        </field>
+		<field table="property" name="area_lease_meas">
+            <title translatable="true">Area - Lease Measured ${user.areaUnits.title}</title>
+        </field>
+	</panel>
+
+	<panel id="abRepmLsadminPropAndBlBenchDetailsRpt_costsPanel" dataSource="abRepmLsadminPropAndBlBenchDetailsRpt_dsProp" type="paginatedReport" format="column" columns="2" role="data">
+		<field table="property" name="cost_operating_total">
+            <title translatable="true">Expense - Oper. Total</title>
+        </field>
+		<field table="property" name="qty_no_bldgs_calc">
+            <title translatable="true">Number of Buildings - Calculated</title>
+        </field>
+		<field table="property" name="cost_tax_total">
+            <title translatable="true">Expense - Tax Total</title>
+        </field>
+		<field table="property" name="qty_occupancy">
+            <title translatable="true">Property Occupancy</title>
+        </field>
+		<field table="property" name="cost_utility_total">
+            <title translatable="true">Expense - Utility Total</title>
+        </field>
+		<field table="property" name="date_costs_last_calcd">
+            <title translatable="true">Date Costs Calculated</title>
+        </field>
+		<field table="property" name="cost_other_total">
+            <title translatable="true">Expense - Other Total</title>
+        </field>
+		<field table="property" name="date_costs_start">
+            <title translatable="true">Date Costs Start</title>
+        </field>
+		<field table="property" name="income_total">
+            <title translatable="true">Income - Total</title>
+        </field>
+		<field table="property" name="date_costs_end">
+            <title translatable="true">Date Costs End</title>
+        </field>
+	</panel>
+
+	<panel id="abRepmLsadminPropAndBlBenchDetailsRpt_benchPanel" dataSource="abRepmLsadminPropAndBlBenchDetailsRpt_dsProp" type="paginatedReport" format="column" columns="2" role="data">
+		<field name="yearly_op_cost_rentarea">
+			<title translatable="true">Yearly Oper. Cost per Rentable Area</title>
+		</field>
+		<field name="yearly_rent_income_rentarea">
+			<title translatable="true">Yearly Income per Rentable Area</title>
+		</field>
+		<field name="yearly_tot_cost_rentarea">
+			<title translatable="true">Yearly Total Cost per Rentable Area</title>
+		</field>
+		<field name="yearly_income_occ">
+			<title translatable="true">Yearly Income per Occupant</title>
+		</field>
+		<field name="yearly_tot_cost_occ">
+			<title translatable="true">Yearly Total Cost per Occupant</title>
+		</field>
+	</panel>
+
+	<panel id="abRepmLsadminPropAndBlBenchDetailsRpt_bldgsPanel" dataSource="abRepmLsadminPropAndBlBenchDetailsRpt_dsBldgs" type="paginatedReport" format="column" columns="2" role="data">
+		<field table="bl" name="bl_id"/>
+		<field table="bl" name="area_gross_int"/>
+		<field table="bl" name="name"/>
+		<field table="bl" name="area_gross_ext"/>
+		<field table="bl" name="address1"/>
+		<field table="bl" name="area_rentable"/>
+		<field table="bl" name="address2"/>
+		<field table="bl" name="area_usable"/>
+		<field table="bl" name="site_id"/>
+		<field table="bl" name="ratio_ru"/>
+		<field table="bl" name="date_bl"/>
+		<field table="bl" name="ratio_ur"/>
+		<field table="bl" name="count_fl"/>
+		<field name="gu_ratio">
+			<title translatable="true">G/U Ratio</title>
+		</field>
+		<field table="bl" name="count_occup">
+			<title translatable="true">Current Occupancy</title>
+		</field>
+		<field table="bl" name="area_ls_negotiated"/>
+		<field table="bl" name="count_max_occup"/>
+		<field table="bl" name="cost_sqft"/>
+
+    	<sortField table="bl" name="bl_id" ascending="true"/>
+	</panel>
+</view>

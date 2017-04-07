@@ -1,0 +1,110 @@
+<view version="2.0">
+    
+    <message name="error_date_range" translatable="true">Given dates are invalid.</message>
+    <message name="noRecords" translatable="true">No requests selected.</message>
+    <message name="confirmCreateWorkRequest" translatable="true">This action will create a Work Request for each selected Service Request. Would you like to proceed?</message>
+    <message name="substituteLegend" translatable="true">Work Requests assigned to you as substitute</message>
+    
+    <js file="ab-helpdesk-common-v2.js"/>
+    
+    <!--
+    @summary
+    Supervisor - Review Service Requests<br />
+    This view allows the user to:
+    <ul>
+    <li>View a list of help requests a work request should be created for or that should be linked to an existing work request</li>
+    <li>Filter the list on problem type and date requested</li>
+    <li>Select help request(s) and create new workrequest(s) for it (one for each)</li>
+    <li>Select a help request to review</li>
+    <li>View a list of work requests which should be assigned to a work order</li>
+    <li>Select work request(s) and create a new work order for them</li>
+    <li>Select work request(s) and assign them to an existing work order</li>
+    </ul>
+    
+    @console
+    Console restriction on :
+    <ul>
+    <li>date_requested : start and end of the request date</li>
+    <li>prob_type : Problem type</li>
+    </ul>
+    -->
+    
+    <dataSource id="ds_ab-helpdesk-request-review-select_console_activity_log">
+        <table name="activity_log" role="main"/>
+        <field table="activity_log" name="date_requested"/>
+        <field table="activity_log" name="prob_type"/>
+    </dataSource>
+    
+    <panel type="console" columns="3" labelsPosition="top" id="request_console" dataSource="ds_ab-helpdesk-request-review-select_console_activity_log" useParentRestriction="false">
+        <title translatable="true">Filter</title>
+        <action id="filter">
+            <title translatable="true">Show</title>
+            <command type="callFunction" functionName="setActLogRestriction"/>
+        </action>
+        <action id="clear">
+            <title translatable="true">Clear</title>
+            <command type="showPanel" panelId="request_report" applyParentRestriction="false" clearRestriction="true"/>
+            <command type="callFunction" functionName="clearActLogRestriction"/>
+        </action>
+        <field table="activity_log" name="prob_type"/>
+        <field table="activity_log" name="date_requested" required="false" alias="activity_log.date_requested.from">
+            <title translatable="true">Date Requested From</title>
+        </field>
+        <field table="activity_log" name="date_requested" required="false" alias="activity_log.date_requested.to">
+            <title translatable="true">Date Requested To</title>
+        </field>
+    </panel>
+    
+    
+    <dataSource id="ds_ab-helpdesk-request-review-select_grid_activity_log">
+        <table name="activity_log" role="main"/>
+        <field table="activity_log" name="activity_log_id"/>
+        <field table="activity_log" name="status"/>
+        <field table="activity_log" name="requestor"/>
+        <field table="activity_log" name="prob_type"/>
+        <field table="activity_log" name="description"/>
+        <field table="activity_log" name="date_requested"/>
+        <field table="activity_log" name="bl_id"/>
+        <field table="activity_log" name="fl_id"/>
+        <field table="activity_log" name="rm_id"/>
+        <field table="activity_log" name="supervisor"/>
+        
+        <parameter name="emWorkflowSubstitutes" dataType="verbatim" value="''"/>
+        
+        <restriction type="sql" sql="activity_log.status = 'APPROVED' 
+        	AND (activity_log.step_status IS NULL OR activity_log.step_status = 'none')
+         	AND wr_id IS NULL AND wo_id IS NULL
+         	AND(activity_log.supervisor=${sql.literal(user.employee.id)}
+         	  OR(activity_log.supervisor IS NULL AND NOT activity_log.work_team_id IS NULL
+         	      AND work_team_id IN(SELECT work_team_id FROM cf WHERE email=${sql.literal(user.email)} AND is_supervisor=1))
+                  OR work_team_id IN (SELECT work_team_id FROM cf WHERE email IN (SELECT email FROM em WHERE em_id ${sql.concat} 'supervisor' IN
+                  (${parameters['emWorkflowSubstitutes']})))
+                OR supervisor ${sql.concat} 'supervisor' IN (${parameters['emWorkflowSubstitutes']}))"/>
+    </dataSource>
+    
+    <panel type="grid" id="request_report" controlType="reportGrid" dataSource="ds_ab-helpdesk-request-review-select_grid_activity_log" multipleSelectionEnabled="true"
+     useParentRestriction="false">
+        <title translatable="true">Service Requests</title>
+		<sortField table="activity_log" name="date_requested" ascending="false"/>
+        <sortField name="activity_log_id" table="activity_log" ascending="false"/>
+        <action type="javascript" onclick="createWorkRequest()">
+            <title translatable="true">Create Work Request(s)</title>
+        </action>
+        <field controlType="button">
+            <title translatable="true">Select</title>
+            <command type="selectTabPage" tabPageName="details"/>
+        </field>
+        <field table="activity_log" name="activity_log_id">
+            <title translatable="true">Service Request ID</title>
+        </field>
+        <field table="activity_log" name="prob_type"/>
+        <field table="activity_log" name="requestor"/>
+        <field table="activity_log" name="bl_id"/>
+        <field table="activity_log" name="fl_id"/>
+        <field table="activity_log" name="rm_id"/>
+        <field name="date_requested" table="activity_log"/>
+    </panel>
+    
+    <js file="ab-helpdesk-request-review-select.js"/>
+    <js file="ab-ondemand-filter.js"/>
+</view>

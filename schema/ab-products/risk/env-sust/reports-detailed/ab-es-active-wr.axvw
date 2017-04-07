@@ -1,0 +1,364 @@
+<view version="2.0">
+	<title translatable="true">Work Requests Summary by Active Assessment Items</title>
+	<js file="ab-ca-common.js"/>
+	<js file="ab-es-active-wr.js"/>
+	
+	<message name="noProjectSelected" translatable="true">You must select at least one project before pressing the 'Show' action button</message>
+	<message name="noProjectSelectedForDetails" translatable="true">You must select at least one project before pressing the 'Details' button</message>
+	<message name="noProjectSelectedForReport" translatable="true">You must select at least one project before pressing the 'Paginated Report' button</message>
+	<message name="selectedProjects" translatable="true">Selected Projects</message>
+	<message name="siteId" translatable="true">Site Code</message>
+	<message name="blId" translatable="true">Building Code</message>
+	<message name="flId" translatable="true">Floor Code</message>
+	<message name="csiId" translatable="true">Classification Code</message>
+    
+    <layout type="borderLayout" id="mainLayout">
+        <west autoScroll="true" split="true" initialSize="20%"/>
+        <center autoScroll="true"/>
+    </layout>
+    <layout type="borderLayout" id="centerLayout" containingLayout="mainLayout" region="center">
+        <north split="true" initialSize="15%"/>
+        <center autoScroll="true"/>
+    </layout>
+    <layout type="borderLayout" id="detailsLayout" containingLayout="centerLayout" region="center">
+        <west split="true" initialSize="25%"/>
+        <center autoScroll="true"/>
+    </layout>
+	<!-- Projects panel --> 
+    <dataSource id="dsProjects">
+        <table name="project"/>
+        <field name="project_id"/>
+		<restriction type="parsed">
+		    <clause table="project" name="project_type" op="=" value="ASSESSMENT - ENVIRONMENTAL"/>
+		</restriction>
+		<restriction type="sql" sql="EXISTS(SELECT activity_log.project_id FROM activity_log WHERE activity_log.project_id = project.project_id AND activity_log.sust_priority &lt;&gt; 0)"/>
+    </dataSource>  
+	<panel type="grid" id="listProjects" dataSource="dsProjects" multipleSelectionEnabled="true" layout="mainLayout" region="west">
+        <title translatable="true">Projects</title>
+        <action id="projDetails">
+            <title translatable="true">Details</title>
+        </action>
+		<field name="project_id"/>
+		<sortField name="project_id" ascending="true"/>
+	</panel>
+	<!-- Filter console -->
+	<dataSource id="dsCaActiveWrFilter">
+		<table name="activity_log" role="main"/>
+		<field table="activity_log" name="site_id"/>
+		<field table="activity_log" name="bl_id"/>
+		<field table="activity_log" name="fl_id"/>
+		<field table="activity_log" name="csi_id"/>
+		<field table="activity_log" name="date_started"/>
+		<field table="activity_log" name="date_completed"/>
+	</dataSource>
+	<panel type="console" id="caActiveWrFilterPanel" dataSource="dsCaActiveWrFilter" columns="3" layout="centerLayout" region="north">
+		<title translatable="true">Filter</title>
+        <action id="paginatedReport">
+            <title translatable="true">Paginated Report</title>
+        </action>
+        <action id="show">
+            <title translatable="true">Show</title>
+        </action>
+        <action id="clear">
+            <title translatable="true">Clear</title>
+            <command type="clearPanel" panelId="caActiveWrFilterPanel"/>
+        </action>
+		<field table="activity_log" name="site_id" style="width: 100px;"/>
+		<field table="activity_log" name="bl_id" style="width: 100px;"/>
+		<field table="activity_log" name="fl_id" style="width: 100px;"/>
+		<field table="activity_log" name="csi_id" style="width: 100px;"/>
+	</panel>
+	<!-- Tree -->
+	<dataSource id="ds_tree_regn">
+		<sql dialect="generic">
+			SELECT 
+				regn.regn_id ${sql.as} regn_id,
+				regn.name ${sql.as} name,
+				regn.ctry_id ${sql.as} ctry_id 
+			FROM regn
+			WHERE
+				EXISTS(SELECT 1 FROM site, activity_log
+					WHERE 
+						(	EXISTS(SELECT 1 FROM wr, activity_log act_log_inner
+                    				WHERE wr.activity_log_id = act_log_inner.activity_log_id 
+                        				AND act_log_inner.assessment_id = activity_log.activity_log_id
+                        				AND wr.status IN ('R','Rev','A','AA','I','HP','HA','HL','Com','Clo'))
+				        OR  EXISTS(SELECT 1 FROM hwr, hactivity_log hact_log_inner                    				
+                 					WHERE hwr.activity_log_id = hact_log_inner.activity_log_id                         				
+                 						AND hact_log_inner.assessment_id = activity_log.activity_log_id                        				
+                 						AND hwr.status IN ('Clo'))
+						)
+					AND site.regn_id = regn.regn_id AND site.ctry_id = regn.ctry_id 
+					AND site.site_id = activity_log.site_id 
+					AND activity_log.activity_type = 'ASSESSMENT' AND activity_log.sust_priority &lt;&gt; 0
+					${parameters['projectIds']}  
+					${parameters['siteId']} ${parameters['blId']} ${parameters['flId']} ${parameters['csiId']} )
+		</sql>
+		<table name="regn" role="main"/>
+		<field table="regn" name="regn_id"/>
+		<field table="regn" name="name"/>
+		<field table="regn" name="ctry_id"/>
+		<parameter name="projectIds" dataType="verbatim" value=""/>
+		<parameter name="siteId" dataType="verbatim" value=""/>
+		<parameter name="blId" dataType="verbatim" value=""/>
+		<parameter name="flId" dataType="verbatim" value=""/>
+		<parameter name="csiId" dataType="verbatim" value=""/>
+		<sortField table="regn" name="ctry_id" ascending="true"/>
+		<sortField table="regn" name="regn_id" ascending="true"/>
+	</dataSource>
+	<dataSource id="ds_tree_site">
+		<sql dialect="generic">
+			SELECT 
+				site.site_id ${sql.as} site_id,
+				site.name ${sql.as} name,
+				site.regn_id ${sql.as} regn_id,
+				site.ctry_id ${sql.as} ctry_id
+			FROM site
+			WHERE
+				EXISTS(SELECT 1 FROM activity_log
+					WHERE 
+						(	EXISTS(SELECT 1 FROM wr, activity_log act_log_inner
+                    				WHERE wr.activity_log_id = act_log_inner.activity_log_id 
+                        				AND act_log_inner.assessment_id = activity_log.activity_log_id
+                        				AND wr.status IN ('R','Rev','A','AA','I','HP','HA','HL','Com','Clo'))
+				        OR  EXISTS(SELECT 1 FROM hwr, hactivity_log hact_log_inner                    				
+                 					WHERE hwr.activity_log_id = hact_log_inner.activity_log_id                         				
+                 						AND hact_log_inner.assessment_id = activity_log.activity_log_id                        				
+                 						AND hwr.status IN ('Clo'))
+						)
+					AND site.site_id = activity_log.site_id 
+					AND activity_log.activity_type = 'ASSESSMENT' AND activity_log.sust_priority &lt;&gt; 0
+					${parameters['projectIds']}  
+					${parameters['siteId']} ${parameters['blId']} ${parameters['flId']} ${parameters['csiId']} )
+		</sql>
+		<table name="site" role="main"/>
+		<field table="site" name="site_id"/>
+		<field table="site" name="name"/>
+		<parameter name="projectIds" dataType="verbatim" value=""/>
+		<parameter name="siteId" dataType="verbatim" value=""/>
+		<parameter name="blId" dataType="verbatim" value=""/>
+		<parameter name="flId" dataType="verbatim" value=""/>
+		<parameter name="csiId" dataType="verbatim" value=""/>
+		<sortField table="site" name="site_id" ascending="true"/>
+	</dataSource>
+	<dataSource id="ds_tree_bl">
+		<sql dialect="generic">
+			SELECT 
+				bl.bl_id ${sql.as} bl_id,
+				bl.name ${sql.as} name,
+				bl.site_id ${sql.as} site_id 
+			FROM bl
+			WHERE
+				EXISTS(SELECT 1 FROM activity_log
+					WHERE 
+						(	EXISTS(SELECT 1 FROM wr, activity_log act_log_inner
+                    				WHERE wr.activity_log_id = act_log_inner.activity_log_id 
+                        				AND act_log_inner.assessment_id = activity_log.activity_log_id
+                        				AND wr.status IN ('R','Rev','A','AA','I','HP','HA','HL','Com','Clo'))
+				        OR  EXISTS(SELECT 1 FROM hwr, hactivity_log hact_log_inner                    				
+                 					WHERE hwr.activity_log_id = hact_log_inner.activity_log_id                         				
+                 						AND hact_log_inner.assessment_id = activity_log.activity_log_id                        				
+                 						AND hwr.status IN ('Clo'))
+						)
+					AND bl.bl_id = activity_log.bl_id 
+					AND activity_log.activity_type = 'ASSESSMENT' AND activity_log.sust_priority &lt;&gt; 0
+					${parameters['projectIds']}  
+					${parameters['blId']} ${parameters['flId']} ${parameters['csiId']} )
+		</sql>
+		<table name="bl" role="main"/>
+		<field table="bl" name="bl_id"/>
+		<field table="bl" name="name"/>
+		<parameter name="projectIds" dataType="verbatim" value=""/>
+		<parameter name="blId" dataType="verbatim" value=""/>
+		<parameter name="flId" dataType="verbatim" value=""/>
+		<parameter name="csiId" dataType="verbatim" value=""/>
+		<sortField table="bl" name="bl_id" ascending="true"/>
+	</dataSource>
+	<dataSource id="ds_tree_fl">
+		<sql dialect="generic">
+			SELECT 
+				fl.fl_id ${sql.as} fl_id,
+				fl.name ${sql.as} name,
+				fl.bl_id ${sql.as} bl_id 
+			FROM fl
+			WHERE
+				EXISTS(SELECT 1 FROM activity_log
+					WHERE 
+						(	EXISTS(SELECT 1 FROM wr, activity_log act_log_inner
+                    				WHERE wr.activity_log_id = act_log_inner.activity_log_id 
+                        				AND act_log_inner.assessment_id = activity_log.activity_log_id
+                        				AND wr.status IN ('R','Rev','A','AA','I','HP','HA','HL','Com','Clo'))
+				        OR  EXISTS(SELECT 1 FROM hwr, hactivity_log hact_log_inner                    				
+                 					WHERE hwr.activity_log_id = hact_log_inner.activity_log_id                         				
+                 						AND hact_log_inner.assessment_id = activity_log.activity_log_id                        				
+                 						AND hwr.status IN ('Clo'))
+						)
+					AND fl.fl_id = activity_log.fl_id AND fl.bl_id = activity_log.bl_id
+					AND activity_log.activity_type = 'ASSESSMENT' AND activity_log.sust_priority &lt;&gt; 0
+					${parameters['projectIds']}  
+					${parameters['blId']} ${parameters['flId']} ${parameters['csiId']} )
+		</sql>
+		<table name="fl" role="main"/>
+		<field table="fl" name="fl_id"/>
+		<field table="fl" name="name"/>
+		<parameter name="projectIds" dataType="verbatim" value=""/>
+		<parameter name="blId" dataType="verbatim" value=""/>
+		<parameter name="flId" dataType="verbatim" value=""/>
+		<parameter name="csiId" dataType="verbatim" value=""/>
+		<sortField table="fl" name="fl_id" ascending="true"/>
+	</dataSource>
+	<dataSource id="ds_tree_rm">
+		<sql dialect="generic">
+			SELECT 
+				rm.rm_id ${sql.as} rm_id,
+				rm.name ${sql.as} name,
+				rm.fl_id ${sql.as} fl_id,
+				rm.bl_id ${sql.as} bl_id 
+			FROM rm
+			WHERE
+				EXISTS(SELECT 1 FROM activity_log
+					WHERE 
+						(	EXISTS(SELECT 1 FROM wr, activity_log act_log_inner
+                    				WHERE wr.activity_log_id = act_log_inner.activity_log_id 
+                        				AND act_log_inner.assessment_id = activity_log.activity_log_id
+                        				AND wr.status IN ('R','Rev','A','AA','I','HP','HA','HL','Com','Clo'))
+				        OR  EXISTS(SELECT 1 FROM hwr, hactivity_log hact_log_inner                    				
+                 					WHERE hwr.activity_log_id = hact_log_inner.activity_log_id                         				
+                 						AND hact_log_inner.assessment_id = activity_log.activity_log_id                        				
+                 						AND hwr.status IN ('Clo'))
+						)
+					AND rm.rm_id = activity_log.rm_id AND rm.fl_id = activity_log.fl_id AND rm.bl_id = activity_log.bl_id
+					AND activity_log.activity_type = 'ASSESSMENT' AND activity_log.sust_priority &lt;&gt; 0
+					${parameters['projectIds']}  
+					${parameters['blId']} ${parameters['flId']} ${parameters['csiId']} )
+		</sql>
+		<table name="rm" role="main"/>
+		<field table="rm" name="rm_id"/>
+		<field table="rm" name="name"/>
+		<parameter name="projectIds" dataType="verbatim" value=""/>
+		<parameter name="blId" dataType="verbatim" value=""/>
+		<parameter name="flId" dataType="verbatim" value=""/>
+		<parameter name="csiId" dataType="verbatim" value=""/>
+		<sortField table="rm" name="rm_id" ascending="true"/>
+	</dataSource>
+	
+	
+	<panel type="tree" id="regn_tree" dataSource="ds_tree_regn" showOnLoad="false" layout="detailsLayout" region="west">
+		<title translatable="true">Select Regions, Sites, Buildings, Floors or Rooms</title>
+        <event type="onClickNode">
+            <command type="callFunction" functionName="onClickTreeNode"/>
+        </event>
+        <panel type="tree" id="site_tree" dataSource="ds_tree_site">
+	        <event type="onClickNode">
+	            <command type="callFunction" functionName="onClickTreeNode"/>
+	        </event>
+	 		<field table="site" name="site_id"/>
+			<field table="site" name="name"/>
+        </panel>
+        <panel type="tree" id="bl_tree" dataSource="ds_tree_bl">
+	        <event type="onClickNode">
+	            <command type="callFunction" functionName="onClickTreeNode"/>
+	        </event>
+			<field table="bl" name="bl_id"/>
+			<field table="bl" name="name"/>
+        </panel>
+        <panel type="tree" id="fl_tree" dataSource="ds_tree_fl">
+	        <event type="onClickNode">
+	            <command type="callFunction" functionName="onClickTreeNode"/>
+	        </event>
+			<field table="fl" name="fl_id"/>
+			<field table="fl" name="name"/>
+        </panel>
+        <panel type="tree" id="rm_tree" dataSource="ds_tree_rm">
+	        <event type="onClickNode">
+	            <command type="callFunction" functionName="onClickTreeNode"/>
+	        </event>
+			<field table="rm" name="rm_id"/>
+			<field table="rm" name="name"/>
+        </panel>
+		<field table="regn" name="regn_id"/>
+		<field table="regn" name="name"/>
+		<field table="regn" name="ctry_id"/>
+	</panel>
+	
+	<!-- Summary panel -->
+	
+	<dataSource id="ds_CaActiveWr_Rep" type="grouping">
+		
+		<sql dialect="generic">
+		SELECT 
+			activity_log_id,
+			po_id,
+			sust_priority, 
+			cond_value, 
+			description,  
+			vf_num_wr_requested ${sql.as} regcomp_id ,  
+			vf_num_wr_issued ${sql.as} hours_est_baseline ,
+			vf_num_wr_completed ${sql.as} hours_est_design,  
+			vf_num_wr_closed${sql.as} hours_actual, 
+			vf_cost_est_total ${sql.as} cost_est_design_cap 
+			FROM (
+				SELECT 	sust_priority, 
+						cond_value, 
+						description,
+						activity_log_id,
+						(SELECT project_id FROM activity_log a WHERE a.activity_log_id = activity_log.activity_log_id ) ${sql.as} po_id,
+						(SELECT COUNT(wr.activity_log_id) FROM wr WHERE wr.status IN ('R','Rev') AND wr.activity_log_id IN (SELECT a_in.activity_log_id FROM activity_log a_in WHERE a_in.assessment_id = activity_log.activity_log_id) ) ${sql.as} vf_num_wr_requested,
+						(SELECT COUNT(wr.activity_log_id) FROM wr WHERE wr.status IN ('A','AA','I','HP','HA','HL') AND wr.activity_log_id IN (SELECT a_in.activity_log_id FROM activity_log a_in WHERE a_in.assessment_id = activity_log.activity_log_id)  ) ${sql.as} vf_num_wr_issued,
+						(SELECT COUNT(wr.activity_log_id) FROM wr WHERE wr.status IN ('Com') AND wr.activity_log_id IN (SELECT a_in.activity_log_id FROM activity_log a_in WHERE a_in.assessment_id = activity_log.activity_log_id) ) ${sql.as} vf_num_wr_completed,
+						(SELECT COUNT(hwr.activity_log_id) FROM hwr, hactivity_log WHERE hwr.status IN ('Clo') AND hwr.activity_log_id = hactivity_log.activity_log_id AND hactivity_log.assessment_id = activity_log.activity_log_id) ${sql.as} vf_num_wr_closed,
+    					(SELECT SUM(act_log_inner.cost_estimated + act_log_inner.cost_est_cap) FROM activity_log act_log_inner WHERE activity_log.activity_log_id = act_log_inner.activity_log_id) ${sql.as} vf_cost_est_total 
+    			FROM activity_log 
+				WHERE EXISTS(SELECT 1 FROM activity_log act_log_inner 
+						WHERE act_log_inner.assessment_id = activity_log.activity_log_id
+						AND activity_log.activity_type = 'ASSESSMENT'
+						${parameters['projectIds']}
+						${parameters['treeRestriction']}
+				       	UNION
+       					SELECT 1 FROM hactivity_log hact_log_inner
+       					WHERE hact_log_inner.assessment_id = activity_log.activity_log_id
+						${parameters['projectIds']}
+						${parameters['treeRestriction']}
+						) 
+			)${sql.as} inner_query
+		</sql>
+		<table name="activity_log" role="main"/>
+		<field table="activity_log" name="activity_log_id" groupBy="true"/>
+		<field table="activity_log" name="po_id" dataType="text">
+			<title translatable="true">Project Name</title>
+			<sql dialect="generic">
+				MAX(activity_log.po_id)
+			</sql>
+		</field>
+		<field name="sust_priority" formula="max" baseField="activity_log.sust_priority">
+			<title translatable="true">Sustainability Priority</title>
+		</field>
+		<field name="cond_value" formula="max" baseField="activity_log.cond_value"/>
+		<field name="description" formula="max" baseField="activity_log.description">
+			<title translatable="true">Description</title>
+		</field>
+		<field name="regcomp_id" formula="sum" baseField="activity_log.regcomp_id">
+			<title translatable="true">Requested (Count)</title>
+		</field>
+		<field name="hours_est_baseline" formula="sum" baseField="activity_log.hours_est_baseline">
+			<title translatable="true">In Process (Count)</title>
+		</field>
+		<field name="hours_est_design" formula="sum" baseField="activity_log.hours_est_design">
+			<title translatable="true">Completed (Count)</title>
+		</field>
+		<field name="hours_actual" formula="sum" baseField="activity_log.hours_actual">
+			<title translatable="true">Closed (Count)</title>
+		</field>
+		<field name="cost_est_design_cap" formula="sum" baseField="activity_log.cost_est_design_cap">
+			<title translatable="true">Cost Estimated Total (Sum)</title>
+		</field>
+		<parameter name="projectIds" dataType="verbatim" value=" AND 1 = 1 "/>
+		<parameter name="treeRestriction" dataType="verbatim" value=" AND 1 = 1 "/>
+	</dataSource>
+
+	<panel type="crossTable" id="panel_CaActiveWr_Rep" dataSource="ds_CaActiveWr_Rep" showOnLoad="false" layout="detailsLayout" region="center">
+        <event type="onClickItem">
+            <command type="callFunction" functionName="panel_CaActiveWr_Details_onClick"/>
+        </event>
+	</panel>
+</view>

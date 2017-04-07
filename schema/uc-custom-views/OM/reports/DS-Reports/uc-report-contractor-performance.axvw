@@ -1,0 +1,287 @@
+<!-- Cross-table example with custom SQL query and drill-down action.
+     The drill-down action passes the bu_dv_dp calculated field value as a restriction to the details view. -->
+
+<view version="2.0">
+	<preferences>
+		<viewTitleBar show="false" />
+	</preferences>
+    <layout file="console-small.axvw" />
+	
+	<title translatable="true">Contractor Cycle Time Performance</title>
+    <js file="ab-ex-crosstable-sql-drilldown.js"/>
+	<js file="uc-report-contractor-performance1.js"/>
+	
+	<dataSource id="consoleDS4">
+		<table name="wrhwr" role="main"/>
+		<table name="bl" role="standard"/>
+		<field table="wrhwr" name="date_requested" />
+        <field table="wrhwr" name="work_team_id" />
+		<field table="bl" name="zone_id"/>
+		<field table="wrhwr" name="charge_type"/>
+	</dataSource>
+
+
+	
+    <dataSource id="ds_assign_fwc_cf4" type="grouping">
+        <sql dialect="generic">
+			SELECT DISTINCT wrotherhwrother.wr_id ${sql.as} wr_id, wrotherhwrother.other_rs_type ${sql.as} othertype, wrotherhwrother.vn_id ${sql.as} contractor, wrhwr.work_team_id ${sql.as} work_team_id_wr, wrhwr.date_requested ${sql.as} date_requested,
+				wrhwr.date_fwc ${sql.as} date_fwc, wrhwr.date_completed ${sql.as} date_completed, wrhwr.status ${sql.as} status, bl.zone_id ${sql.as} zone_id, MIN(wrotherhwrother.date_used) ${sql.as} date_assigned, wrhwr.charge_type, wrhwr.prob_type
+				FROM wrotherhwrother 
+				left join wrhwr on wrotherhwrother.wr_id=wrhwr.wr_id
+				left join bl on wrhwr.bl_id=bl.bl_id
+			WHERE wrotherhwrother.other_rs_type = 'CONTRACTOR'
+				AND wrhwr.status in ('FWC', 'Com', 'Clo') AND wrhwr.date_fwc is not null
+			GROUP BY wrotherhwrother.wr_id, wrotherhwrother.other_rs_type, wrotherhwrother.vn_id, wrhwr.work_team_id, 
+				wrhwr.date_fwc, wrhwr.date_completed, wrhwr.status, wrhwr.date_requested, wrhwr.charge_type, wrhwr.prob_type,
+				bl.zone_id
+        </sql>
+		
+        <table name="wrhwr" role="main"/>
+		
+        <field name="bu_cf_id" dataType="text" groupBy="true" baseField="wrhwr.contractor">
+            <title translatable="true">Contractor</title>
+            <sql dialect="generic">RTRIM(wrhwr.contractor)</sql>
+        </field>
+		
+		<field name="period"  groupBy="true" dataType="text" table="wrhwr">
+			<title translatable="true">Period</title>
+			<sql dialect="generic">
+			CASE
+			WHEN DATEDIFF(d, wrhwr.date_assigned, wrhwr.date_fwc) &gt; 90 THEN '090+ Days'
+			WHEN DATEDIFF(d, wrhwr.date_assigned, wrhwr.date_fwc) &gt;= 60 THEN '061-90 Days'
+			WHEN DATEDIFF(d, wrhwr.date_assigned, wrhwr.date_fwc) &gt;= 30 THEN '031-60 Days'
+			WHEN DATEDIFF(d, wrhwr.date_assigned, wrhwr.date_fwc) &gt;= 21 THEN '021-30 Days'
+			WHEN DATEDIFF(d, wrhwr.date_assigned, wrhwr.date_fwc) &gt;= 11 THEN '011-20 Days'
+			WHEN DATEDIFF(d, wrhwr.date_assigned, wrhwr.date_fwc) &gt;= 0 THEN '01-10 Days' ELSE 'N/A' END
+			</sql>
+		</field>
+
+        <field name="wrcnt" baseField="wrhwr.wr_id" dataType="number" formula="count" decimals="0" >
+			 <title>#</title>
+		</field>
+
+		<parameter name="consoleRest" dataType="verbatim" value="1=1"/>
+    </dataSource>
+
+
+    <dataSource id="ds_open_fwc_cf2" type="grouping">
+        <sql dialect="generic">
+			SELECT DISTINCT wrotherhwrother.wr_id ${sql.as} wr_id, wrotherhwrother.other_rs_type ${sql.as} othertype, wrotherhwrother.vn_id ${sql.as} contractor, wrhwr.work_team_id ${sql.as} work_team_id_wr, wrhwr.date_requested ${sql.as} date_requested,
+				wrhwr.date_fwc ${sql.as} date_fwc, wrhwr.date_completed ${sql.as} date_completed, wrhwr.status ${sql.as} status, bl.zone_id ${sql.as} zone_id, wrhwr.charge_type, wrhwr.prob_type
+				FROM wrotherhwrother 
+				left join wrhwr on wrotherhwrother.wr_id=wrhwr.wr_id
+				left join bl on wrhwr.bl_id=bl.bl_id
+			WHERE wrotherhwrother.other_rs_type = 'CONTRACTOR'
+				AND wrhwr.status in ('FWC', 'Com', 'Clo') AND wrhwr.date_fwc is not null
+			GROUP BY wrotherhwrother.wr_id, wrotherhwrother.other_rs_type, wrotherhwrother.vn_id, wrhwr.work_team_id, wrhwr.date_requested,
+				wrhwr.date_fwc, wrhwr.date_completed, wrhwr.status,wrhwr.charge_type, wrhwr.prob_type,
+				bl.zone_id
+        </sql>
+		
+        <table name="wrhwr" role="main"/>
+		
+        <field name="bu_cf_id" dataType="text" groupBy="true" baseField="wrhwr.contractor">
+            <title translatable="true">Contractor</title>
+            <sql dialect="generic">RTRIM(wrhwr.contractor)</sql>
+        </field>
+		
+		<field name="period"  groupBy="true" dataType="text" table="wrhwr">
+			<title translatable="true">Period</title>
+			<sql dialect="generic">
+			CASE
+			WHEN DATEDIFF(d, wrhwr.date_requested, wrhwr.date_fwc) &gt; 90 THEN '090+ Days'
+			WHEN DATEDIFF(d, wrhwr.date_requested, wrhwr.date_fwc) &gt;= 60 THEN '061-90 Days'
+			WHEN DATEDIFF(d, wrhwr.date_requested, wrhwr.date_fwc) &gt;= 30 THEN '031-60 Days'
+			WHEN DATEDIFF(d, wrhwr.date_requested, wrhwr.date_fwc) &gt;= 21 THEN '021-30 Days'
+			WHEN DATEDIFF(d, wrhwr.date_requested, wrhwr.date_fwc) &gt;= 11 THEN '011-20 Days'
+			WHEN DATEDIFF(d, wrhwr.date_requested, wrhwr.date_fwc) &gt;= 0 THEN '01-10 Days' ELSE 'N/A' END
+			</sql>
+		</field>
+
+        <field name="wrcnt" baseField="wrhwr.wr_id" dataType="number" formula="count" decimals="0" >
+			 <title>#</title>
+		</field>
+
+		<parameter name="consoleRest" dataType="verbatim" value="1=1"/>
+    </dataSource>
+    
+	
+    <dataSource id="ds_assign_today_cf4" type="grouping">
+        <sql dialect="generic">
+			SELECT DISTINCT wrotherhwrother.wr_id ${sql.as} wr_id, wrotherhwrother.other_rs_type ${sql.as} othertype, wrotherhwrother.vn_id ${sql.as} contractor, wrhwr.work_team_id ${sql.as} work_team_id_wr, wrhwr.date_requested ${sql.as} date_requested,
+				wrhwr.date_fwc ${sql.as} date_fwc, wrhwr.date_completed ${sql.as} date_completed, wrhwr.status ${sql.as} status, bl.zone_id ${sql.as} zone_id, MIN(wrotherhwrother.date_used) ${sql.as} date_assigned, wrhwr.charge_type, wrhwr.prob_type
+				FROM wrotherhwrother 
+				left join wrhwr on wrotherhwrother.wr_id=wrhwr.wr_id
+				left join bl on wrhwr.bl_id=bl.bl_id
+			WHERE wrotherhwrother.other_rs_type = 'CONTRACTOR'
+				AND wrhwr.status in ('AA','I','HP','HL','HA','HD','PC','PN') 
+			GROUP BY wrotherhwrother.wr_id, wrotherhwrother.other_rs_type, wrotherhwrother.vn_id, wrhwr.work_team_id, wrhwr.date_requested,
+				wrhwr.date_fwc, wrhwr.date_completed, wrhwr.status,wrhwr.charge_type, wrhwr.prob_type,
+				bl.zone_id
+        </sql>
+		
+        <table name="wrhwr" role="main"/>
+		
+        <field name="bu_cf_id" dataType="text" groupBy="true" baseField="wrhwr.contractor">
+            <title translatable="true">Contractor</title>
+            <sql dialect="generic">RTRIM(wrhwr.contractor)</sql>
+        </field>
+		
+		<field name="period"  groupBy="true" dataType="text" table="wrhwr">
+			<title translatable="true">Period</title>
+			<sql dialect="generic">
+			CASE
+			WHEN DATEDIFF(d, wrhwr.date_assigned, GETDATE()) &gt; 90 THEN '090+ Days'
+			WHEN DATEDIFF(d, wrhwr.date_assigned, GETDATE()) &gt;= 60 THEN '061-90 Days'
+			WHEN DATEDIFF(d, wrhwr.date_assigned, GETDATE()) &gt;= 30 THEN '031-60 Days'
+			WHEN DATEDIFF(d, wrhwr.date_assigned, GETDATE()) &gt;= 21 THEN '021-30 Days'
+			WHEN DATEDIFF(d, wrhwr.date_assigned, GETDATE()) &gt;= 11 THEN '011-20 Days'
+			WHEN DATEDIFF(d, wrhwr.date_assigned, GETDATE()) &gt;= 0 THEN '01-10 Days' ELSE 'N/A' END
+			</sql>
+		</field>
+
+        <field name="wrcnt" baseField="wrhwr.wr_id" dataType="number" formula="count" decimals="0" >
+			 <title>#</title>
+		</field>
+
+		<parameter name="consoleRest" dataType="verbatim" value="1=1"/>
+    </dataSource>
+
+	
+	<dataSource id="ds_open_today_cf4" type="grouping">
+        <sql dialect="generic">
+			SELECT DISTINCT wrotherhwrother.wr_id ${sql.as} wr_id, wrotherhwrother.other_rs_type ${sql.as} othertype, wrotherhwrother.vn_id ${sql.as} contractor, wrhwr.work_team_id ${sql.as} work_team_id_wr, wrhwr.date_requested ${sql.as} date_requested,
+				wrhwr.date_fwc ${sql.as} date_fwc, wrhwr.date_completed ${sql.as} date_completed, wrhwr.status ${sql.as} status, bl.zone_id ${sql.as} zone_id, wrhwr.charge_type, wrhwr.prob_type
+				FROM wrotherhwrother 
+				left join wrhwr on wrotherhwrother.wr_id=wrhwr.wr_id
+				left join bl on wrhwr.bl_id=bl.bl_id
+			WHERE wrotherhwrother.other_rs_type = 'CONTRACTOR'
+				AND wrhwr.status in ('AA','I','HP','HL','HA','HD','PC','PN') 
+			GROUP BY wrotherhwrother.wr_id, wrotherhwrother.other_rs_type, wrotherhwrother.vn_id, wrhwr.work_team_id, wrhwr.date_requested,
+				wrhwr.date_fwc, wrhwr.date_completed, wrhwr.status,wrhwr.charge_type, wrhwr.prob_type,
+				bl.zone_id
+        </sql>
+		
+        <table name="wrhwr" role="main"/>
+		
+        <field name="bu_cf_id" dataType="text" groupBy="true" baseField="wrhwr.contractor">
+            <title translatable="true">Craftsperson</title>
+            <sql dialect="generic">RTRIM(wrhwr.contractor)</sql>
+        </field>
+		
+		<field name="period"  groupBy="true" dataType="text" table="wrhwr">
+			<title translatable="true">Period</title>
+			<sql dialect="generic">
+			CASE
+			WHEN DATEDIFF(d, wrhwr.date_requested, GETDATE()) &gt; 90 THEN '090+ Days'
+			WHEN DATEDIFF(d, wrhwr.date_requested, GETDATE()) &gt;= 60 THEN '061-90 Days'
+			WHEN DATEDIFF(d, wrhwr.date_requested, GETDATE()) &gt;= 30 THEN '031-60 Days'
+			WHEN DATEDIFF(d, wrhwr.date_requested, GETDATE()) &gt;= 21 THEN '021-30 Days'
+			WHEN DATEDIFF(d, wrhwr.date_requested, GETDATE()) &gt;= 11 THEN '011-20 Days'
+			WHEN DATEDIFF(d, wrhwr.date_requested, GETDATE()) &gt;= 0 THEN '01-10 Days' ELSE 'N/A' END
+			</sql>
+		</field>
+
+        <field name="wrcnt" baseField="wrhwr.wr_id" dataType="number" formula="count" decimals="0" >
+			 <title>#</title>
+		</field>
+		<parameter name="consoleRest" dataType="verbatim" value="1=1"/>
+    </dataSource>
+	
+	
+	<!-- CONSOLE -->
+	<panel type="console" columns="2" id="requestConsole" dataSource="consoleDS4" region="north" tabOrder="column">
+		<title translatable="true">Filter</title>
+		<action id="filter">
+			<title translatable="true">Show</title>
+			<!--command type="callFunction"
+				functionName="ABODRPTC_setRestriction('wrhwr.month','reportPanel')" /-->
+			<command type="callFunction"
+				functionName="apply_console_restriction()" />
+		</action>
+		<action id="clear">
+			<title translatable="true">Clear</title>
+			<command type="clearForm"
+				panelId="reportPanel" />
+		</action>
+
+		<field table="wrhwr" name="work_team_id" alias="wrhwr.work_team_id.wr"><title>Work Request Work Team</title></field>
+		<field table="wrhwr" name="date_requested" alias="wrhwr.date_requested.from" >
+			<title>Requested Date From:</title>
+		</field>
+
+		<field table="bl" name="zone_id"><title>Physical Zone</title></field>
+		<field table="wrhwr" name="date_requested" alias="wrhwr.date_requested.to" >
+			<title>To:</title>
+		</field>
+
+		<field table="wrhwr" name="charge_type"/>
+		
+		<field >
+			<title>Demand/Preventive/All</title>
+			<html>
+				<select class="inputField_box" id="selectbox_work_type">
+					<option value="All">All</option>
+					<option value="Demand">Demand</option>
+					<option value="Preventive">Preventive</option>
+				</select>
+			</html>
+		</field>
+
+	</panel>
+	
+	<!-- Assignment to FWC by craftsperson -->
+    <panel type="crossTable" id="reportPanel" dataSource="ds_assign_fwc_cf4" showOnLoad="false">
+        <title translatable="true">Assignment to FWC Cycle Time by Contractor - Completed Requests</title>
+		<action id="exportXLS">
+			<title>XLS</title>
+			<command type="exportPanel" outputType="xls" panelId="reportPanel"/>
+		</action>
+        <event type="onClickItem">
+			<command type="callFunction" functionName="reportPanel_onClick"/>
+             <!--command type="callFunction" functionName="exCrosstableSql.showDetails(context)"/-->
+        </event>
+    </panel>
+	
+	
+	<!-- Opening to FWC by craftsperson -->
+    <panel type="crossTable" id="reportPanel2" dataSource="ds_open_fwc_cf2" showOnLoad="false">
+        <title translatable="true">Requested to FWC Cycle Time by Contractor - Completed Requests</title>
+		<action id="exportXLS">
+			<title>XLS</title>
+			<command type="exportPanel" outputType="xls" panelId="reportPanel2"/>
+		</action>
+        <event type="onClickItem">
+			<command type="callFunction" functionName="reportPanel_onClick"/>
+             <!--command type="callFunction" functionName="exCrosstableSql.showDetails(context)"/-->
+        </event>
+    </panel>
+	
+	<!-- Opening to TODAY by craftsperson -->
+    <panel type="crossTable" id="reportPanel3" dataSource="ds_assign_today_cf4" showOnLoad="false">
+        <title translatable="true">Assignment to Today by Contractor - Active Requests</title>
+		<action id="exportXLS">
+			<title>XLS</title>
+			<command type="exportPanel" outputType="xls" panelId="reportPanel3"/>
+		</action>
+        <event type="onClickItem">
+			<command type="callFunction" functionName="reportPanel_onClick"/>
+        </event>
+    </panel>
+	
+	<!-- Opening to TODAY by craftsperson -->
+    <panel type="crossTable" id="reportPanel4" dataSource="ds_open_today_cf4" showOnLoad="false">
+        <title translatable="true">Requested to Today by Contractor - Active Requests</title>
+		<action id="exportXLS">
+			<title>XLS</title>
+			<command type="exportPanel" outputType="xls" panelId="reportPanel4"/>
+		</action>
+        <event type="onClickItem">
+			<command type="callFunction" functionName="reportPanel_onClick"/>
+             <!--command type="callFunction" functionName="exCrosstableSql.showDetails(context)"/-->
+        </event>
+    </panel>
+	
+	
+	
+</view>

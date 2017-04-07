@@ -1,0 +1,75 @@
+<view version="2.0">
+    <message name="msg_yes" translatable="true">Yes</message>
+    <message name="msg_no" translatable="true">No</message>
+    <message name="msg_save_ok" translatable="true">The Assessment Items have been updated</message>
+    <message name="updateMessage" translatable="true">Updating</message>
+    
+	<js file="ab-ca-select-assessor.js"/>
+	
+	<dataSource id="dsCASelectAssessor">
+		<table name="activity_log" role="main"/>
+		<field table="activity_log" name="assessed_by"/>
+	</dataSource>
+		
+	<panel type="form" id="caSelectAssessor" dataSource="dsCASelectAssessor">
+        <title translatable="true">Select an Assessor</title>
+		<action id="assign">
+            <title translatable="true">Assign</title>
+        </action>
+        <action id="cancel">
+            <title translatable="true">Cancel</title>
+            <command type="closeDialog"/>
+        </action>
+        <field table="activity_log" name="assessed_by" readOnly="false">
+            <action id="selectValue_AssessedBy">
+                <title>...</title>
+                <tooltip translatable="true">Select Value</tooltip>
+                <command type="openDialog" panelId="grid_AssessedByNew" applyParentRestriction="false"/>
+            </action>
+        </field>
+	</panel>
+	<dataSource id="dsAssessedByNew">
+        <sql dialect="generic">
+            SELECT DISTINCT
+                afm_userprocs.user_name,
+                (CASE WHEN EXISTS(SELECT 1 FROM activity_log WHERE activity_log.assessed_by = afm_userprocs.user_name) 
+                    THEN ${parameters['yes']}             
+                    ELSE ${parameters['no']}          
+                END)         AS vf_hasItems
+            FROM afm_userprocs
+            WHERE 
+                (${parameters['activityId']} = 'AbCapitalPlanningCA' AND afm_userprocs.activity_id = 'AbCapitalPlanningCA' 
+                    AND afm_userprocs.process_id IN ('Manage Condition Assessment','Perform Field Assessment','Assessment Manager','Field Assessor','Manage Assessments','My Assessments'))
+                OR (${parameters['activityId']} = 'AbRiskES' AND afm_userprocs.activity_id = 'AbRiskES' )
+                OR (${parameters['activityId']} = 'AbProjCommissioning' AND afm_userprocs.activity_id = 'AbProjCommissioning' )
+            UNION
+            SELECT DISTINCT
+                afm_users.user_name,
+                (CASE WHEN EXISTS(SELECT 1 FROM activity_log WHERE activity_log.assessed_by = afm_users.user_name) 
+                    THEN ${parameters['yes']}             
+                    ELSE ${parameters['no']}          
+                END)
+            FROM afm_roleprocs
+                LEFT OUTER JOIN afm_users ON afm_users.role_name = afm_roleprocs.role_name
+            WHERE     
+                (${parameters['activityId']} = 'AbCapitalPlanningCA' AND afm_roleprocs.activity_id = 'AbCapitalPlanningCA' 
+                    AND afm_roleprocs.process_id IN ('Manage Condition Assessment','Perform Field Assessment','Assessment Manager','Field Assessor','Manage Assessments','My Assessments'))
+                OR (${parameters['activityId']} = 'AbRiskES' AND afm_roleprocs.activity_id = 'AbRiskES' )
+                OR (${parameters['activityId']} = 'AbProjCommissioning' AND afm_roleprocs.activity_id = 'AbProjCommissioning' )
+        </sql>
+		<table name="afm_userprocs" role="main"/>
+        <field table="afm_userprocs" name="user_name"/>
+        <field name="vf_hasItems" dataType="text"/>
+        <parameter name="activityId" dataType="text" value=""/>
+        <parameter name="yes" dataType="text" value="Yes"/>
+        <parameter name="no" dataType="text" value="No"/>
+	</dataSource>
+	<panel type="grid" id="grid_AssessedByNew" dataSource="dsAssessedByNew" showOnLoad="false" hidden="true">
+        <title translatable="true">Select Assessor</title>
+		<field table="afm_userprocs" name="user_name" controlType="link" onclick="setNewUser"/>
+        <field name="vf_hasItems">
+            <title translatable="true">Has Items Assigned</title>
+        </field>
+		<sortField table="afm_userprocs" name="user_name" ascending="true"/>
+	</panel>
+</view>

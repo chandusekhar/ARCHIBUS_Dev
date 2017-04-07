@@ -1,0 +1,79 @@
+<view version="2.0">
+    <title>Courses by Position</title>
+	
+	
+	<js file="brg-empositioncourses-crosstab.js"/>
+	
+
+	<dataSource id="position_ds" >
+		<table name="uc_position"/>
+        <field name="position"/>
+		<restriction type="sql" sql="status='A'"/>
+    </dataSource>
+	
+	<panel type="console" id="console" dataSource="position_ds" >
+		<action id="show">
+			<title>Show</title>
+		</action>
+		<field name="position" required="true"/>
+	</panel>
+	
+    <dataSource id="course_ds4" type="grouping">
+		<sql dialect="generic">
+			select top 99999999999 rtrim(em.name_last) + ' ' + rtrim(em.name_first) em_id , em.position, rtrim(c.course_id) + ' (' + case pc.required when 'R' then 'Required' else 'Optional' end + ')' course_id, 		
+			case when ct.course_id is not null then case when expiry_date &gt;= getdate() then 1 else 0 end else null end required,
+			case pc.required when 'R' then  0 else 1 end sort 
+			from em
+			inner join uc_position_courses pc  on em.position=pc.position and pc.status = 'A'
+			inner join uc_courses c on c.course_id=pc.course_id and c.status = 'A'
+			full join (select em_id, course_id, max(isnull(expiry_date,getdate())) expiry_date from uc_certifications group by em_id, course_id) ct on c.course_id=ct.course_id and ct.em_id=em.em_id
+
+			union 
+			select top 9999999999 rtrim(em.name_last) + ' ' + rtrim(em.name_first) em_id , em.position, c.course_id, 
+			case when expiry_date &gt;= getdate() then 1 else 0 end required, 
+			2 sort
+			from em
+			inner join (select em_id, course_id, max(isnull(expiry_date,getdate())) expiry_date from uc_certifications group by em_id, course_id) ct on  ct.em_id=em.em_id
+			inner join uc_courses c on ct.course_id=c.course_id and c.status = 'A'
+			where not exists (select 1 from uc_position_courses pc  where em.position=pc.position and ct.course_id=pc.course_id and pc.status = 'A')
+			order by course_id, sort,  em_id
+			
+		</sql>
+		
+        <table name="uc_position_courses"/>
+
+        
+        <field name="course_id" groupBy="true">
+		    <title>Courses</title>
+        </field>
+		<field name="em_id" size ="1000" groupBy="true">
+		    <title>Employees</title>
+        </field>
+		
+		<field name="active" formula="sum" baseField="uc_position_courses.required" dataType="number" showTotals="false" decimals="0" >
+			<title>Active Course</title>
+		</field>
+ 		
+     
+       
+    </dataSource>
+
+	<!--  set showOnLoad=false because the panel will be refreshed from JavaScript on load -->    
+	<panel type="html" id="legend" showOnLoad="false">
+		<html>
+		  <div id="legned"  style="color:red;background-color:silver;"> 
+			   1 = Active, 0 = Inactive,  = Missing
+		   </div>
+		</html>
+	</panel>
+	
+	<panel id="courses" type="crossTable" dataSource="course_ds4" showOnLoad="false">
+	    <action id="exportXLS">
+            <title>XLS</title>
+            <command type="exportPanel" outputType="xls" panelId="courses"/>
+        </action>
+    	
+    </panel>
+	
+	
+</view>

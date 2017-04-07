@@ -1,0 +1,268 @@
+<view version="2.0">
+	
+	<js file="ab-mo-statistics-org.js"/>
+    <js file="ab-mo-vpa-utils.js"/>
+	
+	<title translatable="true">Move Statistics by Organization</title>
+	
+	<message name="selectFromDate" translatable="true">Please select a date for From Date</message>
+	<message name="errorToDate" translatable="true">To Date must be greater than From Date</message>
+	<message name="customField_Bu" translatable="true">Business Unit Code</message>
+	<message name="customField_Dv" translatable="true">Division Code</message>
+	<message name="customField_Dp" translatable="true">Division-Department Code</message>
+	<message name="customName_Bu" translatable="true">Business Unit Name</message>
+	<message name="customName_Dv" translatable="true">Division Name</message>
+	<message name="customName_Dp" translatable="true">Department Name</message>
+	
+	<!-- restriction console -->
+	
+	<dataSource id="ds_abMoveStatisticsOrg_console">
+		<table name="mo" role="main"/>
+		<table name="dv" role="standard"/>
+		<field table="dv" name="bu_id"/>
+		<field table="mo" name="dv_id"/>
+		<field table="mo" name="dp_id"/>
+		<field table="mo" name="date_to_perform"/>
+	</dataSource>
+	
+	<panel type="console" id="panel_abMoveStatisticsOrg_console" dataSource="ds_abMoveStatisticsOrg_console" columns="3">
+		<title translatable="true">Filter</title>
+        <action id="show">
+            <title translatable="true">Show</title>
+        </action>
+        <action id="clear">
+            <title translatable="true">Clear</title>
+        </action>
+		
+		<field name="bu_id" table="dv" required="false" onchange="onChangeOrgField('dv.bu_id')">
+			<action id="selectBu">
+				<title translatable="false">...</title>
+				<tooltip translatable="true">Select Value</tooltip>
+        		<command 
+					type="selectValue" 
+					fieldNames="dv.bu_id" 
+					selectFieldNames="bu.bu_id" 
+					visibleFieldNames="bu.bu_id,bu.name"
+					actionListener="afterSelectOrg">
+					<title>Business Unit</title>
+				</command>
+			</action>	
+		</field>
+		<field colspan="2" rowspan="2">
+			<title translatable="true">Report Results by</title>
+			<html>
+				<input type="radio" id="radioGroupBy" name="radioGroupBy" value="Bu"><span translatable="true">Business Unit</span></input><br/>
+				<input type="radio" id="radioGroupBy" name="radioGroupBy" value="Dv"><span translatable="true">Division Code</span></input><br/>
+				<input type="radio" id="radioGroupBy" name="radioGroupBy" value="Dp" checked="true"><span translatable="true">Department</span></input><br/>
+			</html>
+		</field>
+		<field name="dv_id" table="mo" onchange="onChangeOrgField('mo.dv_id')">
+			<action id="selectDv">
+				<title translatable="false">...</title>
+				<tooltip translatable="true">Select Value</tooltip>
+        		<command 
+					type="selectValue" 
+					fieldNames="dv.bu_id,mo.dv_id" 
+					selectFieldNames="dv.bu_id,dv.dv_id" 
+					visibleFieldNames="dv.bu_id,dv.dv_id,dv.name"
+					actionListener="afterSelectOrg">
+					<title>Division Code</title>
+				</command>
+			</action>	
+		</field>
+		<field name="dp_id" table="mo" onchange="onChangeOrgField('mo.dp_id')">
+			<action id="selectDp">
+				<title translatable="false">...</title>
+				<tooltip translatable="true">Select Value</tooltip>
+        		<command 
+					type="selectValue" 
+					fieldNames="dv.bu_id,mo.dv_id,mo.dp_id" 
+					selectFieldNames="dv.bu_id,dp.dv_id,dp.dp_id" 
+					visibleFieldNames="dv.bu_id,dp.dv_id,dp.dp_id,dp.name"
+					actionListener="afterSelectOrg">
+					<title>Department Code</title>
+				</command>
+			</action>	
+		</field>
+		<field name="date_to_perform" table="mo" alias="from_date" op="&gt;=">
+			<title translatable="true">From Date</title>
+		</field>
+		<field name="date_to_perform" table="mo" alias="to_date" op="&lt;=">
+			<title translatable="true">To Date</title>
+		</field>
+	</panel>
+
+
+	<dataSource id="ds_abMoveStatisticsOrg_report" applyVpaRestrictions="false">
+		<sql dialect="generic">
+			SELECT 
+			    mo_temp.custom_id ${sql.as} custom_id,
+			    mo_temp.custom_name ${sql.as} custom_name,
+			    mo_temp.dv_id ${sql.as} dv_id,
+			    mo_temp.bu_id ${sql.as} bu_id,
+			    mo_temp.mo_cost ${sql.as} mo_cost,
+			    mo_temp.mo_count ${sql.as} mo_count,
+			    hist_temp.em_count_hist ${sql.as} head_count_em,
+				CASE WHEN hist_temp.em_count_hist > 0 AND mo_temp.mo_count > 0 THEN (mo_temp.mo_count*100.0/hist_temp.em_count_hist) ELSE 0.0 END ${sql.as} churn
+			FROM
+			(
+			    SELECT 
+			        ${parameters["customField"]} ${sql.as} custom_id,
+			        MAX(${parameters["customName"]}) ${sql.as} custom_name,
+			        MAX(dv.bu_id) ${sql.as} bu_id,
+			        MAX(dv.dv_id) ${sql.as} dv_id,
+			        SUM(mo.cost_actual) ${sql.as} mo_cost,
+			        count(*) ${sql.as} mo_count
+			    FROM mo
+			        LEFT OUTER JOIN dv ON dv.dv_id = mo.from_dv_id
+			        LEFT OUTER JOIN dp ON dp.dv_id = mo.from_dv_id AND dp.dp_id = mo.from_dp_id
+			        LEFT OUTER JOIN bu ON bu.bu_id = dv.bu_id
+			    WHERE 
+			        mo.mo_type = 'Employee' AND mo.status = 'Closed'
+					${parameters["consoleRestriction"]}
+					${parameters["dateRestriction"]}
+                    AND ${parameters["vpaRestrictionMo"]}
+				GROUP BY ${parameters["customField"]}
+			) ${sql.as} mo_temp
+			
+			LEFT OUTER JOIN
+			(
+				SELECT
+					custom_id,
+					AVG(CAST(em_count_hist ${sql.as} float)) ${sql.as} em_count_hist
+				FROM
+				(
+				    SELECT
+				        ${parameters["customField"]} ${sql.as} custom_id, 
+				        SUM(hist_em_count.count_em) ${sql.as} em_count_hist
+				    FROM hist_em_count
+				        LEFT OUTER JOIN dv ON dv.dv_id = hist_em_count.dv_id
+				        LEFT OUTER JOIN dp ON dp.dv_id = hist_em_count.dv_id AND dp.dp_id = hist_em_count.dp_id
+				    WHERE hist_em_count.count_em > 0
+						${parameters["consoleRestriction"]}
+						${parameters["dateRestrictionHist"]}
+                        AND ${parameters["vpaRestrictionHistEmCount"]}
+				    GROUP BY ${parameters["customField"]}, CAST(hist_em_count.year AS char(4))${sql.concat}'-'${sql.concat}(CASE WHEN hist_em_count.month/10 &lt; 1 THEN '0' ELSE '' END)${sql.concat}CAST(hist_em_count.month AS char(2))
+				) ${sql.as} hist_temp_first
+				GROUP BY custom_id
+			) ${sql.as} hist_temp
+			ON mo_temp.custom_id = hist_temp.custom_id
+		</sql>
+		<sql dialect="oracle">
+			SELECT 
+			    mo_temp.custom_id ${sql.as} custom_id,
+			    mo_temp.custom_name ${sql.as} custom_name,
+			    mo_temp.dv_id ${sql.as} dv_id,
+			    mo_temp.bu_id ${sql.as} bu_id,
+			    mo_temp.mo_cost ${sql.as} mo_cost,
+			    mo_temp.mo_count ${sql.as} mo_count,
+			    hist_temp.em_count_hist ${sql.as} head_count_em,
+				CASE WHEN hist_temp.em_count_hist > 0 AND mo_temp.mo_count > 0 THEN (mo_temp.mo_count*100.0/hist_temp.em_count_hist) ELSE 0.0 END ${sql.as} churn
+			FROM
+			(
+			    SELECT 
+			        ${parameters["customField"]} ${sql.as} custom_id,
+			        MAX(${parameters["customName"]}) ${sql.as} custom_name,
+			        MAX(dv.bu_id) ${sql.as} bu_id,
+			        MAX(dv.dv_id) ${sql.as} dv_id,
+			        SUM(mo.cost_actual) ${sql.as} mo_cost,
+			        count(*) ${sql.as} mo_count
+			    FROM mo
+			        LEFT OUTER JOIN dv ON dv.dv_id = mo.from_dv_id
+			        LEFT OUTER JOIN dp ON dp.dv_id = mo.from_dv_id AND dp.dp_id = mo.from_dp_id
+			        LEFT OUTER JOIN bu ON bu.bu_id = dv.bu_id
+			    WHERE 
+			        mo.mo_type = 'Employee' AND mo.status = 'Closed'
+					${parameters["consoleRestriction"]}
+					${parameters["dateRestriction"]}
+                    AND ${parameters["vpaRestrictionMo"]}
+				GROUP BY ${parameters["customField"]}
+			) ${sql.as} mo_temp
+			
+			LEFT OUTER JOIN
+			(
+				SELECT
+					custom_id,
+					AVG(em_count_hist) ${sql.as} em_count_hist
+				FROM
+				(
+				    SELECT
+				        ${parameters["customField"]} ${sql.as} custom_id, 
+				        SUM(hist_em_count.count_em) ${sql.as} em_count_hist
+				    FROM hist_em_count
+				        LEFT OUTER JOIN dv ON dv.dv_id = hist_em_count.dv_id
+				        LEFT OUTER JOIN dp ON dp.dv_id = hist_em_count.dv_id AND dp.dp_id = hist_em_count.dp_id
+				    WHERE hist_em_count.count_em > 0
+						${parameters["consoleRestriction"]}
+						${parameters["dateRestrictionHistOracle"]}
+                        AND ${parameters["vpaRestrictionHistEmCount"]}
+				    GROUP BY ${parameters["customField"]}, TO_CHAR(hist_em_count.year ${sql.concat}'-'${sql.concat}(CASE WHEN hist_em_count.month/10 &lt; 1 THEN '0' ELSE '' END) ${sql.concat} hist_em_count.month)
+				) ${sql.as} hist_temp_first
+				GROUP BY custom_id
+			) ${sql.as} hist_temp
+			ON mo_temp.custom_id = hist_temp.custom_id
+		</sql>
+		<table name="mo" role="main"/>
+		<field table="mo" name="custom_id" dataType="text"/>
+		<field table="mo" name="custom_name" dataType="text"/>
+		<field table="mo" name="dv_id" dataType="text"/>
+		<field table="mo" name="bu_id" dataType="text"/>
+		<field table="mo" name="head_count_em" dataType="number" decimals="2"/>
+		<field table="mo" name="mo_count" dataType="number" decimals="0"/>
+		<field table="mo" name="mo_cost" dataType="number" decimals="2"/>
+		<field table="mo" name="churn" dataType="number" decimals="2"/>
+		
+		<parameter name="customField" dataType="verbatim" value=""/>
+		<parameter name="customName" dataType="verbatim" value=""/>
+		<parameter name="consoleRestriction" dataType="verbatim" value=""/>
+		<parameter name="dateRestriction" dataType="verbatim" value=""/>
+		<parameter name="dateRestrictionHist" dataType="verbatim" value=""/>
+		<parameter name="dateRestrictionHistOracle" dataType="verbatim" value=""/>
+        <parameter name="vpaRestrictionMo" dataType="verbatim" value="1=1"/>
+        <parameter name="vpaRestrictionHistEmCount" dataType="verbatim" value="1=1"/>
+	</dataSource>
+
+	<panel type="grid" id="panel_abMoveStatisticsOrg_report" dataSource="ds_abMoveStatisticsOrg_report" showOnLoad="false">
+		<title translatable="true">Move Statistics by Organization</title>
+		<sortField name="bu_id" table="mo" ascending="true"/>
+		<sortField name="dv_id" table="mo" ascending="true"/>
+		<sortField name="custom_id" table="mo" ascending="true"/>
+		<action id="xls">
+            <title translatable="true">XLS</title>
+            <command type="exportPanel" outputType="xls" panelId="panel_abMoveStatisticsOrg_report" viewName="ab-mo-statistics-org.axvw"/>
+		</action>
+		<field table="mo" name="bu_id" controlType="link">
+			<title translatable="true">Business Unit</title>
+			<command type="callFunction" functionName="showDetails(this)"/>
+		</field>
+		<field table="mo" name="dv_id" controlType="link">
+			<title translatable="true">Division Code</title>
+			<command type="callFunction" functionName="showDetails(this)"/>
+		</field>
+		<field table="mo" name="custom_id" controlType="link">
+			<title translatable="false"/>
+			<command type="callFunction" functionName="showDetails(this)"/>
+		</field>
+		<field table="mo" name="custom_name" controlType="link">
+			<title translatable="false"/>
+			<command type="callFunction" functionName="showDetails(this)"/>
+		</field>
+		<field table="mo" name="head_count_em" controlType="link">
+			<title translatable="true">Employee Headcount</title>
+			<command type="callFunction" functionName="showDetails(this)"/>
+		</field>
+		<field table="mo" name="mo_count" controlType="link">
+			<title translatable="true">Number of Moves</title>
+			<command type="callFunction" functionName="showDetails(this)"/>
+		</field>
+		<field table="mo"  name="mo_cost" controlType="link">
+			<title translatable="true">Cost of Moves</title>
+			<command type="callFunction" functionName="showDetails(this)"/>
+		</field>
+		<field table="mo" name="churn" controlType="link">
+			<title translatable="true">Period Churn Rate %</title>
+			<command type="callFunction" functionName="showDetails(this)"/>
+		</field>
+	</panel>
+
+</view>

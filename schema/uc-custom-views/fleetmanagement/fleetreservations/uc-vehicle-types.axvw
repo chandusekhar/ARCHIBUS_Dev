@@ -1,0 +1,303 @@
+<view version="2.0">
+
+  <title>Vehicle Availability Lookup</title>
+
+  <js file="uc-vehicle-types.js"/>
+   <layout type="borderLayout" id="mainLayout">
+    <north id="northRegion" autoScroll="true" split="true" initialSize="300"/>
+    <center  autoScroll="true" />
+    <south id="southRegion" autoScroll="true" initialSize="110"/>
+  </layout>
+  <layout type="borderLayout" id="centerLayout" containingLayout="mainLayout" region="center">
+    <center id="centerRegion" autoScroll="true" />
+    <east id="westRegion" split="true" autoScroll="true" initialSize="50%"/>
+  </layout>
+  
+  <dataSource id="ds_vehicle_type12">
+    <!--sql dialect="generic">
+      select vehicle_type.vehicle_type_id,count(*) total,
+	  case vehicle_type.vehicle_type_id when  ${parameters['vt1']} then 1 when  ${parameters['vt2']} then 2 else 3 end seq,
+      (select count(*) from vehicle v where v.vehicle_type_id=vehicle_type.vehicle_type_id and v.avail_fdo='Y' and v.status='AVAIL'
+      and exists (select 1 from wr where  v.eq_id = wr.eq_id
+      and wr.status not in ('Rej','Can','S','Com','FWC','Clo') and wr.work_team_Id = 'FLEET'
+      and ${parameters['date_rest']}
+      )) in_shop,
+      (select count(*) from vehicle v where v.vehicle_type_id=vehicle_type.vehicle_type_id and v.avail_fdo='Y' and v.status='AVAIL'
+      and not exists (select 1 from wr where  v.eq_id = wr.eq_id  and wr.work_team_Id  in ('FLEET-RESERVE','FLEET')
+      and wr.status  not in ('Rej','Can','S','Com','FWC','Clo')
+      and ${parameters['date_rest']}
+      )) available,
+      (select count(*) from vehicle v where v.vehicle_type_id=vehicle_type.vehicle_type_id and v.avail_fdo='Y' and v.status='AVAIL'
+      and exists (select 1 from wr where  v.eq_id = wr.eq_id  and wr.work_team_Id = 'FLEET-RESERVE'
+      and wr.status ='A'
+      and ${parameters['date_rest']}
+      )) requested,
+      (select count(*) from vehicle v where v.vehicle_type_id=vehicle_type.vehicle_type_id and v.avail_fdo='Y' and v.status='AVAIL'
+      and exists (select 1 from wr where  v.eq_id = wr.eq_id  and wr.work_team_Id = 'FLEET-RESERVE'
+      and wr.status ='Rev'
+      and 1=1
+      )) pending_approval,
+      (select count(*) from vehicle v where v.vehicle_type_id=vehicle_type.vehicle_type_id and v.avail_fdo='Y' and v.status='AVAIL'
+      and exists (select 1 from wr where  v.eq_id = wr.eq_id  and wr.work_team_Id = 'FLEET-RESERVE'
+      and wr.status ='AA'
+      and ${parameters['date_rest']}
+      )) approved,
+      (select count(*) from vehicle v where v.vehicle_type_id=vehicle_type.vehicle_type_id and v.avail_fdo='Y' and v.status='AVAIL'
+      and exists (select 1 from wr where v.eq_id = wr.eq_id and wr.work_team_Id = 'FLEET-RESERVE'
+      and wr.status ='I'
+      and ${parameters['date_rest']}
+      ))in_use
+      from vehicle_type
+      inner join vehicle on vehicle.vehicle_type_id=vehicle_type.vehicle_type_id and vehicle.avail_fdo='Y' and vehicle.status='AVAIL'
+      group by vehicle_type.vehicle_type_id
+    </sql-->
+	<sql dialect="generic">
+		select vehicle_type.vehicle_type_id,count(*) total,
+		case vehicle_type.vehicle_type_id when  ${parameters['vt1']} then 1 when  ${parameters['vt2']} then 2 else 3 end seq,
+		(select count(*) from vehicle v where v.vehicle_type_id=vehicle_type.vehicle_type_id and v.avail_fdo='Y' and v.status='AVAIL'
+		and exists (select 1 from wr where  v.eq_id = wr.eq_id
+		and wr.status not in ('Rej','Can','S','Com','FWC','Clo') and wr.work_team_Id = 'FLEET'
+		and ${parameters['date_rest']}
+		)) in_shop,
+		count(*) - (
+		(select count(*) from wr where vehicle_type.vehicle_type_id=isnull(wr.vehicle_type,wr.vehicle_type_req)and wr.work_team_Id = 'FLEET-RESERVE' and wr.status in ('Rev','AA','I') and ${parameters['date_rest']})
+		+
+		(select count(*) from vehicle v where v.vehicle_type_id=vehicle_type.vehicle_type_id and v.avail_fdo='Y' and v.status='AVAIL'
+		and exists (select 1 from wr where  v.eq_id = wr.eq_id and wr.status not in ('Rej','Can','S','Com','FWC','Clo') and wr.work_team_Id = 'FLEET' and ${parameters['date_rest']}))
+		)  available,
+		(select count(*) from wr where vehicle_type.vehicle_type_id=isnull(wr.vehicle_type,wr.vehicle_type_req)and wr.work_team_Id = 'FLEET-RESERVE' and wr.status ='A' and ${parameters['date_rest']}) requested,
+		(select count(*) from wr where vehicle_type.vehicle_type_id=isnull(wr.vehicle_type,wr.vehicle_type_req)and wr.work_team_Id = 'FLEET-RESERVE' and wr.status ='Rev' and ${parameters['date_rest']}) pending_approval,
+		(select count(*) from wr where vehicle_type.vehicle_type_id=isnull(wr.vehicle_type,wr.vehicle_type_req)and wr.work_team_Id = 'FLEET-RESERVE' and wr.status ='AA' and ${parameters['date_rest']}) approved,
+		(select count(*) from wr where vehicle_type.vehicle_type_id=isnull(wr.vehicle_type,wr.vehicle_type_req)and wr.work_team_Id = 'FLEET-RESERVE' and wr.status ='I' and ${parameters['date_rest']})in_use,
+		(Select count(*) from wr where wr.time_pickup not in ('-') and vehicle_type.vehicle_type_id=isnull(wr.vehicle_type,wr.vehicle_type_req)and wr.work_team_Id = 'FLEET-RESERVE' and wr.status ='AA' 
+			and replace(convert(varchar,wr.date_pickup,120),' 00:00', ' ' + rtrim(wr.time_pickup)) &lt; convert(varchar,getdate(),120)) overduepu,
+		(Select count(*) from wr where wr.time_dropoff not in ('-') and vehicle_type.vehicle_type_id=isnull(wr.vehicle_type,wr.vehicle_type_req)and wr.work_team_Id = 'FLEET-RESERVE' and wr.status ='I' 
+			and replace(convert(varchar,wr.date_dropoff,120),' 00:00', ' ' + rtrim(wr.time_dropoff)) &lt; convert(varchar,getdate(),120)) overduedo 
+		from vehicle_type
+		inner join vehicle on vehicle.vehicle_type_id=vehicle_type.vehicle_type_id and vehicle.avail_fdo='Y' and vehicle.status='AVAIL'
+		group by vehicle_type.vehicle_type_id
+    </sql>
+    <table name="vehicle_type" role="main"/>
+    <field name="vehicle_type_id" table="vehicle_type" dataType="text"></field>
+    <field name="in_shop" dataType="number" decimals="0"></field>
+    <field name="available" dataType="number" decimals="0"></field>
+    <field name="requested" dataType="number" decimals="0"></field>
+    <field name="pending_approval" dataType="number" decimals="0"></field>
+    <field name="in_use" dataType="number" decimals="0"></field>
+	<field name="overduedo" dataType="number" decimals="0"></field>
+	<field name="overduepu" dataType="number" decimals="0"></field>
+
+    <field name="total" dataType="number" decimals="0"></field>
+	<field name="seq" dataType="text"></field>
+    <parameter name="date_rest" dataType="verbatim" value="1=2"/>
+    <parameter name="vt1" dataType="verbatim" value="''"/>
+    <parameter name="vt2" dataType="verbatim" value="''"/>
+  </dataSource>
+
+  <panel type="grid" id="vehicle_type_grid" dataSource="ds_vehicle_type12" layoutRegion="northRegion">
+    <title>Vehicle Type Availability</title>
+	<action id="close"><title>Close</title></action>
+	<sortField name="seq" ascending="true"/>
+    <!--field controlType="image" imageName="../../ab-core/graphics/show.gif" id="selectVehicleType"/-->
+	<field controlType="button"  id="selectVehicleType"><title>Reserve Type</title></field>
+	
+    <field name="vehicle_type_id" table="vehicle_type" dataType="text" controlType="link">
+      <title>Type</title>
+	  <command type="callFunction" functionName="vehicleCntrl.showVehicles()"></command>
+    </field>
+    <field name="total" dataType="number"  decimals="0" controlType="link" >
+      <title>Total</title>
+	  <command type="callFunction" functionName="vehicleCntrl.showVehicles()"></command>
+    </field>
+    
+    <field name="available" dataType="number"  decimals="0" controlType="link">
+      <title>Available</title>
+	  <command type="callFunction" functionName="vehicleCntrl.showVehicles()"></command>
+    </field>
+    <field name="in_shop" dataType="number" decimals="0" controlType="link">
+      <title>In Shop</title>
+	  <command type="callFunction" functionName="vehicleCntrl.showVehicles()"></command>
+    </field>
+	<field name="in_use" dataType="number" decimals="0" controlType="link">
+      <title>In Use</title>
+	  <command type="callFunction" functionName="vehicleCntrl.showVehicles()"></command>
+    </field>
+    <field name="approved" dataType="number" decimals="0" controlType="link">
+      <title>Approved</title>
+	  <command type="callFunction" functionName="vehicleCntrl.showVehicles()"></command>
+    </field> 
+	<field name="pending_approval" dataType="number" decimals="0" controlType="link">
+      <title>Pending Approval</title>
+	  <command type="callFunction" functionName="vehicleCntrl.showVehicles()"></command>
+    </field>
+	<field name="requested" dataType="number" decimals="0" controlType="link">
+      <title>Requested</title>
+	  <command type="callFunction" functionName="vehicleCntrl.showVehicles()"></command>
+    </field>
+	<field name="overduepu" dataType="number" decimals="0" controlType="link">
+      <title>Overdue Pickup</title>
+	  <command type="callFunction" functionName="vehicleCntrl.showOverduepu()"></command>
+    </field>
+	<field name="overduedo" dataType="number" decimals="0" controlType="link">
+      <title>Overdue Dropoff</title>
+	  <command type="callFunction" functionName="vehicleCntrl.showOverduedo()"></command>
+    </field>
+  </panel>
+
+  <dataSource id="ds_vehicle5">
+    <table name="vehicle" role="main"/>
+    <field name="vehicle_id" table="vehicle"></field>
+    <field name="vehicle_type_id" table="vehicle"></field>
+    <field name="mfr_id" table="vehicle"></field>
+    <field name="model_id" table="vehicle"></field>
+    <field name="occ" table="vehicle"></field>
+
+	<field name="eq_id" table="vehicle"></field>
+	<parameter name="date_rest" dataType="verbatim" value="1=2"/>
+	<restriction type="sql" sql="vehicle.avail_fdo='Y' and vehicle.status='AVAIL' ${parameters['date_rest']}"></restriction>
+	<!--restriction type="sql" sql="vehicle.avail_fdo='Y' and not exists (select 1 from wr where  vehicle.eq_id = wr.eq_id  and wr.work_team_Id  in ('FLEET-RESERVE','FLEET')
+      and wr.status  not in ('Rej','Can','S','Com','FWC','Clo')
+      and ${parameters['date_rest']})"></restriction-->
+  </dataSource>
+  
+  <panel type="grid" id="vehicle_grid" dataSource="ds_vehicle5" showOnLoad="false" layoutRegion="centerRegion">
+    <title>Vehicles Available</title>
+	
+    <!--field controlType="image" imageName="../../ab-core/graphics/show.gif" id="selectVehicle"/-->
+	<field controlType="button"  id="selectVehicle"><title>Reserve Vehicle</title></field>
+    <field name="vehicle_id" table="vehicle" >
+		<title>ID</title>
+	</field>
+    <field name="vehicle_type_id" table="vehicle" hidden="true" >
+		<title>Type</title>
+	</field>
+    <field name="mfr_id" table="vehicle" >
+		<title>Make</title>
+	</field>
+    <field name="model_id" table="vehicle" >
+		<title>Model</title>
+	</field>
+    <field name="occ" table="vehicle">
+		<title>Occupancy</title>
+	</field>
+   
+	<field name="eq_id" table="vehicle" hidden="true"></field>
+  </panel> 
+  
+  <panel type="grid" id="vehicle_grid_inuse" dataSource="ds_vehicle5" showOnLoad="false" layoutRegion="westRegion">
+    <title>Vehicles In Use</title>
+    <field name="vehicle_id" table="vehicle" controlType="link">
+		<title>ID</title>
+		<command type="callFunction" functionName="vehicleCntrl.showRequest()"></command>		
+	</field>
+    <field name="vehicle_type_id" table="vehicle" hidden="true" controlType="link">
+		<title>Type</title>
+		<command type="callFunction" functionName="vehicleCntrl.showRequest()"></command>
+	</field>
+    <field name="mfr_id" table="vehicle" controlType="link">
+		<title>Make</title>
+		<command type="callFunction" functionName="vehicleCntrl.showRequest()"></command>
+	</field>
+    <field name="model_id" table="vehicle" controlType="link">
+		<title>Model</title>
+		<command type="callFunction" functionName="vehicleCntrl.showRequest()"></command>
+	</field>
+    <field name="occ" table="vehicle" controlType="link">
+		<title>Occupancy</title>
+		<command type="callFunction" functionName="vehicleCntrl.showRequest()"></command>
+	</field>
+	<field name="eq_id" table="vehicle" hidden="true"></field>
+  </panel>  
+  
+ 
+
+  <dataSource id="ds_wr7">
+    <table name="wr" role="main"/>
+    <field name="wr_id" table="wr"></field>
+    <field name="prob_type" table="wr"></field>
+	<field name="eq_id" table="wr"></field>
+    <field name="requestor" table="wr"></field>
+	<field name="requestorName" dataType="text" size="200">
+		<sql dialect="generic">
+			(select rtrim(name_first) + ' ' + rtrim(name_last) from em where em.em_ID = wr.requestor)
+		</sql>
+	</field>
+	<field name="driverName" dataType="text" size="200">
+		<sql dialect="generic">
+			(select rtrim(name_first) + ' ' + rtrim(name_last) from em where em.em_ID = wr.driver)
+		</sql>
+	</field>
+	<field name="driver" table="wr"></field>
+    <field name="date_pickup" table="wr"></field>
+    <field name="time_pickup" table="wr"></field>
+    <field name="date_dropoff" table="wr"></field>
+    <field name="time_dropoff" table="wr"></field>
+    <field name="status" table="wr"></field>
+	<field name="description" table="wr"></field>
+	<field name="location" table="wr">
+		<sql dialect="generic">
+			case when wr.prob_type='FLEET-RESERVE' then
+				case wr.status when 'A' then 'Requested' when 'Rev' then 'Pending Approval' when 'AA' then 'Approved' when 'I' then 'In Use' else ''  end 
+			else
+				(select eDesc from afm.brg_enum('wr','status') e where e.eid=wr.status)
+			end
+		</sql>
+	</field>
+	<field name="reqpu" dataType="text" size="36">
+		<sql dialect="generic">
+			(select left(rtrim(wr.date_pickup),12) + e.edesc  from afm.brg_enum('wr','time_pickup') e where e.eid=wr.time_pickup)
+		</sql>
+	</field>
+	<field name="actpu" dataType="text" size="36">
+		<sql dialect="generic">
+			(left(rtrim(wr.date_assigned),12) +  replace(replace(substring(convert(varchar,wr.time_assigned,0), 12,8),'AM',' AM'),'PM', ' PM'))
+		</sql>
+	</field>
+	
+	<field name="reqdo" dataType="text" size="36">
+		<sql dialect="generic">
+			(select left(rtrim(wr.date_dropoff),12) + e.edesc  from afm.brg_enum('wr','time_dropoff') e where e.eid=wr.time_dropoff)
+		</sql>
+	</field>
+	<field name="actdo" dataType="text" size="36">
+		<sql dialect="generic">
+			(left(rtrim(wr.date_completed),12) +  replace(replace(substring(convert(varchar,wr.time_completed,0), 12,8),'AM',' AM'),'PM', ' PM'))
+		</sql>
+	</field>
+		
+	
+	<parameter name="date_rest" dataType="verbatim" value="1=2"/>
+	<restriction type="sql" sql="wr.status not in ('Rej','Can','S','Com','FWC','Clo') and ${parameters['date_rest']}"></restriction>
+  </dataSource>
+  
+  <panel type="grid" id="wr_grid" dataSource="ds_wr7" showOnLoad="false" layoutRegion="southRegion">
+	<title>Existing Reservations or Maintenance</title>
+	<field name="wr_id" table="wr"><title>Request</title></field>
+    <field name="prob_type" table="wr"><title>Type</title></field>
+    <field name="requestorName"><title>Requestor</title></field>
+	<field name="location" table="wr"><title>Status</title></field>
+	<field name="reqpu" dataType="text" size="36"><title>Requested Pickup</title></field>
+	<field name="reqdo" dataType="text" size="36"><title>Requested Dropoff</title></field>
+	<field name="actpu" dataType="text" size="36"><title>Pickup</title></field>
+	<field name="actdo" dataType="text" size="36"><title>Dropoff</title></field>
+	<!--field name="date_pickup" table="wr"><title>Pick Up Date</title></field>
+    <field name="time_pickup" table="wr"><title>Pick Up Time</title></field>
+    <field name="date_dropoff" table="wr"><title>Drop Off Date</title></field>
+    <field name="time_dropoff" table="wr"><title>Drop Off Time</title></field-->
+	<field name="description" table="wr"></field>
+  </panel>  
+  
+   <panel type="grid" id="wr_grid_overdue" dataSource="ds_wr7" showOnLoad="false">
+	<title>Overdue Reservations or Maintenance</title>
+	<field name="wr_id" table="wr"><title>Request</title></field>
+ 
+    <field name="driverName" ><title>Driver</title></field>
+	<field name="location" table="wr"><title>Status</title></field>
+	<field name="reqpu" dataType="text" size="36"><title>Requested Pickup</title></field>
+	<field name="reqdo" dataType="text" size="36"><title>Requested Dropoff</title></field>
+	<field name="actpu" dataType="text" size="36"><title>Pickup</title></field>
+	<field name="actdo" dataType="text" size="36"><title>Dropoff</title></field>
+	<field name="description" table="wr"></field>
+  </panel> 
+
+</view>

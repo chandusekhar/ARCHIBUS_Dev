@@ -1,0 +1,1692 @@
+<view version="2.0">
+
+	<title>Space Planning Console</title>
+	
+	<message name="Nonoccupiable" translatable="true">Non-Occupiable</message>
+    <message name="Vacant" translatable="true">Vacant</message>
+    <message name="Available" translatable="true">Available</message>
+    <message name="FullyOccupied" translatable="true">At Capacity</message>
+    <message name="OverOccupied" translatable="true">Exceeds Capacity</message>
+    <message name="drawingPanelTitle1">Highlight Rooms</message>
+	<message name="drawingPanelTitle2">Highlight Rooms for Floor: {0}</message>
+	<message name="borderHighlight">Border Highlights</message>
+	<message name="Occupancy">Occupancy</message>
+	<message name="PendingRequests">Pending Requests</message>
+	<message name="editRoom">Edit Room</message>
+	<message name="shareRoom">Share Room</message>
+	<message name="editRequest">Edit Request</message>
+	<message name="noPendingRequest">There are no pending requests for the selected room.</message>
+	<message name="notEditPendingRequest">The pending request for the selected room cannot be edited. Either the request type cannot be edited from here, or the request status is not approved.</message>
+	<message name="requestedPendingRequest">You cannot modify this pending request.  It is either awaiting approval, or it is being managed in the Move Management application.</message>
+	<message name="category">Category</message>
+	<message name="type">Category-Type</message>
+	<message name="division">Division</message>
+	<message name="department">Department</message>
+	<message name="standard">Room Standard</message>
+	<message name="None">None</message>
+    <message name="pendingRequest">Pending Request</message>
+	<js file="ab-sp-hl-rm-by-attribute.js"/>
+    <js file="ab-sp-timeline-common.js"/>
+    <js file="ab-sp-common.js"/>
+	<layout id="main">
+		<north id="console" initialSize="110" split="true"/>
+		<west initialSize="200" split="true"/>
+		<center id="floorPlan"/>
+		<east initialSize="450" split="true"/>
+	</layout>
+
+	<layout id="nested_west" containingLayout="main" region="west">
+		<north id="floorPlanTree" initialSize="40%" split="true"/>
+		<center id="flStatistics"/>
+	</layout>
+
+	<layout id="nested_east" containingLayout="main" region="east">
+	    <north id="roomAttribute" initialSize="30%" split="true"/>
+		<center id="summary"/>
+		<south id="borderLegend"  split="true" initialSize="300"/>
+	</layout>
+
+	<dataSource id="abSpHlRmByAttribute_console_DS">
+		<table name="rmpct" role="main"/>
+		<field table="rmpct" name="bl_id"/>
+		<field table="rmpct" name="dv_id"/>
+		<field table="rmpct" name="dp_id"/>
+		<field table="rmpct" name="rm_cat"/>
+		<field table="rmpct" name="date_start"/>
+	</dataSource>
+
+	<panel type="console" columns="3" id="abSpHlRmByAttribute_console" dataSource="abSpHlRmByAttribute_console_DS" layoutRegion="console">
+		<title>Filter</title>
+
+		<action id="show">
+			<title>Show</title>
+		</action>
+		<action id="clear">
+			<title>Clear</title>
+			<command type="clearPanel" panelId="abSpHlRmByAttribute_console"/>
+		</action>
+		<field table="rmpct" name="bl_id">
+			<action>
+		        <title>...</title>
+		        <tooltip>Select Value</tooltip>
+		        <command type="selectValue" fieldNames="rmpct.bl_id"
+						selectFieldNames="bl.bl_id" 
+						visibleFieldNames="bl.bl_id,bl.name"  selectValueType="multiple"/>
+			</action>
+		</field>
+		<field table="rmpct" name="dv_id" selectValueType="multiple"/>
+		<field table="rmpct" name="dp_id" selectValueType="multiple"/>
+		<field table="rmpct" name="rm_cat" selectValueType="multiple"/>
+		<field table="rmpct" name="date_start">
+			<title>Date</title>
+		</field>
+		<field colspan="5">
+			<title translatable="true">Pending Requests Only</title>
+			<html>
+				<input type="checkbox" id="pendingRequestOnly"/>
+			</html>
+		</field>
+	</panel>
+
+	<dataSource id="abSpHlRmByAttribute_flTree_bl_DS">
+		<table name="bl" role="main"/>
+		<field table="bl" name="bl_id"/>
+		<sortField table="bl" name="bl_id" ascending="true"/>
+		<parameter name="blConsoleRes" dataType="verbatim" value="1=1"/>
+		<parameter name="date" dataType="date" value=""/>
+		<parameter name="rmpctConsoleRes" dataType="verbatim" value="1=1"/>
+		<parameter name="pendingRequestOnly" dataType="verbatim" value="0"/>
+		<restriction type="sql" sql="${parameters['blConsoleRes']} 
+		AND EXISTS (SELECT 1 FROM rm WHERE rm.bl_id= bl.bl_id AND rm.dwgname IS NOT NULL) 
+		AND EXISTS (SELECT 1 FROM (select mo_id, pct_id, activity_log_id, bl_id , fl_id, rm_id, dv_id, dp_id , rm_cat, rm_type, date_start, date_end, status from rmpct 
+			         union select  mo_id, pct_id, activity_log_id, bl_id , fl_id, rm_id, dv_id, dp_id , rm_cat, rm_type, date_start, date_end, status from hrmpct ) 
+			         rmpct WHERE rmpct.bl_id= bl.bl_id AND ${parameters['rmpctConsoleRes']} 
+			         and (  (0= ${parameters['pendingRequestOnly']} AND rmpct.status=1 and (rmpct.date_start IS NULL OR rmpct.date_start &lt;= ${parameters['date']}) 
+			                    and (rmpct.date_end IS NULL OR rmpct.date_end &gt;= ${parameters['date']})
+			                 )
+			             or(1= ${parameters['pendingRequestOnly']} AND ( rmpct.activity_log_id IS NOT NULL OR rmpct.mo_id IS NOT NULL) and
+			                 (rmpct.status = 0 OR (rmpct.status = 1 AND rmpct.date_start &gt; ${parameters['date']}))
+			               )
+			         )
+	              ) "/>
+	</dataSource>
+
+	<dataSource id="abSpHlRmByAttribute_flTree_fl_DS">
+		<sql dialect="generic">
+			SELECT
+			rm.bl_id ${sql.as} bl_id,
+			rm.fl_id ${sql.as} fl_id,
+			rm.dwgname ${sql.as} dwgname
+			FROM rm WHERE rm.dwgname IS NOT NULL GROUP BY rm.bl_id,rm.fl_id,rm.dwgname
+        </sql>
+		<table name="fl" role="main"/>
+		<field name="fl_id"/>
+		<field name="dwgname"/>
+		<parameter name="date" dataType="date" value=""/>
+		<parameter name="rmpctConsoleRes" dataType="verbatim" value="1=1"/>
+		<parameter name="pendingRequestOnly" dataType="verbatim" value="0"/>
+		<restriction type="sql" sql="
+		  EXISTS (SELECT 1 FROM (select mo_id, pct_id, activity_log_id, bl_id , fl_id, rm_id, dv_id, dp_id , rm_cat, rm_type, date_start, date_end, status from rmpct 
+			         union select mo_id, pct_id, activity_log_id, bl_id , fl_id, rm_id, dv_id, dp_id , rm_cat, rm_type, date_start, date_end, status from hrmpct ) 
+			         rmpct WHERE rmpct.bl_id= fl.bl_id AND rmpct.fl_id= fl.fl_id AND ${parameters['rmpctConsoleRes']} 
+			         and (  (0= ${parameters['pendingRequestOnly']} AND rmpct.status=1 and (rmpct.date_start IS NULL OR rmpct.date_start &lt;= ${parameters['date']}) 
+			                    and (rmpct.date_end IS NULL OR rmpct.date_end &gt;= ${parameters['date']})
+			                 )
+			             or(1= ${parameters['pendingRequestOnly']} AND  ( rmpct.activity_log_id IS NOT NULL OR rmpct.mo_id IS NOT NULL)  and
+			                 (rmpct.status = 0 OR (rmpct.status = 1 AND rmpct.date_start &gt; ${parameters['date']}))
+			               )
+			         )
+			     ) "/>
+		<sortField table="fl" name="fl_id" ascending="true"/>
+	</dataSource>
+
+	<panel type="tree" id="abSpHlRmByAttribute_flTree" showOnLoad="false" dataSource="abSpHlRmByAttribute_flTree_bl_DS" layoutRegion="floorPlanTree">
+		<title>Select Floor</title>
+		<event type="onClickNode">
+			<command type="callFunction" functionName="onBlTreeClick"/>
+		</event>
+		<field table="bl" name="bl_id"/>
+		<panel type="tree" id="abSpHlRmByAttribute_flTree_level2" dataSource="abSpHlRmByAttribute_flTree_fl_DS">
+			<event type="onClickNode">
+				<command type="callFunction" functionName="onFlTreeClick"/>
+			</event>
+		</panel>
+	</panel>
+
+	<dataSource id="abSpHlRmByAttribute_blStatistics_DS">
+		<table name="bl" role="main"/>
+		<field table="bl" name="bl_id"/>
+		<field table="bl" name="area_gross_ext"/>
+		<field table="bl" name="area_gross_int"/>
+		<field table="bl" name="area_rentable"/>
+		<field table="bl" name="area_usable"/>
+		<field table="bl" name="area_vert_pen"/>
+		<field table="bl" name="area_serv"/>
+	</dataSource>
+
+	<panel type="columnReport" columns="1" id="abSpHlRmByAttribute_blStatistics" showOnLoad="false" dataSource="abSpHlRmByAttribute_blStatistics_DS" layoutRegion="flStatistics">
+		<title>Building Statistics</title>
+	</panel>
+
+	<dataSource id="abSpHlRmByAttribute_flStatistics_DS">
+		<table name="fl" role="main"/>
+		<field table="fl" name="bl_id"/>
+		<field table="fl" name="fl_id"/>
+		<field table="fl" name="area_gross_ext"/>
+		<field table="fl" name="area_gross_int"/>
+		<field table="fl" name="area_rentable"/>
+		<field table="fl" name="area_usable"/>
+		<field table="fl" name="area_vert_pen"/>
+		<field table="fl" name="area_serv"/>
+	</dataSource>
+
+	<panel type="columnReport" columns="1" id="abSpHlRmByAttribute_flStatistics" showOnLoad="false" dataSource="abSpHlRmByAttribute_flStatistics_DS" layoutRegion="flStatistics">
+		<title>Floor Statistics</title>
+	</panel>
+	
+	<panel type="view" id="abSpHlRmByAttribute_shareDS1" file="ab-sp-share-ds-for-hl-rmpct-by-cat-type.axvw"/>
+	
+	<panel type="view" id="abSpHlRmByAttribute_shareDS2" file="ab-sp-share-ds-for-hl-rmpct-by-dp-per-fl.axvw"/>
+
+	<dataSource id="rmHlByStd" type="DrawingControlHighlight">
+		<title>Room Standard</title>
+		<table name="rm" role="main"/>
+		<table name="rmstd" role="standard"/>
+		<field table="rm" name="bl_id"/>
+		<field table="rm" name="fl_id"/>
+		<field table="rm" name="rm_id"/>
+		<field table="rm" name="rm_std" legendKey="true"/>
+		<field table="rmstd" name="hpattern_acad"/>
+	</dataSource>
+	
+	<dataSource id="rmLabelByStd" type="DrawingControlLabels">
+		<title>Room Standard</title>
+		<table name="rm" role="main"/>
+		<field name="bl_id" hidden="true"/>
+		<field name="fl_id" hidden="true"/>
+		<field name="rm_id"/>
+		<field name="rm_std"/>
+	</dataSource>
+
+    <dataSource id="rmHlByDV" type="DrawingControlHighlight">
+		<title>Division</title>
+		<table name="rm" role="main"/>
+		<field table="rm" name="bl_id"/>
+		<field table="rm" name="fl_id"/>
+		<field table="rm" name="rm_id"/>
+		<field table="rm" name="hpattern_acad" dataType="text" legendKey="true">
+			<sql dialect="generic">
+				case when (select count(distinct rmpct.dv_id) FROM (select mo_id, pct_id, activity_log_id, bl_id , fl_id, rm_id, dv_id, dp_id , rm_cat, rm_type, date_start, date_end, status from rmpct 
+			         union select mo_id, pct_id, activity_log_id, bl_id , fl_id, rm_id, dv_id, dp_id , rm_cat, rm_type, date_start, date_end, status from hrmpct ) 
+			         rmpct where ${parameters['rmpctConsoleRes']} and rmpct.bl_id = rm.bl_id and rmpct.fl_id = rm.fl_id and rmpct.rm_id = rm.rm_id 
+			         
+			         and (  (0= ${parameters['pendingRequestOnly']} AND rmpct.status=1 and (rmpct.date_start IS NULL OR rmpct.date_start &lt;= ${parameters['date']}) 
+			                    and (rmpct.date_end IS NULL OR rmpct.date_end &gt;= ${parameters['date']})
+			                 )
+			             or(1= ${parameters['pendingRequestOnly']} AND  ( rmpct.activity_log_id IS NOT NULL OR rmpct.mo_id IS NOT NULL)  and
+			                 (rmpct.status = 0 OR (rmpct.status = 1 AND rmpct.date_start &gt; ${parameters['date']} ))
+			               )
+			         )
+			         
+			         ) > 1
+			         
+				then '14 0 7 6710886'
+				
+				when (select count(distinct rmpct.dv_id) FROM (select mo_id, pct_id, activity_log_id, bl_id , fl_id, rm_id, dv_id, dp_id , rm_cat, rm_type, date_start, date_end, status from rmpct 
+			         union select mo_id, pct_id, activity_log_id, bl_id , fl_id, rm_id, dv_id, dp_id , rm_cat, rm_type, date_start, date_end, status from hrmpct ) 
+			         rmpct where ${parameters['rmpctConsoleRes']} and rmpct.bl_id = rm.bl_id and rmpct.fl_id = rm.fl_id and rmpct.rm_id = rm.rm_id 
+			         
+			         and (  (0= ${parameters['pendingRequestOnly']} AND rmpct.status=1 and (rmpct.date_start IS NULL OR rmpct.date_start &lt;= ${parameters['date']}) 
+			                    and (rmpct.date_end IS NULL OR rmpct.date_end &gt;= ${parameters['date']})
+			                 )
+			             or(1= ${parameters['pendingRequestOnly']} AND  ( rmpct.activity_log_id IS NOT NULL OR rmpct.mo_id IS NOT NULL)  and
+			                 (rmpct.status = 0 OR (rmpct.status = 1 AND rmpct.date_start &gt; ${parameters['date']} ))
+			               )
+			         )
+			         
+			         ) = 1
+				then (select dv.hpattern_acad from dv where dv.dv_id = (select distinct rmpct.dv_id FROM (select mo_id, pct_id, activity_log_id, bl_id , fl_id, rm_id, dv_id, dp_id , rm_cat, rm_type, date_start, date_end, status from rmpct 
+			         union select mo_id, pct_id, activity_log_id, bl_id , fl_id, rm_id, dv_id, dp_id , rm_cat, rm_type, date_start, date_end, status from hrmpct ) 
+			         rmpct where ${parameters['rmpctConsoleRes']} and rmpct.bl_id = rm.bl_id and rmpct.fl_id = rm.fl_id and rmpct.rm_id = rm.rm_id 
+			         
+			         and (  (0= ${parameters['pendingRequestOnly']} AND rmpct.status=1 and (rmpct.date_start IS NULL OR rmpct.date_start &lt;= ${parameters['date']}) 
+			                    and (rmpct.date_end IS NULL OR rmpct.date_end &gt;= ${parameters['date']})
+			                 )
+			             or(1= ${parameters['pendingRequestOnly']} AND  ( rmpct.activity_log_id IS NOT NULL OR rmpct.mo_id IS NOT NULL)  and
+			                 (rmpct.status = 0 OR (rmpct.status = 1 AND rmpct.date_start &gt; ${parameters['date']}))
+			               )
+			         )
+			         
+			         and rmpct.dv_id IS NOT NULL
+			         
+			         )
+				     )
+				else null end
+            </sql>
+		</field>
+		<parameter name="date" dataType="date" value=""/>
+		<parameter name="rmpctConsoleRes" dataType="verbatim" value="1=1"/>
+		<parameter name="pendingRequestOnly" dataType="verbatim" value="0"/>
+	</dataSource>
+
+	<dataSource id="rmLabelByDV" type="DrawingControlLabels" applyVpaRestrictions="false">
+		<title>Division</title>
+		<sql dialect="generic">
+			SELECT
+			rm.bl_id ${sql.as} bl_id,
+			rm.fl_id ${sql.as} fl_id,
+			rm.rm_id ${sql.as} rm_id,
+			null ${sql.as} dv_id FROM rm where ${sql.vpaRestriction}  and not exists(select 1 FROM (select mo_id, pct_id, activity_log_id, bl_id , fl_id, rm_id, dv_id, dp_id , rm_cat, rm_type, date_start, date_end, status from rmpct 
+			      union select mo_id, pct_id, activity_log_id, bl_id , fl_id, rm_id, dv_id, dp_id , rm_cat, rm_type, date_start, date_end, status from hrmpct ) 
+			      rmpct where ${parameters['rmpctConsoleRes']} 
+			      
+			      and (  (0= ${parameters['pendingRequestOnly']} AND rmpct.status=1 and (rmpct.date_start IS NULL OR rmpct.date_start &lt;= ${parameters['date']}) 
+			                    and (rmpct.date_end IS NULL OR rmpct.date_end &gt;= ${parameters['date']})
+			                 )
+			             or(1= ${parameters['pendingRequestOnly']} AND  ( rmpct.activity_log_id IS NOT NULL OR rmpct.mo_id IS NOT NULL)  and
+			                 (rmpct.status = 0 OR (rmpct.status = 1 AND rmpct.date_start &gt; ${parameters['date']}))
+			               )
+			         )
+			      
+			      and rmpct.bl_id = rm.bl_id and rmpct.fl_id = rm.fl_id and rmpct.rm_id = rm.rm_id)
+			union
+			SELECT
+			rm.bl_id ${sql.as} bl_id,
+			rm.fl_id ${sql.as} fl_id,
+			rm.rm_id ${sql.as} rm_id,
+			rmpct.dv_id ${sql.as} dv_id
+			FROM (select mo_id, pct_id, activity_log_id, bl_id , fl_id, rm_id, dv_id, dp_id , rm_cat, rm_type, date_start, date_end, status from rmpct 
+			      union select mo_id, pct_id, activity_log_id, bl_id , fl_id, rm_id, dv_id, dp_id , rm_cat, rm_type, date_start, date_end, status from hrmpct ) 
+			rmpct LEFT OUTER JOIN rm ON rmpct.bl_id=rm.bl_id AND rmpct.fl_id=rm.fl_id AND rmpct.rm_id=rm.rm_id 
+			WHERE ${sql.vpaRestriction}  and ${parameters['rmpctConsoleRes']} 
+			
+			and (  (0= ${parameters['pendingRequestOnly']} AND rmpct.status=1 and (rmpct.date_start IS NULL OR rmpct.date_start &lt;= ${parameters['date']}) 
+			                    and (rmpct.date_end IS NULL OR rmpct.date_end &gt;= ${parameters['date']})
+			                 )
+			             or(1= ${parameters['pendingRequestOnly']} AND  ( rmpct.activity_log_id IS NOT NULL OR rmpct.mo_id IS NOT NULL)  and
+			                 (rmpct.status = 0 OR (rmpct.status = 1 AND rmpct.date_start &gt; ${parameters['date']}))
+			               )
+			     )
+			 
+        </sql>
+		<table name="rm" role="main"/>
+		<field table="rm" name="bl_id" hidden="true"/>
+		<field table="rm" name="fl_id" hidden="true"/>
+		<field table="rm" name="rm_id"/>
+		<field table="rm" name="dv_id"/>
+		<parameter name="date" dataType="date" value=""/>
+		<parameter name="rmpctConsoleRes" dataType="verbatim" value="1=1"/>
+		<parameter name="pendingRequestOnly" dataType="verbatim" value="0"/>
+	</dataSource>
+	
+	<dataSource id="rmHlByOccupancy" type="DrawingControlHighlight">
+		<title>Occupancy</title>
+		<table name="rm" role="main"/>
+		<table name="rmcat" role="standard"/>
+		<field table="rm" name="bl_id"/>
+		<field table="rm" name="fl_id"/>
+		<field table="rm" name="rm_id"/>
+		<field table="rmcat" name="occupiable"/>
+		<field table="rm" name="hpattern_acad" dataType="text" legendKey="true">
+			<sql dialect="generic">
+				case when rmcat.occupiable = 0 then '14 0 7 10066329'
+				when (rmcat.occupiable = 1 and 
+				(0.5*(select count(*) FROM (select day_part,  pct_id, activity_log_id, em_id, bl_id , fl_id, rm_id, dv_id, dp_id , rm_cat, rm_type, date_start, date_end, status from rmpct 
+				union select  day_part,pct_id, activity_log_id, em_id, bl_id , fl_id, rm_id, dv_id, dp_id , rm_cat, rm_type, date_start, date_end, status from hrmpct ) 
+				rmpct where rmpct.bl_id = rm.bl_id and rmpct.fl_id = rm.fl_id and rmpct.rm_id = rm.rm_id and rmpct.em_id is not null 
+				
+				and rmpct.day_part != 0 and rmpct.status=1 and (rmpct.date_start IS NULL OR rmpct.date_start &lt;= ${parameters['date']}) 
+				and (rmpct.date_end IS NULL OR rmpct.date_end &gt;= ${parameters['date']})
+				
+				)+
+				(select count(*) FROM (select day_part,pct_id, activity_log_id, em_id, bl_id , fl_id, rm_id, dv_id, dp_id , rm_cat, rm_type, date_start, date_end, status from rmpct 
+				union select  day_part,pct_id, activity_log_id, em_id, bl_id , fl_id, rm_id, dv_id, dp_id , rm_cat, rm_type, date_start, date_end, status from hrmpct ) 
+				rmpct where rmpct.bl_id = rm.bl_id and rmpct.fl_id = rm.fl_id and rmpct.rm_id = rm.rm_id and rmpct.em_id is not null 
+				
+				and rmpct.day_part = 0 and rmpct.status=1 and (rmpct.date_start IS NULL OR rmpct.date_start &lt;= ${parameters['date']}) 
+				and (rmpct.date_end IS NULL OR rmpct.date_end &gt;= ${parameters['date']})
+				
+				))
+				= 0 )  then '14 0 3 65280'
+				when (rmcat.occupiable = 1 and (0.5*(select count(*) FROM (select day_part,pct_id, activity_log_id, em_id, bl_id , fl_id, rm_id, dv_id, dp_id , rm_cat, rm_type, date_start, date_end, status from rmpct 
+				union select day_part, pct_id, activity_log_id, em_id, bl_id , fl_id, rm_id, dv_id, dp_id , rm_cat, rm_type, date_start, date_end, status from hrmpct ) 
+				rmpct where rmpct.bl_id = rm.bl_id and rmpct.fl_id = rm.fl_id and rmpct.rm_id = rm.rm_id and rmpct.em_id is not null 
+				
+				and rmpct.day_part != 0 and rmpct.status=1 and (rmpct.date_start IS NULL OR rmpct.date_start &lt;= ${parameters['date']}) 
+				and (rmpct.date_end IS NULL OR rmpct.date_end &gt;= ${parameters['date']})
+				
+				)+
+				(select count(*) FROM (select day_part,pct_id, activity_log_id, em_id, bl_id , fl_id, rm_id, dv_id, dp_id , rm_cat, rm_type, date_start, date_end, status from rmpct 
+				union select  day_part,pct_id, activity_log_id, em_id, bl_id , fl_id, rm_id, dv_id, dp_id , rm_cat, rm_type, date_start, date_end, status from hrmpct ) 
+				rmpct where rmpct.bl_id = rm.bl_id and rmpct.fl_id = rm.fl_id and rmpct.rm_id = rm.rm_id and rmpct.em_id is not null 
+				
+				and rmpct.day_part = 0 and rmpct.status=1 and (rmpct.date_start IS NULL OR rmpct.date_start &lt;= ${parameters['date']}) 
+				and (rmpct.date_end IS NULL OR rmpct.date_end &gt;= ${parameters['date']})
+				
+				))
+					&gt; 0 and (0.5*(select count(*) FROM (select day_part, pct_id, activity_log_id, em_id, bl_id , fl_id, rm_id, dv_id, dp_id , rm_cat, rm_type, date_start, date_end, status from rmpct 
+				union select  day_part,pct_id, activity_log_id, em_id, bl_id , fl_id, rm_id, dv_id, dp_id , rm_cat, rm_type, date_start, date_end, status from hrmpct ) 
+				rmpct where rmpct.bl_id = rm.bl_id and rmpct.fl_id = rm.fl_id and rmpct.rm_id = rm.rm_id and rmpct.em_id is not null 
+				
+				and rmpct.day_part != 0 and rmpct.status=1 and (rmpct.date_start IS NULL OR rmpct.date_start &lt;= ${parameters['date']}) 
+				and (rmpct.date_end IS NULL OR rmpct.date_end &gt;= ${parameters['date']})
+				
+				)+
+				(select count(*) FROM (select day_part, pct_id, activity_log_id, em_id, bl_id , fl_id, rm_id, dv_id, dp_id , rm_cat, rm_type, date_start, date_end, status from rmpct 
+				union select day_part, pct_id, activity_log_id, em_id, bl_id , fl_id, rm_id, dv_id, dp_id , rm_cat, rm_type, date_start, date_end, status from hrmpct ) 
+				rmpct where rmpct.bl_id = rm.bl_id and rmpct.fl_id = rm.fl_id and rmpct.rm_id = rm.rm_id and rmpct.em_id is not null 
+				
+				and rmpct.day_part = 0 and rmpct.status=1 and (rmpct.date_start IS NULL OR rmpct.date_start &lt;= ${parameters['date']}) 
+				and (rmpct.date_end IS NULL OR rmpct.date_end &gt;= ${parameters['date']})
+				
+				))
+					&lt; rm.cap_em ) then '14 0 5 255'
+				when (rmcat.occupiable = 1 and (0.5*(select count(*) FROM (select day_part,pct_id, activity_log_id, em_id, bl_id , fl_id, rm_id, dv_id, dp_id , rm_cat, rm_type, date_start, date_end, status from rmpct 
+				union select  day_part,pct_id, activity_log_id, em_id, bl_id , fl_id, rm_id, dv_id, dp_id , rm_cat, rm_type, date_start, date_end, status from hrmpct ) 
+				rmpct where rmpct.bl_id = rm.bl_id and rmpct.fl_id = rm.fl_id and rmpct.rm_id = rm.rm_id and rmpct.em_id is not null 
+				
+				and rmpct.day_part != 0 and rmpct.status=1 and (rmpct.date_start IS NULL OR rmpct.date_start &lt;= ${parameters['date']}) 
+				and (rmpct.date_end IS NULL OR rmpct.date_end &gt;= ${parameters['date']})
+				
+				)+
+				(select count(*) FROM (select day_part, pct_id, activity_log_id, em_id, bl_id , fl_id, rm_id, dv_id, dp_id , rm_cat, rm_type, date_start, date_end, status from rmpct 
+				union select day_part, pct_id, activity_log_id, em_id, bl_id , fl_id, rm_id, dv_id, dp_id , rm_cat, rm_type, date_start, date_end, status from hrmpct ) 
+				rmpct where rmpct.bl_id = rm.bl_id and rmpct.fl_id = rm.fl_id and rmpct.rm_id = rm.rm_id and rmpct.em_id is not null 
+				
+				and rmpct.day_part = 0 and rmpct.status=1 and (rmpct.date_start IS NULL OR rmpct.date_start &lt;= ${parameters['date']}) 
+				and (rmpct.date_end IS NULL OR rmpct.date_end &gt;= ${parameters['date']})
+				
+				))
+					&gt; 0 and (0.5*(select count(*) FROM (select day_part, pct_id, activity_log_id, em_id, bl_id , fl_id, rm_id, dv_id, dp_id , rm_cat, rm_type, date_start, date_end, status from rmpct 
+				union select day_part, pct_id, activity_log_id, em_id, bl_id , fl_id, rm_id, dv_id, dp_id , rm_cat, rm_type, date_start, date_end, status from hrmpct ) 
+				rmpct where rmpct.bl_id = rm.bl_id and rmpct.fl_id = rm.fl_id and rmpct.rm_id = rm.rm_id and rmpct.em_id is not null 
+				
+				and rmpct.day_part != 0 and rmpct.status=1 and (rmpct.date_start IS NULL OR rmpct.date_start &lt;= ${parameters['date']}) 
+				and (rmpct.date_end IS NULL OR rmpct.date_end &gt;= ${parameters['date']})
+				
+				)+
+				(select count(*) FROM (select day_part,pct_id, activity_log_id, em_id, bl_id , fl_id, rm_id, dv_id, dp_id , rm_cat, rm_type, date_start, date_end, status from rmpct 
+				union select day_part, pct_id, activity_log_id, em_id, bl_id , fl_id, rm_id, dv_id, dp_id , rm_cat, rm_type, date_start, date_end, status from hrmpct ) 
+				rmpct where rmpct.bl_id = rm.bl_id and rmpct.fl_id = rm.fl_id and rmpct.rm_id = rm.rm_id and rmpct.em_id is not null 
+				
+				and rmpct.day_part = 0 and rmpct.status=1 and (rmpct.date_start IS NULL OR rmpct.date_start &lt;= ${parameters['date']}) 
+				and (rmpct.date_end IS NULL OR rmpct.date_end &gt;= ${parameters['date']})
+				
+				))
+					= rm.cap_em ) then '14 0 7 16763904'
+				when (rmcat.occupiable = 1 and (0.5*(select count(*) FROM (select day_part,pct_id, activity_log_id, em_id, bl_id , fl_id, rm_id, dv_id, dp_id , rm_cat, rm_type, date_start, date_end, status from rmpct 
+				union select day_part, pct_id, activity_log_id, em_id, bl_id , fl_id, rm_id, dv_id, dp_id , rm_cat, rm_type, date_start, date_end, status from hrmpct ) 
+				rmpct where rmpct.bl_id = rm.bl_id and rmpct.fl_id = rm.fl_id and rmpct.rm_id = rm.rm_id and rmpct.em_id is not null 
+				
+				and rmpct.day_part != 0 and rmpct.status=1 and (rmpct.date_start IS NULL OR rmpct.date_start &lt;= ${parameters['date']}) 
+				and (rmpct.date_end IS NULL OR rmpct.date_end &gt;= ${parameters['date']})
+				
+				)+
+				(select count(*) FROM (select day_part, pct_id, activity_log_id, em_id, bl_id , fl_id, rm_id, dv_id, dp_id , rm_cat, rm_type, date_start, date_end, status from rmpct 
+				union select day_part, pct_id, activity_log_id, em_id, bl_id , fl_id, rm_id, dv_id, dp_id , rm_cat, rm_type, date_start, date_end, status from hrmpct ) 
+				rmpct where rmpct.bl_id = rm.bl_id and rmpct.fl_id = rm.fl_id and rmpct.rm_id = rm.rm_id and rmpct.em_id is not null 
+				
+				and rmpct.day_part = 0 and rmpct.status=1 and (rmpct.date_start IS NULL OR rmpct.date_start &lt;= ${parameters['date']}) 
+				and (rmpct.date_end IS NULL OR rmpct.date_end &gt;= ${parameters['date']})
+				
+				))
+					&gt; rm.cap_em ) then '14 0 1 16711680' 
+				end
+            </sql>
+		</field>
+		<parameter name="date" dataType="date" value=""/>
+		<parameter name="rmpctConsoleRes" dataType="verbatim" value="1=1"/>
+	</dataSource>
+	
+	<dataSource id="rmHlBySuperCategory" type="DrawingControlHighlight">
+		<title>Super Category</title>
+		<table name="rm" role="main"/>
+		<field table="rm" name="bl_id"/>
+		<field table="rm" name="fl_id"/>
+		<field table="rm" name="rm_id"/>
+		<field table="rm" name="hpattern_acad" dataType="text" legendKey="true">
+            <sql dialect="generic">
+				case when (select count(distinct rmpct.supercat) FROM (select mo_id,(case when rmcat.supercat = 'USBL' then '14 0 3 65280' when rmcat.supercat = 'VERT' then '14 0 2 16776960' when rmcat.supercat = 'SERV' then '14 0 5 255' when rmcat.supercat = 'OTHR' then '14 0 7 10066329' end)  ${sql.as} supercat,
+				      pct_id, activity_log_id, bl_id , fl_id, rm_id, dv_id, dp_id , rmpct.rm_cat, rm_type, date_start, date_end, status from rmpct
+				      left join rmcat on rmcat.rm_cat = rmpct.rm_cat 
+			          union select mo_id,(case when rmcat.supercat = 'USBL' then '14 0 3 65280' when rmcat.supercat = 'VERT' then '14 0 2 16776960' when rmcat.supercat = 'SERV' then '14 0 5 255' when rmcat.supercat = 'OTHR' then '14 0 7 10066329' end)  ${sql.as} supercat, 
+			          pct_id, activity_log_id, bl_id , fl_id, rm_id, dv_id, dp_id , hrmpct.rm_cat, rm_type, date_start, date_end, status from hrmpct left join rmcat on rmcat.rm_cat = hrmpct.rm_cat ) 
+			          rmpct where ${parameters['rmpctConsoleRes']} and rmpct.bl_id = rm.bl_id and rmpct.fl_id = rm.fl_id and rmpct.rm_id = rm.rm_id 
+			         
+			          and (  (0= ${parameters['pendingRequestOnly']} AND rmpct.status=1 and (rmpct.date_start IS NULL OR rmpct.date_start &lt;= ${parameters['date']}) 
+			                    and (rmpct.date_end IS NULL OR rmpct.date_end &gt;= ${parameters['date']})
+			                 )
+			             or(1= ${parameters['pendingRequestOnly']} AND  ( rmpct.activity_log_id IS NOT NULL OR rmpct.mo_id IS NOT NULL)  and
+			                 (rmpct.status = 0 OR (rmpct.status = 1 AND rmpct.date_start &gt; ${parameters['date']}))
+			               )
+			         ) 
+			          
+			          )  > 1
+			          
+			     then '14 0 7 6710886'     
+				
+				when (select count(distinct rmpct.supercat) FROM (select mo_id,(case when rmcat.supercat = 'USBL' then '14 0 3 65280' when rmcat.supercat = 'VERT' then '14 0 2 16776960' when rmcat.supercat = 'SERV' then '14 0 5 255' when rmcat.supercat = 'OTHR' then '14 0 7 10066329' end)  ${sql.as} supercat,
+				      pct_id, activity_log_id, bl_id , fl_id, rm_id, dv_id, dp_id , rmpct.rm_cat, rm_type, date_start, date_end, status from rmpct
+				      left join rmcat on rmcat.rm_cat = rmpct.rm_cat 
+			          union select mo_id,(case when rmcat.supercat = 'USBL' then '14 0 3 65280' when rmcat.supercat = 'VERT' then '14 0 2 16776960' when rmcat.supercat = 'SERV' then '14 0 5 255' when rmcat.supercat = 'OTHR' then '14 0 7 10066329' end)  ${sql.as} supercat, 
+			          pct_id, activity_log_id, bl_id , fl_id, rm_id, dv_id, dp_id , hrmpct.rm_cat, rm_type, date_start, date_end, status from hrmpct left join rmcat on rmcat.rm_cat = hrmpct.rm_cat ) 
+			          rmpct where ${parameters['rmpctConsoleRes']} and rmpct.bl_id = rm.bl_id and rmpct.fl_id = rm.fl_id and rmpct.rm_id = rm.rm_id 
+			         
+			          and (  (0= ${parameters['pendingRequestOnly']} AND rmpct.status=1 and (rmpct.date_start IS NULL OR rmpct.date_start &lt;= ${parameters['date']}) 
+			                    and (rmpct.date_end IS NULL OR rmpct.date_end &gt;= ${parameters['date']})
+			                 )
+			             or(1= ${parameters['pendingRequestOnly']} AND  ( rmpct.activity_log_id IS NOT NULL OR rmpct.mo_id IS NOT NULL)  and
+			                 (rmpct.status = 0 OR (rmpct.status = 1 AND rmpct.date_start &gt; ${parameters['date']}))
+			               )
+			         ) 
+			          
+			          )  = 1
+				then (select distinct rmpct.supercat FROM (select mo_id, (case when rmcat.supercat = 'USBL' then '14 0 3 65280' when rmcat.supercat = 'VERT' then '14 0 2 16776960' when rmcat.supercat = 'SERV' then '14 0 5 255' when rmcat.supercat = 'OTHR' then '14 0 7 10066329' end)  ${sql.as} supercat,
+				      pct_id, activity_log_id, bl_id , fl_id, rm_id, dv_id, dp_id , rmpct.rm_cat, rm_type, date_start, date_end, status from rmpct
+				      left join rmcat on rmcat.rm_cat = rmpct.rm_cat 
+			          union select mo_id,(case when rmcat.supercat = 'USBL' then '14 0 3 65280' when rmcat.supercat = 'VERT' then '14 0 2 16776960' when rmcat.supercat = 'SERV' then '14 0 5 255' when rmcat.supercat = 'OTHR' then '14 0 7 10066329' end)  ${sql.as} supercat, 
+			          pct_id, activity_log_id, bl_id , fl_id, rm_id, dv_id, dp_id , hrmpct.rm_cat, rm_type, date_start, date_end, status from hrmpct left join rmcat on rmcat.rm_cat = hrmpct.rm_cat ) 
+			          rmpct where ${parameters['rmpctConsoleRes']} and rmpct.bl_id = rm.bl_id and rmpct.fl_id = rm.fl_id and rmpct.rm_id = rm.rm_id 
+			         
+			          and (  (0= ${parameters['pendingRequestOnly']} AND rmpct.status=1 and (rmpct.date_start IS NULL OR rmpct.date_start &lt;= ${parameters['date']}) 
+			                    and (rmpct.date_end IS NULL OR rmpct.date_end &gt;= ${parameters['date']})
+			                 )
+			             or(1= ${parameters['pendingRequestOnly']} AND  ( rmpct.activity_log_id IS NOT NULL OR rmpct.mo_id IS NOT NULL)  and
+			                 (rmpct.status = 0 OR (rmpct.status = 1 AND rmpct.date_start &gt; ${parameters['date']} ))
+			               )
+			             )
+			        )
+				else null end
+            </sql>
+		</field>
+		<parameter name="date" dataType="date" value=""/>
+		<parameter name="rmpctConsoleRes" dataType="verbatim" value="1=1"/>
+		<parameter name="pendingRequestOnly" dataType="verbatim" value="0"/>
+	</dataSource>
+	
+	<dataSource id="rmLabelBySuperCategory" type="DrawingControlLabels" applyVpaRestrictions="false">
+		<title>Super Category</title>
+        <sql dialect="generic">
+			SELECT
+			rm.bl_id ${sql.as} bl_id,
+			rm.fl_id ${sql.as} fl_id,
+			rm.rm_id ${sql.as} rm_id,
+			null ${sql.as} dv_id FROM rm where ${sql.vpaRestriction}  and not exists(select 1 FROM (select mo_id,rmcat.supercat,
+				      pct_id, activity_log_id, bl_id , fl_id, rm_id, dv_id, dp_id , rmpct.rm_cat, rm_type, date_start, date_end, status from rmpct
+				      left join rmcat on rmcat.rm_cat = rmpct.rm_cat 
+			          union select mo_id, rmcat.supercat, 
+			          pct_id, activity_log_id, bl_id , fl_id, rm_id, dv_id, dp_id , hrmpct.rm_cat, rm_type, date_start, date_end, status from hrmpct left join rmcat on rmcat.rm_cat = hrmpct.rm_cat ) 
+			          rmpct where ${parameters['rmpctConsoleRes']} 
+			      
+			      and (  (0= ${parameters['pendingRequestOnly']} AND rmpct.status=1 and (rmpct.date_start IS NULL OR rmpct.date_start &lt;= ${parameters['date']}) 
+			                    and (rmpct.date_end IS NULL OR rmpct.date_end &gt;= ${parameters['date']})
+			                 )
+			             or(1= ${parameters['pendingRequestOnly']} AND  ( rmpct.activity_log_id IS NOT NULL OR rmpct.mo_id IS NOT NULL)  and
+			                 (rmpct.status = 0 OR (rmpct.status = 1 AND rmpct.date_start &gt; ${parameters['date']} ))
+			               )
+			         )
+			      
+			      and rmpct.bl_id = rm.bl_id and rmpct.fl_id = rm.fl_id and rmpct.rm_id = rm.rm_id)
+			union
+			SELECT
+			rm.bl_id ${sql.as} bl_id,
+			rm.fl_id ${sql.as} fl_id,
+			rm.rm_id ${sql.as} rm_id,
+			rmpct.supercat ${sql.as} dv_id
+			FROM (select mo_id, rmcat.supercat,
+		      pct_id, activity_log_id, bl_id , fl_id, rm_id, dv_id, dp_id , rmpct.rm_cat, rm_type, date_start, date_end, status from rmpct
+		      left join rmcat on rmcat.rm_cat = rmpct.rm_cat 
+	          union select mo_id,rmcat.supercat, 
+	          pct_id, activity_log_id, bl_id , fl_id, rm_id, dv_id, dp_id , hrmpct.rm_cat, rm_type, date_start, date_end, status from hrmpct left join rmcat on rmcat.rm_cat = hrmpct.rm_cat ) 
+			rmpct LEFT OUTER JOIN rm ON rmpct.bl_id=rm.bl_id AND rmpct.fl_id=rm.fl_id AND rmpct.rm_id=rm.rm_id 
+			WHERE ${sql.vpaRestriction}  and ${parameters['rmpctConsoleRes']} 
+			
+			and (  (0= ${parameters['pendingRequestOnly']} AND rmpct.status=1 and (rmpct.date_start IS NULL OR rmpct.date_start &lt;= ${parameters['date']}) 
+			                    and (rmpct.date_end IS NULL OR rmpct.date_end &gt;= ${parameters['date']})
+			                 )
+			             or(1= ${parameters['pendingRequestOnly']} AND  ( rmpct.activity_log_id IS NOT NULL OR rmpct.mo_id IS NOT NULL)  and
+			                 (rmpct.status = 0 OR (rmpct.status = 1 AND rmpct.date_start &gt; ${parameters['date']}))
+			               )
+			     )
+			 
+        </sql>
+		<table name="rm" role="main"/>
+		<field table="rm" name="bl_id" hidden="true"/>
+		<field table="rm" name="fl_id" hidden="true"/>
+		<field table="rm" name="rm_id"/>
+		<field table="rm" name="dv_id"/>
+		<parameter name="date" dataType="date" value=""/>
+		<parameter name="rmpctConsoleRes" dataType="verbatim" value="1=1"/>
+		<parameter name="pendingRequestOnly" dataType="verbatim" value="0"/>
+		
+	</dataSource>
+	
+	<dataSource id="rmLabelByEm" type="DrawingControlLabels" applyVpaRestrictions="false">
+		<title>Employee</title>
+     	<sql dialect="generic">
+            SELECT
+			rm.bl_id ${sql.as} bl_id,
+			rm.fl_id ${sql.as} fl_id,
+			rm.rm_id ${sql.as} rm_id,
+			null ${sql.as} org_id FROM rm where ${sql.vpaRestriction}  and not exists(select 1 FROM (select mo_id, pct_id, activity_log_id, bl_id , fl_id, rm_id, em_id, date_start, date_end, status from rmpct 
+			       union select mo_id, pct_id, activity_log_id, bl_id , fl_id, rm_id,  em_id, date_start, date_end, status from hrmpct ) 
+			       rmpct where rmpct.em_id IS NOT NULL AND rmpct.status=1 and (rmpct.date_start IS NULL OR rmpct.date_start &lt;= ${parameters['date']}) and (rmpct.date_end IS NULL OR rmpct.date_end &gt;= ${parameters['date']}) and rmpct.bl_id = rm.bl_id and rmpct.fl_id = rm.fl_id and rmpct.rm_id = rm.rm_id)
+			union
+			SELECT
+			rm.bl_id ${sql.as} bl_id,
+			rm.fl_id ${sql.as} fl_id,
+			rm.rm_id ${sql.as} rm_id,
+			rmpct.em_id ${sql.as} org_id
+			FROM (select mo_id, pct_id, activity_log_id, bl_id , fl_id, rm_id, em_id, date_start, date_end, status from rmpct 
+			      union select mo_id, pct_id, activity_log_id, bl_id , fl_id, rm_id, em_id,date_start, date_end, status from hrmpct ) 
+			rmpct LEFT OUTER JOIN rm ON rmpct.bl_id=rm.bl_id AND rmpct.fl_id=rm.fl_id AND rmpct.rm_id=rm.rm_id 
+			WHERE ${sql.vpaRestriction}  and rmpct.em_id IS NOT NULL and rmpct.status=1 and (rmpct.date_start IS NULL OR rmpct.date_start &lt;= ${parameters['date']}) and (rmpct.date_end IS NULL OR rmpct.date_end &gt;= ${parameters['date']})
+        </sql>
+        <table name="rm" role="main"/>
+        <field table="rm" name="bl_id" hidden="true"/>
+        <field table="rm" name="fl_id" hidden="true"/>
+        <field table="rm" name="rm_id"/>
+        <field table="rm" name="org_id"/>
+        <parameter name="date" dataType="date" value=""/>
+    </dataSource>
+    
+    <dataSource id="rmHlByPendingRequest" type="DrawingControlHighlight">
+		<title>Pending Request</title>
+		<table name="rm" role="main"/>
+		<field table="rm" name="bl_id"/>
+		<field table="rm" name="fl_id"/>
+		<field table="rm" name="rm_id"/>
+		<field table="rm" name="hpattern_acad" dataType="text" legendKey="true">
+			<sql dialect="generic">
+				case when  exists(select 1 from rmpct where rmpct.bl_id = rm.bl_id and rmpct.fl_id = rm.fl_id and rmpct.rm_id = rm.rm_id
+			               and  ( rmpct.activity_log_id IS NOT NULL OR rmpct.mo_id IS NOT NULL)  and
+			               (rmpct.status = 0 OR (rmpct.status = 1 AND rmpct.date_start &gt; ${parameters['date']} 
+			               )) )
+				then '14 0 2 65535'
+				else null end
+            </sql>
+		</field>
+		<parameter name="date" dataType="date" value=""/>
+	</dataSource>
+	<panel type="html" id="timeLineButton"  layoutRegion="floorPlan">
+        <action id="previousYear">
+            <tooltip translatable="true">Year</tooltip>
+            <title translatable="true">&lt;&lt;&lt;</title>
+            <command type="callFunction" functionName="previousYear"/>
+        </action>
+        <action id="previousMonth">
+            <title translatable="true">&lt;&lt;</title>
+            <tooltip translatable="true">Month</tooltip>
+            <command type="callFunction" functionName="previousMonth"/>
+        </action>
+        <action id="previousWeek">
+            <title translatable="true">&lt;</title>
+            <tooltip translatable="true">Week</tooltip>
+            <command type="callFunction" functionName="previousWeek"/>
+        </action>
+        <action id="currentDate">
+            <title translatable="true">current date</title>
+            <command type="callFunction" functionName="backToCurrentDate()"/>
+        </action>
+        <action id="nextWeek">
+            <title translatable="true">&gt;</title>
+            <tooltip translatable="true">Week</tooltip>
+            <command type="callFunction" functionName="nextWeek"/>
+        </action>
+        <action id="nextMonth">
+            <title translatable="true">&gt;&gt;</title>
+            <tooltip translatable="true">Month</tooltip>
+            <command type="callFunction" functionName="nextMonth"/>
+        </action>
+        <action id="nextYear">
+            <title translatable="true">&gt;&gt;&gt;</title>
+            <tooltip translatable="true">Year</tooltip>
+            <command type="callFunction" functionName="nextYear"/>
+        </action>
+    </panel>
+	<panel type="drawing" id="abSpHlRmByAttribute_floorPlan" layoutRegion="floorPlan" multiple="false" 
+	       highlightDataSource="abSpShareDSForHlRmpctForCatType_rmHighlightCatDS"
+	       labelsDataSource="abSpShareDSForHlRmpctForCatType_rmLabelCatDS">
+	    <instructions>Right mouse click on rooms for additional actions.</instructions>
+		<action id="max" imageName="/schema/ab-core/graphics/show.gif">
+		<tooltip translatable="true">Maximize</tooltip>
+            <command type="callFunction" functionName="maxFloor"/>
+        </action>
+        <action id="normal" imageName="/schema/ab-system/graphics/ab-dashboard-icon-workflow.gif" hidden="true">
+		<command type="callFunction" functionName="normalFloor"/>
+		<tooltip translatable="true">Minimize</tooltip>
+        </action>
+		<title></title>
+	</panel>
+
+	<dataSource id="abSpHlRmByAttribute_rmSummaryDS1">
+		<table name="dp" role="main"/>
+		<field name="dv_id" table="dp"/>
+		<field name="dp_id" table="dp"/>
+		<field name="count_rm" dataType="number" decimals="0" showTotals="true">
+			<title>Total Count</title>
+			<sql dialect="generic">(select count(distinct bl_id${sql.concat}fl_id${sql.concat} rm_id )from (select mo_id, pct_id, activity_log_id, bl_id , fl_id, rm_id, dv_id, dp_id , rm_cat, rm_type, date_start, date_end, status ,area_rm from rmpct 
+			    union select mo_id, pct_id, activity_log_id, bl_id , fl_id, rm_id, dv_id, dp_id , rm_cat, rm_type, date_start, date_end, status,area_rm from hrmpct ) 
+			    rmpct where rmpct.dv_id = dp.dv_id and rmpct.dp_id = dp.dp_id and rmpct.bl_id = ${parameters['blId']} and rmpct.fl_id = ${parameters['flId']}
+				and ${parameters['rmpctConsoleRes']} 
+				
+				and (  (0= ${parameters['pendingRequestOnly']} AND rmpct.status=1 and (rmpct.date_start IS NULL OR rmpct.date_start &lt;= ${parameters['date']}) 
+			                    and (rmpct.date_end IS NULL OR rmpct.date_end &gt;= ${parameters['date']})
+			                 )
+			             or(1= ${parameters['pendingRequestOnly']} AND  ( rmpct.activity_log_id IS NOT NULL OR rmpct.mo_id IS NOT NULL)  and
+			                 (rmpct.status = 0 OR (rmpct.status = 1 AND rmpct.date_start &gt; ${parameters['date']}))
+			               )
+			         )) </sql>
+		</field>
+
+		<field name="area_rm_total" dataType="number" showTotals="true">
+			<title>Total Area</title>
+			<sql dialect="generic">(select sum(case when rmpct.day_part=0 then rmpct.pct_space/100.00*rm.area else rmpct.pct_space/200.00*rm.area end) FROM (select mo_id, pct_id, activity_log_id, bl_id , fl_id, rm_id, dv_id, dp_id , rm_cat, rm_type, date_start, date_end, status ,area_rm,pct_space, day_part from rmpct 
+			    union select mo_id, pct_id, activity_log_id, bl_id , fl_id, rm_id, dv_id, dp_id , rm_cat, rm_type, date_start, date_end, status,area_rm,pct_space, day_part from hrmpct ) 
+			    ${sql.as} rmpct left outer join rm on rm.bl_id=rmpct.bl_id and rm.fl_id=rmpct.fl_id and rm.rm_id=rmpct.rm_id  where rmpct.dv_id = dp.dv_id and rmpct.dp_id = dp.dp_id and rmpct.bl_id = ${parameters['blId']} and rmpct.fl_id = ${parameters['flId']}
+				and ${parameters['rmpctConsoleRes']} 
+				
+				and (  (0= ${parameters['pendingRequestOnly']} AND rmpct.status=1 and (rmpct.date_start IS NULL OR rmpct.date_start &lt;= ${parameters['date']}) 
+			                    and (rmpct.date_end IS NULL OR rmpct.date_end &gt;= ${parameters['date']})
+			                 )
+			             or(1= ${parameters['pendingRequestOnly']} AND  ( rmpct.activity_log_id IS NOT NULL OR rmpct.mo_id IS NOT NULL)  and
+			                 (rmpct.status = 0 OR (rmpct.status = 1 AND rmpct.date_start &gt; ${parameters['date']} ))
+			               )
+			         )
+				
+				)
+			</sql>
+		</field>
+		<field name="area_avg_rm" dataType="number">
+			<title>Average Area</title>
+			<sql dialect="generic">(case when (select count(distinct bl_id${sql.concat}fl_id${sql.concat} rm_id) from (select mo_id, pct_id, activity_log_id, bl_id , fl_id, rm_id, dv_id, dp_id , rm_cat, rm_type, date_start, date_end, status ,area_rm from rmpct 
+			    union select mo_id, pct_id, activity_log_id, bl_id , fl_id, rm_id, dv_id, dp_id , rm_cat, rm_type, date_start, date_end, status,area_rm from hrmpct ) 
+			    rmpct where rmpct.dv_id = dp.dv_id and rmpct.dp_id = dp.dp_id and rmpct.bl_id = ${parameters['blId']} and rmpct.fl_id = ${parameters['flId']}
+				and ${parameters['rmpctConsoleRes']} 
+				
+				and (  (0= ${parameters['pendingRequestOnly']} AND rmpct.status=1 and (rmpct.date_start IS NULL OR rmpct.date_start &lt;= ${parameters['date']}) 
+			                    and (rmpct.date_end IS NULL OR rmpct.date_end &gt;= ${parameters['date']})
+			                 )
+			             or(1= ${parameters['pendingRequestOnly']} AND  ( rmpct.activity_log_id IS NOT NULL OR rmpct.mo_id IS NOT NULL)  and
+			                 (rmpct.status = 0 OR (rmpct.status = 1 AND rmpct.date_start &gt; ${parameters['date']} ))
+			               )
+			         ))= 0 then 0
+				else (select sum(case when rmpct.day_part=0 then rmpct.pct_space/100.00*rm.area else rmpct.pct_space/200.00*rm.area end) FROM (select mo_id, pct_id, activity_log_id, bl_id , fl_id, rm_id, dv_id, dp_id , rm_cat, rm_type, date_start, date_end, status ,area_rm,pct_space, day_part from rmpct 
+			    union select mo_id, pct_id, activity_log_id, bl_id , fl_id, rm_id, dv_id, dp_id , rm_cat, rm_type, date_start, date_end, status ,area_rm,pct_space, day_part from hrmpct ) 
+			    ${sql.as} rmpct left outer join rm on rmpct.bl_id=rm.bl_id and rmpct.fl_id=rm.fl_id and rmpct.rm_id=rm.rm_id where rmpct.dv_id = dp.dv_id and rmpct.dp_id = dp.dp_id and rmpct.bl_id = ${parameters['blId']} and rmpct.fl_id = ${parameters['flId']}
+				and ${parameters['rmpctConsoleRes']} 
+				
+				and (  (0= ${parameters['pendingRequestOnly']} AND rmpct.status=1 and (rmpct.date_start IS NULL OR rmpct.date_start &lt;= ${parameters['date']}) 
+			                    and (rmpct.date_end IS NULL OR rmpct.date_end &gt;= ${parameters['date']})
+			                 )
+			             or(1= ${parameters['pendingRequestOnly']} AND  ( rmpct.activity_log_id IS NOT NULL OR rmpct.mo_id IS NOT NULL)  and
+			                 (rmpct.status = 0 OR (rmpct.status = 1 AND rmpct.date_start &gt; ${parameters['date']} ))
+			               )
+			         )
+				
+				)/(select count(distinct bl_id${sql.concat}fl_id${sql.concat} rm_id) from (select mo_id, pct_id, activity_log_id, bl_id , fl_id, rm_id, dv_id, dp_id , rm_cat, rm_type, date_start, date_end, status ,area_rm from rmpct 
+			    union select mo_id, pct_id, activity_log_id, bl_id , fl_id, rm_id, dv_id, dp_id , rm_cat, rm_type, date_start, date_end, status,area_rm from hrmpct ) 
+			    rmpct where rmpct.dv_id = dp.dv_id and rmpct.dp_id = dp.dp_id and rmpct.bl_id = ${parameters['blId']} and rmpct.fl_id = ${parameters['flId']}
+				and ${parameters['rmpctConsoleRes']} 
+				
+				and (  (0= ${parameters['pendingRequestOnly']} AND rmpct.status=1 and (rmpct.date_start IS NULL OR rmpct.date_start &lt;= ${parameters['date']}) 
+			                    and (rmpct.date_end IS NULL OR rmpct.date_end &gt;= ${parameters['date']})
+			                 )
+			             or(1= ${parameters['pendingRequestOnly']} AND  ( rmpct.activity_log_id IS NOT NULL OR rmpct.mo_id IS NOT NULL)  and
+			                 (rmpct.status = 0 OR (rmpct.status = 1 AND rmpct.date_start &gt; ${parameters['date']} ))
+			               )
+			         )) end)</sql>
+		</field>
+		<field name="hpattern_acad" table="dp"/>
+		<field name="asset_id" dataType="text">
+			<sql dialect="generic">dp.dv_id${sql.concat}'-'${sql.concat}dp.dp_id</sql>
+		</field>
+		<parameter name="blId" dataType="text" value=""/>
+		<parameter name="flId" dataType="text" value=""/>
+		<parameter name="date" dataType="date" value=""/>
+		<parameter name="rmpctConsoleRes" dataType="verbatim" value="1=1"/>
+		<parameter name="pendingRequestOnly" dataType="verbatim" value="0"/>
+		<restriction type="sql" sql="EXISTS(select 1 FROM (select mo_id, pct_id, activity_log_id, bl_id , fl_id, rm_id, dv_id, dp_id , rm_cat, rm_type, date_start, date_end, status from rmpct 
+			union select mo_id, pct_id, activity_log_id, bl_id , fl_id, rm_id, dv_id, dp_id , rm_cat, rm_type, date_start, date_end, status from hrmpct ) 
+			rmpct where rmpct.dv_id = dp.dv_id and rmpct.dp_id = dp.dp_id and rmpct.bl_id = ${parameters['blId']} and rmpct.fl_id = ${parameters['flId']} 
+		  and ${parameters['rmpctConsoleRes']} 
+		  
+		  and (  (0= ${parameters['pendingRequestOnly']} AND rmpct.status=1 and (rmpct.date_start IS NULL OR rmpct.date_start &lt;= ${parameters['date']}) 
+			                    and (rmpct.date_end IS NULL OR rmpct.date_end &gt;= ${parameters['date']})
+			                 )
+			             or(1= ${parameters['pendingRequestOnly']} AND  ( rmpct.activity_log_id IS NOT NULL OR rmpct.mo_id IS NOT NULL)  and
+			                 (rmpct.status = 0 OR (rmpct.status = 1 AND rmpct.date_start &gt; ${parameters['date']} ))
+			               )
+			         )
+		  
+		  )"/>
+	</dataSource>
+
+	<panel type="grid" id="abSpHlRmByAttribute_rmSummary1" dataSource="abSpHlRmByAttribute_rmSummaryDS1" showCounts="true" showOnLoad="false" layoutRegion="summary">
+		<title>Summary by Department</title>
+		<sortField table="dp" name="dv_id" ascending="true"/>
+		<sortField table="dp" name="dp_id" ascending="true"/>
+		<field id="abSpHlRmByAttribute_rmSummary1_legend" table="dp" name="hpattern_acad" controlType="color">
+			<title>Legend</title>
+		</field>
+		<field name="dv_id" table="dp"/>
+		<field name="dp_id" table="dp"/>
+		<field name="count_rm" dataType="number" decimals="0" showTotals="true">
+			<title>Total Count</title>
+		</field>
+
+		<field name="area_rm_total" dataType="number" showTotals="true">
+			<title>Total Area ${user.areaUnits.title}</title>
+		</field>
+		<field name="area_avg_rm" dataType="number">
+			<title>Average Area ${user.areaUnits.title}</title>
+		</field>
+	</panel>
+
+	<dataSource id="abSpHlRmByAttribute_rmSummaryDS2">
+		<table name="rmstd" role="main"/>
+		<field name="rm_std" table="rmstd"/>
+		<field name="count_rm" dataType="number" decimals="0" showTotals="true">
+			<title>Total Count</title>
+			<sql dialect="generic">(select count(rm.rm_id) from rm where rm.rm_std = rmstd.rm_std and rm.bl_id = ${parameters['blId']} and rm.fl_id = ${parameters['flId']})</sql>
+		</field>
+
+		<field name="area_rm_total" dataType="number" showTotals="true">
+			<title>Total Area</title>
+			<sql dialect="generic">(select sum(rm.area) from rm where rm.rm_std = rmstd.rm_std and rm.bl_id = ${parameters['blId']} and rm.fl_id = ${parameters['flId']})</sql>
+		</field>
+		<field name="area_avg_rm" dataType="number">
+			<title>Average Area</title>
+			<sql dialect="generic">(case when (select count(rm.rm_id) from rm where rm.rm_std = rmstd.rm_std and rm.bl_id = ${parameters['blId']} and rm.fl_id = ${parameters['flId']})= 0 then 0 else (select sum(rm.area) from rm where rm.rm_std = rmstd.rm_std and rm.bl_id = ${parameters['blId']} and rm.fl_id = ${parameters['flId']})/(select count(rm.rm_id) from rm where rm.rm_std = rmstd.rm_std and rm.bl_id = ${parameters['blId']} and rm.fl_id = ${parameters['flId']}) end)</sql>
+		</field>
+		<field name="hpattern_acad" table="rmstd"/>
+		<field name="std_area" table="rmstd"/>
+		<field name="difference" dataType="number" showTotals="true">
+			<title>Difference</title>
+			<sql dialect="generic">rmstd.std_area - (case when (select count(rm.rm_id) from rm where rm.rm_std = rmstd.rm_std and rm.bl_id = ${parameters['blId']} and rm.fl_id = ${parameters['flId']})= 0 then 0 else (select sum(rm.area) from rm where rm.rm_std = rmstd.rm_std and rm.bl_id = ${parameters['blId']} and rm.fl_id = ${parameters['flId']})/(select count(rm.rm_id) from rm where rm.rm_std = rmstd.rm_std and rm.bl_id = ${parameters['blId']} and rm.fl_id = ${parameters['flId']}) end) </sql>
+		</field>
+		<field name="asset_id" dataType="text">
+			<sql dialect="generic">rmstd.rm_std</sql>
+		</field>
+		<parameter name="blId" dataType="text" value=""/>
+		<parameter name="flId" dataType="text" value=""/>
+		<restriction type="sql" sql="exists (select 1 from rm where rm.rm_std = rmstd.rm_std and  rm.bl_id = ${parameters['blId']} and rm.fl_id = ${parameters['flId']})"/>
+	</dataSource>
+
+	<panel type="grid" id="abSpHlRmByAttribute_rmSummary2" dataSource="abSpHlRmByAttribute_rmSummaryDS2" showCounts="true" showOnLoad="false" layoutRegion="summary">
+		<title>Summary by Room Standard</title>
+		<sortField table="rmstd" name="rm_std" ascending="true"/>
+		<field id="abSpHlRmByAttribute_rmSummary2_legend" table="rmstd" name="hpattern_acad" controlType="color">
+			<title>Legend</title>
+		</field>
+		<field table="rmstd" name="rm_std"/>
+		<field name="count_rm" dataType="number" decimals="0" showTotals="true">
+			<title>Total Count</title>
+		</field>
+
+		<field name="area_rm_total" dataType="number" showTotals="true">
+			<title>Total Area ${user.areaUnits.title}</title>
+		</field>
+		<field name="area_avg_rm" dataType="number">
+			<title>Average Area ${user.areaUnits.title}</title>
+		</field>
+		<field name="std_area" table="rmstd"/>
+		<field name="difference" dataType="number" showTotals="true">
+			<title>Difference, ${user.areaUnits.title}</title>
+		</field>
+	</panel>
+
+	<dataSource id="abSpHlRmByAttribute_rmSummaryDS3">
+		<table name="rmtype" role="main"/>
+		<field name="rm_cat" table="rmtype"/>
+		<field name="rm_type" table="rmtype"/>
+		<field name="count_rm" dataType="number" decimals="0" showTotals="true">
+			<title>Total Count</title>
+			<sql dialect="generic">(select count(distinct bl_id${sql.concat}fl_id${sql.concat}rm_id) FROM (select mo_id, pct_id, activity_log_id, bl_id , fl_id, rm_id, dv_id, dp_id , rm_cat, rm_type, date_start, date_end, status ,area_rm from rmpct 
+			    union select mo_id, pct_id, activity_log_id, bl_id , fl_id, rm_id, dv_id, dp_id , rm_cat, rm_type, date_start, date_end, status ,area_rm from hrmpct ) 
+			    rmpct where rmpct.rm_cat = rmtype.rm_cat and rmpct.rm_type = rmtype.rm_type and rmpct.bl_id = ${parameters['blId']} and rmpct.fl_id = ${parameters['flId']}
+				and ${parameters['rmpctConsoleRes']} 
+				
+				and (  (0= ${parameters['pendingRequestOnly']} AND rmpct.status=1 and (rmpct.date_start IS NULL OR rmpct.date_start &lt;= ${parameters['date']}) 
+			                    and (rmpct.date_end IS NULL OR rmpct.date_end &gt;= ${parameters['date']})
+			                 )
+			             or(1= ${parameters['pendingRequestOnly']} AND  ( rmpct.activity_log_id IS NOT NULL OR rmpct.mo_id IS NOT NULL)  and
+			                 (rmpct.status = 0 OR (rmpct.status = 1 AND rmpct.date_start &gt; ${parameters['date']}))
+			               )
+			         )) </sql>
+		</field>
+
+		<field name="area_rm_total" dataType="number" showTotals="true">
+			<title>Total Area</title>
+			<sql dialect="generic">(select sum(case when rmpct.day_part=0 then rmpct.pct_space/100.00*rm.area else rmpct.pct_space/200.00*rm.area end) FROM (select mo_id, pct_id, activity_log_id, bl_id , fl_id, rm_id, dv_id, dp_id , rm_cat, rm_type, date_start, date_end, status ,area_rm,pct_space, day_part from rmpct 
+			    union select mo_id, pct_id, activity_log_id, bl_id , fl_id, rm_id, dv_id, dp_id , rm_cat, rm_type, date_start, date_end, status ,area_rm,pct_space, day_part from hrmpct ) 
+			    ${sql.as} rmpct left outer join rm on rmpct.bl_id=rm.bl_id and rmpct.fl_id=rm.fl_id and rmpct.rm_id=rm.rm_id where rmpct.rm_cat = rmtype.rm_cat and rmpct.rm_type = rmtype.rm_type and rmpct.bl_id = ${parameters['blId']} and rmpct.fl_id = ${parameters['flId']}
+				and ${parameters['rmpctConsoleRes']} 
+				
+				and (  (0= ${parameters['pendingRequestOnly']} AND rmpct.status=1 and (rmpct.date_start IS NULL OR rmpct.date_start &lt;= ${parameters['date']}) 
+			                    and (rmpct.date_end IS NULL OR rmpct.date_end &gt;= ${parameters['date']})
+			                 )
+			             or(1= ${parameters['pendingRequestOnly']} AND  ( rmpct.activity_log_id IS NOT NULL OR rmpct.mo_id IS NOT NULL)  and
+			                 (rmpct.status = 0 OR (rmpct.status = 1 AND rmpct.date_start &gt; ${parameters['date']} ))
+			               )
+			         )
+				
+				)
+			</sql>
+		</field>
+		<field name="area_avg_rm" dataType="number">
+			<title>Average Area</title>
+			<sql dialect="generic">(case when (select count(distinct bl_id${sql.concat}fl_id${sql.concat}rm_id) FROM (select mo_id, pct_id, activity_log_id, bl_id , fl_id, rm_id, dv_id, dp_id , rm_cat, rm_type, date_start, date_end, status ,area_rm from rmpct 
+			    union select mo_id, pct_id, activity_log_id, bl_id , fl_id, rm_id, dv_id, dp_id , rm_cat, rm_type, date_start, date_end, status ,area_rm from hrmpct ) 
+			    rmpct where rmpct.rm_cat = rmtype.rm_cat and rmpct.rm_type = rmtype.rm_type and rmpct.bl_id = ${parameters['blId']} and rmpct.fl_id = ${parameters['flId']}
+				and ${parameters['rmpctConsoleRes']} 
+				
+				and (  (0= ${parameters['pendingRequestOnly']} AND rmpct.status=1 and (rmpct.date_start IS NULL OR rmpct.date_start &lt;= ${parameters['date']}) 
+			                    and (rmpct.date_end IS NULL OR rmpct.date_end &gt;= ${parameters['date']})
+			                 )
+			             or(1= ${parameters['pendingRequestOnly']} AND  ( rmpct.activity_log_id IS NOT NULL OR rmpct.mo_id IS NOT NULL)  and
+			                 (rmpct.status = 0 OR (rmpct.status = 1 AND rmpct.date_start &gt; ${parameters['date']}))
+			               )
+			         ))= 0 then 0
+				else (select sum(case when rmpct.day_part=0 then rmpct.pct_space/100.00*rm.area else rmpct.pct_space/200.00*rm.area end) FROM (select mo_id, pct_id, activity_log_id, bl_id , fl_id, rm_id, dv_id, dp_id , rm_cat, rm_type, date_start, date_end, status ,area_rm,pct_space, day_part from rmpct 
+				    union select mo_id, pct_id, activity_log_id, bl_id , fl_id, rm_id, dv_id, dp_id , rm_cat, rm_type, date_start, date_end, status ,area_rm,pct_space, day_part from hrmpct ) 
+				    ${sql.as} rmpct left outer join rm on rmpct.bl_id=rm.bl_id and rmpct.fl_id=rm.fl_id and rmpct.rm_id=rm.rm_id where rmpct.rm_cat = rmtype.rm_cat and rmpct.rm_type = rmtype.rm_type and rmpct.bl_id = ${parameters['blId']} and rmpct.fl_id = ${parameters['flId']}
+					and ${parameters['rmpctConsoleRes']} 
+					
+					and (  (0= ${parameters['pendingRequestOnly']} AND rmpct.status=1 and (rmpct.date_start IS NULL OR rmpct.date_start &lt;= ${parameters['date']}) 
+			                    and (rmpct.date_end IS NULL OR rmpct.date_end &gt;= ${parameters['date']})
+			                 )
+			             or(1= ${parameters['pendingRequestOnly']} AND  ( rmpct.activity_log_id IS NOT NULL OR rmpct.mo_id IS NOT NULL)  and
+			                 (rmpct.status = 0 OR (rmpct.status = 1 AND rmpct.date_start &gt; ${parameters['date']}))
+			               )
+			         )
+					
+					)/
+					(select count(distinct bl_id${sql.concat}fl_id${sql.concat}rm_id) FROM (select mo_id, pct_id, activity_log_id, bl_id , fl_id, rm_id, dv_id, dp_id , rm_cat, rm_type, date_start, date_end, status ,area_rm from rmpct 
+			    union select mo_id, pct_id, activity_log_id, bl_id , fl_id, rm_id, dv_id, dp_id , rm_cat, rm_type, date_start, date_end, status ,area_rm from hrmpct ) 
+			    rmpct where rmpct.rm_cat = rmtype.rm_cat and rmpct.rm_type = rmtype.rm_type and rmpct.bl_id = ${parameters['blId']} and rmpct.fl_id = ${parameters['flId']}
+				and ${parameters['rmpctConsoleRes']} 
+				
+				and (  (0= ${parameters['pendingRequestOnly']} AND rmpct.status=1 and (rmpct.date_start IS NULL OR rmpct.date_start &lt;= ${parameters['date']}) 
+			                    and (rmpct.date_end IS NULL OR rmpct.date_end &gt;= ${parameters['date']})
+			                 )
+			             or(1= ${parameters['pendingRequestOnly']} AND  ( rmpct.activity_log_id IS NOT NULL OR rmpct.mo_id IS NOT NULL)  and
+			                 (rmpct.status = 0 OR (rmpct.status = 1 AND rmpct.date_start &gt; ${parameters['date']}))
+			               )
+			         )) 
+				end)</sql>
+		</field>
+		<field name="hpattern_acad" table="rmtype"/>
+		<field name="asset_id" dataType="text">
+			<sql dialect="generic">rmtype.rm_cat${sql.concat}'-'${sql.concat}rmtype.rm_type</sql>
+		</field>
+		<parameter name="blId" dataType="text" value=""/>
+		<parameter name="flId" dataType="text" value=""/>
+		<parameter name="date" dataType="date" value=""/>
+		<parameter name="rmpctConsoleRes" dataType="verbatim" value="1=1"/>
+		<parameter name="pendingRequestOnly" dataType="verbatim" value="0"/>
+		<restriction type="sql" sql="EXISTS(select 1 FROM (select mo_id, pct_id, activity_log_id, bl_id , fl_id, rm_id, dv_id, dp_id , rm_cat, rm_type, date_start, date_end, status from rmpct 
+			union select mo_id, pct_id, activity_log_id, bl_id , fl_id, rm_id, dv_id, dp_id , rm_cat, rm_type, date_start, date_end, status from hrmpct ) 
+			rmpct where rmpct.rm_cat = rmtype.rm_cat and rmpct.rm_type = rmtype.rm_type and rmpct.bl_id = ${parameters['blId']} and rmpct.fl_id = ${parameters['flId']} 
+		  and ${parameters['rmpctConsoleRes']} 
+		  
+		  and (  (0= ${parameters['pendingRequestOnly']} AND rmpct.status=1 and (rmpct.date_start IS NULL OR rmpct.date_start &lt;= ${parameters['date']}) 
+			                    and (rmpct.date_end IS NULL OR rmpct.date_end &gt;= ${parameters['date']})
+			                 )
+			             or(1= ${parameters['pendingRequestOnly']} AND  ( rmpct.activity_log_id IS NOT NULL OR rmpct.mo_id IS NOT NULL)  and
+			                 (rmpct.status = 0 OR (rmpct.status = 1 AND rmpct.date_start &gt; ${parameters['date']} ))
+			               )
+			         )
+		  
+		  )"/>
+	</dataSource>
+
+	<panel type="grid" id="abSpHlRmByAttribute_rmSummary3" dataSource="abSpHlRmByAttribute_rmSummaryDS3" showCounts="true" showOnLoad="false" layoutRegion="summary">
+		<title>Summary by Category-Type</title>
+		<sortField table="rmtype" name="rm_cat" ascending="true"/>
+		<sortField table="rmtype" name="rm_type" ascending="true"/>
+		<field id="abSpHlRmByAttribute_rmSummary3_legend" table="rmtype" name="hpattern_acad" controlType="color">
+			<title>Legend</title>
+		</field>
+		<field table="rmtype" name="rm_cat"/>
+		<field table="rmtype" name="rm_type"/>
+		<field name="count_rm" dataType="number" decimals="0" showTotals="true">
+			<title>Total Count</title>
+		</field>
+
+		<field name="area_rm_total" dataType="number" showTotals="true">
+			<title>Total Area ${user.areaUnits.title}</title>
+		</field>
+		<field name="area_avg_rm" dataType="number">
+			<title>Average Area ${user.areaUnits.title}</title>
+		</field>
+	</panel>
+	
+	<dataSource id="abSpHlRmByAttribute_rmSummaryDS4">
+		<table name="rmcat" role="main"/>
+		<field name="rm_cat" table="rmcat"/>
+		<field name="area" table="rmcat"/>
+		<field name="count_rm" dataType="number" decimals="0" showTotals="true">
+			<title>Total Count</title>
+			<sql dialect="generic">(select count(distinct bl_id${sql.concat}fl_id${sql.concat}rm_id) FROM (select mo_id, pct_id, activity_log_id, bl_id , fl_id, rm_id, dv_id, dp_id , rm_cat, rm_type, date_start, date_end, status ,area_rm from rmpct 
+			    union select mo_id, pct_id, activity_log_id, bl_id , fl_id, rm_id, dv_id, dp_id , rm_cat, rm_type, date_start, date_end, status ,area_rm from hrmpct ) 
+			    rmpct where rmpct.rm_cat = rmcat.rm_cat and rmpct.bl_id = ${parameters['blId']} and rmpct.fl_id = ${parameters['flId']}
+				and ${parameters['rmpctConsoleRes']} 
+				
+				and (  (0= ${parameters['pendingRequestOnly']} AND rmpct.status=1 and (rmpct.date_start IS NULL OR rmpct.date_start &lt;= ${parameters['date']}) 
+			                    and (rmpct.date_end IS NULL OR rmpct.date_end &gt;= ${parameters['date']})
+			                 )
+			             or(1= ${parameters['pendingRequestOnly']} AND  ( rmpct.activity_log_id IS NOT NULL OR rmpct.mo_id IS NOT NULL)  and
+			                 (rmpct.status = 0 OR (rmpct.status = 1 AND rmpct.date_start &gt; ${parameters['date']} ))
+			               )
+			         )
+				) </sql>
+		</field>
+
+		<field name="area_rm_total" dataType="number" showTotals="true"  numericFormat="area">
+			<title>Total Area</title>
+			<sql dialect="generic">(select sum(case when rmpct.day_part=0 then rmpct.pct_space/100.00*rm.area else rmpct.pct_space/200.00*rm.area end) FROM (select mo_id, pct_id, activity_log_id, bl_id , fl_id, rm_id, dv_id, dp_id , rm_cat, rm_type, date_start, date_end, status ,area_rm,pct_space, day_part from rmpct 
+			    union select mo_id, pct_id, activity_log_id, bl_id , fl_id, rm_id, dv_id, dp_id , rm_cat, rm_type, date_start, date_end, status ,area_rm,pct_space, day_part from hrmpct ) 
+			    ${sql.as} rmpct left outer join rm on rmpct.bl_id=rm.bl_id and rmpct.fl_id=rm.fl_id and rmpct.rm_id=rm.rm_id where rmpct.rm_cat = rmcat.rm_cat and rmpct.bl_id = ${parameters['blId']} and rmpct.fl_id = ${parameters['flId']}
+				and ${parameters['rmpctConsoleRes']} 
+				
+				and (  (0= ${parameters['pendingRequestOnly']} AND rmpct.status=1 and (rmpct.date_start IS NULL OR rmpct.date_start &lt;= ${parameters['date']}) 
+			                    and (rmpct.date_end IS NULL OR rmpct.date_end &gt;= ${parameters['date']})
+			                 )
+			             or(1= ${parameters['pendingRequestOnly']} AND  ( rmpct.activity_log_id IS NOT NULL OR rmpct.mo_id IS NOT NULL)  and
+			                 (rmpct.status = 0 OR (rmpct.status = 1 AND rmpct.date_start &gt; ${parameters['date']} ))
+			               )
+			         )
+				
+				)
+			</sql>
+		</field>
+		<field name="area_avg_rm" dataType="number"  numericFormat="area">
+			<title>Average Area</title>
+			<sql dialect="generic">(case when (select count(distinct bl_id${sql.concat}fl_id${sql.concat}rm_id) FROM (select mo_id, pct_id, activity_log_id, bl_id , fl_id, rm_id, dv_id, dp_id , rm_cat, rm_type, date_start, date_end, status ,area_rm from rmpct 
+			    union select mo_id, pct_id, activity_log_id, bl_id , fl_id, rm_id, dv_id, dp_id , rm_cat, rm_type, date_start, date_end, status ,area_rm from hrmpct ) 
+			    rmpct where rmpct.rm_cat = rmcat.rm_cat and rmpct.bl_id = ${parameters['blId']} and rmpct.fl_id = ${parameters['flId']}
+				and ${parameters['rmpctConsoleRes']} 
+				
+				and (  (0= ${parameters['pendingRequestOnly']} AND rmpct.status=1 and (rmpct.date_start IS NULL OR rmpct.date_start &lt;= ${parameters['date']}) 
+			                    and (rmpct.date_end IS NULL OR rmpct.date_end &gt;= ${parameters['date']})
+			                 )
+			             or(1= ${parameters['pendingRequestOnly']} AND  ( rmpct.activity_log_id IS NOT NULL OR rmpct.mo_id IS NOT NULL)  and
+			                 (rmpct.status = 0 OR (rmpct.status = 1 AND rmpct.date_start &gt; ${parameters['date']} ))
+			               )
+			         )
+				) = 0 then 0
+				else (select sum(case when rmpct.day_part=0 then rmpct.pct_space/100.00*rm.area else rmpct.pct_space/200.00*rm.area end) FROM (select mo_id, pct_id, activity_log_id, bl_id , fl_id, rm_id, dv_id, dp_id , rm_cat, rm_type, date_start, date_end, status ,area_rm,pct_space, day_part from rmpct 
+				    union select mo_id, pct_id, activity_log_id, bl_id , fl_id, rm_id, dv_id, dp_id , rm_cat, rm_type, date_start, date_end, status ,area_rm,pct_space, day_part from hrmpct ) 
+				    ${sql.as} rmpct left outer join rm on rmpct.bl_id=rm.bl_id and rmpct.fl_id=rm.fl_id and rmpct.rm_id=rm.rm_id where rmpct.rm_cat = rmcat.rm_cat and rmpct.bl_id = ${parameters['blId']} and rmpct.fl_id = ${parameters['flId']}
+					and ${parameters['rmpctConsoleRes']} 
+					
+					and (  (0= ${parameters['pendingRequestOnly']} AND rmpct.status=1 and (rmpct.date_start IS NULL OR rmpct.date_start &lt;= ${parameters['date']}) 
+			                    and (rmpct.date_end IS NULL OR rmpct.date_end &gt;= ${parameters['date']})
+			                 )
+			             or(1= ${parameters['pendingRequestOnly']} AND  ( rmpct.activity_log_id IS NOT NULL OR rmpct.mo_id IS NOT NULL)  and
+			                 (rmpct.status = 0 OR (rmpct.status = 1 AND rmpct.date_start &gt; ${parameters['date']} ))
+			               )
+			         )
+					
+					)/
+					(select count(distinct bl_id${sql.concat}fl_id${sql.concat}rm_id) FROM (select mo_id, pct_id, activity_log_id, bl_id , fl_id, rm_id, dv_id, dp_id , rm_cat, rm_type, date_start, date_end, status ,area_rm from rmpct 
+			    union select mo_id, pct_id, activity_log_id, bl_id , fl_id, rm_id, dv_id, dp_id , rm_cat, rm_type, date_start, date_end, status ,area_rm from hrmpct ) 
+			    rmpct where rmpct.rm_cat = rmcat.rm_cat and rmpct.bl_id = ${parameters['blId']} and rmpct.fl_id = ${parameters['flId']}
+				and ${parameters['rmpctConsoleRes']} 
+				
+				and (  (0= ${parameters['pendingRequestOnly']} AND rmpct.status=1 and (rmpct.date_start IS NULL OR rmpct.date_start &lt;= ${parameters['date']}) 
+			                    and (rmpct.date_end IS NULL OR rmpct.date_end &gt;= ${parameters['date']})
+			                 )
+			             or(1= ${parameters['pendingRequestOnly']} AND  ( rmpct.activity_log_id IS NOT NULL OR rmpct.mo_id IS NOT NULL)  and
+			                 (rmpct.status = 0 OR (rmpct.status = 1 AND rmpct.date_start &gt; ${parameters['date']} ))
+			               )
+			         )
+				) 
+				end)</sql>
+		</field>
+		<field name="hpattern_acad" table="rmcat"/>
+		<field name="asset_id" dataType="text">
+			<sql dialect="generic">rmcat.rm_cat</sql>
+		</field>
+		<parameter name="blId" dataType="text" value=""/>
+		<parameter name="flId" dataType="text" value=""/>
+		<parameter name="date" dataType="date" value=""/>
+		<parameter name="rmpctConsoleRes" dataType="verbatim" value="1=1"/>
+		<parameter name="pendingRequestOnly" dataType="verbatim" value="0"/>
+		<restriction type="sql" sql="EXISTS(select 1 FROM (select mo_id, pct_id, activity_log_id, bl_id , fl_id, rm_id, dv_id, dp_id , rm_cat, rm_type, date_start, date_end, status from rmpct 
+			union select mo_id, pct_id, activity_log_id, bl_id , fl_id, rm_id, dv_id, dp_id , rm_cat, rm_type, date_start, date_end, status from hrmpct ) 
+			rmpct where rmpct.rm_cat = rmcat.rm_cat and rmpct.bl_id = ${parameters['blId']} and rmpct.fl_id = ${parameters['flId']} 
+		  and ${parameters['rmpctConsoleRes']} 
+		  
+		  and (  (0= ${parameters['pendingRequestOnly']} AND rmpct.status=1 and (rmpct.date_start IS NULL OR rmpct.date_start &lt;= ${parameters['date']}) 
+			                    and (rmpct.date_end IS NULL OR rmpct.date_end &gt;= ${parameters['date']})
+			                 )
+			             or(1= ${parameters['pendingRequestOnly']} AND  ( rmpct.activity_log_id IS NOT NULL OR rmpct.mo_id IS NOT NULL)  and
+			                 (rmpct.status = 0 OR (rmpct.status = 1 AND rmpct.date_start &gt; ${parameters['date']} ))
+			               )
+			         )
+		  
+		  )"/>
+	</dataSource>
+
+	<panel type="grid" id="abSpHlRmByAttribute_rmSummary4" dataSource="abSpHlRmByAttribute_rmSummaryDS4" showCounts="true" showOnLoad="false" layoutRegion="summary">
+		<title>Summary by Category</title>
+		<sortField table="rmcat" name="rm_cat" ascending="true"/>
+		<field id="abSpHlRmByAttribute_rmSummary4_legend" table="rmcat" name="hpattern_acad" controlType="color">
+			<title>Legend</title>
+		</field>
+		<field table="rmcat" name="rm_cat"/>
+		<field name="count_rm" dataType="number" decimals="0" showTotals="true">
+			<title>Total Count</title>
+		</field>
+
+		<field name="area_rm_total" dataType="number" showTotals="true">
+			<title>Total Area ${user.areaUnits.title}</title>
+		</field>
+		<field name="area_avg_rm" dataType="number">
+			<title>Average Area ${user.areaUnits.title}</title>
+		</field>
+	</panel>
+	
+	<dataSource id="abSpHlRmByAttribute_rmSummaryDS5">
+		<table name="dv" role="main"/>
+		<field name="dv_id" table="dv"/>
+		<field name="count_rm" dataType="number" decimals="0" showTotals="true">
+			<title>Total Count</title>
+			<sql dialect="generic">(select count(distinct bl_id${sql.concat}fl_id${sql.concat}rm_id)  FROM (select mo_id, pct_id, activity_log_id, bl_id , fl_id, rm_id, dv_id, dp_id , rm_cat, rm_type, date_start, date_end, status ,area_rm from rmpct 
+			    union select mo_id, pct_id, activity_log_id, bl_id , fl_id, rm_id, dv_id, dp_id , rm_cat, rm_type, date_start, date_end, status,area_rm from hrmpct ) 
+			    rmpct where rmpct.dv_id = dv.dv_id and rmpct.bl_id = ${parameters['blId']} and rmpct.fl_id = ${parameters['flId']}
+				and ${parameters['rmpctConsoleRes']} 
+				
+				and (  (0= ${parameters['pendingRequestOnly']} AND rmpct.status=1 and (rmpct.date_start IS NULL OR rmpct.date_start &lt;= ${parameters['date']}) 
+			                    and (rmpct.date_end IS NULL OR rmpct.date_end &gt;= ${parameters['date']})
+			                 )
+			             or(1= ${parameters['pendingRequestOnly']} AND  ( rmpct.activity_log_id IS NOT NULL OR rmpct.mo_id IS NOT NULL)  and
+			                 (rmpct.status = 0 OR (rmpct.status = 1 AND rmpct.date_start &gt; ${parameters['date']}))
+			               )
+			         ))</sql>
+		</field>
+
+		<field name="area_rm_total" dataType="number" showTotals="true">
+			<title>Total Area</title>
+			<sql dialect="generic">(select sum(case when rmpct.day_part=0 then rmpct.pct_space/100.00*rm.area else rmpct.pct_space/200.00*rm.area end) FROM (select mo_id, pct_id, activity_log_id, bl_id , fl_id, rm_id, dv_id, dp_id , rm_cat, rm_type, date_start, date_end, status ,area_rm,pct_space, day_part from rmpct 
+			    union select mo_id, pct_id, activity_log_id, bl_id , fl_id, rm_id, dv_id, dp_id , rm_cat, rm_type, date_start, date_end, status,area_rm,pct_space, day_part from hrmpct ) 
+			    ${sql.as} rmpct left outer join rm on rmpct.bl_id=rm.bl_id and rmpct.fl_id=rm.fl_id and rmpct.rm_id=rm.rm_id where rmpct.dv_id = dv.dv_id and rmpct.bl_id = ${parameters['blId']} and rmpct.fl_id = ${parameters['flId']}
+				and ${parameters['rmpctConsoleRes']} 
+				
+				and (  (0= ${parameters['pendingRequestOnly']} AND rmpct.status=1 and (rmpct.date_start IS NULL OR rmpct.date_start &lt;= ${parameters['date']}) 
+			                    and (rmpct.date_end IS NULL OR rmpct.date_end &gt;= ${parameters['date']})
+			                 )
+			             or(1= ${parameters['pendingRequestOnly']} AND  ( rmpct.activity_log_id IS NOT NULL OR rmpct.mo_id IS NOT NULL)  and
+			                 (rmpct.status = 0 OR (rmpct.status = 1 AND rmpct.date_start &gt; ${parameters['date']}))
+			               )
+			         )
+				
+				)
+			</sql>
+		</field>
+		<field name="area_avg_rm" dataType="number">
+			<title>Average Area</title>
+			<sql dialect="generic">(case when (select count(distinct bl_id${sql.concat}fl_id${sql.concat}rm_id) FROM (select mo_id, pct_id, activity_log_id, bl_id , fl_id, rm_id, dv_id, dp_id , rm_cat, rm_type, date_start, date_end, status ,area_rm from rmpct 
+			    union select mo_id, pct_id, activity_log_id, bl_id , fl_id, rm_id, dv_id, dp_id , rm_cat, rm_type, date_start, date_end, status,area_rm from hrmpct ) 
+			    rmpct where rmpct.dv_id = dv.dv_id and rmpct.bl_id = ${parameters['blId']} and rmpct.fl_id = ${parameters['flId']}
+				and ${parameters['rmpctConsoleRes']} 
+				
+				and (  (0= ${parameters['pendingRequestOnly']} AND rmpct.status=1 and (rmpct.date_start IS NULL OR rmpct.date_start &lt;= ${parameters['date']}) 
+			                    and (rmpct.date_end IS NULL OR rmpct.date_end &gt;= ${parameters['date']})
+			                 )
+			             or(1= ${parameters['pendingRequestOnly']} AND  ( rmpct.activity_log_id IS NOT NULL OR rmpct.mo_id IS NOT NULL)  and
+			                 (rmpct.status = 0 OR (rmpct.status = 1 AND rmpct.date_start &gt; ${parameters['date']} ))
+			               )
+			         )) = 0 then 0
+				else (select sum(case when rmpct.day_part=0 then rmpct.pct_space/100.00*rm.area else rmpct.pct_space/200.00*rm.area end) FROM (select mo_id, pct_id, activity_log_id, bl_id , fl_id, rm_id, dv_id, dp_id , rm_cat, rm_type, date_start, date_end, status ,area_rm,pct_space, day_part from rmpct 
+			    union select mo_id, pct_id, activity_log_id, bl_id , fl_id, rm_id, dv_id, dp_id , rm_cat, rm_type, date_start, date_end, status ,area_rm,pct_space, day_part from hrmpct ) 
+			    ${sql.as} rmpct left outer join rm on rmpct.bl_id=rm.bl_id and rmpct.fl_id=rm.fl_id and rmpct.rm_id=rm.rm_id where rmpct.dv_id = dv.dv_id and rmpct.bl_id = ${parameters['blId']} and rmpct.fl_id = ${parameters['flId']}
+				and ${parameters['rmpctConsoleRes']} 
+				
+				and (  (0= ${parameters['pendingRequestOnly']} AND rmpct.status=1 and (rmpct.date_start IS NULL OR rmpct.date_start &lt;= ${parameters['date']}) 
+			                    and (rmpct.date_end IS NULL OR rmpct.date_end &gt;= ${parameters['date']})
+			                 )
+			             or(1= ${parameters['pendingRequestOnly']} AND  ( rmpct.activity_log_id IS NOT NULL OR rmpct.mo_id IS NOT NULL)  and
+			                 (rmpct.status = 0 OR (rmpct.status = 1 AND rmpct.date_start &gt; ${parameters['date']} ))
+			               )
+			         )
+				
+				)/(select count(distinct bl_id${sql.concat}fl_id${sql.concat}rm_id) FROM (select mo_id, pct_id, activity_log_id, bl_id , fl_id, rm_id, dv_id, dp_id , rm_cat, rm_type, date_start, date_end, status ,area_rm from rmpct 
+			    union select mo_id, pct_id, activity_log_id, bl_id , fl_id, rm_id, dv_id, dp_id , rm_cat, rm_type, date_start, date_end, status,area_rm from hrmpct ) 
+			    rmpct where rmpct.dv_id = dv.dv_id and rmpct.bl_id = ${parameters['blId']} and rmpct.fl_id = ${parameters['flId']}
+				and ${parameters['rmpctConsoleRes']} 
+				
+				and (  (0= ${parameters['pendingRequestOnly']} AND rmpct.status=1 and (rmpct.date_start IS NULL OR rmpct.date_start &lt;= ${parameters['date']}) 
+			                    and (rmpct.date_end IS NULL OR rmpct.date_end &gt;= ${parameters['date']})
+			                 )
+			             or(1= ${parameters['pendingRequestOnly']} AND  ( rmpct.activity_log_id IS NOT NULL OR rmpct.mo_id IS NOT NULL)  and
+			                 (rmpct.status = 0 OR (rmpct.status = 1 AND rmpct.date_start &gt; ${parameters['date']} ))
+			               )
+			         )) end)</sql>
+		</field>
+		<field name="hpattern_acad" table="dv"/>
+		<field name="asset_id" dataType="text">
+			<sql dialect="generic">dv.dv_id</sql>
+		</field>
+		<parameter name="blId" dataType="text" value=""/>
+		<parameter name="flId" dataType="text" value=""/>
+		<parameter name="date" dataType="date" value=""/>
+		<parameter name="rmpctConsoleRes" dataType="verbatim" value="1=1"/>
+		<parameter name="pendingRequestOnly" dataType="verbatim" value="0"/>
+		<restriction type="sql" sql="EXISTS(select 1 FROM (select mo_id, pct_id, activity_log_id, bl_id , fl_id, rm_id, dv_id, dp_id , rm_cat, rm_type, date_start, date_end, status from rmpct 
+			union select mo_id, pct_id, activity_log_id, bl_id , fl_id, rm_id, dv_id, dp_id , rm_cat, rm_type, date_start, date_end, status from hrmpct ) 
+			rmpct where rmpct.dv_id = dv.dv_id and rmpct.bl_id = ${parameters['blId']} and rmpct.fl_id = ${parameters['flId']} 
+		  and ${parameters['rmpctConsoleRes']} 
+		  
+		  and (  (0= ${parameters['pendingRequestOnly']} AND rmpct.status=1 and (rmpct.date_start IS NULL OR rmpct.date_start &lt;= ${parameters['date']}) 
+			                    and (rmpct.date_end IS NULL OR rmpct.date_end &gt;= ${parameters['date']})
+			                 )
+			             or(1= ${parameters['pendingRequestOnly']} AND  ( rmpct.activity_log_id IS NOT NULL OR rmpct.mo_id IS NOT NULL)  and
+			                 (rmpct.status = 0 OR (rmpct.status = 1 AND rmpct.date_start &gt; ${parameters['date']} ))
+			               )
+			   )
+		  
+		  )"/>
+	</dataSource>
+
+	<panel type="grid" id="abSpHlRmByAttribute_rmSummary5" dataSource="abSpHlRmByAttribute_rmSummaryDS5" showCounts="true" showOnLoad="false" layoutRegion="summary">
+		<title>Summary by Division</title>
+		<sortField table="dv" name="dv_id" ascending="true"/>
+		<field id="abSpHlRmByAttribute_rmSummary5_legend" table="dv" name="hpattern_acad" controlType="color">
+			<title>Legend</title>
+		</field>
+		<field name="dv_id" table="dv"/>
+		<field name="count_rm" dataType="number" decimals="0" showTotals="true">
+			<title>Total Count</title>
+		</field>
+
+		<field name="area_rm_total" dataType="number" showTotals="true">
+			<title>Total Area ${user.areaUnits.title}</title>
+		</field>
+		<field name="area_avg_rm" dataType="number">
+			<title>Average Area ${user.areaUnits.title}</title>
+		</field>
+	</panel>
+	
+	<dataSource id="abSpHlRmByAttribute_rmSummary6DS" applyVpaRestrictions="false">
+		<sql dialect="generic">
+		  	SELECT a.hpattern_acad ${sql.as} hpattern_acad,  a.occupancy ${sql.as} occupancy, count(a.hpattern_acad) ${sql.as} count_rm ,sum(a.area) ${sql.as} area_rm_total, sum(a.cap_em) ${sql.as} cap_em, sum(a.count_em) ${sql.as} count_em ,sum(a.cap_em)- sum(a.count_em) ${sql.as} available
+		  	from (
+			select rm.bl_id ${sql.as} bl_id , rm.fl_id ${sql.as} fl_id , rm.rm_id ${sql.as} rm_id,rm.cap_em ${sql.as} cap_em, rm.area ${sql.as} area,			 
+			((select 0.5 * count(*) from (select day_part,pct_id, activity_log_id, em_id, bl_id , fl_id, rm_id, dv_id, dp_id , rm_cat, rm_type, date_start, date_end, status from rmpct 
+				union select day_part, pct_id, activity_log_id, em_id, bl_id , fl_id, rm_id, dv_id, dp_id , rm_cat, rm_type, date_start, date_end, status from hrmpct ) 
+				rmpct where rmpct.bl_id = rm.bl_id and rmpct.fl_id = rm.fl_id and rmpct.rm_id = rm.rm_id
+				and rmpct.day_part != 0 and rmpct.status=1 and rmpct.em_id is not null and (rmpct.date_start IS NULL OR rmpct.date_start &lt;= ${parameters['date']}) and (rmpct.date_end IS NULL OR rmpct.date_end &gt;= ${parameters['date']}))
+			+	
+			(select count(*) from (select day_part,pct_id, activity_log_id, em_id, bl_id , fl_id, rm_id, dv_id, dp_id , rm_cat, rm_type, date_start, date_end, status from rmpct 
+				union select day_part, pct_id, activity_log_id, em_id, bl_id , fl_id, rm_id, dv_id, dp_id , rm_cat, rm_type, date_start, date_end, status from hrmpct ) 
+				rmpct where rmpct.bl_id = rm.bl_id and rmpct.fl_id = rm.fl_id and rmpct.rm_id = rm.rm_id
+				and rmpct.day_part = 0 and rmpct.status=1 and rmpct.em_id is not null and (rmpct.date_start IS NULL OR rmpct.date_start &lt;= ${parameters['date']}) and (rmpct.date_end IS NULL OR rmpct.date_end &gt;= ${parameters['date']}))) ${sql.as} count_em,	
+			case when rmcat.occupiable = 0 then '14 0 7 10066329'
+				when (rmcat.occupiable = 1 and ((select 0.5 * count(*) from (select day_part, pct_id, activity_log_id, em_id, bl_id , fl_id, rm_id, dv_id, dp_id , rm_cat, rm_type, date_start, date_end, status from rmpct 
+				union select day_part,  pct_id, activity_log_id, em_id, bl_id , fl_id, rm_id, dv_id, dp_id , rm_cat, rm_type, date_start, date_end, status from hrmpct ) 
+				rmpct where rmpct.bl_id = rm.bl_id and rmpct.fl_id = rm.fl_id and rmpct.rm_id = rm.rm_id
+				and rmpct.day_part != 0 and rmpct.status=1 and rmpct.em_id is not null and (rmpct.date_start IS NULL OR rmpct.date_start &lt;= ${parameters['date']}) and (rmpct.date_end IS NULL OR rmpct.date_end &gt;= ${parameters['date']}))
+			+	
+			(select count(*) from (select day_part, pct_id, activity_log_id, em_id, bl_id , fl_id, rm_id, dv_id, dp_id , rm_cat, rm_type, date_start, date_end, status from rmpct 
+				union select  day_part,pct_id, activity_log_id, em_id, bl_id , fl_id, rm_id, dv_id, dp_id , rm_cat, rm_type, date_start, date_end, status from hrmpct ) 
+				rmpct where rmpct.bl_id = rm.bl_id and rmpct.fl_id = rm.fl_id and rmpct.rm_id = rm.rm_id
+				and rmpct.day_part = 0 and rmpct.status=1 and rmpct.em_id is not null and (rmpct.date_start IS NULL OR rmpct.date_start &lt;= ${parameters['date']}) and (rmpct.date_end IS NULL OR rmpct.date_end &gt;= ${parameters['date']})))
+				= 0 )  then '14 0 3 65280'
+				when (rmcat.occupiable = 1 and ((select 0.5 * count(*) from (select day_part,pct_id, activity_log_id, em_id, bl_id , fl_id, rm_id, dv_id, dp_id , rm_cat, rm_type, date_start, date_end, status from rmpct 
+				union select  day_part,pct_id, activity_log_id, em_id, bl_id , fl_id, rm_id, dv_id, dp_id , rm_cat, rm_type, date_start, date_end, status from hrmpct ) 
+				rmpct where rmpct.bl_id = rm.bl_id and rmpct.fl_id = rm.fl_id and rmpct.rm_id = rm.rm_id
+				and rmpct.day_part != 0 and rmpct.status=1 and rmpct.em_id is not null and (rmpct.date_start IS NULL OR rmpct.date_start &lt;= ${parameters['date']}) and (rmpct.date_end IS NULL OR rmpct.date_end &gt;= ${parameters['date']}))
+			+	
+			(select count(*) from (select day_part,pct_id, activity_log_id, em_id, bl_id , fl_id, rm_id, dv_id, dp_id , rm_cat, rm_type, date_start, date_end, status from rmpct 
+				union select  day_part,pct_id, activity_log_id, em_id, bl_id , fl_id, rm_id, dv_id, dp_id , rm_cat, rm_type, date_start, date_end, status from hrmpct ) 
+				rmpct where rmpct.bl_id = rm.bl_id and rmpct.fl_id = rm.fl_id and rmpct.rm_id = rm.rm_id
+				and rmpct.day_part = 0 and rmpct.status=1 and rmpct.em_id is not null and (rmpct.date_start IS NULL OR rmpct.date_start &lt;= ${parameters['date']}) and (rmpct.date_end IS NULL OR rmpct.date_end &gt;= ${parameters['date']})))
+					&gt; 0 and ((select 0.5 * count(*) from (select day_part,pct_id, activity_log_id, em_id, bl_id , fl_id, rm_id, dv_id, dp_id , rm_cat, rm_type, date_start, date_end, status from rmpct 
+				union select  day_part,pct_id, activity_log_id, em_id, bl_id , fl_id, rm_id, dv_id, dp_id , rm_cat, rm_type, date_start, date_end, status from hrmpct ) 
+				rmpct where rmpct.bl_id = rm.bl_id and rmpct.fl_id = rm.fl_id and rmpct.rm_id = rm.rm_id
+				and rmpct.day_part != 0 and rmpct.status=1 and rmpct.em_id is not null and (rmpct.date_start IS NULL OR rmpct.date_start &lt;= ${parameters['date']}) and (rmpct.date_end IS NULL OR rmpct.date_end &gt;= ${parameters['date']}))
+			+	
+			(select count(*) from (select day_part, pct_id, activity_log_id, em_id, bl_id , fl_id, rm_id, dv_id, dp_id , rm_cat, rm_type, date_start, date_end, status from rmpct 
+				union select day_part, pct_id, activity_log_id, em_id, bl_id , fl_id, rm_id, dv_id, dp_id , rm_cat, rm_type, date_start, date_end, status from hrmpct ) 
+				rmpct where rmpct.bl_id = rm.bl_id and rmpct.fl_id = rm.fl_id and rmpct.rm_id = rm.rm_id
+				and rmpct.day_part = 0 and rmpct.status=1 and rmpct.em_id is not null and (rmpct.date_start IS NULL OR rmpct.date_start &lt;= ${parameters['date']}) and (rmpct.date_end IS NULL OR rmpct.date_end &gt;= ${parameters['date']})))
+					&lt; rm.cap_em ) then '14 0 5 255'
+				when (rmcat.occupiable = 1 and ((select 0.5 * count(*) from (select day_part,pct_id, activity_log_id, em_id, bl_id , fl_id, rm_id, dv_id, dp_id , rm_cat, rm_type, date_start, date_end, status from rmpct 
+				union select  day_part,pct_id, activity_log_id, em_id, bl_id , fl_id, rm_id, dv_id, dp_id , rm_cat, rm_type, date_start, date_end, status from hrmpct ) 
+				rmpct where rmpct.bl_id = rm.bl_id and rmpct.fl_id = rm.fl_id and rmpct.rm_id = rm.rm_id
+				and rmpct.day_part != 0 and rmpct.status=1 and rmpct.em_id is not null and (rmpct.date_start IS NULL OR rmpct.date_start &lt;= ${parameters['date']}) and (rmpct.date_end IS NULL OR rmpct.date_end &gt;= ${parameters['date']}))
+			+	
+			(select count(*) from (select day_part,pct_id, activity_log_id, em_id, bl_id , fl_id, rm_id, dv_id, dp_id , rm_cat, rm_type, date_start, date_end, status from rmpct 
+				union select day_part, pct_id, activity_log_id, em_id, bl_id , fl_id, rm_id, dv_id, dp_id , rm_cat, rm_type, date_start, date_end, status from hrmpct ) 
+				rmpct where rmpct.bl_id = rm.bl_id and rmpct.fl_id = rm.fl_id and rmpct.rm_id = rm.rm_id
+				and rmpct.day_part = 0 and rmpct.status=1 and rmpct.em_id is not null and (rmpct.date_start IS NULL OR rmpct.date_start &lt;= ${parameters['date']}) and (rmpct.date_end IS NULL OR rmpct.date_end &gt;= ${parameters['date']})))
+					&gt; 0 and ((select 0.5 * count(*) from (select day_part,pct_id, activity_log_id, em_id, bl_id , fl_id, rm_id, dv_id, dp_id , rm_cat, rm_type, date_start, date_end, status from rmpct 
+				union select day_part, pct_id, activity_log_id, em_id, bl_id , fl_id, rm_id, dv_id, dp_id , rm_cat, rm_type, date_start, date_end, status from hrmpct ) 
+				rmpct where rmpct.bl_id = rm.bl_id and rmpct.fl_id = rm.fl_id and rmpct.rm_id = rm.rm_id
+				and rmpct.day_part != 0 and rmpct.status=1 and rmpct.em_id is not null and (rmpct.date_start IS NULL OR rmpct.date_start &lt;= ${parameters['date']}) and (rmpct.date_end IS NULL OR rmpct.date_end &gt;= ${parameters['date']}))
+			+	
+			(select count(*) from (select day_part,pct_id, activity_log_id, em_id, bl_id , fl_id, rm_id, dv_id, dp_id , rm_cat, rm_type, date_start, date_end, status from rmpct 
+				union select day_part, pct_id, activity_log_id, em_id, bl_id , fl_id, rm_id, dv_id, dp_id , rm_cat, rm_type, date_start, date_end, status from hrmpct ) 
+				rmpct where rmpct.bl_id = rm.bl_id and rmpct.fl_id = rm.fl_id and rmpct.rm_id = rm.rm_id
+				and rmpct.day_part = 0 and rmpct.status=1 and rmpct.em_id is not null and (rmpct.date_start IS NULL OR rmpct.date_start &lt;= ${parameters['date']}) and (rmpct.date_end IS NULL OR rmpct.date_end &gt;= ${parameters['date']})))
+					= rm.cap_em ) then '14 0 7 16763904'
+				when (rmcat.occupiable = 1 and ((select 0.5 * count(*) from (select day_part, pct_id, activity_log_id, em_id, bl_id , fl_id, rm_id, dv_id, dp_id , rm_cat, rm_type, date_start, date_end, status from rmpct 
+				union select  day_part, pct_id, activity_log_id, em_id, bl_id , fl_id, rm_id, dv_id, dp_id , rm_cat, rm_type, date_start, date_end, status from hrmpct ) 
+				rmpct where rmpct.bl_id = rm.bl_id and rmpct.fl_id = rm.fl_id and rmpct.rm_id = rm.rm_id
+				and rmpct.day_part != 0 and rmpct.status=1 and rmpct.em_id is not null and (rmpct.date_start IS NULL OR rmpct.date_start &lt;= ${parameters['date']}) and (rmpct.date_end IS NULL OR rmpct.date_end &gt;= ${parameters['date']}))
+			+	
+			(select count(*) from (select day_part, pct_id, activity_log_id, em_id, bl_id , fl_id, rm_id, dv_id, dp_id , rm_cat, rm_type, date_start, date_end, status from rmpct 
+				union select  day_part,pct_id, activity_log_id, em_id, bl_id , fl_id, rm_id, dv_id, dp_id , rm_cat, rm_type, date_start, date_end, status from hrmpct ) 
+				rmpct where rmpct.bl_id = rm.bl_id and rmpct.fl_id = rm.fl_id and rmpct.rm_id = rm.rm_id
+				and rmpct.day_part = 0 and rmpct.status=1 and rmpct.em_id is not null and (rmpct.date_start IS NULL OR rmpct.date_start &lt;= ${parameters['date']}) and (rmpct.date_end IS NULL OR rmpct.date_end &gt;= ${parameters['date']})))
+					&gt; rm.cap_em ) then '14 0 1 16711680' 
+				end ${sql.as} hpattern_acad,
+				
+				case when rmcat.occupiable = 0 then ${parameters['Non-occupiable']}
+				when (rmcat.occupiable = 1 and ((select 0.5 * count(*) from (select day_part, pct_id, activity_log_id, em_id, bl_id , fl_id, rm_id, dv_id, dp_id , rm_cat, rm_type, date_start, date_end, status from rmpct 
+				union select day_part, pct_id, activity_log_id, em_id, bl_id , fl_id, rm_id, dv_id, dp_id , rm_cat, rm_type, date_start, date_end, status from hrmpct ) 
+				rmpct where rmpct.bl_id = rm.bl_id and rmpct.fl_id = rm.fl_id and rmpct.rm_id = rm.rm_id
+				and rmpct.day_part != 0 and rmpct.status=1 and rmpct.em_id is not null and (rmpct.date_start IS NULL OR rmpct.date_start &lt;= ${parameters['date']}) and (rmpct.date_end IS NULL OR rmpct.date_end &gt;= ${parameters['date']}))
+			+	
+			(select count(*) from (select day_part,pct_id, activity_log_id, em_id, bl_id , fl_id, rm_id, dv_id, dp_id , rm_cat, rm_type, date_start, date_end, status from rmpct 
+				union select day_part, pct_id, activity_log_id, em_id, bl_id , fl_id, rm_id, dv_id, dp_id , rm_cat, rm_type, date_start, date_end, status from hrmpct ) 
+				rmpct where rmpct.bl_id = rm.bl_id and rmpct.fl_id = rm.fl_id and rmpct.rm_id = rm.rm_id
+				and rmpct.day_part = 0 and rmpct.status=1 and rmpct.em_id is not null and (rmpct.date_start IS NULL OR rmpct.date_start &lt;= ${parameters['date']}) and (rmpct.date_end IS NULL OR rmpct.date_end &gt;= ${parameters['date']})))
+				= 0 )  then ${parameters['Vacant']}
+				when (rmcat.occupiable = 1 and ((select 0.5 * count(*) from (select day_part,pct_id, activity_log_id, em_id, bl_id , fl_id, rm_id, dv_id, dp_id , rm_cat, rm_type, date_start, date_end, status from rmpct 
+				union select  day_part,pct_id, activity_log_id, em_id, bl_id , fl_id, rm_id, dv_id, dp_id , rm_cat, rm_type, date_start, date_end, status from hrmpct ) 
+				rmpct where rmpct.bl_id = rm.bl_id and rmpct.fl_id = rm.fl_id and rmpct.rm_id = rm.rm_id
+				and rmpct.day_part != 0 and rmpct.status=1 and rmpct.em_id is not null and (rmpct.date_start IS NULL OR rmpct.date_start &lt;= ${parameters['date']}) and (rmpct.date_end IS NULL OR rmpct.date_end &gt;= ${parameters['date']}))
+			+	
+			(select count(*) from (select day_part,pct_id, activity_log_id, em_id, bl_id , fl_id, rm_id, dv_id, dp_id , rm_cat, rm_type, date_start, date_end, status from rmpct 
+				union select day_part, pct_id, activity_log_id, em_id, bl_id , fl_id, rm_id, dv_id, dp_id , rm_cat, rm_type, date_start, date_end, status from hrmpct ) 
+				rmpct where rmpct.bl_id = rm.bl_id and rmpct.fl_id = rm.fl_id and rmpct.rm_id = rm.rm_id
+				and rmpct.day_part = 0 and rmpct.status=1 and rmpct.em_id is not null and (rmpct.date_start IS NULL OR rmpct.date_start &lt;= ${parameters['date']}) and (rmpct.date_end IS NULL OR rmpct.date_end &gt;= ${parameters['date']})))
+					&gt; 0 and ((select 0.5 * count(*) from (select day_part,pct_id, activity_log_id, em_id, bl_id , fl_id, rm_id, dv_id, dp_id , rm_cat, rm_type, date_start, date_end, status from rmpct 
+				union select day_part, pct_id, activity_log_id, em_id, bl_id , fl_id, rm_id, dv_id, dp_id , rm_cat, rm_type, date_start, date_end, status from hrmpct ) 
+				rmpct where rmpct.bl_id = rm.bl_id and rmpct.fl_id = rm.fl_id and rmpct.rm_id = rm.rm_id
+				and rmpct.day_part != 0 and rmpct.status=1 and rmpct.em_id is not null and (rmpct.date_start IS NULL OR rmpct.date_start &lt;= ${parameters['date']}) and (rmpct.date_end IS NULL OR rmpct.date_end &gt;= ${parameters['date']}))
+			+	
+			(select count(*) from (select day_part,pct_id, activity_log_id, em_id, bl_id , fl_id, rm_id, dv_id, dp_id , rm_cat, rm_type, date_start, date_end, status from rmpct 
+				union select  day_part,pct_id, activity_log_id, em_id, bl_id , fl_id, rm_id, dv_id, dp_id , rm_cat, rm_type, date_start, date_end, status from hrmpct ) 
+				rmpct where rmpct.bl_id = rm.bl_id and rmpct.fl_id = rm.fl_id and rmpct.rm_id = rm.rm_id
+				and rmpct.day_part = 0 and rmpct.status=1 and rmpct.em_id is not null and (rmpct.date_start IS NULL OR rmpct.date_start &lt;= ${parameters['date']}) and (rmpct.date_end IS NULL OR rmpct.date_end &gt;= ${parameters['date']})))
+					&lt; rm.cap_em ) then ${parameters['Available']}
+				when (rmcat.occupiable = 1 and ((select 0.5 * count(*) from (select day_part,pct_id, activity_log_id, em_id, bl_id , fl_id, rm_id, dv_id, dp_id , rm_cat, rm_type, date_start, date_end, status from rmpct 
+				union select day_part, pct_id, activity_log_id, em_id, bl_id , fl_id, rm_id, dv_id, dp_id , rm_cat, rm_type, date_start, date_end, status from hrmpct ) 
+				rmpct where rmpct.bl_id = rm.bl_id and rmpct.fl_id = rm.fl_id and rmpct.rm_id = rm.rm_id
+				and rmpct.day_part != 0 and rmpct.status=1 and rmpct.em_id is not null and (rmpct.date_start IS NULL OR rmpct.date_start &lt;= ${parameters['date']}) and (rmpct.date_end IS NULL OR rmpct.date_end &gt;= ${parameters['date']}))
+			+	
+			(select count(*) from (select day_part,pct_id, activity_log_id, em_id, bl_id , fl_id, rm_id, dv_id, dp_id , rm_cat, rm_type, date_start, date_end, status from rmpct 
+				union select  day_part,pct_id, activity_log_id, em_id, bl_id , fl_id, rm_id, dv_id, dp_id , rm_cat, rm_type, date_start, date_end, status from hrmpct ) 
+				rmpct where rmpct.bl_id = rm.bl_id and rmpct.fl_id = rm.fl_id and rmpct.rm_id = rm.rm_id
+				and rmpct.day_part = 0 and rmpct.status=1 and rmpct.em_id is not null and (rmpct.date_start IS NULL OR rmpct.date_start &lt;= ${parameters['date']}) and (rmpct.date_end IS NULL OR rmpct.date_end &gt;= ${parameters['date']})))
+					&gt; 0 and ((select 0.5 * count(*) from (select day_part,pct_id, activity_log_id, em_id, bl_id , fl_id, rm_id, dv_id, dp_id , rm_cat, rm_type, date_start, date_end, status from rmpct 
+				union select day_part, pct_id, activity_log_id, em_id, bl_id , fl_id, rm_id, dv_id, dp_id , rm_cat, rm_type, date_start, date_end, status from hrmpct ) 
+				rmpct where rmpct.bl_id = rm.bl_id and rmpct.fl_id = rm.fl_id and rmpct.rm_id = rm.rm_id
+				and rmpct.day_part != 0 and rmpct.status=1 and rmpct.em_id is not null and (rmpct.date_start IS NULL OR rmpct.date_start &lt;= ${parameters['date']}) and (rmpct.date_end IS NULL OR rmpct.date_end &gt;= ${parameters['date']}))
+			+	
+			(select count(*) from (select day_part,pct_id, activity_log_id, em_id, bl_id , fl_id, rm_id, dv_id, dp_id , rm_cat, rm_type, date_start, date_end, status from rmpct 
+				union select day_part, pct_id, activity_log_id, em_id, bl_id , fl_id, rm_id, dv_id, dp_id , rm_cat, rm_type, date_start, date_end, status from hrmpct ) 
+				rmpct where rmpct.bl_id = rm.bl_id and rmpct.fl_id = rm.fl_id and rmpct.rm_id = rm.rm_id
+				and rmpct.day_part = 0 and rmpct.status=1 and rmpct.em_id is not null and (rmpct.date_start IS NULL OR rmpct.date_start &lt;= ${parameters['date']}) and (rmpct.date_end IS NULL OR rmpct.date_end &gt;= ${parameters['date']})))
+					= rm.cap_em ) then ${parameters['Fully-Occupied']}
+				when (rmcat.occupiable = 1 and ((select 0.5 * count(*) from (select day_part,pct_id, activity_log_id, em_id, bl_id , fl_id, rm_id, dv_id, dp_id , rm_cat, rm_type, date_start, date_end, status from rmpct 
+				union select  day_part,pct_id, activity_log_id, em_id, bl_id , fl_id, rm_id, dv_id, dp_id , rm_cat, rm_type, date_start, date_end, status from hrmpct ) 
+				rmpct where rmpct.bl_id = rm.bl_id and rmpct.fl_id = rm.fl_id and rmpct.rm_id = rm.rm_id
+				and rmpct.day_part != 0 and rmpct.status=1 and rmpct.em_id is not null and (rmpct.date_start IS NULL OR rmpct.date_start &lt;= ${parameters['date']}) and (rmpct.date_end IS NULL OR rmpct.date_end &gt;= ${parameters['date']}))
+			+	
+			(select count(*) from (select day_part,pct_id, activity_log_id, em_id, bl_id , fl_id, rm_id, dv_id, dp_id , rm_cat, rm_type, date_start, date_end, status from rmpct 
+				union select day_part, pct_id, activity_log_id, em_id, bl_id , fl_id, rm_id, dv_id, dp_id , rm_cat, rm_type, date_start, date_end, status from hrmpct ) 
+				rmpct where rmpct.bl_id = rm.bl_id and rmpct.fl_id = rm.fl_id and rmpct.rm_id = rm.rm_id
+				and rmpct.day_part = 0 and rmpct.status=1 and rmpct.em_id is not null and (rmpct.date_start IS NULL OR rmpct.date_start &lt;= ${parameters['date']}) and (rmpct.date_end IS NULL OR rmpct.date_end &gt;= ${parameters['date']})))
+					&gt; rm.cap_em ) then ${parameters['Over-Occupied']} 
+				end ${sql.as} occupancy
+			FROM rm LEFT OUTER JOIN rmcat ON rm.rm_cat=rmcat.rm_cat
+			where ${sql.vpaRestriction} and rm.bl_id = ${parameters['blId']} and rm.fl_id = ${parameters['flId']}) a group by a.occupancy, a.hpattern_acad 
+        </sql>
+		<table name="rm" role="main"/>
+		<field table="rm" name="occupancy" dataType="text"/>
+		<field table="rm" name="hpattern_acad" dataType="text"/>
+		<field name="count_rm" dataType="number" decimals="0" showTotals="false"/>
+		<field name="area_rm_total" dataType="number" showTotals="false"/>
+		<field name="cap_em" dataType="number" decimals="0" showTotals="false"/>
+		<field name="count_em" dataType="number" decimals="0" showTotals="false"/>
+		<field name="available" dataType="number" decimals="0" showTotals="false"/>
+		
+		<parameter name="date" dataType="date" value=""/>
+		<parameter name="blId" dataType="text" value=""/>
+		<parameter name="flId" dataType="text" value=""/>
+		<parameter name="Non-occupiable" dataType="text" value=""/>
+		<parameter name="Vacant" dataType="text" value=""/>
+		<parameter name="Available" dataType="text" value=""/>
+		<parameter name="Fully-Occupied" dataType="text" value=""/>
+		<parameter name="Over-Occupied" dataType="text" value=""/>
+	</dataSource>
+	
+	<panel type="grid" id="abSpHlRmByAttribute_rmSummary6" dataSource="abSpHlRmByAttribute_rmSummary6DS" showCounts="false" showOnLoad="false" layoutRegion="summary"
+    refreshWorkflowRuleId="AbSpaceRoomInventoryBAR-SpaceTransaction-getOccupancySumaryGridRecordsForSpacePlaningConsole">
+		<title>Summary by Occupancy</title>
+		<sortField table="rm" name="occupancy" ascending="true"/>
+		<field table="rm" name="hpattern_acad" controlType="color">
+			<title>Legend</title>
+		</field>
+		<field name="occupancy" table="rm"/>
+		<field name="count_rm" dataType="number" decimals="0">
+			<title>Total Count</title>
+		</field>
+		<field name="area_rm_total" dataType="number">
+			<title>Total Area ${user.areaUnits.title}</title>
+		</field>
+		<field name="cap_em" dataType="number" decimals="0">
+			<title>Capacity</title>
+		</field>
+		<field name="count_em" dataType="number" decimals="0">
+			<title>Occupancy</title>
+		</field>
+		<field name="available" dataType="number" decimals="0">
+			<title>Availability</title>
+		</field>
+	</panel>
+	
+	<dataSource id="abSpHlRmByAttribute_rmSummary7DS">
+		<table name="rmpct" role="main"/>
+		<table name="activity_log" role="standard"/>
+		<field table="activity_log" name="activity_log_id"/>
+		<field table="activity_log" name="activity_type"/>
+		<field table="activity_log" name="status"/>
+		<field table="rmpct" name="date_start"/>
+		<field table="rmpct" name="bl_id"/>
+		<field table="rmpct" name="fl_id"/>
+		<field table="rmpct" name="rm_id"/>
+		<field table="rmpct" name="dv_id"/>
+		<field table="rmpct" name="dp_id"/>
+		<field table="rmpct" name="em_id"/>
+		<restriction type="sql" sql="rmpct.bl_id = ${parameters['blId']} and rmpct.fl_id = ${parameters['flId']} 
+		AND  ( rmpct.activity_log_id IS NOT NULL OR rmpct.mo_id IS NOT NULL)  and (rmpct.status = 0 
+		OR (rmpct.status = 1 AND rmpct.date_start &gt; ${parameters['date']} ))"/>
+		<parameter name="date" dataType="date" value=""/>
+		<parameter name="blId" dataType="text" value=""/>
+		<parameter name="flId" dataType="text" value=""/>
+	</dataSource>
+	
+	<panel type="grid" columns="2" id="abSpHlRmByAttribute_rmSummary7" dataSource="abSpHlRmByAttribute_rmSummary7DS" showOnLoad="false" layoutRegion="summary">
+		<title>Summary by Pending Requests</title>
+		<field table="activity_log" name="activity_log_id"/>
+		<field table="activity_log" name="activity_type"/>
+		<field table="activity_log" name="status"/>		
+		<field table="rmpct" name="bl_id"/>
+		<field table="rmpct" name="fl_id"/>
+		<field table="rmpct" name="rm_id"/>
+		<field table="rmpct" name="dv_id"/>
+		<field table="rmpct" name="dp_id"/>
+		<field table="rmpct" name="em_id"/>
+		<field table="rmpct" name="date_start"/>
+	</panel>
+	
+	<dataSource id="abSpHlRmByAttribute_rmSummaryDS8">
+	<sql dialect="generic">
+		  	SELECT a.hpattern_acad ${sql.as} hpattern_acad,  a.supercat ${sql.as} supercat, count(distinct a.bl_id${sql.concat}a.fl_id${sql.concat}a.rm_id) ${sql.as} count_rm ,sum(a.area) ${sql.as} area_rm_total, case when (count(distinct a.bl_id${sql.concat}a.fl_id${sql.concat}a.rm_id) IS NULL or count(distinct a.bl_id${sql.concat}a.fl_id${sql.concat}a.rm_id) = 0) THEN 0 ELSE sum(a.area)/ count(distinct a.bl_id${sql.concat}a.fl_id${sql.concat}a.rm_id) END ${sql.as} area_avg_rm
+		  	from (
+				select rmpct.supercat  ${sql.as} supercat ,rmpct.area ${sql.as} area, rmpct.hpattern_acad ${sql.as} hpattern_acad ,rmpct.bl_id ${sql.as} bl_id ,rmpct.fl_id ${sql.as} fl_id  ,rmpct.rm_id ${sql.as} rm_id
+				FROM (select  mo_id,(case when rmcat.supercat = 'USBL' then '14 0 3 65280' when rmcat.supercat = 'VERT' then '14 0 2 16776960' when rmcat.supercat = 'SERV' then '14 0 5 255' when rmcat.supercat = 'OTHR' then '14 0 7 10066329' end)  ${sql.as} hpattern_acad,
+					      (case when rmpct.day_part=0 then rmpct.pct_space/100.00*rm.area else rmpct.pct_space/200.00*rm.area end) area,
+					      rmcat.supercat,rmpct.pct_id, rmpct.activity_log_id, rmpct.bl_id , rmpct.fl_id, rmpct.rm_id, rmpct.dv_id, rmpct.dp_id , rmpct.rm_cat, rmpct.rm_type, rmpct.date_start, rmpct.date_end, rmpct.status from rmpct
+					      left join rmcat on rmcat.rm_cat = rmpct.rm_cat left join rm on rm.bl_id=rmpct.bl_id and  rm.fl_id=rmpct.fl_id and  rm.rm_id=rmpct.rm_id
+				          union select  mo_id,(case when rmcat.supercat = 'USBL' then '14 0 3 65280' when rmcat.supercat = 'VERT' then '14 0 2 16776960' when rmcat.supercat = 'SERV' then '14 0 5 255' when rmcat.supercat = 'OTHR' then '14 0 7 10066329' end)  ${sql.as} hpattern_acad, 
+				          (case when hrmpct.day_part=0 then hrmpct.pct_space/100.00*rm.area else hrmpct.pct_space/200.00*rm.area end) area,
+				          rmcat.supercat,hrmpct.pct_id, hrmpct.activity_log_id, hrmpct.bl_id , hrmpct.fl_id, hrmpct.rm_id, hrmpct.dv_id, hrmpct.dp_id , hrmpct.rm_cat, hrmpct.rm_type, hrmpct.date_start, hrmpct.date_end, hrmpct.status from hrmpct left join rmcat on rmcat.rm_cat = hrmpct.rm_cat left join rm on rm.bl_id=hrmpct.bl_id and  rm.fl_id=hrmpct.fl_id and  rm.rm_id=hrmpct.rm_id
+				      ) rmpct
+				      
+				 where ${parameters['rmpctConsoleRes']} 
+				         
+				          and (  (0= ${parameters['pendingRequestOnly']} AND rmpct.status=1 and (rmpct.date_start IS NULL OR rmpct.date_start &lt;= ${parameters['date']}) 
+				                    and (rmpct.date_end IS NULL OR rmpct.date_end &gt;= ${parameters['date']})
+				                 )
+				             or(1= ${parameters['pendingRequestOnly']} AND  ( rmpct.activity_log_id IS NOT NULL OR rmpct.mo_id IS NOT NULL)  and
+				                 (rmpct.status = 0 OR (rmpct.status = 1 AND rmpct.date_start &gt; ${parameters['date']} ))
+				               )
+				         ) 
+				         and 1=1 and rmpct.supercat IS NOT NULL AND rmpct.bl_id = ${parameters['blId']} and rmpct.fl_id = ${parameters['flId']}
+			  ) a group by a.supercat, a.hpattern_acad
+        </sql>
+		<table name="rmcat" role="main"/>
+		<field name="count_rm" dataType="number" decimals="0">
+			<title>Total Count</title>
+		</field>
+
+		<field name="area_rm_total" dataType="number">
+			<title>Total Area</title>
+		</field>
+		<field name="area_avg_rm" dataType="number">
+			<title>Average Area</title>
+		</field>
+		<field name="hpattern_acad" table="rmcat"/>
+		<field name="supercat" table="rmcat"/>
+		<parameter name="blId" dataType="text" value=""/>
+		<parameter name="flId" dataType="text" value=""/>
+		<parameter name="date" dataType="date" value=""/>
+		<parameter name="rmpctConsoleRes" dataType="verbatim" value="1=1"/>
+		<parameter name="pendingRequestOnly" dataType="verbatim" value="0"/>
+	</dataSource>
+
+	<panel type="grid" id="abSpHlRmByAttribute_rmSummary8" dataSource="abSpHlRmByAttribute_rmSummaryDS8"  showOnLoad="false" layoutRegion="summary">
+		<title>Summary by Super Category</title>
+		<sortField table="rmcat" name="supercat" ascending="true"/>
+		<field id="abSpHlRmByAttribute_rmSummary8_legend" table="rmcat" name="hpattern_acad" controlType="color">
+			<title>Legend</title>
+		</field>
+		<field table="rmcat" name="supercat">
+			<title>Super Category</title>
+		</field>
+		<field name="count_rm" dataType="number" decimals="0">
+			<title>Total Count</title>
+		</field>
+
+		<field name="area_rm_total" dataType="number">
+			<title>Total Area ${user.areaUnits.title}</title>
+		</field>
+		<field name="area_avg_rm" dataType="number">
+			<title>Average Area ${user.areaUnits.title}</title>
+		</field>
+	</panel>
+	
+	<panel type="view" id="abSpHlRmByAttribute_rmAttributeDS" file="ab-sp-share-ds-for-rm-attributes.axvw"/>
+
+	<panel type="dataView" columns="2" id="abSpHlRmByAttribute_rmAttribute" dataSource="abSpShareDSForRmAttributeDS" showOnLoad="false" layoutRegion="roomAttribute">
+		<title>Workspace Transactions</title>
+		<action id="assign">
+			<title>Assign Room Attributes</title>
+		</action>
+		<field table="rmpct" name="bl_id"/>
+		<field table="rmpct" name="dv_id"/>
+		<field table="rmpct" name="fl_id"/>
+		<field table="rmpct" name="dp_id"/>
+		<field table="rmpct" name="rm_id"/>
+		<field table="rmpct" name="rm_cat"/>
+		<field table="rmpct" name="em_id"/>
+		<field table="rmpct" name="rm_type"/>
+		<field table="rmpct" name="date_start"/>
+		<field table="rmpct" name="date_end"/>
+	</panel>
+	
+	<panel type="html" id="abSpHlRmByAttribute_floorPlan_border_legend" layoutRegion="borderLegend">
+		<title>Border Highlights Legend</title>
+		<html>
+			<div id="abSpHlRmByAttribute_floorPlan_border_legendDiv" style="width:100%; display: none">
+				<table class="panelReport">
+					<tr class="dataRow">
+						<td class="color" width="">
+							<div style="width:100%;height:16px;background-color:#ADADAD;"></div>
+						</td>
+						<td translatable="true" class="text" width="80%">Non-Occupiable</td>
+					</tr>
+					<tr class="dataRow">
+						<td class="color" width="">
+							<div style="width:100%;height:16px;background-color:#33FF00;"></div>
+						</td>
+						<td translatable="true" class="text" width="80%">Vacant</td>
+					</tr>
+					<tr class="dataRow">
+						<td class="color" width="">
+							<div style="width:100%;height:16px;background-color:#0000FF;"></div>
+						</td>
+						<td translatable="true" class="text" width="80%">Available</td>
+					</tr>
+					<tr class="dataRow">
+						<td class="color" width="">
+							<div style="width:100%;height:16px;background-color:#E7CB0A;"></div>
+						</td>
+						<td translatable="true" class="text" width="80%">At Capacity</td>
+					</tr>
+					<tr class="dataRow">
+						<td class="color" width="">
+							<div style="width:100%;height:16px;background-color:#FF0000;"></div>
+						</td>
+						<td translatable="true" class="text" width="80%">Exceeds Capacity</td>
+					</tr>
+				</table>
+			</div>
+			
+			<div id="abSpHlRmByAttribute_floorPlan_border_legend_by_attributeDiv" style="width:100%; display: none">
+			</div>
+		</html>
+	</panel>
+
+	<dataSource id="abSpHlRmByAttribute_rmBorderHighlightDS" applyVpaRestrictions="false">
+		<sql dialect="generic">
+			SELECT
+			RTRIM(rm.bl_id) ${sql.concat} ';' ${sql.concat} RTRIM(rm.fl_id) ${sql.concat} ';' ${sql.concat} RTRIM(rm.rm_id) ${sql.as} asset_id,
+			case when rmcat.occupiable = 0 then '0xADADAD'
+			when (rmcat.occupiable = 1 and (0.5*(select count(*) FROM (select day_part, pct_id, activity_log_id, em_id, bl_id , fl_id, rm_id, dv_id, dp_id , rm_cat, rm_type, date_start, date_end, status from rmpct 
+				union select day_part, pct_id, activity_log_id, em_id, bl_id , fl_id, rm_id, dv_id, dp_id , rm_cat, rm_type, date_start, date_end, status from hrmpct ) 
+				rmpct where rmpct.bl_id = rm.bl_id and rmpct.fl_id = rm.fl_id and rmpct.rm_id = rm.rm_id
+				and rmpct.day_part != 0 and rmpct.status=1 and rmpct.em_id is not null and (rmpct.date_start IS NULL OR rmpct.date_start &lt;= ${parameters['date']}) and (rmpct.date_end IS NULL OR rmpct.date_end &gt;= ${parameters['date']}))
+				+(select count(*) FROM (select day_part, pct_id, activity_log_id, em_id, bl_id , fl_id, rm_id, dv_id, dp_id , rm_cat, rm_type, date_start, date_end, status from rmpct 
+				union select day_part, pct_id, activity_log_id, em_id, bl_id , fl_id, rm_id, dv_id, dp_id , rm_cat, rm_type, date_start, date_end, status from hrmpct ) 
+				rmpct where rmpct.bl_id = rm.bl_id and rmpct.fl_id = rm.fl_id and rmpct.rm_id = rm.rm_id
+				and rmpct.day_part = 0 and rmpct.status=1 and rmpct.em_id is not null and (rmpct.date_start IS NULL OR rmpct.date_start &lt;= ${parameters['date']}) and (rmpct.date_end IS NULL OR rmpct.date_end &gt;= ${parameters['date']})))
+				= 0 )  then '0x33FF00'
+			when (rmcat.occupiable = 1 and (0.5*(select count(*) FROM (select day_part, pct_id, activity_log_id, em_id, bl_id , fl_id, rm_id, dv_id, dp_id , rm_cat, rm_type, date_start, date_end, status from rmpct 
+				union select day_part, pct_id, activity_log_id, em_id, bl_id , fl_id, rm_id, dv_id, dp_id , rm_cat, rm_type, date_start, date_end, status from hrmpct ) 
+				rmpct where rmpct.bl_id = rm.bl_id and rmpct.fl_id = rm.fl_id and rmpct.rm_id = rm.rm_id
+				and rmpct.day_part != 0 and rmpct.status=1 and rmpct.em_id is not null and (rmpct.date_start IS NULL OR rmpct.date_start &lt;= ${parameters['date']}) and (rmpct.date_end IS NULL OR rmpct.date_end &gt;= ${parameters['date']}))
+				+(select count(*) FROM (select day_part, pct_id, activity_log_id, em_id, bl_id , fl_id, rm_id, dv_id, dp_id , rm_cat, rm_type, date_start, date_end, status from rmpct 
+				union select day_part, pct_id, activity_log_id, em_id, bl_id , fl_id, rm_id, dv_id, dp_id , rm_cat, rm_type, date_start, date_end, status from hrmpct ) 
+				rmpct where rmpct.bl_id = rm.bl_id and rmpct.fl_id = rm.fl_id and rmpct.rm_id = rm.rm_id
+				and rmpct.day_part = 0 and rmpct.status=1 and rmpct.em_id is not null and (rmpct.date_start IS NULL OR rmpct.date_start &lt;= ${parameters['date']}) and (rmpct.date_end IS NULL OR rmpct.date_end &gt;= ${parameters['date']})))
+				&gt; 0 and (0.5*(select count(*) FROM (select day_part, pct_id, activity_log_id, em_id, bl_id , fl_id, rm_id, dv_id, dp_id , rm_cat, rm_type, date_start, date_end, status from rmpct 
+				union select day_part, pct_id, activity_log_id, em_id, bl_id , fl_id, rm_id, dv_id, dp_id , rm_cat, rm_type, date_start, date_end, status from hrmpct ) 
+				rmpct where rmpct.bl_id = rm.bl_id and rmpct.fl_id = rm.fl_id and rmpct.rm_id = rm.rm_id
+				and rmpct.day_part != 0 and rmpct.status=1 and rmpct.em_id is not null and (rmpct.date_start IS NULL OR rmpct.date_start &lt;= ${parameters['date']}) and (rmpct.date_end IS NULL OR rmpct.date_end &gt;= ${parameters['date']}))
+				+(select count(*) FROM (select day_part, pct_id, activity_log_id, em_id, bl_id , fl_id, rm_id, dv_id, dp_id , rm_cat, rm_type, date_start, date_end, status from rmpct 
+				union select day_part, pct_id, activity_log_id, em_id, bl_id , fl_id, rm_id, dv_id, dp_id , rm_cat, rm_type, date_start, date_end, status from hrmpct ) 
+				rmpct where rmpct.bl_id = rm.bl_id and rmpct.fl_id = rm.fl_id and rmpct.rm_id = rm.rm_id
+				and rmpct.day_part = 0 and rmpct.status=1 and rmpct.em_id is not null and (rmpct.date_start IS NULL OR rmpct.date_start &lt;= ${parameters['date']}) and (rmpct.date_end IS NULL OR rmpct.date_end &gt;= ${parameters['date']})))
+				&lt; rm.cap_em ) then '0x0000FF'
+			when (rmcat.occupiable = 1 and (0.5*(select count(*) FROM (select day_part, pct_id, activity_log_id, em_id, bl_id , fl_id, rm_id, dv_id, dp_id , rm_cat, rm_type, date_start, date_end, status from rmpct 
+				union select day_part, pct_id, activity_log_id, em_id, bl_id , fl_id, rm_id, dv_id, dp_id , rm_cat, rm_type, date_start, date_end, status from hrmpct ) 
+				rmpct where rmpct.bl_id = rm.bl_id and rmpct.fl_id = rm.fl_id and rmpct.rm_id = rm.rm_id
+				and rmpct.day_part != 0 and rmpct.status=1 and rmpct.em_id is not null and (rmpct.date_start IS NULL OR rmpct.date_start &lt;= ${parameters['date']}) and (rmpct.date_end IS NULL OR rmpct.date_end &gt;= ${parameters['date']}))
+				+(select count(*) FROM (select day_part, pct_id, activity_log_id, em_id, bl_id , fl_id, rm_id, dv_id, dp_id , rm_cat, rm_type, date_start, date_end, status from rmpct 
+				union select day_part, pct_id, activity_log_id, em_id, bl_id , fl_id, rm_id, dv_id, dp_id , rm_cat, rm_type, date_start, date_end, status from hrmpct ) 
+				rmpct where rmpct.bl_id = rm.bl_id and rmpct.fl_id = rm.fl_id and rmpct.rm_id = rm.rm_id
+				and rmpct.day_part = 0 and rmpct.status=1 and rmpct.em_id is not null and (rmpct.date_start IS NULL OR rmpct.date_start &lt;= ${parameters['date']}) and (rmpct.date_end IS NULL OR rmpct.date_end &gt;= ${parameters['date']})))
+				&gt; 0 and (0.5*(select count(*) FROM (select day_part, pct_id, activity_log_id, em_id, bl_id , fl_id, rm_id, dv_id, dp_id , rm_cat, rm_type, date_start, date_end, status from rmpct 
+				union select day_part, pct_id, activity_log_id, em_id, bl_id , fl_id, rm_id, dv_id, dp_id , rm_cat, rm_type, date_start, date_end, status from hrmpct ) 
+				rmpct where rmpct.bl_id = rm.bl_id and rmpct.fl_id = rm.fl_id and rmpct.rm_id = rm.rm_id
+				and rmpct.day_part != 0 and rmpct.status=1 and rmpct.em_id is not null and (rmpct.date_start IS NULL OR rmpct.date_start &lt;= ${parameters['date']}) and (rmpct.date_end IS NULL OR rmpct.date_end &gt;= ${parameters['date']}))
+				+(select count(*) FROM (select day_part, pct_id, activity_log_id, em_id, bl_id , fl_id, rm_id, dv_id, dp_id , rm_cat, rm_type, date_start, date_end, status from rmpct 
+				union select day_part, pct_id, activity_log_id, em_id, bl_id , fl_id, rm_id, dv_id, dp_id , rm_cat, rm_type, date_start, date_end, status from hrmpct ) 
+				rmpct where rmpct.bl_id = rm.bl_id and rmpct.fl_id = rm.fl_id and rmpct.rm_id = rm.rm_id
+				and rmpct.day_part = 0 and rmpct.status=1 and rmpct.em_id is not null and (rmpct.date_start IS NULL OR rmpct.date_start &lt;= ${parameters['date']}) and (rmpct.date_end IS NULL OR rmpct.date_end &gt;= ${parameters['date']})))
+				= rm.cap_em ) then '0xE7CB0A'
+			when (rmcat.occupiable = 1 and (0.5*(select count(*) FROM (select day_part, pct_id, activity_log_id, em_id, bl_id , fl_id, rm_id, dv_id, dp_id , rm_cat, rm_type, date_start, date_end, status from rmpct 
+				union select day_part, pct_id, activity_log_id, em_id, bl_id , fl_id, rm_id, dv_id, dp_id , rm_cat, rm_type, date_start, date_end, status from hrmpct ) 
+				rmpct where rmpct.bl_id = rm.bl_id and rmpct.fl_id = rm.fl_id and rmpct.rm_id = rm.rm_id
+				and rmpct.day_part != 0 and rmpct.status=1 and rmpct.em_id is not null and (rmpct.date_start IS NULL OR rmpct.date_start &lt;= ${parameters['date']}) and (rmpct.date_end IS NULL OR rmpct.date_end &gt;= ${parameters['date']}))
+				+(select count(*) FROM (select day_part, pct_id, activity_log_id, em_id, bl_id , fl_id, rm_id, dv_id, dp_id , rm_cat, rm_type, date_start, date_end, status from rmpct 
+				union select day_part, pct_id, activity_log_id, em_id, bl_id , fl_id, rm_id, dv_id, dp_id , rm_cat, rm_type, date_start, date_end, status from hrmpct ) 
+				rmpct where rmpct.bl_id = rm.bl_id and rmpct.fl_id = rm.fl_id and rmpct.rm_id = rm.rm_id
+				and rmpct.day_part = 0 and rmpct.status=1 and rmpct.em_id is not null and (rmpct.date_start IS NULL OR rmpct.date_start &lt;= ${parameters['date']}) and (rmpct.date_end IS NULL OR rmpct.date_end &gt;= ${parameters['date']})))
+				&gt; rm.cap_em ) then '0xFF0000' 
+			end ${sql.as} color
+			FROM rm LEFT OUTER JOIN rmcat ON rm.rm_cat=rmcat.rm_cat
+			where ${sql.vpaRestriction} and rm.bl_id = ${parameters['blId']} and rm.fl_id = ${parameters['flId']}
+        </sql>
+		<table name="rm" role="main"/>
+		<field table="rm" name="asset_id" dataType="text"/>
+		<field table="rm" name="color" dataType="text"/>
+		<parameter name="date" dataType="date" value=""/>
+		<parameter name="blId" dataType="text" value=""/>
+		<parameter name="flId" dataType="text" value=""/>
+	</dataSource>
+	
+	<dataSource id="abSpHlRmByAttribute_rmPendingRequestHighlightDS">
+		<sql dialect="generic">
+			SELECT
+			RTRIM(rm.bl_id) ${sql.concat} ';' ${sql.concat} RTRIM(rm.fl_id) ${sql.concat} ';' ${sql.concat} RTRIM(rm.rm_id) ${sql.as} asset_id,
+			'0xFFFF00' ${sql.as} color
+			FROM rm 
+			where rm.bl_id = ${parameters['blId']} and rm.fl_id = ${parameters['flId']} 
+			and exists(select 1 from rmpct where rmpct.bl_id = rm.bl_id and rmpct.fl_id = rm.fl_id and rmpct.rm_id = rm.rm_id
+			and  ( rmpct.activity_log_id IS NOT NULL OR rmpct.mo_id IS NOT NULL)  and
+			(rmpct.status = 0 OR (rmpct.status = 1 AND rmpct.date_start &gt; ${parameters['date']})) )
+        </sql>
+		<table name="rm" role="main"/>
+		<field table="rm" name="asset_id" dataType="text"/>
+		<field table="rm" name="color" dataType="text"/>
+		<parameter name="date" dataType="date" value=""/>
+		<parameter name="blId" dataType="text" value=""/>
+		<parameter name="flId" dataType="text" value=""/>
+	</dataSource>
+	
+	<dataSource id="roomWithActivityLogDS">
+		<sql dialect="generic">
+			SELECT
+			rmpct.bl_id  ${sql.as} bl_id,
+			rmpct.fl_id  ${sql.as} fl_id,
+			rmpct.rm_id  ${sql.as} rm_id,
+			rmpct.status  ${sql.as} status,
+			rmpct.activity_log_id ${sql.as} activity_log_id,
+			activity_log.activity_type ${sql.as} activity_type
+			FROM rmpct left OUTER join activity_log on rmpct.activity_log_id = activity_log.activity_log_id 
+			where activity_log.status = 'APPROVED' AND NOT EXISTS(SELECT 1 FROM mo WHERE mo.activity_log_id = activity_log.activity_log_id) AND  ( rmpct.activity_log_id IS NOT NULL OR rmpct.mo_id IS NOT NULL)  and (rmpct.status = 0 OR (rmpct.status = 1 AND rmpct.date_start &gt; ${parameters['date']}))
+        </sql>
+		<table name="rm" role="main"/>
+		<field table="rm" name="bl_id"/>
+		<field table="rm" name="fl_id"/>
+		<field table="rm" name="rm_id"/>
+		<field table="rm" name="activity_log_id" dataType="integer"/>
+		<field table="rm" name="status" dataType="integer"/>
+		<field table="rm" name="activity_type" dataType="text"/>
+		
+		<parameter name="date" dataType="date" value=""/>
+	</dataSource>
+	
+	<dataSource id="activityLogDS">
+		<table name="activity_log" role="main"/>
+		<field table="activity_log" name="activity_log_id"/>
+		<field table="activity_log" name="activity_type"/>
+	</dataSource>
+	
+	<panel type="grid" id="abSpHlRmByAttribute_pendingRequestSelect" dataSource="roomWithActivityLogDS" showOnLoad="false" hidden="true">
+		<title>Select one pending request to edit</title>
+		 <field table="rm" name="activity_log_id" controlType="link">
+            <title>Service Request ID</title>
+            <command type="callFunction" functionName="selectPendingRequestEdit"/>
+        </field>
+        <field table="rm" name="activity_type" controlType="link">
+            <title>Request Type</title>
+            <command type="callFunction" functionName="selectPendingRequestEdit"/>
+        </field>
+        <field table="rm" name="bl_id" hidden="true"/>
+		<field table="rm" name="fl_id" hidden="true"/>
+		<field table="rm" name="rm_id" hidden="true"/>
+		<field table="rm" name="status"  hidden="true"/>
+	</panel>
+
+</view>

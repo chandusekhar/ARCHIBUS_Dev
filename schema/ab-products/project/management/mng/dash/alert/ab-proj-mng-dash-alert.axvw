@@ -1,0 +1,334 @@
+<view version="2.0">
+    <js file="ab-proj-mng-dash-alert.js"/>
+    <js file="ab-proj-mng-common.js"/>
+    <message name="noAlerts">No Alerts</message>
+    <message name="assignedAct1">My Open Action Items</message>
+    <message name="assignedAct">My Open Action Items</message>
+    <message name="workpkgsOutBid1">Work Package Out for Bid</message>
+    <message name="workpkgsOutBid">Work Packages Out for Bid</message>
+    <message name="contrPendSig1">Contract Pending Signature</message>
+    <message name="contrPendSig">Contracts Pending Signature</message>
+    <message name="chgPendApprv1">Change Order Pending Approval</message>
+    <message name="chgPendApprv">Change Orders Pending Approval</message>
+    <message name="actsBehSched1">Action Behind Schedule</message>
+    <message name="actsBehSched">Actions Behind Schedule</message>
+    <message name="actsOnHold1">Action on Hold</message>
+    <message name="actsOnHold">Actions on Hold</message>
+    <message name="openInv1">Invoice Pending Approval</message>
+    <message name="openInv">Invoices Pending Approval</message>
+    <message name="highLog1">High Priority Log</message>
+    <message name="highLog">High Priority Logs</message>
+    <message name="urgLog1">Urgent Log</message>
+    <message name="urgLog">Urgent Logs</message>
+
+    <dataSource id="projMngDashAlert_ds" applyVpaRestrictions="false">
+        <table name="project" role="main"/> 
+        <field name="alert_id" dataType="text" > 
+            <title>ID</title> 
+        </field>
+        <field name="alert_msg" dataType="text"> 
+            <title>Message</title> 
+        </field> 
+        <field name="alert_msg_count" dataType="text"> 
+            <title>Message</title> 
+        </field> 
+        <field name="alert_count" dataType="number" decimals="0" size="6" > 
+            <title>Count</title> 
+        </field>
+        <sortField name="alert_id"/>
+        <restriction type="sql" sql="project.alert_count &gt; 0"/>
+        <sql dialect="sqlserver">
+        SELECT '0' ${sql.as} alert_id, 'Message text' ${sql.as} alert_msg, 'Message text' ${sql.as} alert_msg_count, 0 ${sql.as} alert_count
+        FROM project
+        UNION (
+            SELECT '1' ${sql.as} alert_id,
+            CASE WHEN COUNT(activity_log_id) = 1 THEN ${parameters['assignedAct1']} ELSE ${parameters['assignedAct']} END ${sql.as} alert_msg,       
+            CASE WHEN COUNT(activity_log_id) = 1 THEN ${parameters['assignedAct1']} ELSE ${parameters['assignedAct']} END ${sql.concat} ' (' ${sql.concat} CAST(COUNT(activity_log_id) AS VARCHAR) ${sql.concat} ')' ${sql.as} alert_msg_count,      
+            COUNT(activity_log_id) ${sql.as} alert_count
+            FROM activity_log
+            LEFT OUTER JOIN project ON project.project_id = activity_log.project_id
+            WHERE activity_log.project_id IS NOT NULL AND activity_log.assigned_to = '${user.employee.id}'
+            AND activity_log.status NOT IN ('REJECTED', 'CANCELLED', 'STOPPED', 'CLOSED', 'COMPLETED', 'COMPLETED-V')
+            AND activity_log.pct_complete &lt; 100
+            AND ${parameters['projRestriction']} AND ${sql.getVpaRestrictionForTable('project')}
+        )
+        UNION (
+            SELECT '2' ${sql.as} alert_id,
+            CASE WHEN COUNT(work_pkg_id) = 1 THEN ${parameters['workpkgsOutBid1']} ELSE ${parameters['workpkgsOutBid']} END ${sql.as} alert_msg,  
+            CASE WHEN COUNT(work_pkg_id) = 1 THEN ${parameters['workpkgsOutBid1']} ELSE ${parameters['workpkgsOutBid']} END ${sql.concat} ' (' ${sql.concat} CAST(COUNT(work_pkg_id) AS VARCHAR) ${sql.concat} ')' ${sql.as} alert_msg_count, 
+            COUNT(work_pkg_id) ${sql.as} alert_count
+            FROM work_pkgs
+            LEFT OUTER JOIN project ON project.project_id = work_pkgs.project_id
+            LEFT OUTER JOIN program ON program.program_id = project.program_id
+          LEFT OUTER JOIN bl ON bl.bl_id = project.bl_id
+          LEFT OUTER JOIN site on site.site_id = project.site_id
+          LEFT OUTER JOIN ctry ON ctry.ctry_id = bl.ctry_id
+            WHERE work_pkgs.status IN ('Approved-Out for Bid', 'Approved-Bid Review')
+            AND ${parameters['projRestriction']} AND ${sql.getVpaRestrictionForTable('project')}
+        )
+        UNION (
+            SELECT '3' ${sql.as} alert_id,
+            CASE WHEN COUNT(work_pkg_id) = 1 THEN ${parameters['contrPendSig1']} ELSE ${parameters['contrPendSig']} END ${sql.as} alert_msg,             
+            CASE WHEN COUNT(work_pkg_id) = 1 THEN ${parameters['contrPendSig1']} ELSE ${parameters['contrPendSig']} END ${sql.concat} ' (' ${sql.concat} CAST(COUNT(work_pkg_id) AS VARCHAR) ${sql.concat} ')' ${sql.as} alert_msg_count,            
+            COUNT(work_pkg_id) ${sql.as} alert_count
+            FROM work_pkg_bids
+            LEFT OUTER JOIN project ON project.project_id = work_pkg_bids.project_id
+            LEFT OUTER JOIN program ON program.program_id = project.program_id
+          LEFT OUTER JOIN bl ON bl.bl_id = project.bl_id
+          LEFT OUTER JOIN site on site.site_id = project.site_id
+          LEFT OUTER JOIN ctry ON ctry.ctry_id = bl.ctry_id
+            WHERE work_pkg_bids.status IN ('Approved')
+            AND ${parameters['projRestriction']} AND ${sql.getVpaRestrictionForTable('project')}
+        )
+        UNION (
+            SELECT '4' ${sql.as} alert_id,
+            CASE WHEN COUNT(activity_log_id) = 1 THEN ${parameters['chgPendApprv1']} ELSE ${parameters['chgPendApprv']} END ${sql.as} alert_msg,         
+            CASE WHEN COUNT(activity_log_id) = 1 THEN ${parameters['chgPendApprv1']} ELSE ${parameters['chgPendApprv']} END ${sql.concat} ' (' ${sql.concat} CAST(COUNT(activity_log_id) AS VARCHAR) ${sql.concat} ')' ${sql.as} alert_msg_count,       
+            COUNT(activity_log_id) ${sql.as} alert_count
+            FROM activity_log
+            LEFT OUTER JOIN project ON project.project_id = activity_log.project_id
+            LEFT OUTER JOIN program ON program.program_id = project.program_id
+          LEFT OUTER JOIN bl ON bl.bl_id = project.bl_id
+          LEFT OUTER JOIN site on site.site_id = project.site_id
+          LEFT OUTER JOIN ctry ON ctry.ctry_id = bl.ctry_id
+            WHERE activity_log.activity_type = 'PROJECT - CHANGE ORDER' AND activity_log.status = 'REQUESTED'
+            AND ${parameters['projRestriction']} AND ${sql.getVpaRestrictionForTable('project')}
+        )
+        UNION (
+            SELECT '5' ${sql.as} alert_id,
+            CASE WHEN COUNT(activity_log_id) = 1 THEN ${parameters['actsBehSched1']} ELSE ${parameters['actsBehSched']} END ${sql.as} alert_msg,         
+            CASE WHEN COUNT(activity_log_id) = 1 THEN ${parameters['actsBehSched1']} ELSE ${parameters['actsBehSched']} END ${sql.concat} ' (' ${sql.concat} CAST(COUNT(activity_log_id) AS VARCHAR) ${sql.concat} ')' ${sql.as} alert_msg_count,        
+            COUNT(activity_log_id) ${sql.as} alert_count
+            FROM activity_log
+            LEFT OUTER JOIN project ON project.project_id = activity_log.project_id
+            LEFT OUTER JOIN program ON program.program_id = project.program_id
+          LEFT OUTER JOIN bl ON bl.bl_id = project.bl_id
+          LEFT OUTER JOIN site on site.site_id = project.site_id
+          LEFT OUTER JOIN ctry ON ctry.ctry_id = bl.ctry_id
+            WHERE activity_log.status NOT IN ('REJECTED', 'CANCELLED', 'CLOSED', 'IN PROGRESS', 'COMPLETED', 'COMPLETED-V') AND date_scheduled &lt; ${sql.currentDate}
+            AND ${parameters['projRestriction']} AND ${sql.getVpaRestrictionForTable('project')}
+        )
+        UNION (
+            SELECT '6' ${sql.as} alert_id,
+            CASE WHEN COUNT(activity_log_id) = 1 THEN ${parameters['actsOnHold1']} ELSE ${parameters['actsOnHold']} END ${sql.as} alert_msg,         
+            CASE WHEN COUNT(activity_log_id) = 1 THEN ${parameters['actsOnHold1']} ELSE ${parameters['actsOnHold']} END ${sql.concat} ' (' ${sql.concat} CAST(COUNT(activity_log_id) AS VARCHAR) ${sql.concat} ')' ${sql.as} alert_msg_count,        
+            COUNT(activity_log_id) ${sql.as} alert_count
+            FROM activity_log
+            LEFT OUTER JOIN project ON project.project_id = activity_log.project_id
+            LEFT OUTER JOIN program ON program.program_id = project.program_id
+          LEFT OUTER JOIN bl ON bl.bl_id = project.bl_id
+          LEFT OUTER JOIN site on site.site_id = project.site_id
+          LEFT OUTER JOIN ctry ON ctry.ctry_id = bl.ctry_id
+            WHERE activity_log.status IN ('IN PROCESS-H')
+            AND ${parameters['projRestriction']} AND ${sql.getVpaRestrictionForTable('project')}
+        )
+        UNION (
+            SELECT '7' ${sql.as} alert_id,
+            CASE WHEN COUNT(invoice_id) = 1 THEN ${parameters['openInv1']} ELSE ${parameters['openInv']} END ${sql.as} alert_msg,    
+            CASE WHEN COUNT(invoice_id) = 1 THEN ${parameters['openInv1']} ELSE ${parameters['openInv']} END ${sql.concat} ' (' ${sql.concat} CAST(COUNT(invoice_id) AS VARCHAR) ${sql.concat} ')' ${sql.as} alert_msg_count,    
+            COUNT(invoice_id) ${sql.as} alert_count
+            FROM invoice
+            LEFT OUTER JOIN project ON project.project_id = invoice.project_id
+            LEFT OUTER JOIN program ON program.program_id = project.program_id
+          LEFT OUTER JOIN bl ON bl.bl_id = project.bl_id
+          LEFT OUTER JOIN site on site.site_id = project.site_id
+          LEFT OUTER JOIN ctry ON ctry.ctry_id = bl.ctry_id
+            WHERE invoice.status='ISSUED' AND invoice.project_id IS NOT NULL
+            AND ${parameters['projRestriction']} AND ${sql.getVpaRestrictionForTable('project')}
+        )
+        UNION (
+            SELECT '8' ${sql.as} alert_id,
+            CASE WHEN COUNT(comm_id) = 1 THEN ${parameters['highLog1']} ELSE ${parameters['highLog']} END ${sql.as} alert_msg,       
+            CASE WHEN COUNT(comm_id) = 1 THEN ${parameters['highLog1']} ELSE ${parameters['highLog']} END ${sql.concat} ' (' ${sql.concat} CAST(COUNT(comm_id) AS VARCHAR) ${sql.concat} ')' ${sql.as} alert_msg_count,      
+            COUNT(comm_id) ${sql.as} alert_count
+            FROM ls_comm
+            LEFT OUTER JOIN project ON project.project_id = ls_comm.project_id
+            LEFT OUTER JOIN program ON program.program_id = project.program_id
+          LEFT OUTER JOIN bl ON bl.bl_id = project.bl_id
+          LEFT OUTER JOIN site on site.site_id = project.site_id
+          LEFT OUTER JOIN ctry ON ctry.ctry_id = bl.ctry_id
+            WHERE ls_comm.priority = 'High' AND ls_comm.project_id IS NOT NULL
+            AND ${parameters['projRestriction']} AND ${sql.getVpaRestrictionForTable('project')}
+        )
+        UNION (
+            SELECT '9' ${sql.as} alert_id,
+            CASE WHEN COUNT(comm_id) = 1 THEN ${parameters['urgLog1']} ELSE ${parameters['urgLog']} END ${sql.as} alert_msg,     
+            CASE WHEN COUNT(comm_id) = 1 THEN ${parameters['urgLog1']} ELSE ${parameters['urgLog']} END ${sql.concat} ' (' ${sql.concat} CAST(COUNT(comm_id) AS VARCHAR) ${sql.concat} ')' ${sql.as} alert_msg_count,    
+            COUNT(comm_id) ${sql.as} alert_count
+            FROM ls_comm
+            LEFT OUTER JOIN project ON project.project_id = ls_comm.project_id
+            LEFT OUTER JOIN program ON program.program_id = project.program_id
+          LEFT OUTER JOIN bl ON bl.bl_id = project.bl_id
+          LEFT OUTER JOIN site on site.site_id = project.site_id
+          LEFT OUTER JOIN ctry ON ctry.ctry_id = bl.ctry_id
+            WHERE ls_comm.priority = 'Urgent' AND ls_comm.project_id IS NOT NULL
+            AND ${parameters['projRestriction']} AND ${sql.getVpaRestrictionForTable('project')}
+        )
+        </sql>
+        <sql dialect="generic">
+        SELECT '0' ${sql.as} alert_id, 'Message text' ${sql.as} alert_msg, 'Message text' ${sql.as} alert_msg_count, 0 ${sql.as} alert_count
+        FROM project
+        UNION (
+            SELECT '1' ${sql.as} alert_id,
+            CASE WHEN COUNT(activity_log_id) = 1 THEN ${parameters['assignedAct1']} ELSE ${parameters['assignedAct']} END ${sql.as} alert_msg,   
+            CASE WHEN COUNT(activity_log_id) = 1 THEN ${parameters['assignedAct1']} ELSE ${parameters['assignedAct']} END ${sql.concat} ' (' ${sql.concat} COUNT(activity_log_id) ${sql.concat} ')' ${sql.as} alert_msg_count,   
+            COUNT(activity_log_id) ${sql.as} alert_count
+            FROM activity_log
+            LEFT OUTER JOIN project ON project.project_id = activity_log.project_id
+            WHERE activity_log.project_id IS NOT NULL AND activity_log.assigned_to = '${user.employee.id}'
+            AND activity_log.status NOT IN ('REJECTED', 'CANCELLED', 'STOPPED', 'CLOSED', 'COMPLETED', 'COMPLETED-V')
+            AND activity_log.pct_complete &lt; 100
+            AND ${parameters['projRestriction']} AND ${sql.getVpaRestrictionForTable('project')}
+        )
+        UNION (
+            SELECT '2' ${sql.as} alert_id, 
+            CASE WHEN COUNT(work_pkg_id) = 1 THEN ${parameters['workpkgsOutBid1']} ELSE ${parameters['workpkgsOutBid']} END ${sql.as} alert_msg, 
+            CASE WHEN COUNT(work_pkg_id) = 1 THEN ${parameters['workpkgsOutBid1']} ELSE ${parameters['workpkgsOutBid']} END ${sql.concat} ' (' ${sql.concat} COUNT(work_pkg_id) ${sql.concat} ')' ${sql.as} alert_msg_count, 
+            COUNT(work_pkg_id) ${sql.as} alert_count
+            FROM work_pkgs
+            LEFT OUTER JOIN project ON project.project_id = work_pkgs.project_id
+            LEFT OUTER JOIN program ON program.program_id = project.program_id
+          LEFT OUTER JOIN bl ON bl.bl_id = project.bl_id
+          LEFT OUTER JOIN site on site.site_id = project.site_id
+          LEFT OUTER JOIN ctry ON ctry.ctry_id = bl.ctry_id
+            WHERE work_pkgs.status IN ('Approved-Out for Bid', 'Approved-Bid Review')
+            AND ${parameters['projRestriction']} AND ${sql.getVpaRestrictionForTable('project')}
+        )
+        UNION (
+            SELECT '3' ${sql.as} alert_id,
+            CASE WHEN COUNT(work_pkg_id) = 1 THEN ${parameters['contrPendSig1']} ELSE ${parameters['contrPendSig']} END ${sql.as} alert_msg,             
+            CASE WHEN COUNT(work_pkg_id) = 1 THEN ${parameters['contrPendSig1']} ELSE ${parameters['contrPendSig']} END ${sql.concat} ' (' ${sql.concat} COUNT(work_pkg_id) ${sql.concat} ')' ${sql.as} alert_msg_count,             
+            COUNT(work_pkg_id) ${sql.as} alert_count
+            FROM work_pkg_bids
+            LEFT OUTER JOIN project ON project.project_id = work_pkg_bids.project_id
+            LEFT OUTER JOIN program ON program.program_id = project.program_id
+          LEFT OUTER JOIN bl ON bl.bl_id = project.bl_id
+          LEFT OUTER JOIN site on site.site_id = project.site_id
+          LEFT OUTER JOIN ctry ON ctry.ctry_id = bl.ctry_id
+            WHERE work_pkg_bids.status IN ('Approved')
+            AND ${parameters['projRestriction']} AND ${sql.getVpaRestrictionForTable('project')}
+        )
+        UNION (
+            SELECT '4' ${sql.as} alert_id, 
+            CASE WHEN COUNT(activity_log_id) = 1 THEN ${parameters['chgPendApprv1']} ELSE ${parameters['chgPendApprv']} END ${sql.as} alert_msg,        
+            CASE WHEN COUNT(activity_log_id) = 1 THEN ${parameters['chgPendApprv1']} ELSE ${parameters['chgPendApprv']} END ${sql.concat} ' (' ${sql.concat} COUNT(activity_log_id) ${sql.concat} ')' ${sql.as} alert_msg_count,        
+            COUNT(activity_log_id) ${sql.as} alert_count
+            FROM activity_log
+            LEFT OUTER JOIN project ON project.project_id = activity_log.project_id
+            LEFT OUTER JOIN program ON program.program_id = project.program_id
+          LEFT OUTER JOIN bl ON bl.bl_id = project.bl_id
+          LEFT OUTER JOIN site on site.site_id = project.site_id
+          LEFT OUTER JOIN ctry ON ctry.ctry_id = bl.ctry_id
+            WHERE activity_log.activity_type = 'PROJECT - CHANGE ORDER' AND activity_log.status = 'REQUESTED'
+            AND ${parameters['projRestriction']} AND ${sql.getVpaRestrictionForTable('project')}
+        )
+        UNION (
+            SELECT '5' ${sql.as} alert_id,
+            CASE WHEN COUNT(activity_log_id) = 1 THEN ${parameters['actsBehSched1']} ELSE ${parameters['actsBehSched']} END ${sql.as} alert_msg,         
+            CASE WHEN COUNT(activity_log_id) = 1 THEN ${parameters['actsBehSched1']} ELSE ${parameters['actsBehSched']} END ${sql.concat} ' (' ${sql.concat} COUNT(activity_log_id) ${sql.concat} ')' ${sql.as} alert_msg_count,         
+            COUNT(activity_log_id) ${sql.as} alert_count
+            FROM activity_log
+            LEFT OUTER JOIN project ON project.project_id = activity_log.project_id
+            LEFT OUTER JOIN program ON program.program_id = project.program_id
+          LEFT OUTER JOIN bl ON bl.bl_id = project.bl_id
+          LEFT OUTER JOIN site on site.site_id = project.site_id
+          LEFT OUTER JOIN ctry ON ctry.ctry_id = bl.ctry_id
+            WHERE activity_log.status NOT IN ('REJECTED', 'CANCELLED', 'CLOSED', 'IN PROGRESS', 'COMPLETED', 'COMPLETED-V') AND date_scheduled &lt; ${sql.currentDate}
+            AND ${parameters['projRestriction']} AND ${sql.getVpaRestrictionForTable('project')}
+        )
+        UNION (
+            SELECT '6' ${sql.as} alert_id,
+            CASE WHEN COUNT(activity_log_id) = 1 THEN ${parameters['actsOnHold1']} ELSE ${parameters['actsOnHold']} END ${sql.as} alert_msg,         
+            CASE WHEN COUNT(activity_log_id) = 1 THEN ${parameters['actsOnHold1']} ELSE ${parameters['actsOnHold']} END ${sql.concat} ' (' ${sql.concat} COUNT(activity_log_id) ${sql.concat} ')' ${sql.as} alert_msg_count,         
+            COUNT(activity_log_id) ${sql.as} alert_count
+            FROM activity_log
+            LEFT OUTER JOIN project ON project.project_id = activity_log.project_id
+            LEFT OUTER JOIN program ON program.program_id = project.program_id
+          LEFT OUTER JOIN bl ON bl.bl_id = project.bl_id
+          LEFT OUTER JOIN site on site.site_id = project.site_id
+          LEFT OUTER JOIN ctry ON ctry.ctry_id = bl.ctry_id
+            WHERE activity_log.status IN ('IN PROCESS-H')
+            AND ${parameters['projRestriction']} AND ${sql.getVpaRestrictionForTable('project')}
+        )
+        UNION (
+            SELECT '7' ${sql.as} alert_id,
+            CASE WHEN COUNT(invoice_id) = 1 THEN ${parameters['openInv1']} ELSE ${parameters['openInv']} END ${sql.as} alert_msg,    
+            CASE WHEN COUNT(invoice_id) = 1 THEN ${parameters['openInv1']} ELSE ${parameters['openInv']} END ${sql.concat} ' (' ${sql.concat} COUNT(invoice_id) ${sql.concat} ')' ${sql.as} alert_msg_count,     
+            COUNT(invoice_id) ${sql.as} alert_count
+            FROM invoice
+            LEFT OUTER JOIN project ON project.project_id = invoice.project_id
+            LEFT OUTER JOIN program ON program.program_id = project.program_id
+          LEFT OUTER JOIN bl ON bl.bl_id = project.bl_id
+          LEFT OUTER JOIN site on site.site_id = project.site_id
+          LEFT OUTER JOIN ctry ON ctry.ctry_id = bl.ctry_id
+            WHERE invoice.status='ISSUED' AND invoice.project_id IS NOT NULL
+            AND ${parameters['projRestriction']} AND ${sql.getVpaRestrictionForTable('project')}
+        )
+        UNION (
+            SELECT '8' ${sql.as} alert_id,
+            CASE WHEN COUNT(comm_id) = 1 THEN ${parameters['highLog1']} ELSE ${parameters['highLog']} END ${sql.as} alert_msg,       
+            CASE WHEN COUNT(comm_id) = 1 THEN ${parameters['highLog1']} ELSE ${parameters['highLog']} END ${sql.concat} ' (' ${sql.concat} COUNT(comm_id) ${sql.concat} ')' ${sql.as} alert_msg_count,       
+            COUNT(comm_id) ${sql.as} alert_count
+            FROM ls_comm
+            LEFT OUTER JOIN project ON project.project_id = ls_comm.project_id
+            LEFT OUTER JOIN program ON program.program_id = project.program_id
+          LEFT OUTER JOIN bl ON bl.bl_id = project.bl_id
+          LEFT OUTER JOIN site on site.site_id = project.site_id
+          LEFT OUTER JOIN ctry ON ctry.ctry_id = bl.ctry_id
+            WHERE ls_comm.priority = 'High' AND ls_comm.project_id IS NOT NULL
+            AND ${parameters['projRestriction']} AND ${sql.getVpaRestrictionForTable('project')}
+        )
+        UNION (
+            SELECT '9' ${sql.as} alert_id,
+            CASE WHEN COUNT(comm_id) = 1 THEN ${parameters['urgLog1']} ELSE ${parameters['urgLog']} END ${sql.as} alert_msg,     
+            CASE WHEN COUNT(comm_id) = 1 THEN ${parameters['urgLog1']} ELSE ${parameters['urgLog']} END ${sql.concat} ' (' ${sql.concat} COUNT(comm_id) ${sql.concat} ')' ${sql.as} alert_msg_count,     
+            COUNT(comm_id) ${sql.as} alert_count
+            FROM ls_comm
+            LEFT OUTER JOIN project ON project.project_id = ls_comm.project_id
+            LEFT OUTER JOIN program ON program.program_id = project.program_id
+          LEFT OUTER JOIN bl ON bl.bl_id = project.bl_id
+          LEFT OUTER JOIN site on site.site_id = project.site_id
+          LEFT OUTER JOIN ctry ON ctry.ctry_id = bl.ctry_id
+            WHERE ls_comm.priority = 'Urgent' AND ls_comm.project_id IS NOT NULL
+            AND ${parameters['projRestriction']} AND ${sql.getVpaRestrictionForTable('project')}
+        )
+        </sql>
+        <parameter name="projRestriction" dataType="verbatim" value="1=1"/>
+        <parameter name="assignedAct1" dataType="text" value="message"/>
+        <parameter name="assignedAct" dataType="text" value="message"/>
+        <parameter name="workpkgsOutBid1" dataType="text" value="message"/>
+        <parameter name="workpkgsOutBid" dataType="text" value="message"/>
+        <parameter name="contrPendSig1" dataType="text" value="message"/>
+        <parameter name="contrPendSig" dataType="text" value="message"/>
+        <parameter name="chgPendApprv1" dataType="text" value="message"/>
+        <parameter name="chgPendApprv" dataType="text" value="message"/>
+        <parameter name="actsBehSched1" dataType="text" value="message"/>
+        <parameter name="actsBehSched" dataType="text" value="message"/>
+        <parameter name="actsOnHold1" dataType="text" value="message"/>
+        <parameter name="actsOnHold" dataType="text" value="message"/>
+        <parameter name="openInv1" dataType="text" value="message"/>
+        <parameter name="openInv" dataType="text" value="message"/>
+        <parameter name="highLog1" dataType="text" value="message"/>
+        <parameter name="highLog" dataType="text" value="message"/>
+        <parameter name="urgLog1" dataType="text" value="message"/>
+        <parameter name="urgLog" dataType="text" value="message"/>
+    </dataSource>
+    
+    <panel type="grid" id="projMngDashAlert_msgs" showIndexAndFilterOnLoad="false" dataSource="projMngDashAlert_ds" showOnLoad="false">
+                <title>Alerts</title>
+                <sortField name="alert_id"/>
+                <field name="alert_id" table="project" hidden="true"/>
+                <field id="alert_icon" controlType="image" imageName="/schema/ab-core/graphics/error.gif">
+            <title></title>
+            <command type="callFunction" functionName="projMngDashAlertController.projMngDashAlert_msgs_select(this)"/>
+        </field>
+        <field name="alert_msg" dataType="text" controlType="link">
+                <title>Alert</title> 
+            <command type="callFunction" functionName="projMngDashAlertController.projMngDashAlert_msgs_select(this)"/>
+        </field>
+        <field name="alert_count" dataType="text" controlType="link">
+                <title>Count</title> 
+            <command type="callFunction" functionName="projMngDashAlertController.projMngDashAlert_msgs_select(this)"/>
+        </field>
+    </panel>
+</view>

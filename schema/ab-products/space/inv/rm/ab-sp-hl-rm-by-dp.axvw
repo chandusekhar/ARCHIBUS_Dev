@@ -1,0 +1,150 @@
+<view version="2.0">
+    <title translatable="true">Highlight Rooms by Department</title>
+    
+    <layout id="main">
+        <north id="filterPosition" initialSize="13%" split="true"/>
+        <west initialSize="20%" split="true"/>
+        <center id="dwgPosition"/>
+    </layout>
+    
+    <layout id="nested_west" containingLayout="main" region="west">
+        <north id="dpTreePosition" initialSize="40%"/>
+        <center id="flTreePosition"/>
+    </layout>
+    
+    <message name="drawingPanelTitle" translatable="true">Highlight Rooms by Department</message>
+    <message name="drawingPanelTitle1" translatable="true">Highlight Rooms for Department: %s</message>
+    
+    <dataSource id="ds_ab-sp-hl-rm-by-dp_console_rm">
+        <table name="rm" role="main"/>
+		<field table="rm" name="bl_id"/>
+        <field table="rm" name="dv_id"/>
+        <field table="rm" name="dp_id"/>
+    </dataSource>
+    
+    <dataSource id="ds_ab-sp-hl-rm-by-dp_tree_dv">
+        <table name="dv" role="main"/>
+        <field table="dv" name="dv_id"/>
+        <parameter name="dvRes" dataType="verbatim" value=" IS NOT NULL"/>
+		<parameter name="dpRes" dataType="verbatim" value=" IS NOT NULL"/>
+        <restriction type="sql" sql="dv.dv_id ${parameters['dvRes']} 
+		AND EXISTS (SELECT 1 FROM dp WHERE dp.dv_id = dv.dv_id
+					AND dp.dp_id ${parameters['dpRes']})
+		AND EXISTS (SELECT 1 FROM rm LEFT JOIN rmcat 
+					ON rm.rm_cat= rmcat.rm_cat WHERE
+					rm.dv_id IS NOT NULL
+					AND rm.dv_id= dv.dv_id  )"/>
+        <sortField table="dv" name="dv_id" ascending="true"/>
+    </dataSource>
+    
+    <dataSource id="ds_ab-sp-hl-rm-by-dp_tree_dp">
+        <table name="dp" role="main"/>
+        <field table="dp" name="dp_id"/>
+        <parameter name="dvRes" dataType="verbatim" value="IS NOT NULL"/>
+        <parameter name="dpRes" dataType="verbatim" value="IS NOT NULL"/>
+        <restriction type="sql" sql="dp.dv_id ${parameters['dvRes']} AND dp.dp_id ${parameters['dpRes']}
+				AND EXISTS (SELECT 1 FROM rm LEFT JOIN rmcat 
+									ON rm.rm_cat= rmcat.rm_cat WHERE
+									rm.dv_id IS NOT NULL
+									AND rm.dv_id= dp.dv_id
+									AND rm.dp_id= dp.dp_id
+						)"/>
+        <sortField table="dp" name="dp_id" ascending="true"/>
+    </dataSource>
+    
+    <dataSource id="ds_ab-sp-hl-rm-by-dp_grid_fl" type="grouping">
+    	<table name="rm" role="main"/>
+        <field table="rm" name="bl_id" groupBy="true"/>
+    	<field table="rm" name="fl_id" groupBy="true"/>
+    	<field table="rm" name="dwgname" groupBy="true"/>
+        <parameter name="dvRes" dataType="verbatim" value=" IS NOT NULL"/>
+        <parameter name="dpRes" dataType="verbatim" value=" IS NOT NULL"/>
+		<parameter name="blRes" dataType="verbatim" value=" IS NOT NULL"/>
+        <restriction type="sql" sql="rm.dv_id${parameters['dvRes']}
+         AND rm.dp_id${parameters['dpRes']}
+		 AND rm.bl_id${parameters['blRes']} 
+		 AND rm.dwgname IS NOT NULL"/>
+    </dataSource>
+    
+    <dataSource id="ds_ab-sp-hl-rm-by-dp_drawing_rmHighlight" type="DrawingControlHighlight">
+        <table name="rm" role="main"/>
+        <table name="dp" role="standard"/>
+        <field table="rm" name="bl_id"/>
+        <field table="rm" name="fl_id"/>
+        <field table="rm" name="rm_id"/>
+        <field table="rm" name="rm_std"/>
+        <field table="rm" name="dp_id" legendKey="true"/>
+        <field table="dp" name="hpattern_acad"/>
+        <parameter name="rmDp" dataType="verbatim" value=""/>
+        <restriction type="sql" sql=" 1=1 ${parameters['rmDp']}"/>
+    </dataSource>
+    
+    <dataSource id="ds_ab-sp-hl-rm-by-dp_drawing_rmLabel">
+        <table name="rm" role="main"/>
+        <field name="bl_id" hidden="true"/>
+        <field name="fl_id" hidden="true"/>
+        <field name="rm_id"/>
+        <field name="dv_id"/>
+        <field name="dp_id"/>
+        <field name="area"/>
+    </dataSource>
+    
+    <dataSource id="ds_ab-sp-hl-rm-by-dp_columnReport_rm">
+        <table name="rm" role="main"/>
+        <table name="dp" role="standard"/>
+        <field table="rm" name="bl_id"/>
+        <field table="rm" name="rm_cat"/>
+        <field table="rm" name="fl_id"/>
+        <field table="rm" name="rm_type"/>
+        <field table="rm" name="rm_id"/>
+        <field table="rm" name="rm_std"/>
+        <field table="rm" name="rm_use"/>
+        <field table="dp" name="name"/>
+        <field table="rm" name="phone"/>
+        <field table="rm" name="count_em"/>
+        <field table="rm" name="area"/>
+        <field table="rm" name="area_alloc"/>
+    </dataSource>
+    
+    <panel type="console" id="abSpHlRmByDp_filterConsole" columns="3" dataSource="ds_ab-sp-hl-rm-by-dp_console_rm" layoutRegion="filterPosition">
+        <title translatable="true">Filter</title>
+        <action id="showDpGrid">
+            <title translatable="true">Show</title>
+        </action>
+		<action id="clear">
+            <title translatable="true">Clear</title>
+            <command type="clearPanel" panelId="abSpHlRmByDp_filterConsole"/>
+        </action>
+    </panel>
+    
+    <panel type="tree" id="abSpHlRmByDp_dvTree" dataSource="ds_ab-sp-hl-rm-by-dp_tree_dv" layoutRegion="dpTreePosition">
+        <title translatable="true">Select Division and Department</title>
+        <panel type="tree" id="abSpHlRmByDp_dpTree" dataSource="ds_ab-sp-hl-rm-by-dp_tree_dp">
+            <event type="onClickNode">
+                <command type="callFunction" functionName="onDpTreeClick"/>
+            </event>
+        </panel>
+    </panel>
+    
+    <panel type="grid" id="abSpHlRmByDp_flGrid" dataSource="ds_ab-sp-hl-rm-by-dp_grid_fl" multipleSelectionEnabled="true" layoutRegion="flTreePosition">
+        <title translatable="true">Select Floor</title>
+		<sortField table="rm" name="bl_id" ascending="true"/>
+        <sortField table="rm" name="fl_id" ascending="true"/>
+    </panel>
+    
+    <panel type="drawing" id="abSpHlRmByDp_DrawingPanel" layoutRegion="dwgPosition"
+     highlightDataSource="ds_ab-sp-hl-rm-by-dp_drawing_rmHighlight"
+     labelsDataSource="ds_ab-sp-hl-rm-by-dp_drawing_rmLabel">
+     	<action id="exportDOCX">
+			<title translatable="true">DOC</title>
+			<tooltip translatable="true">Export current view of drawing to Docx file.</tooltip>
+			<command type="exportPanel" outputType="docx" panelId="abSpHlRmByDp_DrawingPanel"/>
+		</action>
+        <title></title>
+    </panel>
+    
+    <panel type="columnReport" id="abSpHlRmByDp_RmDetailPanel" columns="2" dataSource="ds_ab-sp-hl-rm-by-dp_columnReport_rm" showOnLoad="false" hidden="true" layoutRegion="dwgPosition">
+        <title translatable="true">Room Details</title>
+    </panel>    
+    <js file="ab-sp-hl-rm-by-dp.js"/>
+</view>

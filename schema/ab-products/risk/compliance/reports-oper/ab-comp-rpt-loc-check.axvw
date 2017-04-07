@@ -1,0 +1,441 @@
+<view version="2.0">
+
+    <js file="ab-comp-common.js"/>
+	<js file="ab-comp-rpt-loc-check.js"/>
+
+    <title translatable="true">View Assets without Compliance Locations</title>
+    
+    <layout type="borderLayout" id="mainLayout">
+        <north autoScroll="true" split="true" initialSize="182px"/>
+        <center autoScroll="true"/>
+    </layout>
+	
+    <!--Filter Console Panel-->
+    <dataSource id="abCompDrilldownConsoleDS">
+        <table name="regloc" role="main"/> 
+        <table name="regulation" role="standard"/>
+        <table name="regprogram" role="standard"/>
+        <table name="compliance_locations" role="standard"/>
+        <table name="em" role="standard"/>
+        
+        <field table="regloc" name="regulation" />
+        <field table="regloc" name="reg_program" />
+                
+        <field table="regulation" name="reg_cat" />
+        <field table="regulation" name="reg_type" />
+        <field table="regulation" name="reg_rank" />
+
+        <field table="regprogram" name="regprog_cat"/>
+        <field table="regprogram" name="regprog_type"/>        
+        <field table="regprogram" name="priority"/>
+
+        <field table="regulation" name="reg_class" />
+        <field table="regprogram" name="project_id"/>
+        
+        <field table="compliance_locations" name="state_id"/>
+        <field table="compliance_locations" name="city_id"/>
+        <field table="compliance_locations" name="site_id"/>
+        <field table="compliance_locations" name="pr_id"/>        
+        <field table="compliance_locations" name="bl_id"/>
+        <field table="compliance_locations" name="eq_std"/>
+        <field table="em" name="em_std" />
+               
+    </dataSource>
+        
+    <panel type="console" columns="3" id="abCompDrilldownConsole" dataSource="abCompDrilldownConsoleDS"  layout="mainLayout" region="north">
+        <title translatable="true">Filter</title>
+        <action type="menu" id="toolsMenu">
+            <title>Asset Types</title>
+            <action id="EQUIPMENT" checked="true">
+                <title>Show Equipment</title>
+                <command type="callFunction" functionName="assetTypesMenuSel"/>
+            </action>
+            <action id="EMPLOYEE" checked="false">
+                <title>Show Employees</title>
+                <command type="callFunction" functionName="assetTypesMenuSel"/>
+            </action>
+            <action id="BUILDING" checked="false">
+                <title>Show Buildings</title>
+                <command type="callFunction" functionName="assetTypesMenuSel"/>
+            </action>
+            <action id="FLOOR" checked="false">
+                <title>Show Floors</title>
+                <command type="callFunction" functionName="assetTypesMenuSel"/>
+            </action>
+            <action id="ROOM" checked="false">
+                <title>Show Rooms</title>
+                <command type="callFunction" functionName="assetTypesMenuSel"/>
+            </action>
+            <action id="PROPERTY" checked="false">
+                <title>Show Properties</title>
+                <command type="callFunction" functionName="assetTypesMenuSel"/>
+            </action>
+            <action id="SITE" checked="false">
+                <title>Show Sites</title>
+                <command type="callFunction" functionName="assetTypesMenuSel"/>
+            </action>
+        </action>
+        <action id="show">
+            <title translatable="true">Show</title>
+        </action>
+        <action id="clear">
+            <title translatable="true">Clear</title>
+            <command type="clearPanel" panelId="abCompDrilldownConsole"/>
+        </action>
+        
+        
+        <field table="regloc" name="regulation">
+            <action>
+                <command type="callFunction" functionName="selectRegulationCommon('abCompDrilldownConsole', 'regloc','multiple')"/>
+            </action>
+        </field>
+        <field table="regloc" name="reg_program">
+            <action>
+                <command type="callFunction" functionName="selectProgramCommon('abCompDrilldownConsole', 'regloc','multiple')">
+                </command>
+            </action>
+        </field>
+        <field table="compliance_locations" name="city_id" selectValueType="multiple"/>
+        <field table="compliance_locations" name="state_id" hidden="true"/>
+        
+        <field table="regulation" name="reg_cat" selectValueType="multiple"/>
+        <field table="regprogram" name="regprog_cat" selectValueType="multiple"/>
+        <field table="compliance_locations" name="site_id" selectValueType="multiple"/>
+
+        <field table="regulation" name="reg_type" selectValueType="multiple"/>
+        <field table="regprogram" name="regprog_type" selectValueType="multiple"/>
+        <field table="compliance_locations" name="pr_id" selectValueType="multiple"/>        
+        
+        <field table="regulation" name="reg_rank" />
+        <field table="regprogram" name="priority"/>
+        <field table="compliance_locations" name="bl_id" selectValueType="multiple"/>
+        
+        <field table="regprogram" name="project_id" >
+            <action>
+                <command type="selectValue" 
+                    restriction="project_type='REGULATION'" 
+                    selectValueType="multiple" 
+                    fieldNames="regprogram.project_id" 
+                    applyFilter="true" 
+                    selectFieldNames=" project.project_id"
+                    visibleFieldNames=" project.project_id, project.summary">
+                </command>
+            </action>
+        </field>
+        
+        <field table="em" name="em_std"   selectValueType="multiple"/>
+        <field table="compliance_locations" name="eq_std" selectValueType="multiple"/>
+        
+    </panel>
+    
+    <!-- Main panel dataSource -->   
+    <dataSource id="abCompRptLocCheckDS" applyVpaRestrictions="false">
+        <sql>
+          SELECT al.regulation, al.reg_program, asset_type, asset_code, asset_name, asset_standard, asset_location, bl_id, pr_id, site_id,
+                 county_id, city_id, state_id, ctry_id, regulation.reg_cat, regulation.reg_type, regulation.reg_rank, 
+                 regprogram.regprog_cat, regprogram.regprog_type, regprogram.priority, regprogram.project_id
+          FROM (
+            SELECT regulation, reg_program, 'SITE'  ${sql.as} asset_type, site_id ${sql.as} asset_code,
+                   site.name ${sql.as} asset_name, NULL ${sql.as} asset_standard, NULL ${sql.as} asset_location, 
+                   NULL ${sql.as} bl_id, NULL ${sql.as} pr_id, site_id, NULL ${sql.as} county_id, city_id, state_id, ctry_id 
+            FROM
+                (SELECT regulation.regulation, regprogram.reg_program
+                FROM regulation inner join regprogram on regulation.regulation=regprogram.regulation
+                UNION
+                SELECT regulation.regulation, NULL
+                FROM regulation) tbl, site
+            WHERE 
+                NOT EXISTS (SELECT 1 FROM regloc rl, compliance_locations cl
+                WHERE rl.regulation=tbl.regulation
+                AND rl.location_id=cl.location_id
+                AND cl.site_id=site.site_id AND cl.pr_id IS NULL AND cl.bl_id IS NULL AND cl.eq_id IS NULL
+                AND cl.eq_std IS NULL AND cl.em_id IS NULL)
+
+                AND EXISTS (SELECT 1 FROM regloc rl, compliance_locations cl
+                WHERE ((rl.regulation=tbl.regulation AND tbl.reg_program IS NULL AND rl.reg_program IS NULL) OR (rl.regulation=tbl.regulation AND rl.reg_program=tbl.reg_program AND rl.reg_requirement IS NULL))
+                AND rl.location_id=cl.location_id
+                AND (cl.ctry_id=site.ctry_id OR cl.ctry_id IS NULL)
+                AND (cl.regn_id=site.regn_id OR cl.regn_id IS NULL) 
+                AND (cl.state_id=site.state_id OR cl.state_id IS NULL) 
+                AND (cl.city_id=site.city_id OR cl.city_id IS NULL)
+                AND cl.county_id IS NULL AND cl.site_id IS NULL AND cl.pr_id IS NULL AND cl.bl_id IS NULL 
+                AND cl.eq_id IS NULL AND cl.eq_std IS NULL AND cl.em_id IS NULL)
+                
+            UNION
+            
+            SELECT regulation, reg_program, 'PROPERTY'  ${sql.as} asset_type, pr.pr_id ${sql.as} asset_code,
+                   pr.name ${sql.as} asset_name, property_type ${sql.as} asset_standard, NULL ${sql.as} asset_location, 
+                   NULL ${sql.as} bl_id, pr_id, site_id, county_id, city_id, state_id, ctry_id 
+            FROM
+                (SELECT regulation.regulation, regprogram.reg_program
+                FROM regulation inner join regprogram on regulation.regulation=regprogram.regulation
+                UNION
+                SELECT regulation.regulation, NULL
+                FROM regulation) tbl, property ${sql.as} pr
+            WHERE 
+                NOT EXISTS (SELECT 1 FROM regloc rl, compliance_locations cl
+                WHERE rl.regulation=tbl.regulation
+                AND rl.location_id=cl.location_id
+                AND cl.pr_id=pr.pr_id AND cl.bl_id IS NULL AND cl.eq_id IS NULL
+                AND cl.eq_std IS NULL AND cl.em_id IS NULL)
+
+                AND EXISTS (SELECT 1 FROM regloc rl, compliance_locations cl
+                WHERE ((rl.regulation=tbl.regulation AND tbl.reg_program IS NULL AND rl.reg_program IS NULL) OR (rl.regulation=tbl.regulation AND rl.reg_program=tbl.reg_program AND rl.reg_requirement IS NULL))
+                AND rl.location_id=cl.location_id
+                AND (cl.ctry_id=pr.ctry_id OR cl.ctry_id IS NULL)
+                AND (cl.regn_id=pr.regn_id OR cl.regn_id IS NULL) 
+                AND (cl.state_id=pr.state_id OR cl.state_id IS NULL) 
+                AND (cl.city_id=pr.city_id OR cl.city_id IS NULL)                              
+                AND (cl.county_id=pr.county_id OR cl.county_id IS NULL)                              
+                AND (cl.site_id=pr.site_id OR cl.site_id IS NULL)                                              
+                AND cl.pr_id IS NULL AND cl.bl_id IS NULL AND cl.eq_id IS NULL AND cl.eq_std IS NULL AND cl.em_id IS NULL)
+
+            UNION
+            
+            SELECT regulation, reg_program, 'BUILDING'  ${sql.as} asset_type, bl.bl_id ${sql.as} asset_code,
+                   bl.name ${sql.as} asset_name, property_type ${sql.as} asset_standard, NULL ${sql.as} asset_location, 
+                   bl.bl_id, bl.pr_id, bl.site_id, pr.county_id, bl.city_id, bl.state_id, bl.ctry_id
+            FROM
+                (SELECT regulation.regulation, regprogram.reg_program
+                FROM regulation inner join regprogram on regulation.regulation=regprogram.regulation
+                UNION
+                SELECT regulation.regulation, NULL
+                FROM regulation) tbl, bl LEFT JOIN property ${sql.as} pr ON bl.pr_id=pr.pr_id
+            WHERE 
+                NOT EXISTS (SELECT 1 FROM regloc rl, compliance_locations cl
+                WHERE rl.regulation=tbl.regulation
+                AND rl.location_id=cl.location_id
+                AND cl.bl_id=bl.bl_id AND cl.fl_id IS NULL AND cl.eq_id IS NULL
+                AND cl.eq_std IS NULL AND cl.em_id IS NULL)
+
+                AND EXISTS (SELECT 1 FROM regloc rl, compliance_locations cl
+                WHERE ((rl.regulation=tbl.regulation AND tbl.reg_program IS NULL AND rl.reg_program IS NULL) OR (rl.regulation=tbl.regulation AND rl.reg_program=tbl.reg_program AND rl.reg_requirement IS NULL))
+                AND rl.location_id=cl.location_id
+                AND (cl.ctry_id=bl.ctry_id OR cl.ctry_id IS NULL)
+                AND (cl.regn_id=bl.regn_id OR cl.regn_id IS NULL) 
+                AND (cl.state_id=bl.state_id OR cl.state_id IS NULL) 
+                AND (cl.city_id=bl.city_id OR cl.city_id IS NULL)                              
+                AND (cl.county_id=pr.county_id OR cl.county_id IS NULL)                              
+                AND (cl.site_id=bl.site_id OR cl.site_id IS NULL)
+                AND (cl.pr_id=bl.pr_id OR cl.pr_id IS NULL)
+                AND cl.bl_id IS NULL AND cl.eq_id IS NULL AND cl.eq_std IS NULL AND cl.em_id IS NULL)
+                
+            UNION
+            
+            SELECT regulation, reg_program, 'FLOOR'  ${sql.as} asset_type, fl.bl_id${sql.concat}'-'${sql.concat}fl.fl_id ${sql.as} asset_code,
+                   fl.name ${sql.as} asset_name, NULL ${sql.as} asset_standard, NULL ${sql.as} asset_location, 
+                   fl.bl_id, bl.pr_id, bl.site_id, NULL ${sql.as} county_id, bl.city_id, bl.state_id, bl.ctry_id
+            FROM
+                (SELECT regulation.regulation, regprogram.reg_program
+                FROM regulation inner join regprogram on regulation.regulation=regprogram.regulation
+                UNION
+                SELECT regulation.regulation, NULL
+                FROM regulation) tbl, fl, bl
+            WHERE bl.bl_id=fl.bl_id
+                AND NOT EXISTS (SELECT 1 FROM regloc rl, compliance_locations cl
+                WHERE rl.regulation=tbl.regulation
+                AND rl.location_id=cl.location_id
+                AND cl.bl_id=fl.bl_id AND cl.fl_id=fl.fl_id AND cl.rm_id IS NULL AND cl.eq_id IS NULL
+                AND cl.eq_std IS NULL AND cl.em_id IS NULL)
+
+                AND EXISTS (SELECT 1 FROM regloc rl, compliance_locations cl
+                WHERE ((rl.regulation=tbl.regulation AND tbl.reg_program IS NULL AND rl.reg_program IS NULL) OR (rl.regulation=tbl.regulation AND rl.reg_program=tbl.reg_program AND rl.reg_requirement IS NULL))
+                AND rl.location_id=cl.location_id
+                AND (cl.ctry_id=bl.ctry_id OR cl.ctry_id IS NULL)
+                AND (cl.regn_id=bl.regn_id OR cl.regn_id IS NULL) 
+                AND (cl.state_id=bl.state_id OR cl.state_id IS NULL) 
+                AND (cl.city_id=bl.city_id OR cl.city_id IS NULL)                              
+                AND (cl.site_id=bl.site_id OR cl.site_id IS NULL)
+                AND (cl.pr_id=bl.pr_id OR cl.pr_id IS NULL)
+                AND (cl.bl_id=bl.bl_id OR cl.bl_id IS NULL)
+                AND cl.fl_id IS NULL AND cl.eq_id IS NULL AND cl.eq_std IS NULL AND cl.em_id IS NULL)
+                
+            UNION
+            
+            SELECT regulation, reg_program, 'ROOM'  ${sql.as} asset_type,
+                   rm.bl_id${sql.concat}'-'${sql.concat}rm.fl_id${sql.concat}'-'${sql.concat}rm.rm_id ${sql.as} asset_code,
+                   rm.name ${sql.as} asset_name, rm_std ${sql.as} asset_standard, NULL ${sql.as} asset_location, 
+                   rm.bl_id, bl.pr_id, bl.site_id, NULL ${sql.as} county_id, bl.city_id, bl.state_id, bl.ctry_id
+            FROM
+                (SELECT regulation.regulation, regprogram.reg_program
+                FROM regulation inner join regprogram on regulation.regulation=regprogram.regulation
+                UNION
+                SELECT regulation.regulation, NULL
+                FROM regulation) tbl, rm, bl
+            WHERE bl.bl_id=rm.bl_id
+                AND NOT EXISTS (SELECT 1 FROM regloc rl, compliance_locations cl
+                WHERE rl.regulation=tbl.regulation
+                AND rl.location_id=cl.location_id
+                AND cl.bl_id=rm.bl_id AND cl.fl_id=rm.fl_id AND cl.rm_id=rm.rm_id AND cl.eq_id IS NULL
+                AND cl.eq_std IS NULL AND cl.em_id IS NULL)
+
+                AND EXISTS (SELECT 1 FROM regloc rl, compliance_locations cl
+                WHERE ((rl.regulation=tbl.regulation AND tbl.reg_program IS NULL AND rl.reg_program IS NULL) OR (rl.regulation=tbl.regulation AND rl.reg_program=tbl.reg_program AND rl.reg_requirement IS NULL))
+                AND rl.location_id=cl.location_id
+                AND (cl.ctry_id=bl.ctry_id OR cl.ctry_id IS NULL)
+                AND (cl.regn_id=bl.regn_id OR cl.regn_id IS NULL) 
+                AND (cl.state_id=bl.state_id OR cl.state_id IS NULL) 
+                AND (cl.city_id=bl.city_id OR cl.city_id IS NULL)                              
+                AND (cl.site_id=bl.site_id OR cl.site_id IS NULL)
+                AND (cl.pr_id=bl.pr_id OR cl.pr_id IS NULL)
+                AND (cl.bl_id=bl.bl_id OR cl.bl_id IS NULL)
+                AND (cl.fl_id=rm.fl_id OR cl.fl_id IS NULL)
+                AND cl.rm_id IS NULL AND cl.eq_id IS NULL AND cl.eq_std IS NULL AND cl.em_id IS NULL)
+                
+            UNION
+            
+            SELECT regulation, reg_program, 'EQUIPMENT'  ${sql.as} asset_type,  eq_id ${sql.as} asset_code,
+                   mfr ${sql.as} asset_name, eq_std ${sql.as} asset_standard, 
+                   ${sql.trim('eq.bl_id')} ${sql.concat}'-'${sql.concat} 
+                   COALESCE(${sql.trim('eq.fl_id')},'') ${sql.concat}'-'${sql.concat}
+                   COALESCE(${sql.trim('eq.rm_id')},'') ${sql.as} asset_location, 
+                   eq.bl_id, eq.pr_id, eq.site_id, NULL ${sql.as} county_id, bl.city_id, bl.state_id, bl.ctry_id
+            FROM
+                (SELECT regulation.regulation, regprogram.reg_program
+                FROM regulation inner join regprogram on regulation.regulation=regprogram.regulation
+                UNION
+                SELECT regulation.regulation, NULL
+                FROM regulation) tbl, eq LEFT JOIN bl ON bl.bl_id=eq.bl_id
+            WHERE 
+                NOT EXISTS (SELECT 1 FROM regloc rl, compliance_locations cl
+                WHERE rl.regulation=tbl.regulation
+                AND rl.location_id=cl.location_id
+                AND cl.eq_id=eq.eq_id)
+
+                AND EXISTS (SELECT 1 FROM regloc rl, compliance_locations cl
+                WHERE ((rl.regulation=tbl.regulation AND tbl.reg_program IS NULL AND rl.reg_program IS NULL) OR (rl.regulation=tbl.regulation AND rl.reg_program=tbl.reg_program AND rl.reg_requirement IS NULL))
+                AND rl.location_id=cl.location_id
+                AND (cl.ctry_id=bl.ctry_id OR cl.ctry_id IS NULL)
+                AND (cl.regn_id=bl.regn_id OR cl.regn_id IS NULL) 
+                AND (cl.state_id=bl.state_id OR cl.state_id IS NULL) 
+                AND (cl.city_id=bl.city_id OR cl.city_id IS NULL)                              
+                AND (cl.site_id=bl.site_id OR cl.site_id IS NULL)
+                AND (cl.pr_id=bl.pr_id OR cl.pr_id IS NULL)
+                AND (cl.bl_id=eq.bl_id OR cl.bl_id IS NULL)
+                AND (cl.fl_id=eq.fl_id OR cl.fl_id IS NULL)
+                AND (cl.rm_id=eq.rm_id OR cl.rm_id IS NULL)
+                AND (cl.eq_std=eq.eq_std OR cl.eq_std IS NULL)
+                AND (cl.em_id=eq.em_id OR cl.em_id IS NULL)
+                AND cl.eq_id IS NULL)
+                
+            UNION
+            
+            SELECT regulation, reg_program, 'EMPLOYEE'  ${sql.as} asset_type,  em_id ${sql.as} asset_code,
+                   ${sql.trim('em.name_first')} ${sql.concat}' '${sql.concat} ${sql.trim('em.name_last')} ${sql.as} asset_name, 
+                   em_std ${sql.as} asset_standard, 
+                   ${sql.trim('em.bl_id')} ${sql.concat}'-'${sql.concat} 
+                   COALESCE(${sql.trim('em.fl_id')},'') ${sql.concat}'-'${sql.concat}
+                   COALESCE(${sql.trim('em.rm_id')},'') ${sql.as} asset_location, 
+                   em.bl_id, bl.pr_id, bl.site_id, NULL ${sql.as} county_id, bl.city_id, bl.state_id, bl.ctry_id
+            FROM
+                (SELECT regulation.regulation, regprogram.reg_program
+                FROM regulation inner join regprogram on regulation.regulation=regprogram.regulation
+                UNION
+                SELECT regulation.regulation, NULL
+                FROM regulation) tbl, em LEFT JOIN bl ON bl.bl_id=em.bl_id
+            WHERE 
+                NOT EXISTS (SELECT 1 FROM regloc rl, compliance_locations cl
+                WHERE rl.regulation=tbl.regulation
+                AND rl.location_id=cl.location_id
+                AND cl.em_id=em.em_id)
+
+                AND EXISTS (SELECT 1 FROM regloc rl, compliance_locations cl
+                WHERE ((rl.regulation=tbl.regulation AND tbl.reg_program IS NULL AND rl.reg_program IS NULL) OR (rl.regulation=tbl.regulation AND rl.reg_program=tbl.reg_program AND rl.reg_requirement IS NULL))
+                AND rl.location_id=cl.location_id
+                AND (cl.ctry_id=bl.ctry_id OR cl.ctry_id IS NULL)
+                AND (cl.regn_id=bl.regn_id OR cl.regn_id IS NULL) 
+                AND (cl.state_id=bl.state_id OR cl.state_id IS NULL) 
+                AND (cl.city_id=bl.city_id OR cl.city_id IS NULL)                              
+                AND (cl.site_id=bl.site_id OR cl.site_id IS NULL)
+                AND (cl.pr_id=bl.pr_id OR cl.pr_id IS NULL)
+                AND (cl.bl_id=em.bl_id OR cl.bl_id IS NULL)
+                AND (cl.fl_id=em.fl_id OR cl.fl_id IS NULL)
+                AND (cl.rm_id=em.rm_id OR cl.rm_id IS NULL)
+                AND cl.em_id IS NULL AND cl.eq_std IS NULL AND cl.eq_id IS NULL)
+          ) ${sql.as} al INNER JOIN regulation ON al.regulation=regulation.regulation 
+          LEFT JOIN regprogram ON (al.regulation=regprogram.regulation AND al.reg_program=regprogram.reg_program)
+          WHERE ${parameters['consoleRestriction']}
+        </sql>
+        
+        <table name="regloc" role="main"/>
+        <field name="regulation"  dataType="text"/>
+        <field name="reg_program"  dataType="text"/>
+        <field name="asset_type" dataType="text">
+          <title>Asset Type</title>
+        </field>
+        <field name="asset_code" dataType="text">
+          <title>Asset Code</title>
+        </field>
+        <field name="asset_name" dataType="text">
+          <title>Asset Name</title>
+        </field>
+        <field name="asset_standard" dataType="text">
+          <title>Asset Standard</title>
+        </field>
+        <field name="asset_location" dataType="text">
+          <title>Asset Location</title>
+        </field>
+        <field name="pr_id" dataType="text">
+          <title>Property</title>
+        </field>
+        <field name="site_id" dataType="text">
+          <title>Site</title>
+        </field>
+        <field name="county_id" dataType="text">
+          <title>County</title>
+        </field>
+        <field name="city_id" dataType="text">
+          <title>City</title>
+        </field>
+        <field name="state_id" dataType="text">
+          <title>State</title>
+        </field>
+        <field name="ctry_id" dataType="text">
+          <title>Country</title>
+        </field>
+
+        
+        <field name="bl_id" dataType="text" hidden="true">
+          <title>Building</title>
+        </field>
+        <field name="reg_cat" dataType="text" hidden="true">
+          <title>Regulation Category</title>
+        </field>
+        <field name="reg_type" dataType="text" hidden="true">
+          <title>Regulation Type</title>
+        </field>
+        <field name="reg_rank" dataType="text" hidden="true">
+          <title>Regulation Rank</title>
+        </field>
+        <field name="regprog_cat" dataType="text" hidden="true">
+          <title>Program Category</title>
+        </field>
+        <field name="regprog_type" dataType="text" hidden="true">
+          <title>Program Type</title>
+        </field>
+        <field name="priority" dataType="text" hidden="true">
+          <title>Compliance Priority</title>
+        </field>
+        <field name="project_id" dataType="text" hidden="true">
+          <title>Project Code</title>
+        </field>
+        <parameter name="consoleRestriction" dataType="verbatim" value="1=1"/>
+    </dataSource>
+
+    <panel type="grid" id="abCompRptLocCheckGrid" dataSource="abCompRptLocCheckDS" layout="mainLayout" region="center" showOnLoad="false">
+        <title translatable="true">Assets without Compliance Locations</title>
+
+        <action id="exportDOCX">
+            <title>DOC</title>
+            <command type="exportPanel" outputType="docx" panelId="abCompRptLocCheckGrid"/>
+        </action>
+        <action id="exportXLS">
+            <title>XLS</title>
+            <command type="exportPanel" outputType="xls" panelId="abCompRptLocCheckGrid"/>
+        </action>
+        <action id="exportPDF">
+            <title>PDF</title>
+            <command type="exportPanel" outputType="pdf" panelId="abCompRptLocCheckGrid"/>
+        </action>
+    </panel>
+</view>

@@ -1,0 +1,648 @@
+<view version="2.0">
+
+    <layout type="borderLayout" id="mainLayout">
+        <north id="console" initialSize="23%" split="true"/>
+        <center autoScroll="true" />
+    </layout>
+    <layout type="borderLayout" id="secondLayout" containingLayout="mainLayout" region="center">
+      <center autoScroll="true" initialSize="26%"/>
+      <north autoScroll="true"  split="true" initialSize="26%" />
+      <south autoScroll="true" split="true" initialSize="26%"/>
+    </layout>
+    
+    <js file="ab-energy-bill-processing-exceptions.js"/>
+    
+    <!--message name="date" translatable="true">Please enter a  Date Service End that is after the Date Service Start</message-->
+    <message name="selectRequiredBillType">Please select a bill type</message>
+    <message name="selectBuilding">Please select a building code</message>
+    <message name="selectBill">Please select just one bill at a time</message>
+    <message name="noBillSelectedAggregate">For aggregating bills, you need to select at least two bills</message>
+    <message name="agregateRestriction">For aggregating bills, all the selected bills must be for the same time period and vendor account code. Please correct your selection before trying again</message>
+    <message name="noBillSelected">You need to select at least one bill</message>
+    <message name="billExist">There was an error trying to generate the bill, the process was aborted</message>
+
+    <title translatable="true">Bill Processing Exceptions</title>
+    
+    <dataSource id="ds_verifyModelConsole">
+        <table name="bill_archive" role="main"/>
+        <field table="bill_archive" name="vn_id"/>
+        <field table="bill_archive" name="bill_id"/>
+        <field table="bill_archive" name="bill_type_id"/>
+        <!-- field table="bill_archive" name="date_service_start"/>
+        <field table="bill_archive" name="date_service_end"/-->
+        <field table="bill_archive" name="bl_id"/>
+        <field table="bill_archive" name="vn_ac_id"/>    
+    </dataSource>
+    
+    <dataSource id="ds_missingPeriods" >
+        <table name="bill_archive" role="main"/>
+        <sql dialect="generic">
+            SELECT DISTINCT 
+                energy_time_period.time_period, 
+                'GAP-' ${sql.concat} energy_time_period.time_period ${sql.concat} '-' ${sql.concat} ${parameters['blId']} ${sql.concat} '-' ${sql.concat} 
+                (SELECT TOP 1 vn_id 
+                    FROM bill_archive 
+                    WHERE bill_type_id = ${parameters['billTypeId']} 
+                        AND bl_id = ${parameters['blId']} 
+                        AND time_period &lt; energy_time_period.time_period 
+                    ORDER BY time_period DESC
+                ) AS bill_id, 
+                ${parameters['blId']} AS bl_id, 
+                (SELECT TOP 1 vn_id 
+                    FROM bill_archive 
+                    WHERE bill_type_id = ${parameters['billTypeId']} 
+                        AND bl_id = ${parameters['blId']} 
+                        AND time_period &lt; energy_time_period.time_period 
+                    ORDER BY time_period DESC
+                ) AS vn_id, 
+                (SELECT TOP 1 vn_ac_id 
+                    FROM bill_archive 
+                    WHERE bill_type_id = ${parameters['billTypeId']} 
+                        AND bl_id = ${parameters['blId']} 
+                        AND time_period &lt; energy_time_period.time_period 
+                    ORDER BY time_period DESC
+                ) AS vn_ac_id , 
+
+                ${parameters['billTypeId']} AS bill_type_id, GETDATE() AS date_due,
+
+                (SELECT site_id FROM bl WHERE bl_id = ${parameters['blId']}) AS site_id,
+
+                CASE WHEN (SELECT MAX(date_service_end) 
+                            FROM bill_archive 
+                            WHERE time_period = DATEADD(MM,-1,energy_time_period.time_period) 
+                            AND bl_id = ${parameters['blId']} 
+                            AND bill_type_id = ${parameters['billTypeId']}
+                            AND ${parameters['vnId']} AND ${parameters['vnAcId']}
+                            ) IS NOT NULL 
+                     THEN (SELECT MAX(date_service_end) 
+                            FROM bill_archive 
+                            WHERE time_period = DATEADD(MM,-1,energy_time_period.time_period) 
+                            AND bl_id = ${parameters['blId']} 
+                            AND bill_type_id = ${parameters['billTypeId']}
+                            AND ${parameters['vnId']} AND ${parameters['vnAcId']}
+                            )
+                     ELSE DATEADD(DD,
+                                30*((DATEDIFF(MM, 
+                                            (SELECT MAX(time_period) 
+                                                FROM bill_archive 
+                                                WHERE time_period &lt; energy_time_period.time_period 
+                                                    AND bl_id = ${parameters['blId']} 
+                                                    AND bill_type_id = ${parameters['billTypeId']}
+                                                    AND ${parameters['vnId']} AND ${parameters['vnAcId']}
+                                                ), energy_time_period.time_period))-1),
+                                            (SELECT TOP 1 date_service_end 
+                                                FROM bill_archive 
+                                                WHERE bill_type_id = ${parameters['billTypeId']} 
+                                                AND bl_id = ${parameters['blId']} 
+                                                AND time_period &lt; energy_time_period.time_period 
+                                                ORDER BY time_period DESC))
+                END AS date_service_start,
+                CASE WHEN (SELECT MAX(date_service_start)
+                            FROM bill_archive 
+                            WHERE time_period = DATEADD(MM,+1,energy_time_period.time_period) 
+                                AND bl_id = ${parameters['blId']} 
+                                AND bill_type_id = ${parameters['billTypeId']}
+                                AND ${parameters['vnId']} AND ${parameters['vnAcId']}
+                            ) IS NOT NULL 
+                     THEN (SELECT MAX(date_service_start)
+                            FROM bill_archive 
+                            WHERE time_period = DATEADD(MM,+1,energy_time_period.time_period) 
+                                AND bl_id = ${parameters['blId']} 
+                                AND bill_type_id = ${parameters['billTypeId']}
+                                AND ${parameters['vnId']} AND ${parameters['vnAcId']}
+                            ) 
+                     ELSE DATEADD(DD,
+                                 30*(DATEDIFF(MM, 
+                                            (SELECT MAX(time_period) 
+                                                FROM bill_archive 
+                                                WHERE time_period &lt; energy_time_period.time_period 
+                                                    AND bl_id = ${parameters['blId']} 
+                                                    AND bill_type_id = ${parameters['billTypeId']}
+                                                    AND ${parameters['vnId']} AND ${parameters['vnAcId']}
+                                                ), energy_time_period.time_period)),
+                                (SELECT TOP 1 date_service_end
+                                                FROM bill_archive 
+                                                WHERE bill_type_id = ${parameters['billTypeId']} 
+                                                AND bl_id = ${parameters['blId']} 
+                                                AND time_period &lt; energy_time_period.time_period 
+                                                ORDER BY time_period DESC))
+                END AS date_service_end
+            FROM energy_time_period
+              LEFT OUTER JOIN bill_archive
+              ON bill_archive.time_period = energy_time_period.time_period
+              WHERE  NOT EXISTS ( SELECT 1 FROM bill_archive 
+                                            WHERE bill_archive.bill_type_id = ${parameters['billTypeId']}
+                                            AND bill_archive.bl_id = ${parameters['blId']}
+                                            AND bill_archive.time_period = energy_time_period.time_period
+                                            ${parameters['consoleRestriction']}
+                                 )
+                 AND NOT EXISTS ( SELECT 1 FROM bill
+                                            WHERE bill.bill_type_id = ${parameters['billTypeId']}
+                                            AND bill.bl_id = ${parameters['blId']}
+                                            AND bill.time_period = energy_time_period.time_period
+                                            ${parameters['consoleBillRestriction']}
+                                )
+                               AND energy_time_period.time_period 
+                                    &gt;= (SELECT MIN(bill_archive.time_period) 
+                                          FROM bill_archive 
+                                         WHERE bill_type_id = ${parameters['billTypeId']} 
+                                           AND bl_id = ${parameters['blId']}
+                                           ${parameters['consoleRestriction']})
+                               AND energy_time_period.time_period 
+                                    &lt;= (SELECT MAX(bill_archive.time_period) 
+                                          FROM bill_archive 
+                                         WHERE bill_type_id = ${parameters['billTypeId']} 
+                                           AND bl_id = ${parameters['blId']}
+                                           ${parameters['consoleRestriction']})
+        </sql>
+        <sql dialect="sqlserver">
+            SELECT DISTINCT 
+                energy_time_period.time_period, 
+                'GAP-' ${sql.concat} energy_time_period.time_period ${sql.concat} '-' ${sql.concat} ${parameters['blId']} ${sql.concat} '-' ${sql.concat} 
+                (SELECT TOP 1 vn_id 
+                    FROM bill_archive 
+                    WHERE bill_type_id = ${parameters['billTypeId']} 
+                        AND bl_id = ${parameters['blId']} 
+                        AND time_period &lt; energy_time_period.time_period 
+                    ORDER BY time_period DESC
+                ) AS bill_id, 
+                ${parameters['blId']} AS bl_id, 
+                (SELECT TOP 1 vn_id 
+                    FROM bill_archive 
+                    WHERE bill_type_id = ${parameters['billTypeId']} 
+                        AND bl_id = ${parameters['blId']} 
+                        AND time_period &lt; energy_time_period.time_period 
+                    ORDER BY time_period DESC
+                ) AS vn_id, 
+                (SELECT TOP 1 vn_ac_id 
+                    FROM bill_archive 
+                    WHERE bill_type_id = ${parameters['billTypeId']} 
+                        AND bl_id = ${parameters['blId']} 
+                        AND time_period &lt; energy_time_period.time_period 
+                    ORDER BY time_period DESC
+                ) AS vn_ac_id , 
+
+                ${parameters['billTypeId']} AS bill_type_id, GETDATE() AS date_due,
+
+                (SELECT site_id FROM bl WHERE bl_id = ${parameters['blId']}) AS site_id,
+
+                CASE WHEN (SELECT MAX(date_service_end) 
+                            FROM bill_archive 
+                            WHERE CAST(REPLACE(time_period + '-01', '-', '') AS DATETIME) = DATEADD(MM,-1,CAST(REPLACE(energy_time_period.time_period + '-01', '-', '') AS DATETIME))
+                            AND bl_id = ${parameters['blId']} 
+                            AND bill_type_id = ${parameters['billTypeId']}
+                            AND ${parameters['vnId']} AND ${parameters['vnAcId']}
+                            ) IS NOT NULL 
+                     THEN (SELECT MAX(date_service_end) 
+                            FROM bill_archive 
+                            WHERE CAST(REPLACE(time_period + '-01', '-', '') AS DATETIME) = DATEADD(MM,-1,CAST(REPLACE(energy_time_period.time_period + '-01', '-', '') AS DATETIME))
+                            AND bl_id = ${parameters['blId']} 
+                            AND bill_type_id = ${parameters['billTypeId']}
+                            AND ${parameters['vnId']} AND ${parameters['vnAcId']}
+                            )
+                     ELSE DATEADD(DD,
+                                30*(CONVERT(INT,(DATEDIFF(MM, 
+                                            CAST(REPLACE((SELECT MAX(time_period) 
+                                                FROM bill_archive 
+                                                WHERE time_period &lt; energy_time_period.time_period 
+                                                    AND bl_id = ${parameters['blId']} 
+                                                    AND bill_type_id = ${parameters['billTypeId']}
+                                                    AND ${parameters['vnId']} AND ${parameters['vnAcId']}
+                                                )+ '-01', '-', '') AS DATETIME),CAST(REPLACE(energy_time_period.time_period + '-01', '-', '') AS DATETIME))))-1),
+                                            (SELECT TOP 1 date_service_end 
+                                                FROM bill_archive 
+                                                WHERE bill_type_id = ${parameters['billTypeId']} 
+                                                AND bl_id = ${parameters['blId']} 
+                                                AND time_period &lt; energy_time_period.time_period 
+                                                ORDER BY time_period DESC))
+                END AS date_service_start,
+                CASE WHEN (SELECT MAX(date_service_start)
+                            FROM bill_archive 
+                            WHERE CAST(REPLACE(time_period + '-01', '-', '') AS DATETIME) = DATEADD(MM,+1,CAST(REPLACE(energy_time_period.time_period + '-01', '-', '') AS DATETIME)) 
+                                AND bl_id = ${parameters['blId']} 
+                                AND bill_type_id = ${parameters['billTypeId']}
+                                AND ${parameters['vnId']} AND ${parameters['vnAcId']}
+                            ) IS NOT NULL 
+                     THEN (SELECT MAX(date_service_start)
+                            FROM bill_archive 
+                            WHERE CAST(REPLACE(time_period + '-01', '-', '') AS DATETIME) = DATEADD(MM,+1,CAST(REPLACE(energy_time_period.time_period + '-01', '-', '') AS DATETIME)) 
+                                AND bl_id = ${parameters['blId']} 
+                                AND bill_type_id = ${parameters['billTypeId']}
+                                AND ${parameters['vnId']} AND ${parameters['vnAcId']}
+                            ) 
+                     ELSE DATEADD(DD,
+                                 30*(CONVERT(INT,DATEDIFF(MM, 
+                                            CAST(REPLACE((SELECT MAX(time_period) 
+                                                FROM bill_archive 
+                                                WHERE time_period &lt; energy_time_period.time_period 
+                                                    AND bl_id = ${parameters['blId']} 
+                                                    AND bill_type_id = ${parameters['billTypeId']}
+                                                    AND ${parameters['vnId']} AND ${parameters['vnAcId']}
+                                                )+ '-01', '-', '') AS DATETIME), CAST(REPLACE(energy_time_period.time_period + '-01', '-', '') AS DATETIME)))),
+                                (SELECT TOP 1 date_service_end
+                                                FROM bill_archive 
+                                                WHERE bill_type_id = ${parameters['billTypeId']} 
+                                                AND bl_id = ${parameters['blId']} 
+                                                AND time_period &lt; energy_time_period.time_period 
+                                                ORDER BY time_period DESC))
+                END AS date_service_end
+            FROM energy_time_period
+              LEFT OUTER JOIN bill_archive
+              ON bill_archive.time_period = energy_time_period.time_period
+              WHERE  NOT EXISTS ( SELECT 1 FROM bill_archive 
+                                            WHERE bill_archive.bill_type_id = ${parameters['billTypeId']}
+                                            AND bill_archive.bl_id = ${parameters['blId']}
+                                            AND bill_archive.time_period = energy_time_period.time_period
+                                            ${parameters['consoleRestriction']}
+                                 )
+                 AND NOT EXISTS ( SELECT 1 FROM bill
+                                            WHERE bill.bill_type_id = ${parameters['billTypeId']}
+                                            AND bill.bl_id = ${parameters['blId']}
+                                            AND bill.time_period = energy_time_period.time_period
+                                            ${parameters['consoleBillRestriction']}
+                                )
+                               AND energy_time_period.time_period 
+                                    &gt;= (SELECT MIN(bill_archive.time_period) 
+                                          FROM bill_archive 
+                                         WHERE bill_type_id = ${parameters['billTypeId']} 
+                                           AND bl_id = ${parameters['blId']}
+                                           ${parameters['consoleRestriction']})
+                               AND energy_time_period.time_period 
+                                    &lt;= (SELECT MAX(bill_archive.time_period) 
+                                          FROM bill_archive 
+                                         WHERE bill_type_id = ${parameters['billTypeId']} 
+                                           AND bl_id = ${parameters['blId']}
+                                           ${parameters['consoleRestriction']})
+        </sql>
+        <sql dialect="oracle">
+            SELECT DISTINCT 
+                etp.time_period AS time_period, 
+                'GAP-' || etp.time_period || '-' || ${parameters['blId']} || '-' ||
+                (SELECT vn_id 
+                    FROM bill_archive b
+                    WHERE ROWNUM = 1 
+                        AND b.bill_type_id = ${parameters['billTypeId']} 
+                        AND b.bl_id = ${parameters['blId']} 
+                        AND b.time_period &lt; etp.time_period) AS bill_id, 
+                ${parameters['blId']} AS bl_id, 
+                (SELECT vn_id 
+                    FROM bill_archive b
+                    WHERE ROWNUM = 1 
+                        AND b.bill_type_id = ${parameters['billTypeId']} 
+                        AND b.bl_id = ${parameters['blId']} 
+                        AND b.time_period &lt; etp.time_period)
+                 AS vn_id, 
+                (SELECT vn_ac_id 
+                    FROM bill_archive b
+                    WHERE ROWNUM = 1 
+                        AND bill_type_id = ${parameters['billTypeId']} 
+                        AND b.bl_id = ${parameters['blId']} 
+                        AND b.time_period &lt; etp.time_period)
+                AS vn_ac_id , 
+
+                ${parameters['billTypeId']} AS bill_type_id, SYSDATE AS date_due,
+
+                (SELECT site_id FROM bl WHERE bl_id = ${parameters['blId']}) AS site_id,
+
+                CASE WHEN (SELECT MAX(date_service_end) 
+                            FROM bill_archive 
+                            WHERE TO_DATE(time_period,'YYYY-MM') = ADD_MONTHS(TO_DATE(etp.time_period,'YYYY-MM'),-1)
+                            AND bl_id = ${parameters['blId']} 
+                            AND bill_type_id = ${parameters['billTypeId']}
+                            AND ${parameters['vnId']} AND ${parameters['vnAcId']}
+                            ) IS NOT NULL 
+                     THEN (SELECT MAX(date_service_end) 
+                            FROM bill_archive 
+                            WHERE TO_DATE(time_period,'YYYY-MM') = ADD_MONTHS(TO_DATE(etp.time_period,'YYYY-MM'),-1)
+                            AND bl_id = ${parameters['blId']} 
+                            AND bill_type_id = ${parameters['billTypeId']}
+                            AND ${parameters['vnId']} AND ${parameters['vnAcId']}
+                            )
+                     ELSE ((SELECT MAX(date_service_end) 
+                                FROM bill_archive 
+                                WHERE bill_type_id = ${parameters['billTypeId']} 
+                                    AND bl_id = ${parameters['blId']} 
+                                    AND time_period &lt; etp.time_period 
+                                ) 
+                            - 30*(trunc((months_between( TO_DATE((SELECT MAX(time_period) 
+                                                                FROM bill_archive 
+                                                                WHERE time_period &lt; etp.time_period 
+                                                                    AND bl_id = ${parameters['blId']} 
+                                                                    AND bill_type_id = ${parameters['billTypeId']}
+                                                                    AND ${parameters['vnId']} AND ${parameters['vnAcId']}
+                                                           ),'YYYY-MM'), 
+                                                   TO_DATE(etp.time_period,'YYYY-MM'))))+1))
+                END AS date_service_start,
+                CASE WHEN (SELECT MAX(date_service_start)
+                            FROM bill_archive 
+                            WHERE TO_DATE(time_period,'YYYY-MM') = ADD_MONTHS(TO_DATE(etp.time_period,'YYYY-MM'),1)
+                                AND bl_id = ${parameters['blId']} 
+                                AND bill_type_id = ${parameters['billTypeId']}
+                                AND ${parameters['vnId']} AND ${parameters['vnAcId']}
+                            ) IS NOT NULL 
+                     THEN (SELECT MAX(date_service_start)
+                            FROM bill_archive 
+                            WHERE TO_DATE(time_period,'YYYY-MM') = ADD_MONTHS(TO_DATE(etp.time_period,'YYYY-MM'),1)
+                                AND bl_id = ${parameters['blId']} 
+                                AND bill_type_id = ${parameters['billTypeId']}
+                                AND ${parameters['vnId']} AND ${parameters['vnAcId']}
+                            ) 
+                     ELSE ((SELECT MAX(date_service_end) 
+                                FROM bill_archive 
+                                WHERE bill_type_id = ${parameters['billTypeId']} 
+                                    AND bl_id = ${parameters['blId']} 
+                                    AND time_period &lt; etp.time_period 
+                                ) 
+                            - 30*(trunc((months_between( TO_DATE((SELECT MAX(time_period) 
+                                                                FROM bill_archive 
+                                                                WHERE time_period &lt; etp.time_period 
+                                                                    AND bl_id = ${parameters['blId']} 
+                                                                    AND bill_type_id = ${parameters['billTypeId']}
+                                                                    AND ${parameters['vnId']} AND ${parameters['vnAcId']}
+                                                           ),'YYYY-MM'), 
+                                                   TO_DATE(etp.time_period,'YYYY-MM'))))))
+                    END AS date_service_end
+            FROM energy_time_period etp
+              LEFT OUTER JOIN bill_archive ba ON (ba.time_period = etp.time_period)
+              WHERE  NOT EXISTS ( SELECT 1 FROM bill_archive 
+                                            WHERE bill_archive.bill_type_id = ${parameters['billTypeId']}
+                                            AND bill_archive.bl_id = ${parameters['blId']}
+                                            AND bill_archive.time_period = etp.time_period
+                                            ${parameters['consoleRestriction']}
+                                 )
+                 AND NOT EXISTS ( SELECT 1 FROM bill
+                                            WHERE bill.bill_type_id = ${parameters['billTypeId']}
+                                            AND bill.bl_id = ${parameters['blId']}
+                                            AND bill.time_period = etp.time_period
+                                            ${parameters['consoleBillRestriction']}
+                                )
+                               AND etp.time_period 
+                                    &gt;= (SELECT MIN(bill_archive.time_period) 
+                                          FROM bill_archive 
+                                         WHERE bill_type_id = ${parameters['billTypeId']} 
+                                           AND bl_id = ${parameters['blId']}
+                                           ${parameters['consoleRestriction']})
+                               AND etp.time_period 
+                                    &lt;= (SELECT MAX(bill_archive.time_period) 
+                                          FROM bill_archive 
+                                         WHERE bill_type_id = ${parameters['billTypeId']} 
+                                           AND bl_id = ${parameters['blId']}
+                                           ${parameters['consoleRestriction']})
+          ORDER BY etp.time_period
+        </sql>
+        <field table="bill_archive" name="time_period" dataType="date"/>
+        <field table="bill_archive" name="bill_id" dataType="text"/>
+        <field table="bill_archive" name="bl_id" />
+        <field table="bill_archive" name="vn_id" />
+        <field table="bill_archive" name="vn_ac_id" />
+        <field table="bill_archive" name="bill_type_id" />
+        <field table="bill_archive" name="date_due" />
+        <field table="bill_archive" name="date_service_start" />
+        <field table="bill_archive" name="date_service_end" />
+        <field table="bill_archive" name="site_id" />
+        <parameter name="consoleRestriction" dataType="verbatim" value="AND 1=1 "/>
+        <parameter name="consoleBillRestriction" dataType="verbatim" value="AND 1=1 "/>
+        <!--parameter name="timeRestriction" dataType="verbatim" value=" 1=1 "/-->
+        <parameter name="billTypeId" dataType="text" value=" 0 "/>
+        <parameter name="blId" dataType="text" value=" 0 "/>
+        <parameter name="vnId" dataType="verbatim" value=" 1=1 "/>
+        <parameter name="vnAcId" dataType="verbatim" value=" 1=1 "/>
+    </dataSource>
+    
+    <dataSource id="ds_billArchive">    
+         <table name="bill" role="main"/>
+         <field table="bill" name="time_period" />
+         <field table="bill" name="amount_expense" />
+         <field table="bill" name="bill_id" />
+         <field table="bill" name="bl_id" />
+         <field table="bill" name="vn_id" />
+         <field table="bill" name="vn_ac_id" />
+         <field table="bill" name="bill_type_id" />
+         <field table="bill" name="date_due" />
+         <field table="bill" name="date_service_start" />
+         <field table="bill" name="date_service_end" />
+         <field table="bill" name="site_id" />
+         <field table="bill" name="amount_expense" />
+         <field table="bill" name="amount_income" />
+         <field table="bill" name="qty_energy" />
+         <field table="bill" name="qty_power" />
+         <field table="bill" name="qty_kwh" />
+         <field table="bill" name="qty_volume" />
+         <field table="bill" name="cost_kwh" />
+         <field table="bill" name="cost_mmbtu" />
+         <field table="bill" name="prorated_aggregated" />
+         <field table="bill" name="reference_bill_id" />
+    </dataSource>
+    
+    <dataSource id="ds_prorate" >
+        <table name="bill" role="main"/>
+        <sql dialect="generic">
+            SELECT time_period , bill_id, bl_id, vn_id, vn_ac_id, bill_type_id, date_due, date_service_start, date_service_end, site_id, amount_expense, amount_income ,
+                qty_energy, qty_power, qty_kwh, qty_volume, cost_kwh, cost_mmbtu, prorated_aggregated, reference_bill_id
+            FROM bill
+            WHERE ${sql.yearMonthOf('date_service_start')} &lt;&gt; ${sql.yearMonthOf('date_service_end')}
+                AND date_service_end &gt; ${sql.dateAdd('day', 33, 'date_service_start')}
+                AND bill.bill_type_id = ${parameters['billTypeId']}
+                AND bill.bl_id = ${parameters['blId']}
+                ${parameters['consoleRestriction']}
+                AND bill.prorated_aggregated= 'NO'
+                AND NOT EXISTS (SELECT 1 FROM bill b 
+                        WHERE b.prorated_aggregated='PRORATED-TIME' 
+                        AND b.reference_bill_id=bill.bill_id)
+
+        </sql>
+        <field table="bill" name="time_period"/>
+        <field table="bill" name="bill_id"/>
+        <field table="bill" name="bl_id" />
+        <field table="bill" name="vn_id" />
+        <field table="bill" name="vn_ac_id" />
+        <field table="bill" name="bill_type_id" />
+        <field table="bill" name="date_due" />
+        <field table="bill" name="date_service_start" />
+        <field table="bill" name="date_service_end" />
+        <field table="bill" name="site_id" />
+        <field table="bill" name="amount_expense" />
+         <field table="bill" name="amount_income" />
+         <field table="bill" name="qty_energy" />
+         <field table="bill" name="qty_power" />
+         <field table="bill" name="qty_kwh" />
+         <field table="bill" name="qty_volume" />
+         <field table="bill" name="cost_kwh" />
+         <field table="bill" name="cost_mmbtu" />
+         <field table="bill" name="prorated_aggregated" />
+         <field table="bill" name="reference_bill_id" />
+        <parameter name="consoleRestriction" dataType="verbatim" value="AND 1=1 "/>
+        <!--parameter name="timeRestriction" dataType="verbatim" value=" 1=1 "/-->
+        <parameter name="billTypeId" dataType="text" value=" 0 "/>
+        <parameter name="blId" dataType="text" value=" 0 "/>
+        <parameter name="vnId" dataType="text" value=" 0 "/>
+        <parameter name="vnAcId" dataType="text" value=" 0 "/>
+    </dataSource>
+    
+    <dataSource id="ds_agregate" >
+        <table name="bill" role="main"/>
+        <sql dialect="generic">
+            SELECT time_period , bill_id, bl_id, vn_id, vn_ac_id, bill_type_id, date_due, date_service_start, date_service_end, site_id, amount_expense, amount_income ,
+                qty_energy, qty_power, qty_kwh, qty_volume, cost_kwh, cost_mmbtu, prorated_aggregated, reference_bill_id
+            FROM bill
+            WHERE bill_type_id = ${parameters['billTypeId']} 
+            AND bl_id = ${parameters['blId']}
+             ${parameters['consoleRestriction']}
+            AND ${sql.yearMonthOf('date_service_start')} = ${sql.yearMonthOf('date_service_end')}
+            AND (prorated_aggregated='PRORATED-TIME' OR prorated_aggregated= 'AGGREGATED' OR
+                (prorated_aggregated='NO' AND NOT EXISTS 
+                                        (SELECT 1 FROM bill c WHERE c.bill_id=bill.reference_bill_id AND c.prorated_aggregated='AGGREGATED' AND c.vn_id=bill.vn_id) ))
+            AND (SELECT COUNT(*) FROM BILL B WHERE B.TIME_PERIOD=bill.TIME_PERIOD AND b.bill_type_id= ${parameters['billTypeId']} AND b.bl_id= ${parameters['blId']}  ${parameters['consoleRestriction']} AND ${sql.yearMonthOf('b.date_service_start')} = ${sql.yearMonthOf('b.date_service_end')} AND ( prorated_aggregated='PRORATED-TIME' OR prorated_aggregated='AGGREGATED' OR
+                        (prorated_aggregated='NO' AND NOT EXISTS (SELECT 1 FROM bill c WHERE c.bill_id=b.reference_bill_id AND c.prorated_aggregated='AGGREGATED' AND c.vn_id=b.vn_id) )))  > 1
+        </sql>
+        <field table="bill" name="time_period"/>
+        <field table="bill" name="bill_id"/>
+        <field table="bill" name="bl_id" />
+        <field table="bill" name="vn_id" />
+        <field table="bill" name="vn_ac_id" />
+        <field table="bill" name="bill_type_id" />
+        <field table="bill" name="date_due" />
+        <field table="bill" name="date_service_start" />
+        <field table="bill" name="date_service_end" />
+        <field table="bill" name="site_id" />
+        <field table="bill" name="amount_expense" />
+         <field table="bill" name="amount_income" />
+         <field table="bill" name="qty_energy" />
+         <field table="bill" name="qty_power" />
+         <field table="bill" name="qty_kwh" />
+         <field table="bill" name="qty_volume" />
+         <field table="bill" name="cost_kwh" />
+         <field table="bill" name="cost_mmbtu" />
+         <field table="bill" name="prorated_aggregated" />
+         <field table="bill" name="reference_bill_id" />
+        <parameter name="consoleRestriction" dataType="verbatim" value="AND 1=1 "/>
+        <!--parameter name="timeRestriction" dataType="verbatim" value=" 1=1 "/-->
+        <parameter name="billTypeId" dataType="text" value=" 0 "/>
+        <parameter name="blId" dataType="text" value=" 0 "/>
+        <parameter name="vnId" dataType="text" value=" 0 "/>
+        <parameter name="vnAcId" dataType="text" value=" 0 "/>
+        <sortField name="time_period" table="bill" ascending="true"/>
+    </dataSource>
+    
+    <panel type="console" columns="2" id="panel_measureVerifyConsole" dataSource="ds_verifyModelConsole" layoutRegion="console" >
+        <title translatable="true">Filter</title>
+        <instructions translatable="true">Note: The Select Value dialogues for this console display only values that exist for archived bill records.  If a desired value does not appear in the list, but exists in records for bills that are not archived, you can type the value into the console.</instructions>
+        <action id="show">
+            <title translatable="true">Verify Model</title>
+        </action>
+        <field table="bill_archive" name="bill_type_id" required="true"/>
+        <field table="bill_archive" name="bl_id" required="true"/>    
+        <field table="bill_archive" name="vn_id"/>
+        <field table="bill_archive" name="vn_ac_id"/>           
+    </panel>
+    
+    
+    <panel type="grid" id="panel_prorate" multipleSelectionEnabled="true" showOnLoad="false" dataSource="ds_prorate" layout="secondLayout" region="north" >
+        <title translatable="true">Non-Monthly Periods to Prorate</title>
+        
+        <action id="prorate">
+            <title translatable="true">Prorate Bill</title>
+        </action>
+  
+        <field table="bill" name="time_period"/>
+        <field table="bill" name="bill_id" />
+        <field table="bill" name="bl_id" hidden="true"/>
+        <field table="bill" name="vn_id" />
+        <field table="bill" name="vn_ac_id" />
+        <field table="bill" name="bill_type_id" hidden="true"/>
+        <field table="bill" name="site_id" />
+        <field table="bill" name="date_due" />
+        <field table="bill" name="date_service_start" />
+        <field table="bill" name="date_service_end" />
+         <field table="bill" name="amount_expense" />
+        <field table="bill" name="amount_income"/>
+        <field table="bill" name="qty_energy"/>
+        <field table="bill" name="qty_power" />
+        <field table="bill" name="qty_kwh"/>
+        <field table="bill" name="qty_volume"/>
+         <field table="bill" name="cost_kwh" hidden="true"/>
+         <field table="bill" name="cost_mmbtu" hidden="true"/>
+         <field table="bill" name="prorated_aggregated" hidden="true"/>
+         <field table="bill" name="reference_bill_id" hidden="true"/>
+    </panel>
+    
+    <panel type="grid" id="panel_agregate" multipleSelectionEnabled="true" showOnLoad="false" dataSource="ds_agregate" layout="secondLayout" region="center" >
+        <title translatable="true">Non-Monthly Periods to Aggregate</title>
+  
+        <action id="agregateBills">
+            <title translatable="true">Aggregate Bills</title>          
+        </action> 
+        <field table="bill" name="time_period"/>
+        <field table="bill" name="bill_id" />
+        <field table="bill" name="bl_id" hidden="true"/>
+        <field table="bill" name="vn_id" />
+        <field table="bill" name="vn_ac_id" />
+        <field table="bill" name="bill_type_id" hidden="true"/>
+        <field table="bill" name="site_id" />
+        <field table="bill" name="date_due" />
+        <field table="bill" name="date_service_start" />
+        <field table="bill" name="date_service_end" />
+        <field table="bill" name="amount_expense" />
+        <field table="bill" name="amount_income"/>
+        <field table="bill" name="qty_energy"/>
+        <field table="bill" name="qty_power" />
+        <field table="bill" name="qty_kwh"/>
+        <field table="bill" name="qty_volume"/>
+        <field table="bill" name="cost_kwh" hidden="true"/>
+        <field table="bill" name="cost_mmbtu" hidden="true"/>
+        <field table="bill" name="prorated_aggregated" hidden="true"/>
+        <field table="bill" name="reference_bill_id" hidden="true"/>
+    </panel>
+    
+    <panel type="grid" id="panel_missingPeriods" multipleSelectionEnabled="true" showOnLoad="false" dataSource="ds_missingPeriods" layout="secondLayout" region="south" >
+        <title translatable="true">Missing Periods</title>
+        
+        <action id="generate">
+            <title translatable="true">Generate Bill</title>
+        </action>
+        
+        <action id="edit">
+            <title translatable="true">Edit</title>
+             <command type="openDialog" panelId="form_missingPeriods" newRecord="true"/>
+        </action>
+        
+        <!--field controlType="button">
+            <title translatable="true">Edit Bill</title>
+            <command type="callFunction" functionName="populateForm();"/>
+            <command type="openDialog" panelId="form_missingPeriods"/>
+        </field-->
+        
+        <field table="bill_archive" name="time_period"/>
+        <field table="bill_archive" name="bill_id" />
+        <field table="bill_archive" name="bl_id" hidden="true" />
+        <field table="bill_archive" name="vn_id" />
+        <field table="bill_archive" name="vn_ac_id" />
+        <field table="bill_archive" name="bill_type_id" hidden="true"/>
+        <field table="bill_archive" name="site_id" />
+        <field table="bill_archive" name="date_due" />
+        <field table="bill_archive" name="date_service_start" />
+        <field table="bill_archive" name="date_service_end" />
+    </panel>
+    
+    <panel type="form" id="form_missingPeriods" showOnLoad="false" dataSource="ds_billArchive">
+        <title translatable="true">Edit bill</title>
+        
+        <action id="save">
+            <title translatable="true">Generate Bill</title>
+            <command type="saveForm"/>
+            <command type="closeDialog"/>
+            <command type="callFunction" functionName="refreshPanel();"/>
+        </action>
+        
+        <field table="bill" name="time_period"/>
+        <field table="bill" name="bill_id" />
+        <field table="bill" name="bl_id" hidden="true"/>
+        <field table="bill" name="vn_id" />
+        <field table="bill" name="vn_ac_id" />
+        <field table="bill" name="bill_type_id" hidden="true"/>
+        <field table="bill" name="site_id" />
+        <field table="bill" name="date_due" />
+        <field table="bill" name="date_service_start" />
+        <field table="bill" name="date_service_end" />
+    </panel>
+</view>

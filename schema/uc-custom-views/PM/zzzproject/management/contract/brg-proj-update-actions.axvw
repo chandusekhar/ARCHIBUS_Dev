@@ -1,0 +1,200 @@
+<afmXmlView>
+    <fileCategory extension="frms" fileName="ab-proj-console-short-west-north-details.frms"/>
+    <title translatable="true">Update Actions</title>
+    <message translatable="true" hidden="true" name="projSelvalTitle">Projects With Work Package Contracts</message>
+
+      <afmTableGroup type="form" format="editForm" frame="consoleFrame">  
+        <dataSource>
+            <database>
+                <tables>
+                    <table name="project" role="main"/>
+                </tables>
+                <fields>
+                	<field table="project" name="project_type"/>                	
+                    <field table="project" name="project_id"/>
+                    <field table="project" name="status"/>
+                </fields>
+                <sort>
+          			<order>
+            			<field name="project_id" table="project" ascending="true" />
+          			</order>
+        		</sort>
+            </database>
+        </dataSource>
+        <panels>
+            <panel type="console" columns="1" id="consolePanel">
+            	<title translatable="true">Filter</title>
+            	<afmAction type="javaScript" onclick="setFilter()">
+                    <title translatable="true">Show</title>
+                    <script language="javaScript">
+                    function setFilter() {
+						var restriction = getConsoleRestriction();
+						var westPanel = AFM.view.View.getControl('westFrame','westPanel');
+					    westPanel.refresh(restriction);
+					    westPanel.show(true);
+					}
+					</script>
+                </afmAction>
+                <afmAction id="clear">
+                    <title translatable="true">Clear</title>
+                    <command type="showPanel" panelId="westPanel" target="westFrame" applyParentRestriction="false" clearRestriction="true"/>
+                    <command type="callFunction" functionName="clearConsole"/>
+                </afmAction>
+                <fields>
+                   	<field table="project" name="project_type" readOnly="false" required="false" />               	
+                	<field table="project" readOnly="false" required="false" name="project_id">
+                		<afmAction type="javascript" onclick="projSelvalWithRestriction()">
+				    		<title>...</title>
+				    		<script language="javascript">
+				    		function projSelvalWithRestriction()
+							{
+								var restriction = "project.is_template = 0 AND EXISTS (SELECT 1 FROM activity_log WHERE activity_log.project_id = project.project_id "+
+								"AND activity_log.work_pkg_id IN (SELECT work_pkg_id FROM work_pkg_bids WHERE work_pkg_bids.status "+
+								"IN ( 'Contract Signed', 'In Process', 'In Process-On Hold', 'Completed', 'Completed and Verified', 'Paid in Full') "+
+								//"AND vn_id = (SELECT vn_id FROM vn WHERE vn.email='"+$('user_email_field').value+"')))";
+								"))";
+								projSelval(restriction);
+							}
+				    		</script>
+				    	</afmAction>
+            		</field>
+                    <field>
+                        <title translatable="true">Project Status</title>
+                        <ui>
+                            <select class="inputField_box" id="status" name="status">
+                                <option value="All" selected="1"><span translatable="true">All</span></option>
+                                <option value="In Planning"><span translatable="true">In Planning</span></option>
+                                <option value="In Execution"><span translatable="true">In Execution</span></option>
+                            </select>
+                        </ui>
+                    </field>
+                    <field>
+                    	<ui><input type="hidden" id="user_email_field" name="user_email_field" value="#{preferences.email}"/></ui>
+                    </field>
+                </fields>
+            </panel>
+        </panels>
+    </afmTableGroup> 	
+    <afmTableGroup type="report" format="grid" frame="westFrame">  
+        <dataSource>
+			<database>
+				<tables>
+					<table name="work_pkg_bids" role="main" />
+					<table name="work_pkgs" role="standard"/>
+				</tables>
+				<fields>
+					<field name="work_pkg_id" table="work_pkg_bids" />
+					<field name="project_id" table="work_pkgs" />
+				</fields>
+				<restrictions>
+				      <restriction type="sql" sql="work_pkg_bids.status IN ( 'Contract Signed', 'In Process', 'In Process-On Hold', 'Completed', 'Completed and Verified', 'Paid in Full') "/>
+					  <!--restriction type="sql" sql="work_pkg_bids.status IN ( 'Contract Signed', 'In Process', 'In Process-On Hold', 'Completed', 'Completed and Verified', 'Paid in Full') AND vn_id = (SELECT vn_id FROM vn WHERE vn.email='#Attribute%//@email%')"/-->
+				</restrictions>
+			</database>
+        </dataSource>
+        <panels>
+            <panel type="grid" id="westPanel" selectionEnabled="true">
+            	<title translatable="true">Select Work Package</title>
+            	<afmAction id="refresh">
+                    <title translatable="true">Refresh</title>
+                    <command type="showPanel" panelId="westPanel" target="westFrame" show="true" clearRestriction="true"/>
+                </afmAction>
+                <fields>           	
+                    <field table="work_pkg_bids" name="work_pkg_id" controlType="link" onclick="selectWorkPkg"/>
+                    <field table="work_pkgs" name="project_id"/>
+                </fields>
+            </panel>
+        </panels>
+    </afmTableGroup>
+    
+    <afmTableGroup type="report" format="grid" frame="northFrame"> 
+    	<title translatable="true">Work Package</title> 
+        <dataSource>
+			<database>
+				<tables>
+					<table name="activity_log" role="main" />
+				</tables>
+				<fields>
+						<field name="activity_log_id" table="activity_log" />
+						<field name="action_title" table="activity_log" />
+						<field name="status" table="activity_log" />
+				</fields>
+				<sort>
+					<order>
+						<field name="action_title" table="activity_log" ascending="true"/>
+					</order>
+				</sort>
+			</database>
+        </dataSource>
+        <panels>
+            <panel type="grid" id="northPanel" selectionEnabled="true" showOnLoad="false">
+            	<title translatable="true">Work Package Action Items</title>
+            	<afmAction id="refresh">
+                    <title translatable="true">Refresh</title>
+                    <command type="showPanel" panelId="northPanel" target="northFrame" show="true" clearRestriction="true"/>
+                </afmAction>
+                <fields>           	
+					<field table="activity_log" name="action_title" controlType="link">
+                    	<command type="showPanel" panelId="detailsPanel" target="detailsFrame"/>
+                    </field>
+					 <field table="activity_log" name="activity_log_id" controlType="link">
+                    	<command type="showPanel" panelId="detailsPanel" target="detailsFrame"/>
+                    </field>
+					<field name="status" table="activity_log" />
+                </fields>
+            </panel>
+        </panels>
+    </afmTableGroup>
+    
+    <afmTableGroup type="form" format="editForm" frame="detailsFrame">
+			<dataSource>
+				<database>
+					<tables>
+						<table name="activity_log" role="main" />
+					</tables>
+					<fields>				
+							<field name="activity_log_id" table="activity_log" readOnly="true"/>
+							<field name="action_title" table="activity_log" readOnly="true"/>
+							<field name="project_id" table="activity_log" readOnly="true"/>
+							<field name="work_pkg_id" table="activity_log" readOnly="true"/>
+							<field name="completed_by" table="activity_log" />
+							<field name="date_completed" table="activity_log" />
+							<field name="duration_act" table="activity_log" />
+							<field name="hours_actual" table="activity_log" />
+							<field name="status" table="activity_log" />
+							<field name="comments" table="activity_log" />
+					</fields>
+				</database>
+			</dataSource>
+			<panels>
+				<panel type="form" id="detailsPanel" columns="2" showOnLoad="false">
+					<title translatable="true">Action Item</title>
+					<afmAction id="save">
+						<title translatable="true">Save</title>
+						<command type="saveForm"/>
+					</afmAction>
+					<afmAction id="cancel">
+						<title translatable="true">Cancel</title>
+						<command type="showPanel" panelId="detailsPanel" show="false"/>
+					</afmAction>
+					<fields>
+						<field name="action_title" table="activity_log" readOnly="true"/>											
+						<field name="activity_log_id" table="activity_log" readOnly="true"/>							
+						<field name="project_id" table="activity_log" readOnly="true"/>
+						<field name="work_pkg_id" table="activity_log" readOnly="true"/>
+						<field name="status" table="activity_log" />
+						<field name="date_completed" table="activity_log" />
+						<field name="duration_act" table="activity_log" />
+						<field name="hours_actual" table="activity_log" />
+						<field name="completed_by" table="activity_log" />
+						<field/>
+						<field name="comments" table="activity_log" colspan="2"/>
+					</fields>
+				</panel>
+			</panels>
+		</afmTableGroup>   
+    <formatting>
+    	<js file="/archibus/schema/ab-products/project/common/ab-proj-console-work-pkgs.js"/>
+    	<js file="#Attribute%//@relativeFileDirectory%/brg-proj-update-actions.js"/>
+  	</formatting>
+</afmXmlView>

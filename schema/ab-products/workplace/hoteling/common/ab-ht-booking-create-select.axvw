@@ -1,0 +1,228 @@
+<view version="2.0">
+    <layout id="main">
+        <west autoScroll="true" initialSize="30%" split="true"/>
+        <center autoScroll="true"/>
+    </layout>
+    
+    <layout id="nested_west" containingLayout="main" region="west">
+        <center autoScroll="true" id="treePositon"/>
+        <south autoScroll="true" id="assignPosition" initialSize="200" split="true"/>
+    </layout>
+    
+    <layout id="nested_center" containingLayout="main" region="center">
+        <center autoScroll="true" id="dwgPosition"/>
+        <south autoScroll="true" id="assignmentsPosition" initialSize="30%" split="true"/>
+    </layout>
+    
+    <message name="datePassedError" translatable="true">You cannot book a room for a date that has already passed.</message>
+    <message name="confirmMessage" translatable="true">Not all of the selected bookings are allowed.  Do you wish to continue?</message>
+    <message name="emailNotificationError" translatable="true">An error occurred while sending a notification e-mail.</message>
+    <message name="selectRmForEm" translatable="true">Select a room to assign selected employee to</message>
+    <message name="selectRmForVisitor" translatable="true">Select a room to assign selected visitor to</message>
+    <message name="drawingPanelTitle" translatable="true">Select a room to assign {0} to</message>
+    <message name="noEm" translatable="true">Please select an employee first!</message>
+    <message name="noVisitor" translatable="true">Please select a visitor first!</message>
+    <message name="noFloorPlan" translatable="true">Please select a floor plan first!</message>
+    <message name="noBooking" translatable="true">You must select any space to book.</message>
+    <message name="rmNotAvailable" translatable="true">This room is not available.</message>
+    <message name="availableSeats" translatable="true">available seats</message>
+    <message name="addEdit" translatable="true">Add/Edit</message>
+    <message name="resourcesTitle" translatable="true">Resources</message>
+	<message name="resourceLost" translatable="true">The selected resources will be lost.</message>
+	<message name="availability" translatable="true">Availability</message>
+	<message name="capacity" translatable="true">Capacity</message>
+    <message name="cannotCreateBooking" translatable="true">You are not an employee and can't create bookings.</message>
+
+    <panel type="html" id="selectFloorTree" showOnLoad="true" layoutRegion="treePositon">
+        <title translatable="true">Select Floor</title>
+        <html>
+            <div id="divFloorTree"></div>
+        </html>
+    </panel>
+    
+    <dataSource id="ds_ab_ht_booking_create_select_grid_em">
+        <table name="em" role="main"/>
+        <field name="em_id"/>
+        <field name="dv_id"/>
+        <field name="dp_id"/>
+    </dataSource>
+    
+    <panel type="grid" id="selectEmployeeGrid" showOnLoad="false" dataSource="ds_ab_ht_booking_create_select_grid_em" layoutRegion="assignPosition">
+        <title translatable="true">Select Employee</title>
+        <sortField table="em" name="em_id" ascending="true"/>
+        <field table="em" name="em_id" controlType="link">
+            <command type="callFunction" functionName="selectEmployeeGrid_onClick"/>
+        </field>
+        <field table="em" name="dv_id" controlType="link">
+            <command type="callFunction" functionName="selectEmployeeGrid_onClick"/>
+        </field>
+        <field table="em" name="dp_id" controlType="link">
+            <command type="callFunction" functionName="selectEmployeeGrid_onClick"/>
+        </field>
+    </panel>
+    
+    <dataSource id="ds_ab_ht_booking_create_select_grid_visitors">
+        <table name="visitors" role="main"/>
+        <field name="visitor_id"/>
+		<field name="name_last"/>
+		<field name="name_first"/>
+		<field table="visitors" name="visitor_name" baseField="visitors.name_last" dataType="text">
+			<title translatable="true">Visitor Name</title>
+			 <sql dialect="generic">name_last ${sql.concat}' '${sql.concat}name_first</sql>
+		</field>
+        <field name="dv_id"/>
+        <field name="dp_id"/>
+    </dataSource>
+    
+    <panel type="grid" id="selectVisitorsGrid" showOnLoad="false" dataSource="ds_ab_ht_booking_create_select_grid_visitors" layoutRegion="assignPosition">
+        <title translatable="true">Select Visitors</title>
+        <action id="add">
+            <title translatable="true">Add New Visitor</title>
+        </action>
+        <sortField table="visitors" name="visitor_name" ascending="true"/>
+		<field table="visitors" name="visitor_name" dataType="text" controlType="link">
+			<title translatable="true">Visitor Name</title>
+			  <command type="callFunction" functionName="selectVisitorsGrid_onClick"/>
+		</field>
+        <field table="visitors" name="visitor_id" hidden="true"/>
+        <field table="visitors" name="dv_id" hidden="true"/>
+        <field table="visitors" name="dp_id" hidden="true"/>
+    </panel>
+    
+    <dataSource id="ds_ab_ht_booking_create_select_drawing_rmHighlight" type="DrawingControlHighlight">
+        <table name="rm" role="main"/>
+        <field table="rm" name="bl_id"/>
+        <field table="rm" name="fl_id"/>
+        <field table="rm" name="rm_id"/>
+        <field table="rm" name="area"/>
+        <field table="rm" name="cap_em"/>
+        <field table="rm" name="count_em"/>
+        <parameter name="rmRes" dataType="verbatim" value=""/>
+        <restriction type="sql" sql=" ${parameters['rmRes']}"/>
+    </dataSource>
+    
+    <dataSource id="ds_ab_ht_booking_create_select_drawing_rmLabel" type="DrawingControlLabels">
+        <title translatable="true">Room Capacity-Availability</title>
+        <table name="rm" role="main"/>
+        <field name="bl_id" hidden="true"/>
+        <field name="fl_id" hidden="true"/>
+        <field name="rm_id"/>
+        <field name="dv_id" dataType="text">
+			<sql dialect="generic">${parameters['capacity']} ${sql.concat}':' ${sql.concat} rm.cap_em</sql>
+			<sql dialect="sqlserver">${parameters['capacity']} ${sql.concat}':' ${sql.concat} cast(rm.cap_em as varchar)</sql>
+		</field>
+		<parameter name="capacity" dataType="text" value=""/>
+    </dataSource>
+    
+    <dataSource id="ds_ab_ht_booking_create_select_drawing_rmLabel1" type="DrawingControlLabels">
+        <title translatable="true">Employee Names</title>
+        <table name="em" role="main"/>
+        <table name="rm" role="standard"/>
+        <field table="rm" name="bl_id" hidden="true"/>
+        <field table="rm" name="fl_id" hidden="true"/>
+        <field table="rm" name="rm_id"/>
+        <field table="em" name="em_id"/>
+    </dataSource>
+    
+    <panel type="drawing" id="selectRoomDrawing" layoutRegion="dwgPosition" multiple="false" selectionMode="1" assignMode="3"
+     highlightDataSource="ds_ab_ht_booking_create_select_drawing_rmHighlight"
+     labelsDataSource="ds_ab_ht_booking_create_select_drawing_rmLabel">
+        <title></title>
+        <action id="createBooking" cssClass="borderButton">
+            <title translatable="true">Book</title>
+        </action>
+        <action id="back">
+            <title translatable="true">Back</title>
+        </action>
+    </panel>
+    
+    <dataSource id="ds_ab_ht_booking_create_select_grid_rmpct">
+        <table name="rmpct" role="main"/>
+        <table name="visitors" role="standard"/>
+        <field table="rmpct" name="pct_id"/>
+        <field table="rmpct" name="bl_id"/>
+        <field table="rmpct" name="fl_id"/>
+        <field table="rmpct" name="rm_id"/>
+        <field table="rmpct" name="em_id"/>
+        <field table="rmpct" name="dv_id"/>
+        <field table="rmpct" name="dp_id"/>
+        <field table="rmpct" name="ac_id"/>
+        <field table="rmpct" name="visitor_id"/>
+        <field table="rmpct" name="visitor_name" dataType="text" value=''/>
+        <field table="rmpct" name="resources"/>
+        <restriction type="sql" sql="rmpct.pct_id = -1"/>
+    </dataSource>
+    
+    <dataSource id="ds_ab_ht_booking_create_select_grid_resources">
+        <table name="resources" role="main"/>
+        <field table="resources" name="resource_id"/>
+        <field table="resources" name="resource_name"/>
+		<restriction type="sql" sql="resources.resource_type = 'Unlimited'"/>
+    </dataSource>
+    
+    <panel type="grid" id="selectResourceGridPopUp" controlType="reportGrid" multipleSelectionEnabled="true" hidden="true" showOnLoad="false" dataSource="ds_ab_ht_booking_create_select_grid_resources">
+        <title translatable="true">Resources</title>
+        <action id="add">
+            <title translatable="true">Save</title>
+        </action>
+    </panel>
+    
+    <tabs id="bookingAndResourcesTabs" workflow="free" layoutRegion="assignmentsPosition">
+        <tab name="selectBookingsTab" selected="true" useFrame="false">
+            <title translatable="true">Selected Bookings</title>
+            <panel type="grid" id="selectBookingGrid" controlType="reportGrid" showOnLoad="false" dataSource="ds_ab_ht_booking_create_select_grid_rmpct">
+                <field controlType="button">
+                    <title translatable="true">Edit</title>
+                    <command type="callFunction" functionName="selectBookingGrid_onEdit"/>
+                </field>
+                <field controlType="button">
+                    <title translatable="true">Clear</title>
+                    <command type="callFunction" functionName="selectBookingGrid_onClear"/>
+                </field>
+                <field table="rmpct" name="bl_id"/>
+                <field table="rmpct" name="fl_id"/>
+                <field table="rmpct" name="rm_id"/>
+                <field table="rmpct" name="em_id"/>
+                <field table="rmpct" name="dv_id"/>
+                <field table="rmpct" name="dp_id"/>
+                <field table="rmpct" name="ac_id"/>
+                <field table="rmpct" name="visitor_id" hidden="true"/>
+		<field table="rmpct" name="visitor_name" dataType="text">
+			<title translatable="true">Visitor Name</title>
+		</field>
+            </panel>
+        </tab>
+        <tab name="unlimitedResourcesTab" useFrame="false">
+            <title translatable="true">Resources</title>
+            <panel type="grid" id="selectResourceGrid" controlType="reportGrid" showOnLoad="false" dataSource="ds_ab_ht_booking_create_select_grid_rmpct">
+            </panel>
+        </tab>
+    </tabs>
+    
+    <panel type="form" id="editBookingForm" showOnLoad="false" hidden="true" dataSource="ds_ab_ht_booking_create_select_grid_rmpct">
+        <title translatable="true">Create Hoteling Space Booking - Edit Infomation</title>
+        <action>
+            <title translatable="true">Cancel</title>
+            <command type="closeDialog"/>
+        </action>
+        <action id="save">
+            <title translatable="true">Save</title>
+        </action>
+        <field table="rmpct" name="bl_id" readOnly="true"/>
+        <field table="rmpct" name="fl_id" readOnly="true"/>
+        <field table="rmpct" name="rm_id" readOnly="true"/>
+        <field table="rmpct" name="em_id" required="true"/>
+        <field table="rmpct" name="dv_id" required="true"/>
+        <field table="rmpct" name="dp_id" required="true"/>
+        <field table="rmpct" name="ac_id"/>
+        <field table="rmpct" name="visitor_id"  hidden="true"/>
+    </panel>
+	
+    <dataSource id="ds_ab_ht_booking_create_select_blDS">
+        <table name="bl" role="main"/>
+        <field table="bl" name="bl_id"/>
+        <field table="bl" name="site_id"/>
+    </dataSource>
+    
+    <js file="ab-ht-booking-create-select.js"/>
+</view>

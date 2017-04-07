@@ -1,0 +1,136 @@
+<view version="2.0">
+    <title>Properties by Location</title>
+    <report orientation="landscape" showGraphics= "true"/>
+    
+    <dataSource id="abRepmItemByLocationPrRpt_ds">
+        <table name="property"/>
+        <field name="pr_id"/>
+        <field name="name"/>
+        <field name="prop_photo"/>
+        <field name="geo_region_id" dataType="text">
+            <title>Geo-Region Code</title>
+            <sql dialect="generic">
+                (SELECT ctry.geo_region_id FROM ctry WHERE ctry.ctry_id = property.ctry_id)
+            </sql>
+        </field>
+        
+        <field name="ctry_id"/>
+        <field name="regn_id"/>
+        <field name="state_id"/>
+        <field name="city_id"/>
+        <field name="site_id"/>
+        <field name="property_type"/>
+        <field name="zip"/>
+        <field name="lat"/>
+        <field name="lon"/>
+        <field name="address1"/>
+        <field name="address2"/>
+
+        <field name="value_book" dataType="number" size="20" decimals="2" currency="${user.userCurrency.code}">
+            <sql dialect="generic">
+                (property.value_book * ${sql.exchangeRateFromBudgetToUserForDate('Budget', 'property.date_book_val')})
+            </sql>
+        </field>
+        <field name="date_book_val"/>
+        <field name="value_market"  dataType="number" size="20" decimals="2" currency="${user.userCurrency.code}">
+            <sql dialect="generic">
+                (property.value_market * ${sql.exchangeRateFromBudgetToUserForDate('Budget', 'property.date_market_val')})
+            </sql>
+        </field>
+        <field name="date_market_val"/>
+        <field name="status" dataType="text">
+            <sql dialect="generic">
+                (CASE 
+                    WHEN EXISTS(SELECT 1 FROM ot WHERE ot.pr_id = property.pr_id AND ot.status = 'Owned') 
+                        THEN ${parameters['owned']} 
+                    WHEN EXISTS(SELECT 1 FROM ls WHERE ls.pr_id = property.pr_id AND ls.signed = 1 
+                            AND (ls.date_end &gt;= ${sql.currentDate} OR ls.date_end IS NULL) AND ls.date_start &lt;= ${sql.currentDate} )
+                            THEN ${parameters['leased']}
+                    ELSE ${parameters['neither']}
+                END)
+            </sql>
+        </field>
+        <field name="comments"/>
+        <field name="description"/>
+        <field name="cost_purchase" dataType="number" size="20" decimals="2" currency="${user.userCurrency.code}">
+            <sql dialect="generic">
+                (SELECT ot.cost_purchase * ${sql.exchangeRateFromBudgetToUserForDate('Budget', 'ot.date_purchase')}
+                    FROM ot WHERE 
+                    ot.ot_id = (SELECT MAX(x.ot_id) FROM ot x WHERE x.pr_id = property.pr_id AND x.status = 'Owned'))
+            </sql>
+        </field>
+        <field name="date_purchase" dataType="date">
+            <sql dialect="generic">
+                (SELECT ot.date_purchase
+                    FROM ot WHERE 
+                    ot.ot_id = (SELECT MAX(x.ot_id) FROM ot x WHERE x.pr_id = property.pr_id AND x.status = 'Owned'))
+            </sql>
+        </field>
+        <field name="area_manual" numericFormat="area"/>
+        <field name="area_cad" numericFormat="area"/>
+         <field name="dummy_field" dataType="text">
+            <sql dialect="generic">('')</sql>
+         </field> 
+        
+        <parameter name="owned" dataType="text" value=""/>
+        <parameter name="leased" dataType="text" value=""/>
+        <parameter name="neither" dataType="text" value=""/>
+        
+    </dataSource>
+    
+    <panel id="abRepmItemByLocationPrRpt" type="paginatedReport" role="data" dataSource="abRepmItemByLocationPrRpt_ds"
+            format="column" columns="2" pageBreakBefore="true">
+            
+        <field name="pr_id"/>
+        <field name="name"/>
+        
+        <field name="geo_region_id">
+            <title>Geo-Region Code</title>
+        </field>
+        <field name="address1"/>
+        
+        <field name="ctry_id"/>
+        <field name="address2"/>
+
+        <field name="regn_id"/>
+        <field name="zip"/>
+
+        <field name="state_id"/>
+        <field name="lat"/>
+
+        <field name="city_id"/>
+        <field name="lon"/>
+        
+        <field name="site_id"/>
+        <field name="status">
+            <title translatable="true">Status</title>
+        </field>
+
+        <field name="property_type"/>
+        <field name="dummy_field"/>
+        
+        <field name="value_book">
+            <title>Value - Book</title>
+        </field>
+        <field name="date_book_val"/>
+        
+        <field name="value_market">
+            <title>Value - Market</title>
+        </field>
+        <field name="date_market_val"/>
+        
+        <field name="cost_purchase">
+            <title translatable="true">Cost Purchase</title>
+        </field>
+        <field name="date_purchase">
+            <title translatable="true">Date Purchase</title>
+        </field>
+
+        <field name="area_manual"/>
+        <field name="area_cad"/>
+        
+        <field name="description" colspan="2"/>
+        <field name="comments" colspan="2"/>
+        <field name="prop_photo" colspan="2"/>
+    </panel>    
+</view>

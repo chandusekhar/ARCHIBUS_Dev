@@ -1,0 +1,317 @@
+<view version="2.0">
+
+    <!-- esri js library -->
+    <js url="//js.arcgis.com/3.9/"/>
+    <css url="//js.arcgis.com/3.9/js/esri/css/esri.css" />
+    <!-- ab core map control -->
+    <js file="ab-arcgis-map.js"/>
+    <css file="ab-arcgis-map.css"/>
+    <js file="colorbrewer.js"/>
+
+	<js file="ab-energy-gis-map.js"/>
+
+	<message name="invalidLic" translatable="true">You have not licensed the ESRI ArcGIS Online Services that support this view. Per ESRI licensing, this view can be used for demonstration purposes only.</message>
+	<message name="option_energy_cost_occup" translatable="true">Total Utility Cost Per Building Occupancy</message>
+	<message name="option_energy_consumption_occup" translatable="true">Total Consumption (MMBTU) Per Building Occupancy</message>
+	<message name="option_energy_demand_occup" translatable="true">Total Demand (kW) Per Building Occupancy</message>
+	<message name="option_energy_volume_occup" translatable="true">Total Volume (CCF) Per Building Occupancy</message>
+	<message name="option_energy_cost_area" translatable="true">Total Utility Cost Per Building Area</message>
+	<message name="option_energy_consumption_area" translatable="true">Total Consumption (MMBTU) Per Building Area</message>
+	<message name="option_energy_demand_area" translatable="true">Total Demand (kW) Per Building Area</message>
+	<message name="option_energy_volume_area" translatable="true">Total Volume (CCF) Per Building Area</message>
+	<message name="option_energy_cost" translatable="true">Total Utility Cost</message>
+	<message name="option_energy_consumption" translatable="true">Total Consumption (MMBTU)</message>
+	<message name="option_energy_demand" translatable="true">Total Demand (kW)</message>
+	<message name="option_energy_volume" translatable="true">Total Volume (CCF)</message>
+	<message name="option_none" translatable="true">None</message>
+	<message name="not_geocoded" translatable="true">You have selected at least one item that is not geocoded. Non-geocoded items will not be shown on the map.</message>
+	<message name="msg_ie_eight" translatable="true">You are using Internet Explorer 8. To properly display maps please turn on the Compatibility mode by clicking on the Tools : Compatibility View menu</message>
+    
+    <panel type="view" id="commonView" file="ab-energy-bill-common.axvw"/>
+	
+	<dataSource id="dsBuilding" applyVpaRestrictions="false">
+		<table name="bl"/>
+		<field table="bl" name="bl_id"/>
+		<field table="bl" name="name"/>
+		<field name="address" dataType="text">
+			<title translatable="true">Address</title>
+			<sql dialect="generic">address1${sql.concat}', '${sql.concat}address2</sql>
+		</field>
+		<field name="count_occup" dataType="number" size="12" decimals="0">
+			<title translatable="true">Building Occupancy</title>
+			<sql dialect="generic">CASE WHEN count_em > 0 THEN 
+							count_em
+							ELSE count_occup
+						END
+			</sql>
+		</field>		
+		<field name="total_energy_cost_occup" dataType="number" size="12" decimals="2">
+			<title translatable="true">Total Utility Cost Per Building Occupancy</title>
+			<sql dialect="generic">COALESCE((SELECT COALESCE(SUM(bill_archive.amount_expense), 0) / 
+							${sql.replaceZero('CASE WHEN 
+								count_em > 0 THEN 
+								count_em
+								ELSE count_occup END')}
+						FROM bill_archive WHERE bill_archive.vn_id IN 
+							(SELECT vn_id FROM vn 
+								WHERE vendor_type = 'Energ')
+                        AND ((bill_archive.prorated_aggregated = 'NO' AND bill_archive.reference_bill_id IS NULL AND NOT EXISTS (SELECT 1 FROM bill_archive b WHERE b.reference_bill_id = bill_archive.bill_id)) OR (bill_archive.prorated_aggregated &lt;&gt; 'NO'))
+						AND bill_archive.bl_id = bl.bl_id), 0)
+			</sql>
+		</field>
+		<field name="total_energy_consumption_occup" dataType="number" size="12" decimals="2">
+			<title translatable="true">Total Consumption (MMBTU) Per Building Occupancy</title>
+			<sql dialect="generic">
+                        (SELECT COALESCE(SUM(qty_energy / conv_factor) /
+                                    ${sql.replaceZero('CASE WHEN 
+                                        count_em > 0 THEN 
+                                        count_em
+                                        ELSE count_occup END')}, 0)
+                            FROM
+                             (SELECT bill_archive.qty_energy ${sql.as} qty_energy,
+                                        ${parameters['unitsConversionFactor']} ${sql.as} conv_factor,
+                                        bill_archive.bl_id
+                                FROM bill_archive
+                                WHERE bill_archive.vn_id IN 
+                                        (SELECT vn_id FROM vn 
+                                            WHERE vendor_type = 'Energ')
+                                       AND ((bill_archive.prorated_aggregated = 'NO' AND bill_archive.reference_bill_id IS NULL AND NOT EXISTS (SELECT 1 FROM bill_archive b WHERE b.reference_bill_id = bill_archive.bill_id)) OR (bill_archive.prorated_aggregated &lt;&gt; 'NO'))
+                             ) ${sql.as} bill_archive_tmp
+                                    WHERE bill_archive_tmp.bl_id = bl.bl_id
+                        )
+			</sql>
+		</field>
+		<field name="total_energy_demand_occup" dataType="number" size="12" decimals="2">
+			<title translatable="true">Total Demand (kW) Per Building Occupancy</title>
+			<sql dialect="generic">COALESCE((SELECT COALESCE(SUM(bill_archive.qty_power), 0) / 
+							${sql.replaceZero('CASE WHEN 
+								count_em > 0 THEN 
+								count_em
+								ELSE count_occup END')}
+						FROM bill_archive WHERE bill_archive.vn_id IN 
+							(SELECT vn_id FROM vn 
+								WHERE vendor_type = 'Energ')
+                                AND ((bill_archive.prorated_aggregated = 'NO' AND bill_archive.reference_bill_id IS NULL AND NOT EXISTS (SELECT 1 FROM bill_archive b WHERE b.reference_bill_id = bill_archive.bill_id)) OR (bill_archive.prorated_aggregated &lt;&gt; 'NO'))
+						AND  bill_archive.bl_id = bl.bl_id), 0)
+			</sql>
+		</field>
+		<field name="total_energy_volume_occup" dataType="number" size="12" decimals="2">
+			<title translatable="true">Total Volume (CCF) Per Building Occupancy</title>
+			<sql dialect="generic">COALESCE((SELECT COALESCE(SUM(bill_archive.qty_volume), 0) / 
+							${sql.replaceZero('CASE WHEN 
+								count_em > 0 THEN 
+								count_em
+								ELSE count_occup END')}
+						FROM bill_archive WHERE bill_archive.vn_id IN 
+							(SELECT vn_id FROM vn 
+								WHERE vendor_type = 'Energ')
+                                AND ((bill_archive.prorated_aggregated = 'NO' AND bill_archive.reference_bill_id IS NULL AND NOT EXISTS (SELECT 1 FROM bill_archive b WHERE b.reference_bill_id = bill_archive.bill_id)) OR (bill_archive.prorated_aggregated &lt;&gt; 'NO'))
+						AND bill_archive.bl_id = bl.bl_id), 0)
+			</sql>
+		</field>
+		<field name="total_energy_cost_area" dataType="number" size="12" decimals="2">
+			<title translatable="true">Total Utility Cost Per Building Area</title>
+			<sql dialect="generic">COALESCE((SELECT COALESCE(SUM(bill_archive.amount_expense), 0) / 
+							${sql.replaceZero('bl.area_gross_int')} 
+						FROM bill_archive WHERE bill_archive.vn_id IN 
+							(SELECT vn_id FROM vn 
+								WHERE vendor_type = 'Energ')
+                                AND ((bill_archive.prorated_aggregated = 'NO' AND bill_archive.reference_bill_id IS NULL AND NOT EXISTS (SELECT 1 FROM bill_archive b WHERE b.reference_bill_id = bill_archive.bill_id)) OR (bill_archive.prorated_aggregated &lt;&gt; 'NO'))
+						AND bill_archive.bl_id = bl.bl_id), 0)
+			</sql>
+		</field>
+		<field name="total_energy_consumption_area" dataType="number" size="12" decimals="2">
+			<title translatable="true">Total Consumption (MMBTU) Per Building Area</title>
+			<sql dialect="generic">
+                        (SELECT COALESCE(SUM(qty_energy / conv_factor) /
+                                    ${sql.replaceZero('bl.area_gross_int')}, 0)
+                            FROM
+                             (SELECT bill_archive.qty_energy ${sql.as} qty_energy,
+                                        ${parameters['unitsConversionFactor']} ${sql.as} conv_factor,
+                                        bill_archive.bl_id
+                                FROM bill_archive
+                                WHERE bill_archive.vn_id IN 
+                                        (SELECT vn_id FROM vn 
+                                            WHERE vendor_type = 'Energ')
+                                AND ((bill_archive.prorated_aggregated = 'NO' AND bill_archive.reference_bill_id IS NULL AND NOT EXISTS (SELECT 1 FROM bill_archive b WHERE b.reference_bill_id = bill_archive.bill_id)) OR (bill_archive.prorated_aggregated &lt;&gt; 'NO'))
+                             ) ${sql.as} bill_archive_tmp
+                                    WHERE bill_archive_tmp.bl_id = bl.bl_id
+                        )
+			</sql>
+		</field>
+		<field name="total_energy_demand_area" dataType="number" size="12" decimals="2">
+			<title translatable="true">Total Demand (kW) Per Building Area</title>
+			<sql dialect="generic">COALESCE((SELECT COALESCE(SUM(bill_archive.qty_power), 0) / 
+							${sql.replaceZero('bl.area_gross_int')} 
+						FROM bill_archive WHERE bill_archive.vn_id IN 
+							(SELECT vn_id FROM vn 
+								WHERE vendor_type = 'Energ')
+                             AND ((bill_archive.prorated_aggregated = 'NO' AND bill_archive.reference_bill_id IS NULL AND NOT EXISTS (SELECT 1 FROM bill_archive b WHERE b.reference_bill_id = bill_archive.bill_id)) OR (bill_archive.prorated_aggregated &lt;&gt; 'NO'))
+						AND bill_archive.bl_id = bl.bl_id), 0)
+			</sql>
+		</field>
+		<field name="total_energy_volume_area" dataType="number" size="12" decimals="2">
+			<title translatable="true">Total Volume (CCF) Per Building Area</title>
+			<sql dialect="generic">COALESCE((SELECT COALESCE(SUM(bill_archive.qty_volume), 0) / 
+							${sql.replaceZero('bl.area_gross_int')} 
+						FROM bill_archive WHERE bill_archive.vn_id IN 
+							(SELECT vn_id FROM vn 
+								WHERE vendor_type = 'Energ')
+                                AND ((bill_archive.prorated_aggregated = 'NO' AND bill_archive.reference_bill_id IS NULL AND NOT EXISTS (SELECT 1 FROM bill_archive b WHERE b.reference_bill_id = bill_archive.bill_id)) OR (bill_archive.prorated_aggregated &lt;&gt; 'NO'))
+						AND bill_archive.bl_id = bl.bl_id), 0)
+			</sql>
+		</field>
+		<field name="total_energy_cost" dataType="number" size="12" decimals="2">
+			<title translatable="true">Total Utility Cost</title>
+			<sql dialect="generic">COALESCE((SELECT COALESCE(SUM(bill_archive.amount_expense), 0) 
+						FROM bill_archive WHERE bill_archive.vn_id IN 
+							(SELECT vn_id FROM vn 
+								WHERE vendor_type = 'Energ')
+                                AND ((bill_archive.prorated_aggregated = 'NO' AND bill_archive.reference_bill_id IS NULL AND NOT EXISTS (SELECT 1 FROM bill_archive b WHERE b.reference_bill_id = bill_archive.bill_id)) OR (bill_archive.prorated_aggregated &lt;&gt; 'NO'))
+						AND bill_archive.bl_id = bl.bl_id), 0)
+			</sql>
+		</field>
+		<field name="total_energy_consumption" dataType="number" size="12" decimals="2">
+			<title translatable="true">Total Consumption (MMBTU)</title>
+			<sql dialect="generic">
+                        (SELECT COALESCE(SUM(qty_energy / conv_factor), 0)
+                            FROM
+                             (SELECT bill_archive.qty_energy ${sql.as} qty_energy,
+                                        ${parameters['unitsConversionFactor']} ${sql.as} conv_factor,
+                                        bill_archive.bl_id
+                                FROM bill_archive
+                                WHERE bill_archive.vn_id IN 
+                                        (SELECT vn_id FROM vn 
+                                            WHERE vendor_type = 'Energ')
+                                            AND ((bill_archive.prorated_aggregated = 'NO' AND bill_archive.reference_bill_id IS NULL AND NOT EXISTS (SELECT 1 FROM bill_archive b WHERE b.reference_bill_id = bill_archive.bill_id)) OR (bill_archive.prorated_aggregated &lt;&gt; 'NO'))
+                             ) ${sql.as} bill_archive_tmp
+                                    WHERE bill_archive_tmp.bl_id = bl.bl_id
+                        )
+			</sql>
+		</field>
+		<field name="total_energy_demand" dataType="number" size="12" decimals="2">
+			<title translatable="true">Total Demand (kW)</title>
+			<sql dialect="generic">(SELECT COALESCE(SUM(bill_archive.qty_power), 0) 
+						FROM bill_archive WHERE bill_archive.vn_id IN 
+							(SELECT vn_id FROM vn 
+								WHERE vendor_type = 'Energ')
+                                AND ((bill_archive.prorated_aggregated = 'NO' AND bill_archive.reference_bill_id IS NULL AND NOT EXISTS (SELECT 1 FROM bill_archive b WHERE b.reference_bill_id = bill_archive.bill_id)) OR (bill_archive.prorated_aggregated &lt;&gt; 'NO'))
+						AND bill_archive.bl_id = bl.bl_id)
+			</sql>
+		</field>
+		<field name="total_energy_volume" dataType="number" size="12" decimals="2">
+			<title translatable="true">Total Volume (CCF)</title>
+			<sql dialect="generic">(SELECT COALESCE(SUM(bill_archive.qty_volume), 0) 
+						FROM bill_archive WHERE bill_archive.vn_id IN 
+							(SELECT vn_id FROM vn 
+								WHERE vendor_type = 'Energ')
+                                AND ((bill_archive.prorated_aggregated = 'NO' AND bill_archive.reference_bill_id IS NULL AND NOT EXISTS (SELECT 1 FROM bill_archive b WHERE b.reference_bill_id = bill_archive.bill_id)) OR (bill_archive.prorated_aggregated &lt;&gt; 'NO'))
+						AND bill_archive.bl_id = bl.bl_id)
+			</sql>
+		</field>
+		<field table="bl" name="lat"/>
+		<field table="bl" name="lon"/>
+		<field table="bl" name="zip"/>
+		<field table="bl" name="city_id"/>
+		<field table="bl" name="ctry_id"/>
+		<field table="bl" name="regn_id"/>
+		<field table="bl" name="state_id"/>
+		<field table="bl" name="area_gross_int"/>
+        <parameter name="unitsConversionFactor" dataType="verbatim" value=""/>
+	</dataSource>
+
+	<panel type="html" id="htmlMap">
+        <title></title>		
+		<action id="highlight">
+			<title translatable="true">Highlight by ...</title>
+			<command type="openDialog" panelId="htmlHighlight" width="400" height="300" closeButton="false"/>    
+			<command type="callFunction" functionName="setHighlightPanel" />   
+		</action>
+        <action id="unitsMenu">
+            <title translatable="true">MMBTU</title>
+        </action>
+		<!--Title intentionally left blank>		
+		<action id="reports">
+			<title translatable="true"></title>
+		</action-->
+		<action id="basemapLayerMenu" type="menu" imageName="/schema/ab-core/graphics/icons/view/ab-arcgis-basemap-16.png">
+      		<tooltip translatable="true">Basemaps</tooltip>
+    	</action>
+	    <html>    
+	      	<div id="objMap"> </div>
+	    </html>
+	</panel>
+	<panel type="html" id="htmlHighlight" showOnLoad="false" hidden="true">
+		<title translatable="true">Highlight by:</title>
+		<action id="apply">
+			<title translatable="true">Apply</title>
+		</action>
+		<action id="cancel">
+			<title translatable="true">Cancel</title>
+		</action>
+		<action id="close">
+			<title translatable="true">Close</title>
+			<command type="closeDialog"/>
+		</action>
+		<html>
+			<table class="panel" id="highlight_body">
+				<tr class="space">
+					<td class="formTopSpace" colspan="3">&#160;</td>
+				</tr>
+				<tr>
+					<td>
+						<!--per occupancy-->
+						<input type="radio" id="radioHighlight" name="radioHighlight" value="option_energy_cost_occup">
+							<span id="span_option_energy_cost_occup"></span>
+						</input><br/>
+						<input type="radio" id="radioHighlight" name="radioHighlight" value="option_energy_consumption_occup">
+							<span id="span_option_energy_consumption_occup"></span>
+						</input><br/>
+						<input type="radio" id="radioHighlight" name="radioHighlight" value="option_energy_demand_occup">
+							<span id="span_option_energy_demand_occup"></span>
+						</input><br/>
+						<input type="radio" id="radioHighlight" name="radioHighlight" value="option_energy_volume_occup">
+							<span id="span_option_energy_volume_occup"></span>
+						</input><br/>
+						
+						<!--per area-->
+						<input type="radio" id="radioHighlight" name="radioHighlight" value="option_energy_cost_area">
+							<span id="span_option_energy_cost_area"></span>
+						</input><br/>
+						<input type="radio" id="radioHighlight" name="radioHighlight" value="option_energy_consumption_area">
+							<span id="span_option_energy_consumption_area"></span>
+						</input><br/>
+						<input type="radio" id="radioHighlight" name="radioHighlight" value="option_energy_demand_area">
+							<span id="span_option_energy_demand_area"></span>
+						</input><br/>
+						<input type="radio" id="radioHighlight" name="radioHighlight" value="option_energy_volume_area">
+							<span id="span_option_energy_volume_area"></span>
+						</input><br/>
+						
+						<!--just the totals-->
+						<input type="radio" id="radioHighlight" name="radioHighlight" value="option_energy_cost">
+							<span id="span_option_energy_cost"></span>
+						</input><br/>						
+						<input type="radio" id="radioHighlight" name="radioHighlight" value="option_energy_consumption">
+							<span id="span_option_energy_consumption"></span>
+						</input><br/>
+						<input type="radio" id="radioHighlight" name="radioHighlight" value="option_energy_demand">
+							<span id="span_option_energy_demand"></span>
+						</input><br/>
+						<input type="radio" id="radioHighlight" name="radioHighlight" value="option_energy_volume">
+							<span id="span_option_energy_volume"></span>
+						</input><br/>
+						
+						<input type="radio" id="radioHighlight" name="radioHighlight" value="option_none">
+							<span id="span_option_none"></span>
+						</input><br/>
+						
+					</td>
+				</tr>
+				<tr class="space">
+					<td colspan="3" class="formBottomSpace">&#160;</td>
+				</tr>
+			</table>
+		</html>
+	</panel>
+</view>

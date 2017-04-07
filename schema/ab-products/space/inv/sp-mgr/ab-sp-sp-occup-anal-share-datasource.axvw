@@ -1,0 +1,582 @@
+<view version="2.0">	 
+	<!--	Shared datasource for console in Stack Plan tab and Bar Chart tab -->
+	<dataSource id="abSpOccupAnalConsoleDs">
+		<table name="rmpct" role="main" />
+		<table name="bl" role="standard"/>
+		<field table="rmpct" name="bl_id" />
+		<field table="bl" name="site_id" />
+		<field table="rmpct" name="bl_id" />
+		<field table="rmpct" name="fl_id" />
+		<field table="rmpct" name="dv_id" />
+		<field table="rmpct" name="dp_id" />
+		<field table="rmpct" name="rm_cat" />
+		<field table="rmpct" name="date_created" />
+	</dataSource>
+
+	<!--	Shared datasource  that provide group axis field for charts in Stack Plan tab and Bar Chart tab -->
+	<dataSource id="abRmpctHrmpctCalculationGroupDS" type="grouping" applyVpaRestrictions="false">
+		<sql dialect="generic">
+		  		select  ${parameters['groupOptionForRmpct']}  ${sql.as} groupValue 
+				from rmpct left outer join rm on rm.bl_id=rmpct.bl_id and rm.fl_id=rmpct.fl_id and rm.rm_id=rmpct.rm_id  
+							left outer join bl on bl.bl_id=rmpct.bl_id
+							left outer join rmcat on rmcat.rm_cat=rmpct.rm_cat
+				where  ${sql.vpaRestriction} and   ${parameters['groupOptionForRmpct']}  is not null  AND ${parameters['groupOptionForRmpct']}!='-' 
+						AND ${parameters['consoleResForRmpct']} 
+				union all 
+		  		select  ${parameters['groupOptionForRmpct']}  ${sql.as} groupValue 
+				from hrmpct ${sql.as} rmpct left outer join rm on rm.bl_id=rmpct.bl_id and rm.fl_id=rmpct.fl_id and rm.rm_id=rmpct.rm_id  
+							left outer join bl on bl.bl_id=rmpct.bl_id
+							left outer join rmcat on rmcat.rm_cat=rmpct.rm_cat
+				where  ${sql.vpaRestriction} and   ${parameters['groupOptionForRmpct']}  is not null  AND ${parameters['groupOptionForRmpct']}!='-' 
+						AND ${parameters['consoleResForRmpct']} 
+				union all 
+		  		select  ${parameters['groupOptionForGp']}  ${sql.as} groupValue 
+				from ( select * from gp ${sql.as} rmpct where ${sql.vpaRestriction} and rmpct.portfolio_scenario_id is null) ${sql.as} gp left outer join fl on fl.bl_id=gp.bl_id and fl.fl_id=gp.fl_id   
+							left outer join bl on bl.bl_id=gp.bl_id
+				where  ${parameters['groupOptionForGp']}  is not null  AND ${parameters['groupOptionForGp']}!='-' 
+						AND ${parameters['consoleResForGp']}  
+		</sql>
+		<table name="rmpct" role="main"/>
+		<field name="groupValue"  dataType="text" groupBy="true"/>
+		<parameter name="groupOptionForRmpct" dataType="verbatim" value="rmpct.dp_id"/>
+		<parameter name="groupOptionForHrmpct" dataType="verbatim" value="hrmpct.dp_id"/>
+		<parameter name="groupOptionForGp" dataType="verbatim" value="gp.dp_id"/>
+ 		<parameter name="consoleResForRmpct" dataType="verbatim" value="1=1"/>       
+ 		<parameter name="consoleResForHrmpct" dataType="verbatim" value="1=1"/>       
+ 		<parameter name="consoleResForGp" dataType="verbatim" value="1=1"/>       
+       </dataSource>
+	    
+	<!--	Shared datasource  that provide data field and secondGroup field  for charts in Stack Plan tab and Bar Chart tab -->
+	<dataSource id="abRmpctHrmpctCalculationDataDS"  type="grouping" applyVpaRestrictions="false">
+		<sql dialect="generic">
+		  		select rmpct.bl_id, rmpct.fl_id, rmpct.rm_id, rmpct.rm_cat, bl.site_id, 
+						CASE	when ${parameters['isOccu']}='yes' AND ${parameters['dateType']}='s' 
+								then ( case when rmcat.occupiable=0 then '1 '${sql.concat}${parameters['nonOccup']}  
+									    when rmcat.occupiable=1 and 
+											(select count(1) from rmpct  ${sql.as} rp1 
+												left outer join rm  ${sql.as} rm1 on rm1.bl_id=rp1.bl_id and rm1.fl_id=rp1.fl_id and rm1.rm_id=rp1.rm_id  
+												left outer join bl ${sql.as}  bl1 on bl1.bl_id=rp1.bl_id
+												left outer join rmcat  ${sql.as}  rc1 on rc1.rm_cat=rp1.rm_cat where rp1.bl_id=rmpct.bl_id and rp1.fl_id=rmpct.fl_id and rp1.rm_id=rmpct.rm_id  AND ${parameters['occupRes']} 
+												and rp1.em_id is not null and rp1.status = 1 and rp1.day_part = 0 ) 
+											+ 
+											0.5* (select count(1) from rmpct  ${sql.as} rp1 
+												left outer join rm  ${sql.as} rm1 on rm1.bl_id=rp1.bl_id and rm1.fl_id=rp1.fl_id and rm1.rm_id=rp1.rm_id  
+												left outer join bl ${sql.as}  bl1 on bl1.bl_id=rp1.bl_id
+												left outer join rmcat  ${sql.as}  rc1 on rc1.rm_cat=rp1.rm_cat where rp1.bl_id=rmpct.bl_id and rp1.fl_id=rmpct.fl_id and rp1.rm_id=rmpct.rm_id  AND ${parameters['occupRes']} 
+												and rp1.em_id is not null and rp1.status = 1 and rp1.day_part != 0 )
+											=0 then '2 '${sql.concat}${parameters['vacant']}
+									    when rmcat.occupiable=1 and 
+											(select count(1) from rmpct  ${sql.as} rp1 
+												left outer join rm  ${sql.as} rm1 on rm1.bl_id=rp1.bl_id and rm1.fl_id=rp1.fl_id and rm1.rm_id=rp1.rm_id  
+												left outer join bl ${sql.as}  bl1 on bl1.bl_id=rp1.bl_id
+												left outer join rmcat  ${sql.as}  rc1 on rc1.rm_cat=rp1.rm_cat where rp1.bl_id=rmpct.bl_id and rp1.fl_id=rmpct.fl_id and rp1.rm_id=rmpct.rm_id  AND ${parameters['occupRes']} 
+												and rp1.em_id is not null and rp1.status = 1 and rp1.day_part = 0 ) 
+											+ 
+											0.5* (select count(1) from rmpct  ${sql.as} rp1 
+												left outer join rm  ${sql.as} rm1 on rm1.bl_id=rp1.bl_id and rm1.fl_id=rp1.fl_id and rm1.rm_id=rp1.rm_id  
+												left outer join bl ${sql.as}  bl1 on bl1.bl_id=rp1.bl_id
+												left outer join rmcat  ${sql.as}  rc1 on rc1.rm_cat=rp1.rm_cat where rp1.bl_id=rmpct.bl_id and rp1.fl_id=rmpct.fl_id and rp1.rm_id=rmpct.rm_id  AND ${parameters['occupRes']} 
+												and rp1.em_id is not null and rp1.status = 1 and rp1.day_part != 0 )
+											&lt;rm.cap_em  then '3 '${sql.concat}${parameters['avail']}
+									    when rmcat.occupiable=1 and 
+											(select count(1) from rmpct  ${sql.as} rp1 
+												left outer join rm  ${sql.as} rm1 on rm1.bl_id=rp1.bl_id and rm1.fl_id=rp1.fl_id and rm1.rm_id=rp1.rm_id  
+												left outer join bl ${sql.as}  bl1 on bl1.bl_id=rp1.bl_id
+												left outer join rmcat  ${sql.as}  rc1 on rc1.rm_cat=rp1.rm_cat where rp1.bl_id=rmpct.bl_id and rp1.fl_id=rmpct.fl_id and rp1.rm_id=rmpct.rm_id  AND ${parameters['occupRes']} 
+												and rp1.em_id is not null and rp1.status = 1 and rp1.day_part = 0 ) 
+											+ 
+											0.5* (select count(1) from rmpct  ${sql.as} rp1 
+												left outer join rm  ${sql.as} rm1 on rm1.bl_id=rp1.bl_id and rm1.fl_id=rp1.fl_id and rm1.rm_id=rp1.rm_id  
+												left outer join bl ${sql.as}  bl1 on bl1.bl_id=rp1.bl_id
+												left outer join rmcat  ${sql.as}  rc1 on rc1.rm_cat=rp1.rm_cat where rp1.bl_id=rmpct.bl_id and rp1.fl_id=rmpct.fl_id and rp1.rm_id=rmpct.rm_id  AND ${parameters['occupRes']} 
+												and rp1.em_id is not null and rp1.status = 1 and rp1.day_part != 0 )
+											=rm.cap_em   then '4 '${sql.concat}${parameters['atCap']}
+									    when rmcat.occupiable=1 and 
+											(select count(1) from rmpct  ${sql.as} rp1 
+												left outer join rm  ${sql.as} rm1 on rm1.bl_id=rp1.bl_id and rm1.fl_id=rp1.fl_id and rm1.rm_id=rp1.rm_id  
+												left outer join bl ${sql.as}  bl1 on bl1.bl_id=rp1.bl_id
+												left outer join rmcat  ${sql.as}  rc1 on rc1.rm_cat=rp1.rm_cat where rp1.bl_id=rmpct.bl_id and rp1.fl_id=rmpct.fl_id and rp1.rm_id=rmpct.rm_id  AND ${parameters['occupRes']} 
+												and rp1.em_id is not null and rp1.status = 1 and rp1.day_part = 0 ) 
+											+ 
+											0.5* (select count(1) from rmpct  ${sql.as} rp1 
+												left outer join rm  ${sql.as} rm1 on rm1.bl_id=rp1.bl_id and rm1.fl_id=rp1.fl_id and rm1.rm_id=rp1.rm_id  
+												left outer join bl ${sql.as}  bl1 on bl1.bl_id=rp1.bl_id
+												left outer join rmcat  ${sql.as}  rc1 on rc1.rm_cat=rp1.rm_cat where rp1.bl_id=rmpct.bl_id and rp1.fl_id=rmpct.fl_id and rp1.rm_id=rmpct.rm_id  AND ${parameters['occupRes']} 
+												and rp1.em_id is not null and rp1.status = 1 and rp1.day_part != 0 )
+											&gt;rm.cap_em   then '5 '${sql.concat}${parameters['excCap']}
+									end)
+								when ${parameters['isOccu']}='yes' AND ${parameters['dateType']}='r'
+								then ( case when rmcat.occupiable=0 then '1 '${sql.concat}${parameters['nonOccup']}  
+									    when rmcat.occupiable=1 and rm.count_em=0 then '2 '${sql.concat}${parameters['vacant']}
+									    when rmcat.occupiable=1 and rm.count_em&lt;rm.cap_em  then '3 '${sql.concat}${parameters['avail']}
+									    when rmcat.occupiable=1 and rm.count_em=rm.cap_em   then '4 '${sql.concat}${parameters['atCap']}
+									    when rmcat.occupiable=1 and rm.count_em&gt;rm.cap_em   then '5 '${sql.concat}${parameters['excCap']}
+									end)
+								else  ${parameters['secondGroupOptionForRmpct']} 
+					END ${sql.as} secondGroupValue,  
+					1 ${sql.as} cal_value
+				from rmpct left outer join rm on rm.bl_id=rmpct.bl_id and rm.fl_id=rmpct.fl_id and rm.rm_id=rmpct.rm_id  
+							left outer join bl on bl.bl_id=rmpct.bl_id
+							left outer join rmcat on rmcat.rm_cat=rmpct.rm_cat
+				where  ${sql.vpaRestriction} and   ${parameters['secondGroupOptionForRmpct']}  is not null  AND ${parameters['secondGroupOptionForRmpct']}!='-' 
+						AND ${parameters['consoleResForRmpct']} 
+						AND ${parameters['summaryValueForThisGroup']} =  ${parameters['groupOptionForRmpct']} 
+						AND rmpct.rm_cat is not null  AND rmpct.status = 1 
+
+				union all 
+
+				select hrmpct.bl_id, hrmpct.fl_id, hrmpct.rm_id, hrmpct.rm_cat, bl.site_id, 
+						CASE	when ${parameters['isOccu']}='yes' AND ${parameters['dateType']}='s' 
+								then ( case when rmcat.occupiable=0 then '1 '${sql.concat}${parameters['nonOccup']}  
+									    when rmcat.occupiable=1 and 
+											(select count(1) from hrmpct  ${sql.as} rp1 
+												left outer join rm  ${sql.as} rm1 on rm1.bl_id=rp1.bl_id and rm1.fl_id=rp1.fl_id and rm1.rm_id=rp1.rm_id  
+												left outer join bl ${sql.as}  bl1 on bl1.bl_id=rp1.bl_id
+												left outer join rmcat  ${sql.as}  rc1 on rc1.rm_cat=rp1.rm_cat where rp1.bl_id=hrmpct.bl_id and rp1.fl_id=hrmpct.fl_id and rp1.rm_id=hrmpct.rm_id  AND ${parameters['occupRes']} 
+												and rp1.em_id is not null and rp1.day_part = 0 ) 
+											+ 
+											0.5* (select count(1) from hrmpct  ${sql.as} rp1 
+												left outer join rm  ${sql.as} rm1 on rm1.bl_id=rp1.bl_id and rm1.fl_id=rp1.fl_id and rm1.rm_id=rp1.rm_id  
+												left outer join bl ${sql.as}  bl1 on bl1.bl_id=rp1.bl_id
+												left outer join rmcat  ${sql.as}  rc1 on rc1.rm_cat=rp1.rm_cat where rp1.bl_id=hrmpct.bl_id and rp1.fl_id=hrmpct.fl_id and rp1.rm_id=hrmpct.rm_id  AND ${parameters['occupRes']} 
+												and rp1.em_id is not null and rp1.day_part != 0 )
+											=0 then '2 '${sql.concat}${parameters['vacant']}
+									    when rmcat.occupiable=1 and 
+											(select count(1) from hrmpct  ${sql.as} rp1 
+												left outer join rm  ${sql.as} rm1 on rm1.bl_id=rp1.bl_id and rm1.fl_id=rp1.fl_id and rm1.rm_id=rp1.rm_id  
+												left outer join bl ${sql.as}  bl1 on bl1.bl_id=rp1.bl_id
+												left outer join rmcat  ${sql.as}  rc1 on rc1.rm_cat=rp1.rm_cat where rp1.bl_id=hrmpct.bl_id and rp1.fl_id=hrmpct.fl_id and rp1.rm_id=hrmpct.rm_id  AND ${parameters['occupRes']} 
+												and rp1.em_id is not null and  rp1.day_part = 0 ) 
+											+ 
+											0.5* (select count(1) from hrmpct  ${sql.as} rp1 
+												left outer join rm  ${sql.as} rm1 on rm1.bl_id=rp1.bl_id and rm1.fl_id=rp1.fl_id and rm1.rm_id=rp1.rm_id  
+												left outer join bl ${sql.as}  bl1 on bl1.bl_id=rp1.bl_id
+												left outer join rmcat  ${sql.as}  rc1 on rc1.rm_cat=rp1.rm_cat where rp1.bl_id=hrmpct.bl_id and rp1.fl_id=hrmpct.fl_id and rp1.rm_id=hrmpct.rm_id  AND ${parameters['occupRes']} 
+												and rp1.em_id is not null and rp1.day_part != 0 )
+											&lt;rm.cap_em  then '3 '${sql.concat}${parameters['avail']}
+									    when rmcat.occupiable=1 and 
+											(select count(1) from hrmpct  ${sql.as} rp1 
+												left outer join rm  ${sql.as} rm1 on rm1.bl_id=rp1.bl_id and rm1.fl_id=rp1.fl_id and rm1.rm_id=rp1.rm_id  
+												left outer join bl ${sql.as}  bl1 on bl1.bl_id=rp1.bl_id
+												left outer join rmcat  ${sql.as}  rc1 on rc1.rm_cat=rp1.rm_cat where rp1.bl_id=hrmpct.bl_id and rp1.fl_id=hrmpct.fl_id and rp1.rm_id=hrmpct.rm_id  AND ${parameters['occupRes']} 
+												and rp1.em_id is not null and rp1.day_part = 0 ) 
+											+ 
+											0.5* (select count(1) from hrmpct  ${sql.as} rp1 
+												left outer join rm  ${sql.as} rm1 on rm1.bl_id=rp1.bl_id and rm1.fl_id=rp1.fl_id and rm1.rm_id=rp1.rm_id  
+												left outer join bl ${sql.as}  bl1 on bl1.bl_id=rp1.bl_id
+												left outer join rmcat  ${sql.as}  rc1 on rc1.rm_cat=rp1.rm_cat where rp1.bl_id=hrmpct.bl_id and rp1.fl_id=hrmpct.fl_id and rp1.rm_id=hrmpct.rm_id  AND ${parameters['occupRes']} 
+												and rp1.em_id is not null and rp1.day_part != 0 )
+											=rm.cap_em   then '4 '${sql.concat}${parameters['atCap']}
+									    when rmcat.occupiable=1 and 
+											(select count(1) from hrmpct  ${sql.as} rp1 
+												left outer join rm  ${sql.as} rm1 on rm1.bl_id=rp1.bl_id and rm1.fl_id=rp1.fl_id and rm1.rm_id=rp1.rm_id  
+												left outer join bl ${sql.as}  bl1 on bl1.bl_id=rp1.bl_id
+												left outer join rmcat  ${sql.as}  rc1 on rc1.rm_cat=rp1.rm_cat where rp1.bl_id=hrmpct.bl_id and rp1.fl_id=hrmpct.fl_id and rp1.rm_id=hrmpct.rm_id  AND ${parameters['occupRes']} 
+												and rp1.em_id is not null and  rp1.day_part = 0 ) 
+											+ 
+											0.5* (select count(1) from hrmpct  ${sql.as} rp1 
+												left outer join rm  ${sql.as} rm1 on rm1.bl_id=rp1.bl_id and rm1.fl_id=rp1.fl_id and rm1.rm_id=rp1.rm_id  
+												left outer join bl ${sql.as}  bl1 on bl1.bl_id=rp1.bl_id
+												left outer join rmcat  ${sql.as}  rc1 on rc1.rm_cat=rp1.rm_cat where rp1.bl_id=hrmpct.bl_id and rp1.fl_id=hrmpct.fl_id and rp1.rm_id=hrmpct.rm_id  AND ${parameters['occupRes']} 
+												and rp1.em_id is not null and  rp1.day_part != 0 )
+											&gt;rm.cap_em   then '5 '${sql.concat}${parameters['excCap']}
+									end)
+								when ${parameters['isOccu']}='yes' AND ${parameters['dateType']}='r'
+								then ( case when rmcat.occupiable=0 then '1 '${sql.concat}${parameters['nonOccup']}  
+									    when rmcat.occupiable=1 and  rm.count_em=0 then '2 '${sql.concat}${parameters['vacant']}
+									    when rmcat.occupiable=1 and rm.count_em&lt;rm.cap_em  then '3 '${sql.concat}${parameters['avail']}
+									    when rmcat.occupiable=1 and  rm.count_em =rm.cap_em   then '4 '${sql.concat}${parameters['atCap']}
+									    when rmcat.occupiable=1 and rm.count_em&gt;rm.cap_em   then '5 '${sql.concat}${parameters['excCap']}
+									end)
+								else  ${parameters['secondGroupOptionForHrmpct']} 
+					END ${sql.as} secondGroupValue,  
+					 1	${sql.as} cal_value
+				from ( select * from hrmpct ${sql.as} rmpct where ${sql.vpaRestriction} ) ${sql.as} hrmpct
+							left outer join rm on rm.bl_id=hrmpct.bl_id and rm.fl_id=hrmpct.fl_id and rm.rm_id=hrmpct.rm_id  
+							left outer join bl on bl.bl_id=hrmpct.bl_id
+							left outer join rmcat on rmcat.rm_cat=hrmpct.rm_cat
+				where ${parameters['secondGroupOptionForHrmpct']}  is not null  AND ${parameters['secondGroupOptionForHrmpct']}!='-' 
+						AND ${parameters['consoleResForHrmpct']} 
+						AND ${parameters['summaryValueForThisGroup']} =  ${parameters['groupOptionForHrmpct']} 
+						AND hrmpct.rm_cat is not null   
+
+				union all 
+
+				select gp.bl_id, gp.fl_id, null, null, bl.site_id, 
+						${parameters['secondGroupOptionForGp']}  ${sql.as} secondGroupValue,  
+						gp.area ${sql.as} cal_value
+				from ( select * from gp ${sql.as} rmpct where ${sql.vpaRestriction} and rmpct.portfolio_scenario_id is null) ${sql.as} gp left outer join fl on fl.bl_id=gp.bl_id and fl.fl_id=gp.fl_id   
+							left outer join bl on bl.bl_id=gp.bl_id
+				where ${parameters['secondGroupOptionForGp']}  is not null  AND ${parameters['secondGroupOptionForGp']}!='-' 
+						AND ${parameters['consoleResForGp']}   
+						AND ${parameters['summaryValueForThisGroup']} =  ${parameters['groupOptionForGp']}  
+		</sql>
+		<table name="rmpct" role="main"/>
+		<field name="secondGroupValue"  dataType="text" groupBy="true"/>
+		<field  name="cal_value" dataType="number" decimals="2" >
+			<title translatable="true">Value</title>
+			<sql dialect="generic">
+				count( distinct (RTRIM(rmpct.bl_id)${sql.concat}'-'${sql.concat}RTRIM(rmpct.fl_id)${sql.concat}'-'${sql.concat}RTRIM(rmpct.rm_id)) )
+			</sql>
+		</field>
+		<parameter name="isOccu" dataType="text" value="no"/>
+		<parameter name="dateType" dataType="text" value="s"/>
+		<parameter name="groupOptionForRmpct" dataType="verbatim" value="rmpct.dp_id"/>
+		<parameter name="groupOptionForHrmpct" dataType="verbatim" value="hrmpct.dp_id"/>
+		<parameter name="groupOptionForGp" dataType="verbatim" value="gp.dp_id"/>
+ 		<parameter name="consoleResForRmpct" dataType="verbatim" value="1=1"/>       
+ 		<parameter name="consoleResForHrmpct" dataType="verbatim" value="1=1"/>       
+ 		<parameter name="consoleResForGp" dataType="verbatim" value="1=1"/>       
+		<parameter name="secondGroupOptionForRmpct" dataType="verbatim" value="rmpct.dp_id"/>
+		<parameter name="secondGroupOptionForHrmpct" dataType="verbatim" value="hrmpct.dp_id"/>
+		<parameter name="secondGroupOptionForGp" dataType="verbatim" value="gp.dp_id"/>
+		<parameter name="calculationType" dataType="text" value="R_AREA"/>
+		<parameter name="occupRes" dataType="verbatim" value="1=1"/>
+	    <parameter name="summaryValueForThisGroup" dataType="text" value=""/> 
+		
+	    <parameter name="nonOccup" dataType="text" value=""/> 
+	    <parameter name="vacant" dataType="text" value=""/> 
+	    <parameter name="avail" dataType="text" value=""/> 
+	    <parameter name="atCap" dataType="text" value=""/> 
+	    <parameter name="excCap" dataType="text" value=""/> 
+
+		<sortField name="secondGroupValue" table="rmpct"/>
+	</dataSource>
+
+	<!--	Shared datasource  that provide data field and secondGroup field  about area calculation for charts in Stack Plan tab and Bar Chart tab -->
+	<dataSource id="abRmpctHrmpctCalculationAreaDataDS"  type="grouping" applyVpaRestrictions="false">
+		<sql dialect="generic">
+		  		select rmpct.bl_id, rmpct.fl_id, rmpct.rm_id, rmpct.rm_cat, bl.site_id, 
+						CASE	when ${parameters['isOccu']}='yes' AND ${parameters['dateType']}='s' 
+								then ( case when rmcat.occupiable=0 then '1 '${sql.concat}${parameters['nonOccup']}  
+									    when rmcat.occupiable=1 and 
+											(select count(1) from rmpct  ${sql.as} rp1 
+												left outer join rm  ${sql.as} rm1 on rm1.bl_id=rp1.bl_id and rm1.fl_id=rp1.fl_id and rm1.rm_id=rp1.rm_id  
+												left outer join bl ${sql.as}  bl1 on bl1.bl_id=rp1.bl_id
+												left outer join rmcat  ${sql.as}  rc1 on rc1.rm_cat=rp1.rm_cat where rp1.bl_id=rmpct.bl_id and rp1.fl_id=rmpct.fl_id and rp1.rm_id=rmpct.rm_id  AND ${parameters['occupRes']} 
+												and rp1.em_id is not null and rp1.status = 1 and rp1.day_part = 0 ) 
+											+ 
+											0.5* (select count(1) from rmpct  ${sql.as} rp1 
+												left outer join rm  ${sql.as} rm1 on rm1.bl_id=rp1.bl_id and rm1.fl_id=rp1.fl_id and rm1.rm_id=rp1.rm_id  
+												left outer join bl ${sql.as}  bl1 on bl1.bl_id=rp1.bl_id
+												left outer join rmcat  ${sql.as}  rc1 on rc1.rm_cat=rp1.rm_cat where rp1.bl_id=rmpct.bl_id and rp1.fl_id=rmpct.fl_id and rp1.rm_id=rmpct.rm_id  AND ${parameters['occupRes']} 
+												and rp1.em_id is not null and rp1.status = 1 and rp1.day_part != 0 )
+											=0 then '2 '${sql.concat}${parameters['vacant']}
+									    when rmcat.occupiable=1 and 
+											(select count(1) from rmpct  ${sql.as} rp1 
+												left outer join rm  ${sql.as} rm1 on rm1.bl_id=rp1.bl_id and rm1.fl_id=rp1.fl_id and rm1.rm_id=rp1.rm_id  
+												left outer join bl ${sql.as}  bl1 on bl1.bl_id=rp1.bl_id
+												left outer join rmcat  ${sql.as}  rc1 on rc1.rm_cat=rp1.rm_cat where rp1.bl_id=rmpct.bl_id and rp1.fl_id=rmpct.fl_id and rp1.rm_id=rmpct.rm_id  AND ${parameters['occupRes']} 
+												and rp1.em_id is not null and rp1.status = 1 and rp1.day_part = 0 ) 
+											+ 
+											0.5* (select count(1) from rmpct  ${sql.as} rp1 
+												left outer join rm  ${sql.as} rm1 on rm1.bl_id=rp1.bl_id and rm1.fl_id=rp1.fl_id and rm1.rm_id=rp1.rm_id  
+												left outer join bl ${sql.as}  bl1 on bl1.bl_id=rp1.bl_id
+												left outer join rmcat  ${sql.as}  rc1 on rc1.rm_cat=rp1.rm_cat where rp1.bl_id=rmpct.bl_id and rp1.fl_id=rmpct.fl_id and rp1.rm_id=rmpct.rm_id  AND ${parameters['occupRes']} 
+												and rp1.em_id is not null and rp1.status = 1 and rp1.day_part != 0 )
+											&lt;rm.cap_em  then '3 '${sql.concat}${parameters['avail']}
+									    when rmcat.occupiable=1 and 
+											(select count(1) from rmpct  ${sql.as} rp1 
+												left outer join rm  ${sql.as} rm1 on rm1.bl_id=rp1.bl_id and rm1.fl_id=rp1.fl_id and rm1.rm_id=rp1.rm_id  
+												left outer join bl ${sql.as}  bl1 on bl1.bl_id=rp1.bl_id
+												left outer join rmcat  ${sql.as}  rc1 on rc1.rm_cat=rp1.rm_cat where rp1.bl_id=rmpct.bl_id and rp1.fl_id=rmpct.fl_id and rp1.rm_id=rmpct.rm_id  AND ${parameters['occupRes']} 
+												and rp1.em_id is not null and rp1.status = 1 and rp1.day_part = 0 ) 
+											+ 
+											0.5* (select count(1) from rmpct  ${sql.as} rp1 
+												left outer join rm  ${sql.as} rm1 on rm1.bl_id=rp1.bl_id and rm1.fl_id=rp1.fl_id and rm1.rm_id=rp1.rm_id  
+												left outer join bl ${sql.as}  bl1 on bl1.bl_id=rp1.bl_id
+												left outer join rmcat  ${sql.as}  rc1 on rc1.rm_cat=rp1.rm_cat where rp1.bl_id=rmpct.bl_id and rp1.fl_id=rmpct.fl_id and rp1.rm_id=rmpct.rm_id  AND ${parameters['occupRes']} 
+												and rp1.em_id is not null and rp1.status = 1 and rp1.day_part != 0 )
+											=rm.cap_em   then '4 '${sql.concat}${parameters['atCap']}
+									    when rmcat.occupiable=1 and 
+											(select count(1) from rmpct  ${sql.as} rp1 
+												left outer join rm  ${sql.as} rm1 on rm1.bl_id=rp1.bl_id and rm1.fl_id=rp1.fl_id and rm1.rm_id=rp1.rm_id  
+												left outer join bl ${sql.as}  bl1 on bl1.bl_id=rp1.bl_id
+												left outer join rmcat  ${sql.as}  rc1 on rc1.rm_cat=rp1.rm_cat where rp1.bl_id=rmpct.bl_id and rp1.fl_id=rmpct.fl_id and rp1.rm_id=rmpct.rm_id  AND ${parameters['occupRes']} 
+												and rp1.em_id is not null and rp1.status = 1 and rp1.day_part = 0 ) 
+											+ 
+											0.5* (select count(1) from rmpct  ${sql.as} rp1 
+												left outer join rm  ${sql.as} rm1 on rm1.bl_id=rp1.bl_id and rm1.fl_id=rp1.fl_id and rm1.rm_id=rp1.rm_id  
+												left outer join bl ${sql.as}  bl1 on bl1.bl_id=rp1.bl_id
+												left outer join rmcat  ${sql.as}  rc1 on rc1.rm_cat=rp1.rm_cat where rp1.bl_id=rmpct.bl_id and rp1.fl_id=rmpct.fl_id and rp1.rm_id=rmpct.rm_id  AND ${parameters['occupRes']} 
+												and rp1.em_id is not null and rp1.status = 1 and rp1.day_part != 0 )
+											&gt;rm.cap_em   then '5 '${sql.concat}${parameters['excCap']}
+									end)
+								when ${parameters['isOccu']}='yes' AND ${parameters['dateType']}='r'
+								then ( case when rmcat.occupiable=0 then '1 '${sql.concat}${parameters['nonOccup']}  
+									    when rmcat.occupiable=1 and rm.count_em=0 then '2 '${sql.concat}${parameters['vacant']}
+									    when rmcat.occupiable=1 and rm.count_em&lt;rm.cap_em  then '3 '${sql.concat}${parameters['avail']}
+									    when rmcat.occupiable=1 and rm.count_em=rm.cap_em   then '4 '${sql.concat}${parameters['atCap']}
+									    when rmcat.occupiable=1 and rm.count_em&gt;rm.cap_em   then '5 '${sql.concat}${parameters['excCap']}
+									end)
+								else  ${parameters['secondGroupOptionForRmpct']} 
+					END ${sql.as} secondGroupValue,  
+					case when ${parameters['calculationType']}='S_AREA' 
+						then  (case when rmpct.day_part=0 then rmpct.pct_space/100.00*rm.area else rmpct.pct_space/200.00*rm.area end) 
+						when ${parameters['calculationType']}='R_AREA' 
+						then rmpct.area_rm 
+					end ${sql.as} cal_value
+				from rmpct left outer join rm on rm.bl_id=rmpct.bl_id and rm.fl_id=rmpct.fl_id and rm.rm_id=rmpct.rm_id  
+							left outer join bl on bl.bl_id=rmpct.bl_id
+							left outer join rmcat on rmcat.rm_cat=rmpct.rm_cat
+				where  ${sql.vpaRestriction} and   ${parameters['secondGroupOptionForRmpct']}  is not null  AND ${parameters['secondGroupOptionForRmpct']}!='-' 
+						AND ${parameters['consoleResForRmpct']} 
+						AND ${parameters['summaryValueForThisGroup']} =  ${parameters['groupOptionForRmpct']} 
+						AND rmpct.rm_cat is not null  AND rmpct.status = 1 
+
+				union all 
+
+				select hrmpct.bl_id, hrmpct.fl_id, hrmpct.rm_id, hrmpct.rm_cat, bl.site_id, 
+						CASE	when ${parameters['isOccu']}='yes' AND ${parameters['dateType']}='s' 
+								then ( case when rmcat.occupiable=0 then '1 '${sql.concat}${parameters['nonOccup']}  
+									    when rmcat.occupiable=1 and 
+											(select count(1) from hrmpct  ${sql.as} rp1 
+												left outer join rm  ${sql.as} rm1 on rm1.bl_id=rp1.bl_id and rm1.fl_id=rp1.fl_id and rm1.rm_id=rp1.rm_id  
+												left outer join bl ${sql.as}  bl1 on bl1.bl_id=rp1.bl_id
+												left outer join rmcat  ${sql.as}  rc1 on rc1.rm_cat=rp1.rm_cat where rp1.bl_id=hrmpct.bl_id and rp1.fl_id=hrmpct.fl_id and rp1.rm_id=hrmpct.rm_id  AND ${parameters['occupRes']} 
+												and rp1.em_id is not null and rp1.day_part = 0 ) 
+											+ 
+											0.5* (select count(1) from hrmpct  ${sql.as} rp1 
+												left outer join rm  ${sql.as} rm1 on rm1.bl_id=rp1.bl_id and rm1.fl_id=rp1.fl_id and rm1.rm_id=rp1.rm_id  
+												left outer join bl ${sql.as}  bl1 on bl1.bl_id=rp1.bl_id
+												left outer join rmcat  ${sql.as}  rc1 on rc1.rm_cat=rp1.rm_cat where rp1.bl_id=hrmpct.bl_id and rp1.fl_id=hrmpct.fl_id and rp1.rm_id=hrmpct.rm_id  AND ${parameters['occupRes']} 
+												and rp1.em_id is not null and rp1.day_part != 0 )
+											=0 then '2 '${sql.concat}${parameters['vacant']}
+									    when rmcat.occupiable=1 and 
+											(select count(1) from hrmpct  ${sql.as} rp1 
+												left outer join rm  ${sql.as} rm1 on rm1.bl_id=rp1.bl_id and rm1.fl_id=rp1.fl_id and rm1.rm_id=rp1.rm_id  
+												left outer join bl ${sql.as}  bl1 on bl1.bl_id=rp1.bl_id
+												left outer join rmcat  ${sql.as}  rc1 on rc1.rm_cat=rp1.rm_cat where rp1.bl_id=hrmpct.bl_id and rp1.fl_id=hrmpct.fl_id and rp1.rm_id=hrmpct.rm_id  AND ${parameters['occupRes']} 
+												and rp1.em_id is not null and  rp1.day_part = 0 ) 
+											+ 
+											0.5* (select count(1) from hrmpct  ${sql.as} rp1 
+												left outer join rm  ${sql.as} rm1 on rm1.bl_id=rp1.bl_id and rm1.fl_id=rp1.fl_id and rm1.rm_id=rp1.rm_id  
+												left outer join bl ${sql.as}  bl1 on bl1.bl_id=rp1.bl_id
+												left outer join rmcat  ${sql.as}  rc1 on rc1.rm_cat=rp1.rm_cat where rp1.bl_id=hrmpct.bl_id and rp1.fl_id=hrmpct.fl_id and rp1.rm_id=hrmpct.rm_id  AND ${parameters['occupRes']} 
+												and rp1.em_id is not null and rp1.day_part != 0 )
+											&lt;rm.cap_em  then '3 '${sql.concat}${parameters['avail']}
+									    when rmcat.occupiable=1 and 
+											(select count(1) from hrmpct  ${sql.as} rp1 
+												left outer join rm  ${sql.as} rm1 on rm1.bl_id=rp1.bl_id and rm1.fl_id=rp1.fl_id and rm1.rm_id=rp1.rm_id  
+												left outer join bl ${sql.as}  bl1 on bl1.bl_id=rp1.bl_id
+												left outer join rmcat  ${sql.as}  rc1 on rc1.rm_cat=rp1.rm_cat where rp1.bl_id=hrmpct.bl_id and rp1.fl_id=hrmpct.fl_id and rp1.rm_id=hrmpct.rm_id  AND ${parameters['occupRes']} 
+												and rp1.em_id is not null and rp1.day_part = 0 ) 
+											+ 
+											0.5* (select count(1) from hrmpct  ${sql.as} rp1 
+												left outer join rm  ${sql.as} rm1 on rm1.bl_id=rp1.bl_id and rm1.fl_id=rp1.fl_id and rm1.rm_id=rp1.rm_id  
+												left outer join bl ${sql.as}  bl1 on bl1.bl_id=rp1.bl_id
+												left outer join rmcat  ${sql.as}  rc1 on rc1.rm_cat=rp1.rm_cat where rp1.bl_id=hrmpct.bl_id and rp1.fl_id=hrmpct.fl_id and rp1.rm_id=hrmpct.rm_id  AND ${parameters['occupRes']} 
+												and rp1.em_id is not null and rp1.day_part != 0 )
+											=rm.cap_em   then '4 '${sql.concat}${parameters['atCap']}
+									    when rmcat.occupiable=1 and 
+											(select count(1) from hrmpct  ${sql.as} rp1 
+												left outer join rm  ${sql.as} rm1 on rm1.bl_id=rp1.bl_id and rm1.fl_id=rp1.fl_id and rm1.rm_id=rp1.rm_id  
+												left outer join bl ${sql.as}  bl1 on bl1.bl_id=rp1.bl_id
+												left outer join rmcat  ${sql.as}  rc1 on rc1.rm_cat=rp1.rm_cat where rp1.bl_id=hrmpct.bl_id and rp1.fl_id=hrmpct.fl_id and rp1.rm_id=hrmpct.rm_id  AND ${parameters['occupRes']} 
+												and rp1.em_id is not null and  rp1.day_part = 0 ) 
+											+ 
+											0.5* (select count(1) from hrmpct  ${sql.as} rp1 
+												left outer join rm  ${sql.as} rm1 on rm1.bl_id=rp1.bl_id and rm1.fl_id=rp1.fl_id and rm1.rm_id=rp1.rm_id  
+												left outer join bl ${sql.as}  bl1 on bl1.bl_id=rp1.bl_id
+												left outer join rmcat  ${sql.as}  rc1 on rc1.rm_cat=rp1.rm_cat where rp1.bl_id=hrmpct.bl_id and rp1.fl_id=hrmpct.fl_id and rp1.rm_id=hrmpct.rm_id  AND ${parameters['occupRes']} 
+												and rp1.em_id is not null and  rp1.day_part != 0 )
+											&gt;rm.cap_em   then '5 '${sql.concat}${parameters['excCap']}
+									end)
+								when ${parameters['isOccu']}='yes' AND ${parameters['dateType']}='r'
+								then ( case when rmcat.occupiable=0 then '1 '${sql.concat}${parameters['nonOccup']}  
+									    when rmcat.occupiable=1 and  rm.count_em=0 then '2 '${sql.concat}${parameters['vacant']}
+									    when rmcat.occupiable=1 and rm.count_em&lt;rm.cap_em  then '3 '${sql.concat}${parameters['avail']}
+									    when rmcat.occupiable=1 and  rm.count_em =rm.cap_em   then '4 '${sql.concat}${parameters['atCap']}
+									    when rmcat.occupiable=1 and rm.count_em&gt;rm.cap_em   then '5 '${sql.concat}${parameters['excCap']}
+									end)
+								else  ${parameters['secondGroupOptionForHrmpct']} 
+					END ${sql.as} secondGroupValue,  
+					case when ${parameters['calculationType']}='S_AREA' 
+						then (case when hrmpct.day_part=0 then hrmpct.pct_space/100.00*rm.area else hrmpct.pct_space/200.00*rm.area end) 
+						when ${parameters['calculationType']}='R_AREA' 
+						then hrmpct.area_rm 
+					end ${sql.as} cal_value
+				from ( select * from hrmpct ${sql.as} rmpct where ${sql.vpaRestriction} ) ${sql.as} hrmpct
+							left outer join rm on rm.bl_id=hrmpct.bl_id and rm.fl_id=hrmpct.fl_id and rm.rm_id=hrmpct.rm_id  
+							left outer join bl on bl.bl_id=hrmpct.bl_id
+							left outer join rmcat on rmcat.rm_cat=hrmpct.rm_cat
+				where ${parameters['secondGroupOptionForHrmpct']}  is not null  AND ${parameters['secondGroupOptionForHrmpct']}!='-' 
+						AND ${parameters['consoleResForHrmpct']} 
+						AND ${parameters['summaryValueForThisGroup']} =  ${parameters['groupOptionForHrmpct']} 
+						AND hrmpct.rm_cat is not null   
+
+				union all 
+
+				select gp.bl_id, gp.fl_id, null, null, bl.site_id, 
+						${parameters['secondGroupOptionForGp']}  ${sql.as} secondGroupValue,  
+						gp.area ${sql.as} cal_value
+				from ( select * from gp ${sql.as} rmpct where ${sql.vpaRestriction} and rmpct.portfolio_scenario_id is null) ${sql.as} gp left outer join fl on fl.bl_id=gp.bl_id and fl.fl_id=gp.fl_id   
+							left outer join bl on bl.bl_id=gp.bl_id
+				where ${parameters['secondGroupOptionForGp']}  is not null  AND ${parameters['secondGroupOptionForGp']}!='-' 
+						AND ${parameters['consoleResForGp']}   
+						AND ${parameters['summaryValueForThisGroup']} =  ${parameters['groupOptionForGp']}  
+		</sql>
+		<table name="rmpct" role="main"/>
+		<field name="secondGroupValue"  dataType="text" groupBy="true"/>
+		<field  name="cal_value" dataType="number" numericFormat="area" decimals="2">
+			<title translatable="true">Value</title>
+			<sql dialect="generic">
+				 sum(rmpct.cal_value) 
+			</sql>
+		</field>
+		<parameter name="isOccu" dataType="text" value="no"/>
+		<parameter name="dateType" dataType="text" value="s"/>
+		<parameter name="groupOptionForRmpct" dataType="verbatim" value="rmpct.dp_id"/>
+		<parameter name="groupOptionForHrmpct" dataType="verbatim" value="hrmpct.dp_id"/>
+		<parameter name="groupOptionForGp" dataType="verbatim" value="gp.dp_id"/>
+ 		<parameter name="consoleResForRmpct" dataType="verbatim" value="1=1"/>       
+ 		<parameter name="consoleResForHrmpct" dataType="verbatim" value="1=1"/>       
+ 		<parameter name="consoleResForGp" dataType="verbatim" value="1=1"/>       
+		<parameter name="secondGroupOptionForRmpct" dataType="verbatim" value="rmpct.dp_id"/>
+		<parameter name="secondGroupOptionForHrmpct" dataType="verbatim" value="hrmpct.dp_id"/>
+		<parameter name="secondGroupOptionForGp" dataType="verbatim" value="gp.dp_id"/>
+		<parameter name="calculationType" dataType="text" value="R_AREA"/>
+		<parameter name="occupRes" dataType="verbatim" value="1=1"/>
+	    <parameter name="summaryValueForThisGroup" dataType="text" value=""/> 
+		
+	    <parameter name="nonOccup" dataType="text" value=""/> 
+	    <parameter name="vacant" dataType="text" value=""/> 
+	    <parameter name="avail" dataType="text" value=""/> 
+	    <parameter name="atCap" dataType="text" value=""/> 
+	    <parameter name="excCap" dataType="text" value=""/> 
+
+		<sortField name="secondGroupValue" table="rmpct"/>
+	</dataSource>
+
+	<!--	Shared datasource  that provide second grouping axis field and data axis field for group by Occupancy Rate chart in Stack Plan tab and Bar Chart tab -->
+	<dataSource id="abRmpctHrmpctOccupancyRateDataDS" type="grouping" applyVpaRestrictions="false">
+		<sql dialect="generic">
+		  		select 
+					rm.cap_em, 
+					case when ${parameters['dateType']}='s' then 
+							( select count(1) from rmpct left outer join bl on bl.bl_id=rmpct.bl_id left outer join rmcat on rmcat.rm_cat=rmpct.rm_cat
+							where  rmpct.em_id is not null and rmpct.status=1 and rmpct.day_part = 0 and rm.bl_id=rmpct.bl_id and rm.fl_id=rmpct.fl_id and rm.rm_id=rmpct.rm_id  and ${parameters['consoleResForRmpct']} and ${parameters['groupOptionForRmpct']}=${parameters['summaryValueForThisGroup']} )  
+							+ 
+							0.5*	( select count(1) from rmpct left outer join bl on bl.bl_id=rmpct.bl_id left outer join rmcat on rmcat.rm_cat=rmpct.rm_cat
+							where  rmpct.em_id is not null and rmpct.status=1 and rmpct.day_part != 0 and rm.bl_id=rmpct.bl_id and rm.fl_id=rmpct.fl_id and rm.rm_id=rmpct.rm_id  and ${parameters['consoleResForRmpct']} and ${parameters['groupOptionForRmpct']}=${parameters['summaryValueForThisGroup']} )  
+						when ${parameters['dateType']}='r'  then  rm.count_em 
+					end  ${sql.as} transactionCount, 
+					${parameters['occuText']}  ${sql.as} rateType  
+				from rm where ${sql.vpaRestriction} and  exists ( select 1 from rmpct  	left outer join bl on bl.bl_id=rmpct.bl_id left outer join rmcat on rmcat.rm_cat=rmpct.rm_cat
+							where  rm.bl_id=rmpct.bl_id and rm.fl_id=rmpct.fl_id and rm.rm_id=rmpct.rm_id  and ${parameters['consoleResForRmpct']}  and ${parameters['groupOptionForRmpct']}=${parameters['summaryValueForThisGroup']} )
+				union all 
+		  		select 
+					rm.cap_em, 
+					case when ${parameters['dateType']}='s' then 
+							( select count(1) from hrmpct left outer join bl on bl.bl_id=hrmpct.bl_id left outer join rmcat on rmcat.rm_cat=hrmpct.rm_cat
+							where  hrmpct.em_id is not null  and hrmpct.day_part = 0 and rm.bl_id=hrmpct.bl_id and rm.fl_id=hrmpct.fl_id and rm.rm_id=hrmpct.rm_id  and ${parameters['consoleResForHrmpct']} and ${parameters['groupOptionForHrmpct']}=${parameters['summaryValueForThisGroup']} )  
+							+ 
+							0.5*	( select count(1) from hrmpct left outer join bl on bl.bl_id=hrmpct.bl_id left outer join rmcat on rmcat.rm_cat=hrmpct.rm_cat
+							where  hrmpct.em_id is not null  and hrmpct.day_part != 0 and rm.bl_id=hrmpct.bl_id and rm.fl_id=hrmpct.fl_id and rm.rm_id=hrmpct.rm_id  and ${parameters['consoleResForHrmpct']} and ${parameters['groupOptionForHrmpct']}=${parameters['summaryValueForThisGroup']} )  
+						when ${parameters['dateType']}='r'  then  rm.count_em  
+					end  ${sql.as} transactionCount, 
+					${parameters['occuText']}  ${sql.as} rateType  
+				from rm where ${sql.vpaRestriction} and  exists( select 1 from hrmpct  	left outer join bl on bl.bl_id=hrmpct.bl_id left outer join rmcat on rmcat.rm_cat=hrmpct.rm_cat
+							where  rm.bl_id=hrmpct.bl_id and rm.fl_id=hrmpct.fl_id and rm.rm_id=hrmpct.rm_id  and ${parameters['consoleResForHrmpct']}  and ${parameters['groupOptionForHrmpct']}=${parameters['summaryValueForThisGroup']} )
+				union all 
+		  		select 
+					rm.cap_em, 
+					case when ${parameters['dateType']}='s' then 
+						rm.cap_em -
+							( select count(1) from rmpct left outer join bl on bl.bl_id=rmpct.bl_id left outer join rmcat on rmcat.rm_cat=rmpct.rm_cat
+							where  rmpct.em_id is not null and rmpct.status=1 and rmpct.day_part = 0 and rm.bl_id=rmpct.bl_id and rm.fl_id=rmpct.fl_id and rm.rm_id=rmpct.rm_id  and ${parameters['consoleResForRmpct']} and ${parameters['groupOptionForRmpct']}=${parameters['summaryValueForThisGroup']} )  
+							- 
+							0.5*	( select count(1) from rmpct left outer join bl on bl.bl_id=rmpct.bl_id left outer join rmcat on rmcat.rm_cat=rmpct.rm_cat
+							where  rmpct.em_id is not null and rmpct.status=1 and rmpct.day_part != 0 and rm.bl_id=rmpct.bl_id and rm.fl_id=rmpct.fl_id and rm.rm_id=rmpct.rm_id  and ${parameters['consoleResForRmpct']} and ${parameters['groupOptionForRmpct']}=${parameters['summaryValueForThisGroup']} )  
+					when ${parameters['dateType']}='r'  then rm.cap_em -  rm.count_em 
+					end  ${sql.as} transactionCount, 
+					${parameters['vacantText']}  ${sql.as} rateType  
+				from rm where ${sql.vpaRestriction}  and  exists ( select 1 from rmpct  left outer join bl on bl.bl_id=rmpct.bl_id left outer join rmcat on rmcat.rm_cat=rmpct.rm_cat
+							where  rm.bl_id=rmpct.bl_id and rm.fl_id=rmpct.fl_id and rm.rm_id=rmpct.rm_id  and ${parameters['consoleResForRmpct']}  and ${parameters['groupOptionForRmpct']}=${parameters['summaryValueForThisGroup']} ) 
+				union all 
+		  		select 
+					rm.cap_em, 
+					case when ${parameters['dateType']}='s' then 
+						rm.cap_em - 
+							( select count(1) from hrmpct left outer join bl on bl.bl_id=hrmpct.bl_id left outer join rmcat on rmcat.rm_cat=hrmpct.rm_cat
+							where  hrmpct.em_id is not null  and hrmpct.day_part = 0 and rm.bl_id=hrmpct.bl_id and rm.fl_id=hrmpct.fl_id and rm.rm_id=hrmpct.rm_id  and ${parameters['consoleResForHrmpct']} and ${parameters['groupOptionForHrmpct']}=${parameters['summaryValueForThisGroup']} )  
+							- 
+							0.5*	( select count(1) from hrmpct left outer join bl on bl.bl_id=hrmpct.bl_id left outer join rmcat on rmcat.rm_cat=hrmpct.rm_cat
+							where  hrmpct.em_id is not null  and hrmpct.day_part != 0 and rm.bl_id=hrmpct.bl_id and rm.fl_id=hrmpct.fl_id and rm.rm_id=hrmpct.rm_id  and ${parameters['consoleResForHrmpct']} and ${parameters['groupOptionForHrmpct']}=${parameters['summaryValueForThisGroup']} )   
+					when ${parameters['dateType']}='r'  then rm.cap_em - rm.count_em 
+					end  ${sql.as} transactionCount, 
+					${parameters['vacantText']}  ${sql.as} rateType  
+				from rm where ${sql.vpaRestriction} and  exists ( select 1 from hrmpct  left outer join bl on bl.bl_id=hrmpct.bl_id left outer join rmcat on rmcat.rm_cat=hrmpct.rm_cat
+							where  rm.bl_id=hrmpct.bl_id and rm.fl_id=hrmpct.fl_id and rm.rm_id=hrmpct.rm_id  and ${parameters['consoleResForHrmpct']}  and ${parameters['groupOptionForHrmpct']}=${parameters['summaryValueForThisGroup']} ) 
+		</sql>
+		<table name="rm" role="main"/>
+		<field name="rateType"  dataType="text" groupBy="true"/>
+		<field  name="occupancyRate"   dataType="number" decimals="2" >
+			<title translatable="true">Value</title>
+			<sql dialect="generic">
+					case when  sum(rm.cap_em)=0 then 0
+					else 100.0*sum(rm.transactionCount) / sum(rm.cap_em)
+					end 
+			</sql>
+		</field>
+		<field  name="bench_line"   dataType="number" decimals="2" >
+			<sql dialect="generic">
+				( select afm_activity_params.param_value from afm_activity_params where afm_activity_params.activity_id='AbSpaceRoomInventoryBAR' and afm_activity_params.param_id='OccupancyRate') 
+			</sql>
+		</field>
+ 		<parameter name="vacantText" dataType="text" value="Vacant Rate"/>       
+ 		<parameter name="occuText" dataType="text" value="Occupancy Rate"/>       
+		<parameter name="dateType" dataType="text" value="s"/>
+		<parameter name="groupOptionForRmpct" dataType="verbatim" value="rmpct.dp_id"/>
+		<parameter name="groupOptionForHrmpct" dataType="verbatim" value="hrmpct.dp_id"/>
+ 		<parameter name="consoleResForRmpct" dataType="verbatim" value="1=1"/>       
+ 		<parameter name="consoleResForHrmpct" dataType="verbatim" value="1=1"/>       
+ 	        <parameter name="summaryValueForThisGroup" dataType="text" value=""/>   
+ 		<parameter name="excludeVacant" dataType="text" value="None"/>       
+ 	        <restriction type="sql" sql=" rateType!=${parameters['excludeVacant']} ">
+		</restriction>
+       </dataSource>
+
+	<dataSource id="abRmpctHrmpctDepartmentPlusGroupDS"  type="grouping" applyVpaRestrictions="false">
+		<sql dialect="generic">
+		  		select 
+					CASE	when rmpct.dv_id is not null and rmpct.dp_id is not null  and rmcat.supercat='USBL' 
+							then RTRIM(rmpct.dv_id)${sql.concat}'-'${sql.concat}RTRIM(rmpct.dp_id)   
+							when rmpct.dv_id is  null and rmpct.dp_id is null  and rmcat.supercat='USBL'  and rmpct.prorate!='NONE'  
+							then 'All prorated usable space'  
+							when rmcat.supercat='SERV'   
+							then 'All service areas'   
+							when  rmcat.supercat='VERT'   
+							then 'All vertical penetration areas'  
+							when  rmcat.supercat='OTHR'   
+							then 'Any other areas'  
+					END ${sql.as} groupValue 
+				from rmpct left outer join rm on rm.bl_id=rmpct.bl_id and rm.fl_id=rmpct.fl_id and rm.rm_id=rmpct.rm_id  
+							left outer join bl on bl.bl_id=rmpct.bl_id
+							left outer join rmcat on rmcat.rm_cat=rmpct.rm_cat
+				where   ${sql.vpaRestriction} and   ${parameters['consoleRes']} 
+				union all 
+		  		select 
+					CASE	when hrmpct.dv_id is not null and hrmpct.dp_id is not null  and rmcat.supercat='USBL' 
+							then RTRIM(hrmpct.dv_id)${sql.concat}'-'${sql.concat}RTRIM(hrmpct.dp_id)   
+							when hrmpct.dv_id is  null and hrmpct.dp_id is null  and rmcat.supercat='USBL'  and hrmpct.prorate!='NONE'  
+							then 'All prorated usable space'  
+							when rmcat.supercat='SERV'   
+							then 'All service areas'   
+							when  rmcat.supercat='VERT'   
+							then 'All vertical penetration areas'  
+							when  rmcat.supercat='OTHR'   
+							then 'Any other areas'  
+					END ${sql.as} groupValue 
+				from  ( select * from hrmpct ${sql.as} rmpct where ${sql.vpaRestriction} ) ${sql.as} hrmpct left outer join rm on rm.bl_id=hrmpct.bl_id and rm.fl_id=hrmpct.fl_id and rm.rm_id=hrmpct.rm_id  
+							left outer join bl on bl.bl_id=hrmpct.bl_id
+							left outer join rmcat on rmcat.rm_cat=hrmpct.rm_cat
+				where  ${parameters['consoleResForHrmpct']} 
+		</sql>
+		<table name="rmpct" role="main"/>
+		<field name="groupValue"  dataType="text" groupBy="true"/>
+		<parameter name="consoleRes" dataType="verbatim" value="1=1"/>
+		<parameter name="consoleResForHrmpct" dataType="verbatim" value="1=1"/>
+	</dataSource>
+
+</view>

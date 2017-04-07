@@ -1,0 +1,165 @@
+<view version="2.0">
+    <js file="ab-sys-user-role-procs-tab-user.js"/>
+
+    <message name="titleAssignedProcesses">Assigned Processes - {0}</message>
+    <message name="titleAvailableProcesses">Available Applications and their Processes - {0}</message>
+    
+    <message name="ConfirmUnassignUnlicensed">This action removes all unlicensed applications from each user.  Continue?</message>    
+    <message name="unassignUnlicensedSuccessful">Any unlicensed applications have been removed from all users.</message>   
+    <message name="ConfirmUnassignUnlicensed">This action removes all unlicensed applications from each role.  Continue?</message>    
+    <message name="unassignUnlicensedSuccessful">Any unlicensed applications have been removed from all roles.</message>   
+    <message name="ConfirmTemplateToRole">Do you want to copy this list of processes to all users of the same role: {0}?</message>
+    <message name="CopyTemplateSuccessful">Processes have been successfully copied to all users of the same role: {0}</message>
+    <message name="ConfirmDeleteAll">Do you want to delete all processes assigned to user {0}?</message>
+    <message name="ConfirmUnassign">Do you want to unassign selected processes from user {0}?</message>
+    <message name="ConfirmAssign">Do you want to assign selected processes to user {0}?</message>
+    <message name="ErrorNoProcessSelected">You must make a selection first.</message>
+    
+    
+    <layout id="mainLayout" type="borderLayout">
+        <west id="westRegion" initialSize="40%" split="true"/>
+        <center/>
+    </layout>
+    <layout id="nestedLayout" type="borderLayout" containingLayout="mainLayout" region="center">
+        <north id="northRegion" initialSize="50%" split="true"/>
+        <center id="southRegion"/>
+    </layout>
+    
+    <dataSource id="abSysUserRoleProcsUser_ds">
+        <table name="afm_users"/>
+        <field name="user_name"/>
+        <field name="role_name"/>
+    </dataSource>
+    
+    <panel type="grid" id="abSysUserRoleProcsUser_grid" dataSource="abSysUserRoleProcsUser_ds" selectionEnabled="true" showOnLoad="true" layoutRegion="westRegion">
+        <title>Users</title>
+        <action id="unassignUnlicensed">
+            <title>Unassign Unlicensed</title>
+        </action>
+        <field name="user_name" controlType="link" onclick="onClickUser">
+            <!--command type="callFunction" functionName="onClickUser"/-->
+        </field>
+        <field name="role_name" controlType="link" onclick="onClickUser">
+            <!--command type="callFunction" functionName="onClickUser"/-->
+        </field>
+    </panel>
+    
+    <dataSource id="abSysUserRoleProcProcesses_ds">
+        <table name="afm_processes"/>
+        <field name="activity_id"/>
+        <field name="process_id"/>
+        <field name="title"/>
+        <field name="process_type"/>
+        <field name="license_level"/>
+        <field name="activity_title" dataType="text">
+            <title>Application Title</title>
+            <sql dialect="generic">
+                (SELECT afm_activities.title FROM afm_activities WHERE afm_activities.activity_id = afm_processes.activity_id)
+            </sql>
+        </field>
+        <restriction type="sql" sql="afm_processes.process_type NOT IN ('WINDOWS', 'OVERLAY') AND  ((${parameters['result_type']} = 'assigned'  AND (EXISTS(SELECT afm_roleprocs.process_id FROM afm_roleprocs, afm_users  
+                    WHERE 1 = 2 AND afm_users.user_name = ${parameters['user_name']} AND afm_roleprocs.process_id = afm_processes.process_id AND afm_roleprocs.activity_id = afm_processes.activity_id AND afm_roleprocs.role_name = afm_users.role_name) OR 
+                    EXISTS(SELECT afm_userprocs.process_id FROM afm_userprocs WHERE afm_userprocs.process_id = afm_processes.process_id AND afm_userprocs.activity_id = afm_processes.activity_id AND afm_userprocs.user_name = ${parameters['user_name']} )) ) 
+                OR ( ${parameters['result_type']} = 'available' AND  NOT EXISTS(SELECT afm_roleprocs.process_id FROM afm_roleprocs, afm_users  
+                    WHERE afm_users.user_name = ${parameters['user_name']} AND afm_roleprocs.process_id = afm_processes.process_id AND afm_roleprocs.activity_id = afm_processes.activity_id AND afm_roleprocs.role_name = afm_users.role_name) AND 
+                    NOT EXISTS(SELECT afm_userprocs.process_id FROM afm_userprocs WHERE afm_userprocs.process_id = afm_processes.process_id AND afm_userprocs.activity_id = afm_processes.activity_id AND afm_userprocs.user_name = ${parameters['user_name']} ) ))"/>
+        <parameter name="user_name" dataType="text" value="null"/>
+        <parameter name="role_name" dataType="text" value="null"/>
+        <parameter name="result_type" dataType="text" value="null"/>
+    </dataSource>
+
+    <panel type="grid" id="abSysUserRoleProcAssignedProc_grid" dataSource="abSysUserRoleProcProcesses_ds" multipleSelectionEnabled="true" layoutRegion="northRegion" showOnLoad="false" recordLimit="0">
+        <sortField table="afm_processes" name="activity_id" ascending="true"/>
+        <sortField table="afm_processes" name="process_id" ascending="true"/>
+
+        <action id="filter">
+            <title>Filter</title>
+        </action>
+
+        <action id="unassign">
+            <title>Unassign</title>
+        </action>
+        <action id="unassignAll">
+            <title>Unassign All</title>
+        </action>
+        <action id="applyAsTemplate">
+            <title>Apply as Template to Role</title>
+        </action>
+        <!--action id="transfer">
+            <title>Data</title>
+        </action-->
+        
+        <field name="activity_title">
+            <title>Application Title</title>
+        </field>
+        <field name="activity_id"/>
+        <field name="title">
+            <title>Process or Role Title</title>
+        </field>
+        <field name="process_id"/>
+        <field name="process_type"/>
+        <field name="license_level"/>
+    </panel>
+
+    <panel type="grid" id="abSysUserRoleProcAvailableProc_grid" dataSource="abSysUserRoleProcProcesses_ds" multipleSelectionEnabled="true" layoutRegion="southRegion" showOnLoad="false" recordLimit="0">
+        <sortField table="afm_processes" name="activity_id" ascending="true"/>
+        <sortField table="afm_processes" name="process_id" ascending="true"/>
+        <action id="assign">
+            <title>Assign</title>
+        </action>
+        
+        <field name="activity_title">
+            <title>Application Title</title>
+        </field>
+        <field name="activity_id"/>
+        <field name="title">
+            <title>Process or Role Title</title>
+        </field>
+        <field name="process_id"/>
+        <field name="process_type"/>
+        <field name="license_level"/>
+    </panel>
+
+    <dataSource id="abSysUserRoleAssignedProcess_ds">
+        <table name="afm_userprocs"/>
+        <field name="activity_id"/>
+        <field name="process_id"/>
+        <field name="user_name"/>
+    </dataSource>
+
+
+    <dataSource id="abDomainApp_ds">
+        <table name="afm_actprods" role="main"/>
+        <table name="afm_products" role="standard"/>
+        <table name="afm_activities" role="standard"/>
+        <field name="product_id" table="afm_actprods"/>
+        <field name="activity_id" table="afm_actprods"/>
+        <field name="title" table="afm_products"/>
+        <field name="title" table="afm_activities"/>
+        <field name="is_active" table="afm_activities"/>
+        <restriction type="sql" sql="afm_activities.is_active = 1 AND EXISTS(SELECT afm_processes.activity_id FROM afm_processes WHERE afm_processes.activity_id = afm_actprods.activity_id AND afm_processes.process_type NOT IN ('WINDOWS', 'OVERLAY')) "/>
+    </dataSource>
+    
+    <panel type="grid" id="abDomainApp_list" dataSource="abDomainApp_ds" showOnLoad="false" hidden="true" multipleSelectionEnabled="true">
+        <sortField name="is_active" table="afm_activities" ascending="true"/>
+        <sortField name="product_id" table="afm_actprods" ascending="true"/>
+        <sortField name="activity_id" table="afm_actprods" ascending="true"/>
+        <title>ARCHIBUS Domain Applications</title>
+        <action id="filter">
+            <title>Filter</title>
+        </action>
+        <action id="reset">
+            <title>Reset</title>
+        </action>
+        
+        <field name="title" table="afm_products">
+            <title>Domain Name</title>
+        </field>
+        <field name="title" table="afm_activities">
+            <title>Application Title</title>
+        </field>
+        <field name="is_active" table="afm_activities"/>
+        <field name="product_id" table="afm_actprods" hidden="true"/>
+        <field name="activity_id" table="afm_actprods" hidden="true"/>
+    </panel>    
+</view>

@@ -1,0 +1,207 @@
+<view version="2.0">
+    <message name="invalidFields">One or more invalid fields have not been saved.</message>
+    <message name="siteCodeMandatToCreateServReq" translatable="true">You must enter a site code before creating a service request for this deficiency</message>
+    <message name="statusScheduled" translatable="true">Action status must be set to Scheduled or In Progress</message>
+    <message name="approvedActionCannotBeDeleted" translatable="true">This action cannot be deleted since it has been Approved/Rejected.</message>
+    <message name="confirmDelete">Would you like to delete this action item?</message>
+
+    <panel type="view" id="projMngActEditCommonView" file="ab-proj-mng-common.axvw"/>
+
+    <dataSource id="projMngActEdit_ds0" applyVpaRestrictions="false">
+        <table name="activity_log"/>
+        <!-- Profile Panel -->
+        <field name="action_title"/>
+        <field name="wbs_id"/>
+        <field name="project_id"/>
+        <field name="activity_type"/>
+        <field name="activity_log_id"/>
+        <field name="work_pkg_id"/>
+        <field name="proj_phase"/>
+        <!-- Progress Panel -->
+        <field name="status"/>
+        <field name="date_planned_for"/>
+        <field name="date_required"/>
+        <field name="hours_est_baseline"/>
+        <field name="duration_est_baseline"/>
+        <field name="date_scheduled_end"/>
+        <field name="pct_complete"/>
+        <field name="date_scheduled"/>
+        <field name="duration"/>
+        <field name="hours_est_design"/>
+        <field name="duration_act"/>
+        <field name="date_started"/>
+        <field name="hours_actual"/>
+        <field name="date_completed"/>
+        
+        <!-- Costs Panel -->
+        <field name="cost_est_cap"/>
+        <field name="cost_estimated"/>
+        <field name="cost_est_design_cap"/>
+        <field name="cost_est_design_exp"/>
+        <field name="cost_act_cap"/>
+        <field name="cost_actual"/>
+        <!-- Location Panel -->
+        <field name="site_id"/>
+        <field name="bl_id"/>
+        <field name="fl_id"/>
+        <field name="rm_id"/>
+        <field name="location"/>
+        <field name="pr_id"/>
+        <field name="tr_id"/>
+        <field name="ta_id"/>
+        <field name="eq_id"/>
+        <field name="prob_type"/>
+        <!-- Documents Panel -->
+        <field name="doc1"/>
+        <field name="doc2"/>
+        <field name="doc3"/>
+        <field name="doc4"/>
+        <!-- Details Panel -->
+        <field name="doc"/>
+        <field name="description"/>
+        <field name="created_by"/>
+        <field name="approved_by"/>
+        <field name="assigned_to"/>
+        <field name="date_approved"/>
+        <field name="date_requested"/>
+        <field name="verified_by"/>
+        <field name="date_verified"/>
+    </dataSource>
+
+    <panel type="form" id="projMngActEdit_Profile" columns="2" dataSource="projMngActEdit_ds0">
+        <title translatable="true">Profile</title>
+        <action id="save" mainAction="true">
+            <title>Save</title>
+        </action>
+        <action id="delete" enabled="${!record.isNew}">
+            <title>Delete</title>
+        </action>
+        <action id="createSr" hidden="true">
+            <title>Create Service Request</title>
+        </action>
+        <field name="action_title" colspan="2"/>
+        <field name="wbs_id">
+            <title>WBS Code</title>
+        </field>
+        <field name="activity_log_id" readOnly="true"/>
+        <field name="project_id" readOnly="${!View.controllers.get('projMngActEdit').enableProjectId}">
+            <action id="projMngSelValProject">
+                <title>...</title>
+                <command type="selectValue" 
+                    showIndex="true" 
+                    fieldNames="activity_log.project_id" 
+                    selectFieldNames="project.project_id" 
+                    visibleFieldNames="project.project_id,project.project_name,project.status,project.summary">
+                </command>
+            </action>
+        </field>
+        <field name="work_pkg_id" readOnly="${record['activity_log.activity_type'] == 'PROJECT - CHANGE ORDER'}"/>
+        <field name="activity_type" readOnly="${!panel.newRecord}"/>
+        <field name="proj_phase"/>
+    </panel>
+    <panel type="form" id="projMngActEdit_Progress" dataSource="projMngActEdit_ds0" columns="2">
+        <title translatable="true">Progress</title>
+        <action id="showMore">
+            <title>Show More</title>
+        </action>
+        <action id="showLess">
+            <title>Show Less</title>
+        </action>
+        <field name="status" onchange="updatePctComplete('projMngActEdit_Progress');">
+            <title>Action Item Status</title>
+        </field>
+        <field name="hours_est_baseline"/>
+        
+        <field name="date_planned_for"/>
+        <field name="duration_est_baseline"/>
+
+        <field name="date_required"/>
+        <field name="date_scheduled_end"/>
+
+        <field name="date_scheduled" onchange="calculateActivityDateScheduledEnd('projMngActEdit_Progress');"/>
+        <field name="duration_act" readOnly="true"/>
+
+        <field name="date_started" onchange="calculateActivityDuration('projMngActEdit_Progress');calculateActivityDateEnd('projMngActEdit_Progress');"/>
+        <field name="date_completed" onchange="calculateActivityDuration('projMngActEdit_Progress');"/>
+       
+        <field name="pct_complete"/>
+
+        <field name="duration" required="true" onchange="calculateActivityDateEnd('projMngActEdit_Progress');calculateActivityDateScheduledEnd('projMngActEdit_Progress');"/>
+        <field name="hours_est_design"/>
+
+        <field name="hours_actual"/>
+        
+        <field name="activity_log_id" hidden="true"/>
+    </panel>
+    <panel type="form" id="projMngActEdit_Costs" dataSource="projMngActEdit_ds0" columns="2" showOnLoad="false">
+        <title translatable="true">Costs</title>
+        <action id="showMore">
+            <title>Show More</title>
+        </action>
+        <action id="showLess">
+            <title>Show Less</title>
+        </action>
+        <field name="cost_est_cap"/>
+        <field name="cost_estimated"/>
+        <field name="cost_est_design_cap" required="true"/>
+        <field name="cost_est_design_exp" required="true"/>
+        <field name="cost_act_cap">
+            <title>Cost - Actual (Cap.)</title>
+        </field>
+        <field name="cost_actual">
+            <title>Cost - Actual (Exp.)</title>
+        </field>
+        <field name="activity_log_id" hidden="true"/>
+    </panel>
+    <panel type="form" id="projMngActEdit_Location" dataSource="projMngActEdit_ds0" columns="2">
+        <title translatable="true">Location</title>
+        <field name="site_id"/>
+        <field name="pr_id"/>
+        <field name="bl_id">
+            <action id="projMngActEditBlId">
+                <title>...</title>
+                <command type="selectValue" showIndex="true" fieldNames="activity_log.site_id, activity_log.bl_id" selectFieldNames="bl.site_id, bl.bl_id" visibleFieldNames="bl.site_id, bl.bl_id, bl.name">
+                    <title>Building Code</title>
+                </command>
+            </action>
+        </field>
+        <field name="tr_id"/>
+        <field name="fl_id"/>
+        <field name="ta_id"/>
+        <field name="rm_id"/>
+        <field name="eq_id"/>
+        <field name="location"/>
+        <field name="prob_type"/>
+        <field name="activity_log_id" hidden="true"/>
+    </panel>
+    <panel type="form" id="projMngActEdit_formDocuments" dataSource="projMngActEdit_ds0" columns="2">
+        <title translatable="true">Documents</title>
+        <field name="doc1"/>
+        <field name="doc2"/>
+        <field name="doc3"/>
+        <field name="doc4"/>
+        <field name="activity_log_id" hidden="true"/>
+    </panel>
+    <panel type="form" id="projMngActEdit_Details" dataSource="projMngActEdit_ds0" columns="2">
+        <title translatable="true">Details</title>
+        <field name="doc" colspan="1"/>
+        <field name="assigned_to">
+            <action id="projMngActEditAssignedTo">
+                <title>...</title>
+                <command type="selectValue" showIndex="true" fieldNames="activity_log.assigned_to" selectFieldNames="em.em_id" visibleFieldNames="em.em_id, em.em_std, em.name_first, em.name_last">
+                    <title>Employee Name</title>
+                </command>
+            </action>
+        </field>
+        <field name="description" colspan="2"/>
+        <field name="created_by" readOnly="true"/>
+        <field name="date_requested" readOnly="true"/>
+        <field name="approved_by" readOnly="${record['activity_log.activity_type'] == 'PROJECT - CHANGE ORDER'}"/>
+        <field name="date_approved" readOnly="${record['activity_log.activity_type'] == 'PROJECT - CHANGE ORDER'}"/>
+        <field name="verified_by"/>
+        <field name="date_verified"/>
+        <field name="activity_log_id" hidden="true"/>
+    </panel>
+
+    <js file="ab-proj-mng-act-edit.js"/>
+</view>

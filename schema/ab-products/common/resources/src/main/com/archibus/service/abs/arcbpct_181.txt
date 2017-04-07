@@ -1,0 +1,319 @@
+'ARCBPCT.ABS
+'AR  - all room inventory
+'CB  - chargeback
+'PCT - with percentages
+'12/28/94
+
+' 07-06-98 JH Added entry point Sub arcbpct_Main() for Process Toolbars
+' 09.15.99 - JH - MSSQL - Changed:  = "Oracle"    To:  <> "Sybase"
+
+Option Explicit
+
+'---- External Functions
+Declare Function SqlFunc_SQLIsNull() As String
+
+'------------------------------------------------------------------------------
+'----                                    TRANSLATE
+Const kPleaseWaitMsg$              = "Please wait ... "
+Const kPerformingPercentCbMsg$     = "Performing Percentage Chargeback"
+
+'------------------------------------------------------------------------------
+
+'-----------------------------------------------------------------------------
+Sub arcbpct()
+
+     MsgOpen kPerformingPercentCbMsg & BASIC.EOLN$ & _
+             kPleaseWaitMsg, 0, FALSE, TRUE
+
+     Dim ff As New FieldFormula
+     Dim fo As New FieldOperation
+     Dim sSqlStatement As String
+
+     '--- Initialize certain pct fields to 0
+
+     ff.Assigned =  "rmpct"
+     ff.AddFormula  "rmpct.cost","0.0"
+     ff.AddFormula  "rmpct.area_chargable","0.0"
+     ff.AddFormula  "rmpct.area_comn","0.0"
+     ff.AddFormula  "rmpct.area_comn_nocup","0.0" 
+     ff.AddFormula  "rmpct.area_comn_ocup","0.0" 
+     ff.Calculate
+     ff.Clear
+
+     MsgSetThermometer 5
+
+     '--- Sum TOTAL RM AREA from RM to FL
+
+     fo.Owner = "fl"
+     fo.Assigned = "rm"
+     fo.Standard = "rmcat"
+     fo.InpFilter = "rmcat.used_in_calcs IN ('all_totals', 'rm_totals')"
+     fo.Calculate "fl.area_rm", "SUM", "rm.area"
+     fo.Clear
+   
+     MsgSetThermometer 10
+
+     '--- Calculate FLOOR REMAINING AREA
+
+     ff.Assigned = "fl"
+     ff.Calculate "fl.area_remain","fl.area_gross_int - fl.area_rm - fl.area_gp"
+     ff.Clear
+
+     MsgSetThermometer 15
+
+     '--- Sum OCUP DEPARTMENT area from RMPCT to FL
+
+     fo.Owner = "fl"
+     fo.Assigned = "rmpct"
+     fo.Standard = "rmcat"
+     fo.InpFilter = "rmcat.occupiable = 1 and rmpct.dp_id IS NOT NULL AND rmcat.used_in_calcs IN ('all_totals', 'dp_comn_ocup_totals')"
+     fo.Calculate "fl.area_ocup_dp", "SUM", "rmpct.area_rm"
+     fo.Clear
+
+     MsgSetThermometer 20
+
+     '--- Sum OCUP DEPARTMENT area from FL to BL
+
+     fo.Owner = "bl"
+     fo.Assigned = "fl"
+     fo.Calculate "bl.area_ocup_dp", "SUM", "fl.area_ocup_dp"
+     fo.Clear
+   
+     MsgSetThermometer 25
+  
+     '--- Sum OCUP DEPARTMENT area from BL to SITE
+
+     fo.Owner = "site"
+     fo.Assigned = "bl"
+     fo.Calculate "site.area_ocup_dp", "SUM", "bl.area_ocup_dp"
+     fo.Clear
+
+     MsgSetThermometer 30
+
+     '--- Sum NON-OCUP FLOOR COMMON from RMPCT to FL 
+
+     fo.Owner    = "fl"
+     fo.Assigned = "rmpct"
+     fo.Standard = "rmcat"
+     fo.InpFilter = "rmpct.prorate='FLOOR' and rmcat.occupiable=0 AND rmcat.used_in_calcs IN ('all_totals', 'dp_comn_ocup_totals')"
+     fo.Calculate "fl.area_fl_comn_nocup", "SUM", "rmpct.area_rm"
+     fo.Clear 
+   
+     MsgSetThermometer 35
+
+     '--- Sum NON-OCUP BLDG. COMMON from RMPCT to BL
+
+     fo.Owner    = "bl"
+     fo.Assigned = "rmpct"
+     fo.Standard = "rmcat"
+     fo.InpFilter = "rmpct.prorate='BUILDING' and rmcat.occupiable=0 AND rmcat.used_in_calcs IN ('all_totals', 'dp_comn_ocup_totals')"
+     fo.Calculate "bl.area_bl_comn_nocup", "SUM", "rmpct.area_rm"
+     fo.Clear 
+   
+     MsgSetThermometer 40
+
+     '--- Sum NON-OCUP SITE COMMON area from RMPCT to SITE 
+
+     ProjDb.ExecuteSql "UPDATE site SET area_st_comn_nocup =" & _
+                       " (SELECT " & SqlFunc_SQLIsNull() & "( SUM(rmpct.area_rm), 0.0 )" & _
+                       " FROM bl, rmpct, rmcat" & _
+                       " WHERE site.site_id = bl.site_id" & _
+                       " AND bl.bl_id = rmpct.bl_id" & _
+                       " AND rmpct.prorate = 'SITE'" & _
+                       " AND rmpct.rm_cat = rmcat.rm_cat" & _
+		       " AND rmcat.used_in_calcs IN ('all_totals', 'dp_comn_ocup_totals') " & _
+                       " AND rmcat.occupiable = 0)"
+
+     MsgSetThermometer 45
+
+     '--- Sum OCUP FLOOR COMMON area from RMPCT to FL 
+
+     fo.Owner    = "fl"
+     fo.Assigned = "rmpct"
+     fo.Standard = "rmcat"
+     fo.InpFilter = "rmpct.prorate='FLOOR' and rmcat.occupiable = 1 AND rmcat.used_in_calcs IN ('all_totals', 'dp_comn_ocup_totals')"
+     fo.Calculate "fl.area_fl_comn_ocup", "SUM", "rmpct.area_rm"
+     fo.Clear 
+
+     MsgSetThermometer 50
+
+     '--- ADD REMAINING AREA to FLOOR COMMON
+
+     ff.Assigned = "fl"
+     ff.OutFilter = "fl.prorate_remain = 'FLOOR'"
+     ff.Calculate "fl.area_fl_comn_ocup", "fl.area_remain + fl.area_fl_comn_ocup"
+     ff.Clear 
+
+     MsgSetThermometer 55
+
+     '--- Sum OCUP BLDG. COMMON (+REMAIN) area from RMPCT to BL
+
+     sSqlStatement = "UPDATE bl SET area_bl_comn_ocup =" & _
+                     " (SELECT " & SqlFunc_SQLIsNull() & "( SUM(rmpct.area_rm), 0.0 )" & _
+                     " FROM rmpct, rmcat" & _
+                     " WHERE bl.bl_id = rmpct.bl_id" & _
+                     " AND rmpct.rm_cat = rmcat.rm_cat" & _
+                     " AND rmpct.prorate = 'BUILDING'" & _
+		     " AND rmcat.used_in_calcs IN ('all_totals', 'dp_comn_ocup_totals')" & _
+                     " AND rmcat.occupiable = 1)"
+     ProjDb.ExecuteSql sSqlStatement
+
+     sSqlStatement = "UPDATE bl SET area_bl_comn_ocup =" & _
+                     " (SELECT area_bl_comn_ocup + " & SqlFunc_SQLIsNull() & "( SUM(fl.area_remain), 0.0 )" & _
+                     " FROM fl" & _
+                     " WHERE bl.bl_id = fl.bl_id" & _
+                     " AND fl.prorate_remain = 'BUILDING' )"
+     ProjDb.ExecuteSql sSqlStatement
+
+     MsgSetThermometer 60
+
+     '--- Sum OCUP SITE COMMON area (+REMAIN) from RMPCT to SITE
+
+     sSqlStatement = "UPDATE site SET area_st_comn_ocup =" & _
+                     " (SELECT " & SqlFunc_SQLIsNull() & "( SUM(rmpct.area_rm), 0.0 )" & _
+                     " FROM bl, rmpct, rmcat" & _
+                     " WHERE site.site_id = bl.site_id" & _
+                     " AND bl.bl_id = rmpct.bl_id" & _
+                     " AND rmpct.rm_cat = rmcat.rm_cat" & _
+                     " AND rmpct.prorate = 'SITE'" & _
+		     " AND rmcat.used_in_calcs IN ('all_totals', 'dp_comn_ocup_totals')" & _
+                     " AND rmcat.occupiable = 1)"
+     ProjDb.ExecuteSql sSqlStatement
+
+     sSqlStatement = "UPDATE site SET area_st_comn_ocup =" & _
+                     " (SELECT area_st_comn_ocup + " & SqlFunc_SQLIsNull() & " SUM(fl.area_remain), 0.0 )" & _
+                     " FROM bl, fl" & _
+                     " WHERE site.site_id = bl.site_id" & _
+                     " AND bl.bl_id = fl.bl_id" & _
+                     " AND fl.prorate_remain = 'SITE' )"
+     ProjDb.ExecuteSql sSqlStatement
+
+     MsgSetThermometer 65
+
+     '--- PRORATE COMMON AREA
+     '--- Only update ocupiable dept. rooms
+     '--- See SPSUP.ABS for definition of sql view: alrmpctc
+
+     sSqlStatement = "UPDATE rmpct SET" & _
+                " rmpct.area_comn_ocup =" & _
+                     " (SELECT (flcomocup + blcomocup + stcomocup)" & _
+                     " FROM alrmpctc" & _
+                     " WHERE alrmpctc.pct_id = rmpct.pct_id)," & _
+                " rmpct.area_comn_nocup =" & _
+                     " (SELECT (flcomnocup + blcomnocup + stcomnocup)" & _
+                     " FROM alrmpctc" & _
+                     " WHERE alrmpctc.pct_id = rmpct.pct_id)" & _
+                " WHERE rmpct.dp_id IS NOT NULL" & _
+                " AND 1 = (SELECT rmcat.occupiable" & _
+                          " FROM rmcat" & _
+                          " WHERE rmcat.rm_cat = rmpct.rm_cat" & _
+	                  " AND rmcat.used_in_calcs IN ('all_totals', 'dp_comn_ocup_totals') )"
+     ProjDb.ExecuteSql sSqlStatement
+
+     MsgSetThermometer 70
+
+     '--- Calcuate TOTAL COMMON & CHARGEABLE area
+     '--- Only update dept. rooms
+
+     ff.Assigned = "rmpct"
+     ff.OutFilter = "rmpct.dp_id IS NOT NULL"
+     ff.Calculate "rmpct.area_comn","rmpct.area_comn_ocup + rmpct.area_comn_nocup"
+     ff.Calculate "rmpct.area_chargable","rmpct.area_rm + rmpct.area_comn"
+     ff.Clear
+
+     MsgSetThermometer 75
+
+     '--- Calculate COST
+     '--- Only update dept. rooms
+
+
+          ff.Owner = "bl"
+          ff.Assigned = "rmpct"
+          ff.Standard = "fl"
+          ff.OutFilter = "rmpct.dp_id IS NOT NULL"
+          ff.Calculate "rmpct.cost","CASE " & _
+				 "   WHEN fl.cost_sqft <> 0 THEN rmpct.area_chargable * fl.cost_sqft " & _
+				 "   WHEN bl.cost_sqft <> 0 THEN rmpct.area_chargable * bl.cost_sqft " & _
+				 "   ELSE 0 " & _
+				 "END"
+          ff.Clear
+
+          ff.Owner = "rm"
+          ff.Assigned = "rmpct"
+          ff.Standard = "rmcat"
+          ff.OutFilter = "rmpct.dp_id IS NOT NULL"
+          ff.Calculate "rmpct.cost","CASE " & _
+				 "   WHEN rm.cost_sqft <> 0 THEN rmpct.area_chargable * rm.cost_sqft " & _
+				 "   WHEN rmcat.cost_sqft <> 0 THEN rmpct.area_chargable * rmcat.cost_sqft " & _
+				 "END"
+          ff.Clear
+
+
+     MsgSetThermometer 80
+
+     '-- Sum COST, CHARGABLE area, COMMON area, and ROOM AREA, from RMPCT to DP
+
+     fo.Owner    = "dp"
+     fo.Assigned = "rmpct"
+     fo.Standard = "rmcat"
+     fo.InpFilter = "rmcat.used_in_calcs IN ('all_totals', 'dp_comn_ocup_totals')"
+     fo.AddOperation "dp.cost", "SUM", "rmpct.cost"
+     fo.AddOperation "dp.area_chargable", "SUM", "rmpct.area_chargable"
+     fo.AddOperation "dp.area_rm", "SUM", "rmpct.area_rm"
+     fo.AddOperation "dp.area_comn", "SUM", "rmpct.area_comn"
+     fo.AddOperation "dp.area_comn_ocup", "SUM", "rmpct.area_comn_ocup"
+     fo.AddOperation "dp.area_comn_nocup", "SUM", "rmpct.area_comn_nocup"
+     fo.Calculate
+     fo.Clear 
+   
+     MsgSetThermometer 85
+
+     '--- Sum COST, CHARGABLE area, COMMON area, and ROOM AREA, from DP to DV
+
+     fo.Owner    = "dv"
+     fo.Assigned = "dp"
+     fo.AddOperation "dv.cost", "SUM", "dp.cost"
+     fo.AddOperation "dv.area_chargable", "SUM", "dp.area_chargable"
+     fo.AddOperation "dv.area_rm", "SUM", "dp.area_rm"
+     fo.AddOperation "dv.area_comn", "SUM", "dp.area_comn"
+     fo.AddOperation "dv.area_comn_ocup", "SUM", "dp.area_comn_ocup"
+     fo.AddOperation "dv.area_comn_nocup", "SUM", "dp.area_comn_nocup"
+     fo.Calculate
+     fo.Clear 
+
+     MsgSetThermometer 90
+
+     '--- Sum COST, CHARGABLE area, COMMON area, and ROOM AREA, from DV to BU
+
+     fo.Owner    = "bu"
+     fo.Assigned = "dv"
+     fo.AddOperation "bu.cost", "SUM", "dv.cost"
+     fo.AddOperation "bu.area_chargable", "SUM", "dv.area_chargable"
+     fo.AddOperation "bu.area_rm", "SUM", "dv.area_rm"
+     fo.AddOperation "bu.area_comn", "SUM", "dv.area_comn"
+     fo.AddOperation "bu.area_comn_ocup", "SUM", "dv.area_comn_ocup"
+     fo.AddOperation "bu.area_comn_nocup", "SUM", "dv.area_comn_nocup"
+     fo.Calculate
+     fo.Clear 
+   
+     MsgSetThermometer 95
+   
+     Avw.SetTblChanged "site", AVW_TBLCHANGE_UPDATE
+     Avw.SetTblChanged "bl", AVW_TBLCHANGE_UPDATE
+     Avw.SetTblChanged "fl", AVW_TBLCHANGE_UPDATE
+     Avw.SetTblChanged "rmpct", AVW_TBLCHANGE_UPDATE
+     Avw.SetTblChanged "bu", AVW_TBLCHANGE_UPDATE
+     Avw.SetTblChanged "dv", AVW_TBLCHANGE_UPDATE
+     Avw.SetTblChanged "dp", AVW_TBLCHANGE_UPDATE
+     Avw.ReQuery
+   
+     MsgSetThermometer 100
+   
+     MsgClose
+
+End Sub
+
+Sub arcbpct_Main()
+	arcbpct
+End Sub
+

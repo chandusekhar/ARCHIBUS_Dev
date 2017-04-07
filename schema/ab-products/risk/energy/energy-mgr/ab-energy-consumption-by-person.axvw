@@ -1,0 +1,111 @@
+<view version="2.0" showLoadProgress="true">
+    <title translatable="true">Consumption per Person</title>
+    <layout id="mainLayout">
+        <north initialSize="140" split="true" id="console"/>
+        <center />
+  	</layout>
+  	<layout id="nestedLayout_1" containingLayout="mainLayout" region="center">
+        <west initialSize="400" split="true" id="tree"/>
+        <center id="chart"/>
+  	</layout>
+  	   	
+  	<js file="ab-energy-cost-base.js"/>
+  	<js file="ab-energy-consumption-by-person.js"/>
+    <js file="ab-energy-common.js"/>
+    
+   <panel id="costConsolePanel" type="view" file="ab-energy-cost-console.axvw" layoutRegion="console"/>
+  	
+   <panel id="costTreePanel" type="view" file="ab-energy-cost-tree.axvw" layoutRegion="tree"/>
+    
+    <!-- Chart datasource -->    
+    <dataSource id="ds_energyConsumption">
+        <table name="bill_archive" />
+        <sql dialect="generic">
+	        SELECT locDtl ${sql.as} locDtl,     
+	                (CASE  
+	                    WHEN SUM(bill_archive.qty_energy) != 0 THEN SUM(bill_archive.qty_energy / (CASE bill_archive.count_em WHEN 0 THEN 999999999999 ELSE bill_archive.count_em END))
+	                    ELSE SUM(bill_archive.qty_volume / (CASE bill_archive.count_em WHEN 0 THEN 999999999999 ELSE bill_archive.count_em END))
+	                 END) / ${parameters['unitsConversionFactor']} ${sql.as} value_common  
+	        FROM 
+	        (   SELECT MIN(${parameters['locDtl']}) ${sql.as} locDtl,            
+	            SUM(bill_archive.qty_energy) ${sql.as} qty_energy,
+	            SUM(bill_archive.qty_volume) ${sql.as} qty_volume,  
+	            
+	           IsNull( (SELECT metric_value FROM afm_metric_trend_values WHERE metric_name LIKE 'occ_Occupants_monthly%' AND collect_group_by = 'bl_id' 
+	               AND collect_by_value = bill_archive.bl_id  	               
+	               AND ${sql.yearOf('metric_date')} = LEFT(bill_archive.time_period,4) AND ${sql.yearMonthOf('metric_date')} = bill_archive.time_period) ,  
+	                
+	            (SELECT COUNT(em.em_id) FROM em WHERE em.bl_id = bill_archive.bl_id) ) ${sql.as} count_em  	            
+	            
+	            FROM bill_archive
+	            LEFT OUTER JOIN bl ON bill_archive.bl_id = bl.bl_id  
+	            LEFT OUTER JOIN site ON bill_archive.site_id = site.site_id       
+	            WHERE ${parameters['finalRestriction']} 
+                AND ((bill_archive.prorated_aggregated = 'NO' AND bill_archive.reference_bill_id IS NULL AND NOT EXISTS (SELECT 1 FROM bill_archive b WHERE b.reference_bill_id = bill_archive.bill_id)) OR (bill_archive.prorated_aggregated &lt;&gt; 'NO')) 
+	            GROUP BY bill_archive.bl_id, bill_archive.time_period             
+	        ) ${sql.as} bill_archive
+	        GROUP BY locDtl      
+        </sql> 
+         <sql dialect="oracle">
+            SELECT locDtl ${sql.as} locDtl,     
+                     (CASE  
+                        WHEN SUM(bill_archive.qty_energy) != 0 THEN SUM(bill_archive.qty_energy / (CASE WHEN bill_archive.count_em = 0 THEN 999999999999 ELSE bill_archive.count_em END))
+                        ELSE SUM(bill_archive.qty_volume / (CASE  WHEN bill_archive.count_em = 0 THEN 999999999999 ELSE bill_archive.count_em END))
+                     END) / ${parameters['unitsConversionFactor']} ${sql.as} value_common  
+            FROM 
+            (   SELECT MIN(${parameters['locDtl']}) ${sql.as} locDtl,            
+                SUM(bill_archive.qty_energy) ${sql.as} qty_energy,
+                SUM(bill_archive.qty_volume) ${sql.as} qty_volume,  
+                
+               NVL( (SELECT metric_value FROM afm_metric_trend_values WHERE metric_name LIKE 'occ_Occupants_monthly%' AND collect_group_by = 'bl_id' 
+                   AND collect_by_value = bill_archive.bl_id                   
+                   AND ${sql.yearOf('metric_date')} = SUBSTR(bill_archive.time_period,4) AND ${sql.yearMonthOf('metric_date')} = bill_archive.time_period),  
+                    
+                (SELECT COUNT(em.em_id) FROM em WHERE em.bl_id = bill_archive.bl_id) ) ${sql.as} count_em               
+                
+                FROM bill_archive
+                LEFT OUTER JOIN bl ON bill_archive.bl_id = bl.bl_id  
+                LEFT OUTER JOIN site ON bill_archive.site_id = site.site_id       
+                WHERE ${parameters['finalRestriction']}  
+                AND ((bill_archive.prorated_aggregated = 'NO' AND bill_archive.reference_bill_id IS NULL AND NOT EXISTS (SELECT 1 FROM bill_archive b WHERE b.reference_bill_id = bill_archive.bill_id)) OR (bill_archive.prorated_aggregated &lt;&gt; 'NO'))
+                GROUP BY bill_archive.bl_id, bill_archive.time_period             
+            ) ${sql.as} bill_archive
+            GROUP BY locDtl      
+        </sql> 
+        <field table="bill_archive" name="value_common" dataType="number" decimals="2"/> 
+        <field table="bill_archive" name="locDtl" dataType="text" />
+        <sortField table="bill_archive" name="value_common" />
+        <parameter name="finalRestriction" dataType="verbatim" value=" 1=1 "/> 
+        <parameter name="unitsConversionFactor" dataType="verbatim" value="1"/>
+        <parameter name="locDtl" dataType="verbatim" value=" RTRIM(bill_archive.bl_id) "/>
+        <parameter name="noCity" dataType="text" value="None"/>
+        <restriction type="sql" sql="value_common &gt; 0.01" />
+    </dataSource> 
+    
+    <!-- Chart panel -->   
+    <panel 	id="energyConsumption_chart" 
+    		type="htmlChart"
+    		layoutRegion="chart" 
+    		controlType="barChart" 
+    		dataSource="ds_energyConsumption" 
+    		showOnLoad="false"
+    		showLegendOnLoad="true"
+    		showLegendAsPopUp="false" 
+    		legendLocation="right"
+            showExportButton="true"
+    		showDataTips="true">
+        <title translatable="true">Consumption/Population in {0}/Person</title>
+        <event type="onClickItem">
+            <command type="callFunction" functionName="onDrillDownToBillArchive"/>
+        </event>
+        <groupingAxis dataSource="ds_energyConsumption" table="bill_archive" field="locDtl" showLabel="true" showTitle="false" labelRotation="45">
+            <title translatable="true">Location</title>
+        </groupingAxis>
+        <dataAxis dataSource="ds_energyConsumption" table="bill_archive" field="value_common" showLabel="true" showTitle="false" >
+            <title translatable="true">Energy/Volume</title>
+        </dataAxis>  
+    </panel> 
+    
+    <panel id="costDrillDownPanel" type="view" file="ab-energy-cost-drilldown.axvw" />
+
+</view>

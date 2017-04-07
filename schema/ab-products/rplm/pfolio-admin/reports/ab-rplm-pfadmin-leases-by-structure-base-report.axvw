@@ -1,0 +1,188 @@
+<view version="2.0">
+	<js file="ab-rplm-pfadmin-leases-by-structure-base-report.js"/>
+    <js file="ab-repm-pfolio-admin-common.js"/>
+    
+	<message name="status_owned" translatable="true">Owned</message>
+	<message name="status_leased" translatable="true">Leased</message>
+	<message name="status_neither" translatable="true">Neither</message>
+	<message name="status_pipeline_landlord" translatable="true">Pipeline (Landlord)</message>
+	<message name="status_pipeline_tenant" translatable="true">Pipeline (Tenant)</message>
+	<message name="status_landlord" translatable="true">Landlord</message>
+	<message name="status_tenant" translatable="true">Tenant</message>
+	<message name="text_no_image" translatable="true">No Image Available</message>
+	<dataSource id="dsLeasesByStructureGeneralInfo">
+		<sql dialect="generic">
+			select 
+				property.prop_photo,
+				property.pr_id,
+				property.name,
+				property.ctry_id,
+				property.address1,
+				property.regn_id,
+				property.address2,
+				property.state_id,
+				property.zip,
+				property.city_id,
+				property.lat,
+				'' as facility_type_id,
+				property.lon,
+				(case 
+					when exists(select 1 from ot where ot.pr_id = property.pr_id and ot.status = 'Owned') 
+						then 'owned'
+					when exists(select 1 from ls where ls.pr_id = property.pr_id and ls.signed = 1 
+							and (ls.date_end &gt;= ${sql.currentDate} OR ls.date_end IS NULL) and ls.date_start &lt;= ${sql.currentDate} )
+							then 'leased'
+					else 'neither'
+				end) as status,
+				property.site_id,
+                (property.value_book * ${sql.exchangeRateFromBudgetToUserForDate('Budget', 'property.date_book_val')}) ${sql.as} value_book,
+				property.date_book_val,
+                (property.value_market * ${sql.exchangeRateFromBudgetToUserForDate('Budget', 'property.date_market_val')}) ${sql.as} value_market,
+				property.date_market_val,
+			    (select ot.cost_purchase * ${sql.exchangeRateFromBudgetToUserForDate('Budget', 'ot.date_purchase')}
+			    from ot where 
+			    ot.ot_id = (select MAX(x.ot_id) from ot x where x.pr_id = property.pr_id and x.status = 'Owned')
+			    ) as cost_purchase,
+			    (select ot.date_purchase
+			    from ot where 
+			    ot.ot_id = (select MAX(x.ot_id) from ot x where x.pr_id = property.pr_id and x.status = 'Owned')
+			    ) as date_purchase,
+			    property.area_manual,
+			    property.area_cad,
+			    property.description,
+				property.area_bl_rentable,
+				property.area_lease_neg,				
+			    property.comments
+			from property
+		</sql>
+		<table name="property" role="main"/>
+		<field table="property" name="prop_photo"/>
+		<field table="property" name="pr_id"/>
+		<field table="property" name="name"/>
+		<field table="property" name="ctry_id"/>
+		<field table="property" name="address1"/>
+		<field table="property" name="regn_id"/>
+		<field table="property" name="address2"/>
+		<field table="property" name="state_id"/>
+		<field table="property" name="zip"/>
+		<field table="property" name="city_id"/>
+		<field table="property" name="lat"/>
+		<field name="facility_type_id" dataType="text">
+			<title translatable="true">Facility Type</title>
+		</field>
+		<field table="property" name="lon"/>
+		<field name="status" dataType="text">
+			<title translatable="true">Status</title>
+		</field>
+		<field table="property" name="site_id"/>
+		<field table="property" name="value_book" currency="${user.userCurrency.code}"/>
+		<field table="property" name="date_book_val"/>
+		<field table="property" name="value_market" currency="${user.userCurrency.code}"/>
+		<field table="property" name="date_market_val"/>
+		<field name="cost_purchase" dataType="number" size="20" decimals="5" currency="${user.userCurrency.code}">
+			<title translatable="true">Cost Purchase</title>
+		</field>
+		<field name="date_purchase" dataType="date">
+			<title translatable="true">Date Purchase</title>
+		</field>
+		<field table="property" name="area_manual"/>
+		<field table="property" name="area_cad"/>
+		<field table="property" name="area_bl_rentable"/>
+		<field table="property" name="area_lease_neg"/>
+		<field table="property" name="description"/>
+		<field table="property" name="comments"/>
+	</dataSource>
+	<panel type="form" id="reportLeasesByStructureGeneralInfo" dataSource="dsLeasesByStructureGeneralInfo" showOnLoad="false" columns="3" afterRefresh="formatCurrency">
+		<title translatable="true">Structure Details</title>
+		<field table="property" name="prop_photo" hidden="true" displayField="image_field" readOnly="true"/>
+		<field id="image_field" controlType="image" rowspan="13" width="250px">
+		</field>
+		<field table="property" name="pr_id" readOnly="true"/>
+		<field table="property" name="name" readOnly="true"/>
+		<field table="property" name="ctry_id" readOnly="true"/>
+		<field table="property" name="address1" readOnly="true"/>
+		<field table="property" name="regn_id" readOnly="true"/>
+		<field table="property" name="address2" readOnly="true"/>
+		<field table="property" name="state_id" readOnly="true"/>
+		<field table="property" name="zip" readOnly="true"/>
+		<field table="property" name="city_id" readOnly="true"/>
+		<field table="property" name="lat" readOnly="true"/>
+		<field table="property" name="site_id" readOnly="true"/>
+		<field table="property" name="lon" readOnly="true"/>
+		<field name="status" dataType="text" readOnly="true">
+			<title translatable="true">Status</title>
+		</field>
+		<field/>
+		<field table="property" name="value_book" readOnly="true"/>
+		<field table="property" name="date_book_val" readOnly="true"/>
+		<field table="property" name="value_market" readOnly="true"/>
+		<field table="property" name="date_market_val" readOnly="true"/>
+		<field name="cost_purchase" dataType="number" size="20" decimals="5" readOnly="true">
+			<title translatable="true">Cost Purchase</title>
+		</field>
+		<field name="date_purchase" dataType="date" readOnly="true">
+			<title translatable="true">Date Purchase</title>
+		</field>
+		<field table="property" name="area_manual" readOnly="true"/>
+		<field table="property" name="area_cad" readOnly="true"/>
+		<field table="property" name="area_bl_rentable" readOnly="true"/>
+		<field table="property" name="area_lease_neg" readOnly="true"/>
+		<field table="property" name="description" colspan="2" readOnly="true"/>
+		<field table="property" name="comments" colspan="2" readOnly="true"/>
+	</panel>
+	<dataSource id="dsLeasesByStructureLeases">
+		<sql dialect="generic">
+			select 
+				ls.ls_id,
+				ls.bl_id,
+				ls.description,
+				(case 
+					when ls.signed = 0 and ls.landlord_tenant = 'LANDLORD'
+						then 'pipeline_landlord'
+					when ls.signed = 0 and ls.landlord_tenant = 'TENANT'
+						then 'pipeline_tenant'
+					when ls.signed = 1 and ls.landlord_tenant = 'LANDLORD'
+						then 'landlord'
+					when ls.signed = 1 and ls.landlord_tenant = 'TENANT'
+						then 'tenant'
+				end) as status,
+				ls.ls_parent_id,
+				ls.date_start,
+				ls.date_move,
+				ls.date_end,
+				ls.area_negotiated,
+				ls.pr_id,
+				ls.signed,
+				ls.landlord_tenant
+			from ls
+		</sql>
+		<table name="ls" role="main"/>
+		<field table="ls" name="ls_id"/>
+		<field table="ls" name="description"/>
+		<field name="status" dataType="text">
+				<title translatable="true">Status</title>
+		</field>
+		<field table="ls" name="ls_parent_id"/>
+		<field table="ls" name="date_start"/>
+		<field table="ls" name="date_move"/>
+		<field table="ls" name="date_end"/>
+		<field table="ls" name="area_negotiated"/>
+		<field table="ls" name="pr_id"/>
+		<restriction type="sql" sql="ls.signed = 1 and (ls.date_end &gt;= ${sql.currentDate} OR ls.date_end IS NULL) and ls.date_start &lt;= ${sql.currentDate}"/>
+		<sortField table="ls" name="ls_id" ascending="true"/>
+	</dataSource>
+	<panel type="grid" id="reportLeasesByStructureLeases" controlType="reportGrid" showOnLoad="false" dataSource="dsLeasesByStructureLeases">
+		<title translatable="true">Active Leases</title>
+		<field table="ls" name="pr_id" hidden="true"/>
+		<field table="ls" name="ls_id"/>
+		<field table="ls" name="description"/>
+		<field name="status" dataType="text">
+				<title translatable="true">Status</title>
+		</field>
+		<field table="ls" name="ls_parent_id"/>
+		<field table="ls" name="date_start"/>
+		<field table="ls" name="date_move"/>
+		<field table="ls" name="date_end"/>
+		<field table="ls" name="area_negotiated"/>
+	</panel>
+</view>

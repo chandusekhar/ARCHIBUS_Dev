@@ -1,0 +1,143 @@
+<view version="2.0">
+    <designInfo type="report" pattern="ab-viewdef-report" isAlterable="true"/>
+	
+	<js file="uc-vehicle-overdue-schedules.js"/>
+	<js file="uc-common-functions-data.js" />
+	
+    <title translatable="true">Upcoming/Overdue Schedules</title>
+    
+    <dataSource id="abViewdefReport_ds_7">
+		<sql dialect="generic">
+			SELECT uc_fleetmaintsched.maint_id, uc_fleetmaintsched.vehicle_id, uc_fleetmaintsched.pmp_id, 
+				uc_fleetmaintsched.date_next_maint, uc_fleetmaintsched.meter_next_maint, uc_fleetmaintsched.date_scheduled,
+				uc_fleetmaintsched.status, uc_fleetmaintsched.comments, vehicle.meter, datediff(day, uc_fleetmaintsched.date_next_maint, getdate()) as date_diff,
+				vehicle.meter-uc_fleetmaintsched.meter_next_maint as meter_diff,
+				vehicle.eq_id, vehicle.dv_id, vehicle.dp_id, vehicle.ac_id, vehicle.budget_owner, vehicle.org_contact
+			FROM uc_fleetmaintsched left join vehicle on vehicle.vehicle_id=uc_fleetmaintsched.vehicle_id
+			WHERE uc_fleetmaintsched.status in ('A','Sch')  
+			AND (datediff(day, getdate(), uc_fleetmaintsched.date_next_maint) &lt; 30 OR uc_fleetmaintsched.meter_next_maint-vehicle.meter &lt; 500)
+		</sql>
+        <table name="uc_fleetmaintsched" role="main"/>
+		<table name="vehicle" role="standard"/>
+        <field table="uc_fleetmaintsched" name="maint_id"/>
+        <field table="uc_fleetmaintsched" name="vehicle_id"/>
+        <field table="uc_fleetmaintsched" name="pmp_id"/>
+        <field table="uc_fleetmaintsched" name="date_next_maint"/>
+        <field table="uc_fleetmaintsched" name="meter_next_maint"/>
+        <field table="uc_fleetmaintsched" name="date_scheduled"/>
+        <field table="uc_fleetmaintsched" name="status"/>
+        <field table="uc_fleetmaintsched" name="comments"/>
+		<field table="uc_fleetmaintsched" name="date_diff"  dataType="number" decimals="0"/>
+		<field table="uc_fleetmaintsched" name="meter_diff"  dataType="number" decimals="0"/>
+		<field table="vehicle" name="meter" />
+		<field table="vehicle" name="eq_id" />
+		<field table="vehicle" name="dv_id" />
+		<field table="vehicle" name="dp_id" />
+		<field table="vehicle" name="ac_id" />
+		<field table="vehicle" name="budget_owner" />
+		<field table="vehicle" name="org_contact" />
+		
+    </dataSource>
+	
+	<dataSource id="editSchedule_ds">
+		<table name="uc_fleetmaintsched" role="main"/>
+        <field table="uc_fleetmaintsched" name="maint_id"/>
+        <field table="uc_fleetmaintsched" name="vehicle_id"/>
+		
+        <field table="uc_fleetmaintsched" name="pmp_id"/>
+        <field table="uc_fleetmaintsched" name="date_next_maint"/>
+        <field table="uc_fleetmaintsched" name="meter_next_maint"/>
+        <field table="uc_fleetmaintsched" name="date_scheduled"/>
+        <field table="uc_fleetmaintsched" name="status"/>
+        <field table="uc_fleetmaintsched" name="comments"/>
+        <field table="uc_fleetmaintsched" name="wr_id"/>
+	</dataSource>
+	
+	<panel type="form" id="schedule_date_popup" labelsPosition="top" columns="2" dataSource="editSchedule_ds" showOnLoad="false">
+			<title translatable="true">Set Date for Maintenance</title>
+			
+
+			<action id="save_schedule">
+				<title translatable="true">Save</title>
+				<command type="saveForm"/>
+				<command type="showPanel" panelId="schedulegrid" applyParentRestriction="false"/>
+				<command type="closeDialog"/>
+			</action>
+			
+			
+			<field table="uc_fleetmaintsched" name="maint_id" hidden="true"/>
+					
+			<field table="uc_fleetmaintsched" name="vehicle_id" readOnly="true"/>
+			<field/>
+			<field table="uc_fleetmaintsched" name="date_next_maint" readOnly="true"/>
+			<field table="uc_fleetmaintsched" name="pmp_id" readOnly="true"/>
+			<field table="uc_fleetmaintsched" name="meter_next_maint" readOnly="true"/>
+			
+			<field table="uc_fleetmaintsched" name="status" readOnly="true"/>
+			<field table="uc_fleetmaintsched" name="date_scheduled"/>
+			<field table="uc_fleetmaintsched" name="wr_id" readOnly="true"/>
+			<field table="uc_fleetmaintsched" name="comments" readOnly="false"/>
+		</panel>
+		
+		
+    <panel type="grid" id="schedulegrid" dataSource="abViewdefReport_ds_7" multipleSelectionEnabled="false">
+		<instructions>
+			 [li][b]Date - Red[/b] = Recommended Maintenance is Overdue[/li]
+			 [li][b]Date - Yellow[/b] = Recommended Maintenance is due within [b]30[/b] days[/li]
+			 [li][b]Meter Reading - Red[/b] = Recommended Maintenance is Overdue[/li]
+			 [li][b]Meter Reading - Yellow[/b] = Recommended Maintenance is due within [b]500[/b] meter units[/li]
+			 
+		</instructions>
+        <title translatable="true">Upcoming/Overdue Schedules</title>
+        
+        <action id="abViewdefReport_refresh">
+            <title translatable="true">Refresh</title>
+            <command type="showPanel" panelId="schedulegrid"/>
+        </action>     
+        <action id="abViewdefReport_exportDOCX">
+            <title>DOCX</title>
+            <command type="exportPanel" outputType="docx" panelId="schedulegrid"/>
+        </action>
+        <action id="abViewdefReport_export:XLS">
+            <title>XLS</title>
+            <command type="exportPanel" outputType="xls" panelId="schedulegrid"/>
+        </action>
+        
+		
+		<field id="createWRButton" controlType="button" dataType="text">
+			<title>Create WR</title>
+		</field>
+			
+		<field id="ScheduleButton" controlType="button" dataType="text">
+			<title translatable="true">Schedule</title>		
+			<command type="openDialog" panelId="schedule_date_popup" width="800" height="400"/>	
+		</field>  
+        <field name="maint_id" table="uc_fleetmaintsched" hidden="true"/>
+        <field name="vehicle_id" table="uc_fleetmaintsched"/>
+		<field table="vehicle" name="budget_owner" />
+		<field table="vehicle" name="org_contact" ><title>Driver</title></field>
+        <field name="pmp_id" table="uc_fleetmaintsched"/>
+		
+        
+        <field name="date_next_maint" table="uc_fleetmaintsched"/>
+		<field name="date_diff" table="uc_fleetmaintsched"><title>Days Overdue</title></field>
+        <field name="meter_next_maint" table="uc_fleetmaintsched"/>
+		<field name="meter_diff" table="uc_fleetmaintsched"><title>Meter Amount Overdue</title></field>
+		<field name="meter" table="vehicle"/>
+        <field name="date_scheduled" table="uc_fleetmaintsched"/>
+        <field name="status" table="uc_fleetmaintsched"/>
+        <field name="comments" table="uc_fleetmaintsched"/>
+		
+		
+
+		<field table="vehicle" name="eq_id" hidden="true"/>
+		<field table="vehicle" name="dv_id" hidden="true"/>
+		<field table="vehicle" name="dp_id" hidden="true"/>
+		<field table="vehicle" name="ac_id" hidden="true"/>
+		<field table="vehicle" name="budget_owner" hidden="true"/>
+
+        <indexField table="uc_fleetmaintsched" name="maint_id"/>
+		 <sortField name="vehicle_id" table="uc_fleetmaintsched" ascending="true"/>
+		 <sortField name="date_next_maint" table="uc_fleetmaintsched" ascending="true"/>
+    </panel>
+</view>

@@ -1,0 +1,129 @@
+<view version="2.0">
+    <message name="wait">Please wait</message>
+
+	<message name="z_MESSAGE_COUNT">Headcount</message>
+    <message name="z_MESSAGE_ACTUAL_COUNT">Actual Headcount</message>
+    
+	<message name="z_MESSAGE_UTILIZATION">Utilization</message>
+    <message name="z_MESSAGE_ALLOCATION_RATE">Allocation Rate</message>
+    
+    <message name="toAreaView">Area View</message>
+    <message name="toOccupView">Occupancy View</message>
+
+    <message name="occupRate">Occupancy Rate</message>
+    <message name="headcount">Actual Headcount</message>
+    <message name="occupiedSeats">Occupied Seats</message>
+    <message name="totalSeats">Total Seats</message>
+  	<message name="showOccupancyRateLine">Show Occupancy Rate Line</message>
+    <message name="closeOccupancyRateLine">Hide Occupancy Rate Line</message>
+
+	<js file="ab-sp-rpt-util-by-loc-common.js"/>
+	<js file="ab-sp-rpt-util-by-loc.js"/>
+    <js file="schema/ab-core/libraries/amcharts/amcharts.js"/>
+	<js file="ab-alloc-wiz-common.js"/>	
+      
+    <dataSource id="utilRptFilterDS">
+        <table name="bas_data_clean_num" role="main"/>
+        <table name="bas_measurement_scope" role="standard"/>
+        <field table="bas_data_clean_num" name="date_measured"/>
+        <field table="bas_data_clean_num" name="time_measured"/>
+        <field table="bas_measurement_scope" name="bl_id"/>
+        <field table="bas_measurement_scope" name="fl_id"/>
+        <field table="bas_measurement_scope" name="rm_id"/>
+    </dataSource>
+
+    <panel type="console" id="utilRptFilter" dataSource="utilRptFilterDS" columns="2">
+		<title>Filter</title>
+		<action id="filter" mainAction="true">
+			<title>Show</title>
+		</action>
+        <action id="generateGapPPT">
+            <title>Generate Gap PPT</title>
+        </action>
+     
+        <fieldset layout="fluid">
+			<field table="bas_measurement_scope" name="bl_id" cssClass="shortField" showLabel="true">
+				 <title>Location:</title>
+			</field>
+			<field table="bas_measurement_scope" name="fl_id" cssClass="shortField" showLabel="false"/>
+			<field table="bas_measurement_scope" name="rm_id" cssClass="shortField" showLabel="false"/>
+        </fieldset>
+
+        <fieldset layout="fluid">
+			<field name="date_measured" table="bas_data_clean_num" alias="date_from"  cssClass="shortField" showLabel="true">
+				 <title>From:</title>
+			</field>
+			<field name="time_measured" table="bas_data_clean_num"  alias="time_from" cssClass="shortField" showLabel="false"/>
+
+			<field name="date_measured" table="bas_data_clean_num" alias="date_to"  cssClass="shortField" showLabel="true">
+				 <title>To:</title>
+			</field>
+		   <field name="time_measured" table="bas_data_clean_num" alias="time_to" cssClass="shortField" showLabel="false"/>
+        </fieldset>
+
+    </panel>
+
+    <dataSource id="utilDateTimeDs" type="grouping">
+		<sql dialect="generic">
+			select 
+				${sql.timestamp('date_measured', 'time_measured')} ${sql.as} utilDateTime
+			from bas_data_clean_num, 
+					bas_measurement_scope	LEFT OUTER JOIN bas_data_point ON bas_data_point.data_point_id=bas_measurement_scope.data_point_id 
+			where bas_data_clean_num.data_point_id=bas_measurement_scope.data_point_id AND bas_data_point.bill_type_id = 'OCCUPANCY' 
+					AND bas_data_clean_num.date_measured IS NOT NULL 
+					and ${parameters['consoleRestriction']} 
+			order by date_measured, time_measured 
+		</sql>
+        <table name="bas_data_clean_num" role="main"/>
+        <field name="utilDateTime" dataType="text" groupBy="true">
+		</field>
+        <parameter name="consoleRestriction" dataType="verbatim" value="1=1"/>
+    </dataSource>
+    
+    <dataSource id="gapAnalysisHeadcountDs">
+		<sql dialect="generic">
+			select 
+				sum(bas_data_clean_num.value_reported) ${sql.as} headcount
+			from bas_data_clean_num, 
+					bas_measurement_scope left outer join rm on rm.bl_id = bas_measurement_scope.bl_id AND rm.fl_id = bas_measurement_scope.fl_id AND rm.rm_id = bas_measurement_scope.rm_id
+															LEFT OUTER JOIN bas_data_point ON bas_data_point.data_point_id=bas_measurement_scope.data_point_id 
+			where bas_data_clean_num.data_point_id=bas_measurement_scope.data_point_id AND bas_data_point.bill_type_id = 'OCCUPANCY' 
+					and 	${sql.timestamp('date_measured', 'time_measured')} = ${parameters['utilDateTime']} 
+					and ${parameters['consoleRestriction']} 
+		</sql>
+
+        <table name="bas_data_clean_num" role="main"/>
+        <field name="headcount" table="bas_data_clean_num" dataType="number" decimals="0"/>
+        <parameter name="utilDateTime" dataType="text" value=""/>
+        <parameter name="consoleRestriction" dataType="verbatim" value="1=1"/>
+    </dataSource>
+    
+     <dataSource id="gapAnalysisUtilizationDs">
+		<sql dialect="generic">
+			select 
+				case when sum( case when rm.cap_em is null or rm.cap_em=0 then 0 else rm.cap_em end )=0 then 0
+						else 100*sum(bas_data_clean_num.value_reported) / avg( case when rm.cap_em is null or rm.cap_em=0 then 0 else rm.cap_em end )  
+				end  ${sql.as} utilization   
+			from bas_data_clean_num, 
+					bas_measurement_scope	left outer join rm on rm.bl_id = bas_measurement_scope.bl_id AND rm.fl_id = bas_measurement_scope.fl_id AND rm.rm_id = bas_measurement_scope.rm_id
+															LEFT OUTER JOIN bas_data_point ON bas_data_point.data_point_id=bas_measurement_scope.data_point_id 
+			where bas_data_clean_num.data_point_id=bas_measurement_scope.data_point_id AND bas_data_point.bill_type_id = 'OCCUPANCY' 
+					and 	${sql.timestamp('date_measured', 'time_measured')} = ${parameters['utilDateTime']} 
+					and ${parameters['consoleRestriction']} 
+		</sql>
+
+        <table name="bas_data_clean_num" role="main"/>
+        <field name="utilization" dataType="number" decimals="2"/>
+        <parameter name="utilDateTime" dataType="text" value=""/>
+        <parameter name="consoleRestriction" dataType="verbatim" value="1=1"/>
+    </dataSource>
+
+    <panel type="html" id="gapAnalysisChartPanel">
+		<title>Headcount and Utilization Rate by Location</title>
+        <html>
+            <div id="gapAnalysisChartDiv" style="width:100%; height:100%; margin:auto;background-color:#FFFFFF"></div>
+        </html>
+    </panel>
+
+
+</view>

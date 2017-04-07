@@ -1,0 +1,241 @@
+<view version="2.0">
+    <title translatable="true">Highlight Department Rooms per Floor</title>
+    
+    <layout id="main">
+    	<north id="filterPosition" initialSize="13%" split="true"/>
+        <west id="selectedPosition" initialSize="20%" split="true"/>
+        <center/>
+    </layout>
+    
+    <layout id="nested_center" containingLayout="main" region="center">
+        <center id="dwgPosition"/>
+        <south id="legentPosition" initialSize="20%" split="true"/>
+    </layout>
+    
+    <message name="total" translatable="true">Total</message>
+    <message name="drawingPanelTitle1" translatable="true">Highlight Department Rooms per Floor</message>
+    <message name="drawingPanelTitle2" translatable="true">Highlight Rooms for Floor: {0} , Department: {1}</message>
+    
+	<dataSource id="abSpHlDpRmPerFlTrans_ConsoleDS">
+        <table name="rmpct" role="main"/>
+        <field table="rmpct" name="bl_id" required="false"/>
+        <field table="rmpct" name="date_start"/>
+    </dataSource>
+	
+	<panel type="console" id="abSpHlDpRmPerFlTrans_Console" columns="2" dataSource="abSpHlDpRmPerFlTrans_ConsoleDS" layoutRegion="filterPosition">
+        <title translatable="true">Filter</title>
+        <action id="showTree">
+            <title translatable="true">Show</title>
+        </action>
+		<action id="clear">
+            <title translatable="true">Clear</title>
+            <command type="clearPanel" panelId="abSpHlDpRmPerFlTrans_Console"/>
+        </action>
+    </panel>
+	
+    <dataSource id="abSpHlDpRmPerFlTrans_FlTreeBlDS">
+        <table name="bl" role="main"/>
+        <field table="bl" name="bl_id"/>
+        <restriction type="sql" sql="${parameters['blConsoleRes']} and EXISTS (SELECT 1 FROM (select pct_id, activity_log_id, bl_id , fl_id, rm_id, dv_id, dp_id , rm_cat, rm_type, date_start, date_end, status from rmpct 
+			          union select  pct_id, activity_log_id, bl_id , fl_id, rm_id, dv_id, dp_id , rm_cat, rm_type, date_start, date_end, status from hrmpct ) 
+			          rmpct LEFT JOIN rmcat 
+								 ON rmpct.rm_cat= rmcat.rm_cat 
+								 WHERE rmpct.dv_id = '${user.employee.organization.divisionId}' 
+									 AND rmpct.dp_id='${user.employee.organization.departmentId}'
+									 AND rmpct.bl_id= bl.bl_id
+									 AND rmpct.status=1 and (rmpct.date_start IS NULL OR rmpct.date_start &lt;= ${parameters['date']}) and (rmpct.date_end IS NULL OR rmpct.date_end &gt;= ${parameters['date']})
+									 AND ( (rmpct.rm_cat IS NULL) OR (rmcat.used_in_calcs IN('all_totals', 'dp_comn_ocup_totals')) ) 
+								)"/>
+		<parameter name="date" dataType="date" value=""/>
+        <parameter name="blConsoleRes" dataType="verbatim" value="1=1"/>
+        <sortField table="bl" name="bl_id" ascending="true"/>
+    </dataSource>
+    
+    <dataSource id="abSpHlDpRmPerFlTrans_FlTreeFlDS">
+         <sql dialect="generic">
+            SELECT
+				rm.bl_id ${sql.as} bl_id,
+				rm.fl_id ${sql.as} fl_id,
+				rm.dwgname ${sql.as} dwgname
+            FROM rm WHERE rm.dwgname IS NOT NULL GROUP BY rm.bl_id,rm.fl_id,rm.dwgname
+        </sql>
+        <table name="fl" role="main"/>
+        <field name="fl_id"/>
+		<field name="dwgname"/>
+        <restriction type="sql" sql="EXISTS (SELECT 1 FROM (select pct_id, activity_log_id, bl_id , fl_id, rm_id, dv_id, dp_id , rm_cat, rm_type, date_start, date_end, status from rmpct 
+			          union select  pct_id, activity_log_id, bl_id , fl_id, rm_id, dv_id, dp_id , rm_cat, rm_type, date_start, date_end, status from hrmpct ) 
+			          rmpct LEFT JOIN rmcat 
+								 ON rmpct.rm_cat= rmcat.rm_cat LEFT JOIN rm 
+								 ON rmpct.bl_id= rm.bl_id AND rmpct.fl_id= rm.fl_id AND rmpct.rm_id= rm.rm_id
+								 WHERE rmpct.dv_id = '${user.employee.organization.divisionId}' 
+									 AND rmpct.dp_id='${user.employee.organization.departmentId}'
+									 AND rmpct.bl_id = fl.bl_id AND rmpct.fl_id = fl.fl_id 
+									 AND rmpct.status=1 and (rmpct.date_start IS NULL OR rmpct.date_start &lt;= ${parameters['date']}) and (rmpct.date_end IS NULL OR rmpct.date_end &gt;= ${parameters['date']})
+									 AND rm.dwgname = fl.dwgname 
+									 AND ( (rmpct.rm_cat IS NULL) OR (rmcat.used_in_calcs IN('all_totals', 'dp_comn_ocup_totals')) )
+								)"/>
+		<parameter name="date" dataType="date" value=""/>
+        <sortField table="fl" name="fl_id" ascending="true"/>
+    </dataSource>
+    
+    <panel type="tree" id="abSpHlDpRmPerFlTrans_FlTree" dataSource="abSpHlDpRmPerFlTrans_FlTreeBlDS" showOnLoad="false" layoutRegion="selectedPosition">
+        <title translatable="true">Select Floor</title>
+        <panel type="tree" id="abSpHlDpRmPerFlTrans_FlTree_level2" dataSource="abSpHlDpRmPerFlTrans_FlTreeFlDS">
+            <event type="onClickNode">
+                <command type="callFunction" functionName="onFlTreeClick"/>
+            </event>
+        </panel>
+    </panel>
+    
+    <panel type="view" id="abSpHlDpRmPerFlTrans_shareDS" file="ab-sp-share-ds-for-hl-rmpct-by-dp-per-fl.axvw"/>
+    <panel type="html" id="timeLineButton"  layoutRegion="dwgPosition">
+        <action id="previousYear">
+            <tooltip translatable="true">Year</tooltip>
+            <title translatable="true">&lt;&lt;&lt;</title>
+            <command type="callFunction" functionName="previousYear"/>
+        </action>
+        <action id="previousMonth">
+            <title translatable="true">&lt;&lt;</title>
+            <tooltip translatable="true">Month</tooltip>
+            <command type="callFunction" functionName="previousMonth"/>
+        </action>
+        <action id="previousWeek">
+            <title translatable="true">&lt;</title>
+            <tooltip translatable="true">Week</tooltip>
+            <command type="callFunction" functionName="previousWeek"/>
+        </action>
+        <action id="currentDate">
+            <title translatable="true">current date</title>
+        </action>
+        <action id="nextWeek">
+            <title translatable="true">&gt;</title>
+            <tooltip translatable="true">Week</tooltip>
+            <command type="callFunction" functionName="nextWeek"/>
+        </action>
+        <action id="nextMonth">
+            <title translatable="true">&gt;&gt;</title>
+            <tooltip translatable="true">Month</tooltip>
+            <command type="callFunction" functionName="nextMonth"/>
+        </action>
+        <action id="nextYear">
+            <title translatable="true">&gt;&gt;&gt;</title>
+            <tooltip translatable="true">Year</tooltip>
+            <command type="callFunction" functionName="nextYear"/>
+        </action>
+    </panel>
+    <panel type="drawing" id="abSpHlDpRmPerFlTrans_floorPlan" layoutRegion="dwgPosition" multiple="false"
+     selectionMode="0" 
+     highlightDataSource="abSpShareDSForHlRmByDpPerFl_rmHighlightDS"
+     labelsDataSource="abSpShareDSForHlRmByDpPerFl_rmLabelDS">
+        <title></title>
+		<action id="exportDOCX">
+			<title translatable="true">DOC</title>
+			<tooltip translatable="true">Export current view of drawing to Docx file.</tooltip>
+			<command type="exportPanel" outputType="docx" panelId="abSpHlDpRmPerFlTrans_floorPlan"/>
+		</action>
+    </panel>
+    
+    <dataSource id="abSpHlDpRmPerFlTrans_summaryGridDS">
+        <table name="dp" role="main"/>
+		<field name="dv_id" table="dp"/>
+		<field name="dp_id" table="dp"/>
+		<field name="count_rm" dataType="number" decimals="0" showTotals="true">
+			<title>Total Count</title>
+			<sql dialect="generic">(select count(distinct bl_id${sql.concat}fl_id${sql.concat} rm_id )from (select pct_id, activity_log_id, bl_id , fl_id, rm_id, dv_id, dp_id , rm_cat, rm_type, date_start, date_end, status ,area_rm from rmpct 
+			    union select  pct_id, activity_log_id, bl_id , fl_id, rm_id, dv_id, dp_id , rm_cat, rm_type, date_start, date_end, status,area_rm from hrmpct ) 
+			    rmpct where rmpct.dv_id = dp.dv_id and rmpct.dp_id = dp.dp_id and rmpct.bl_id = ${parameters['blId']} and rmpct.fl_id = ${parameters['flId']}
+				and ${parameters['rmpctConsoleRes']} 
+				
+				and ( rmpct.status=1 and (rmpct.date_start IS NULL OR rmpct.date_start &lt;= ${parameters['date']}) 
+			                    and (rmpct.date_end IS NULL OR rmpct.date_end &gt;= ${parameters['date']})
+			         )) </sql>
+		</field>
+
+		<field name="area_rm_total" dataType="number" showTotals="true">
+			<title>Total Area</title>
+			<sql dialect="generic">(select sum(case when rmpct.day_part=0 then rmpct.pct_space/100.00*rm.area else rmpct.pct_space/200.00*rm.area end) FROM (select pct_id, activity_log_id, bl_id , fl_id, rm_id, dv_id, dp_id , rm_cat, rm_type, date_start, date_end, status ,area_rm,pct_space, day_part from rmpct 
+			    union select  pct_id, activity_log_id, bl_id , fl_id, rm_id, dv_id, dp_id , rm_cat, rm_type, date_start, date_end, status,area_rm,pct_space, day_part from hrmpct ) 
+			    ${sql.as} rmpct left outer join rm on rm.bl_id=rmpct.bl_id and rm.fl_id=rmpct.fl_id and rm.rm_id=rmpct.rm_id  where rmpct.dv_id = dp.dv_id and rmpct.dp_id = dp.dp_id and rmpct.bl_id = ${parameters['blId']} and rmpct.fl_id = ${parameters['flId']}
+				and ${parameters['rmpctConsoleRes']} 
+				
+				and ( rmpct.status=1 and (rmpct.date_start IS NULL OR rmpct.date_start &lt;= ${parameters['date']}) 
+			                    and (rmpct.date_end IS NULL OR rmpct.date_end &gt;= ${parameters['date']})
+			         )
+				
+				)
+			</sql>
+		</field>
+		<field name="area_avg_rm" dataType="number">
+			<title>Average Area</title>
+			<sql dialect="generic">(case when (select count(distinct bl_id${sql.concat}fl_id${sql.concat} rm_id) from (select pct_id, activity_log_id, bl_id , fl_id, rm_id, dv_id, dp_id , rm_cat, rm_type, date_start, date_end, status ,area_rm from rmpct 
+			    union select  pct_id, activity_log_id, bl_id , fl_id, rm_id, dv_id, dp_id , rm_cat, rm_type, date_start, date_end, status,area_rm from hrmpct ) 
+			    rmpct where rmpct.dv_id = dp.dv_id and rmpct.dp_id = dp.dp_id and rmpct.bl_id = ${parameters['blId']} and rmpct.fl_id = ${parameters['flId']}
+				and ${parameters['rmpctConsoleRes']} 
+				
+				and ( rmpct.status=1 and (rmpct.date_start IS NULL OR rmpct.date_start &lt;= ${parameters['date']}) 
+			                    and (rmpct.date_end IS NULL OR rmpct.date_end &gt;= ${parameters['date']})
+			         ))= 0 then 0
+				else (select sum(case when rmpct.day_part=0 then rmpct.pct_space/100.00*rm.area else rmpct.pct_space/200.00*rm.area end) FROM (select pct_id, activity_log_id, bl_id , fl_id, rm_id, dv_id, dp_id , rm_cat, rm_type, date_start, date_end, status ,area_rm,pct_space, day_part from rmpct 
+			    union select  pct_id, activity_log_id, bl_id , fl_id, rm_id, dv_id, dp_id , rm_cat, rm_type, date_start, date_end, status ,area_rm,pct_space, day_part from hrmpct ) 
+			    ${sql.as} rmpct left outer join rm on rmpct.bl_id=rm.bl_id and rmpct.fl_id=rm.fl_id and rmpct.rm_id=rm.rm_id where rmpct.dv_id = dp.dv_id and rmpct.dp_id = dp.dp_id and rmpct.bl_id = ${parameters['blId']} and rmpct.fl_id = ${parameters['flId']}
+				and ${parameters['rmpctConsoleRes']} 
+				
+				and ( rmpct.status=1 and (rmpct.date_start IS NULL OR rmpct.date_start &lt;= ${parameters['date']}) 
+			                    and (rmpct.date_end IS NULL OR rmpct.date_end &gt;= ${parameters['date']})
+			         )
+				
+				)/(select count(distinct bl_id${sql.concat}fl_id${sql.concat} rm_id) from (select pct_id, activity_log_id, bl_id , fl_id, rm_id, dv_id, dp_id , rm_cat, rm_type, date_start, date_end, status ,area_rm from rmpct 
+			    union select  pct_id, activity_log_id, bl_id , fl_id, rm_id, dv_id, dp_id , rm_cat, rm_type, date_start, date_end, status,area_rm from hrmpct ) 
+			    rmpct where rmpct.dv_id = dp.dv_id and rmpct.dp_id = dp.dp_id and rmpct.bl_id = ${parameters['blId']} and rmpct.fl_id = ${parameters['flId']}
+				and ${parameters['rmpctConsoleRes']} 
+				
+				and (   rmpct.status=1 and (rmpct.date_start IS NULL OR rmpct.date_start &lt;= ${parameters['date']}) 
+			                    and (rmpct.date_end IS NULL OR rmpct.date_end &gt;= ${parameters['date']})
+			         )) end)</sql>
+		</field>
+		<field name="hpattern_acad" table="dp"/>
+		<field name="asset_id" dataType="text">
+			<sql dialect="generic">dp.dv_id${sql.concat}'-'${sql.concat}dp.dp_id</sql>
+		</field>
+		<parameter name="blId" dataType="text" value=""/>
+		<parameter name="flId" dataType="text" value=""/>
+		<parameter name="date" dataType="date" value=""/>
+		<parameter name="rmpctConsoleRes" dataType="verbatim" value="1=1"/>
+		<restriction type="sql" sql="dp.dv_id = '${user.employee.organization.divisionId}'  AND dp.dp_id='${user.employee.organization.departmentId}' and EXISTS(select 1 FROM (select pct_id, activity_log_id, bl_id , fl_id, rm_id, dv_id, dp_id , rm_cat, rm_type, date_start, date_end, status from rmpct 
+			union select  pct_id, activity_log_id, bl_id , fl_id, rm_id, dv_id, dp_id , rm_cat, rm_type, date_start, date_end, status from hrmpct ) 
+			rmpct where rmpct.dv_id = dp.dv_id and rmpct.dp_id = dp.dp_id and rmpct.bl_id = ${parameters['blId']} and rmpct.fl_id = ${parameters['flId']} 
+		  and ${parameters['rmpctConsoleRes']} 
+		  
+		  and (   rmpct.status=1 and (rmpct.date_start IS NULL OR rmpct.date_start &lt;= ${parameters['date']}) 
+			                    and (rmpct.date_end IS NULL OR rmpct.date_end &gt;= ${parameters['date']})
+			         )
+		  
+		  )"/>
+	</dataSource>
+    
+    <panel type="grid" id="abSpHlDpRmPerFlTrans_summaryGrid" dataSource="abSpHlDpRmPerFlTrans_summaryGridDS" showCounts="true" showOnLoad="false" layoutRegion="legentPosition">
+		<title>Summary by Division-Department</title>
+		<sortField table="dp" name="dv_id" ascending="true"/>
+		<sortField table="dp" name="dp_id" ascending="true"/>
+		<indexField table="dp" name="dp_id"/>
+		<field id="abSpHlDpRmPerFlTrans_summaryGrid_legend" table="dp" name="hpattern_acad" controlType="color">
+			<title>Legend</title>
+		</field>
+		<field name="dv_id" table="dp"/>
+		<field name="dp_id" table="dp"/>
+		<field name="count_rm" dataType="number" showTotals="true">
+			<title>Total Count</title>
+		</field>
+
+		<field name="area_rm_total" dataType="number" showTotals="true">
+			<title>Total Area</title>
+		</field>
+		<field name="area_avg_rm" dataType="number">
+			<title>Average Area</title>
+		</field>
+	</panel>
+    
+    <js file="ab-sp-hl-dp-rm-per-fl-trans.js"/>
+    <js file="ab-sp-timeline-common.js"/>
+    <js file="ab-sp-common.js"/>
+</view>

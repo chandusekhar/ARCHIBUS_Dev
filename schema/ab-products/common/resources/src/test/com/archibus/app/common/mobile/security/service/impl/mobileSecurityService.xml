@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:aop="http://www.springframework.org/schema/aop"
+	xmlns:p="http://www.springframework.org/schema/p" xmlns:util="http://www.springframework.org/schema/util"
+	xmlns:security="http://www.springframework.org/schema/security"
+	xsi:schemaLocation="
+http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans.xsd
+http://www.springframework.org/schema/security http://www.springframework.org/schema/security/spring-security.xsd
+    http://www.springframework.org/schema/aop http://www.springframework.org/schema/aop/spring-aop.xsd
+    http://www.springframework.org/schema/util http://www.springframework.org/schema/util/spring-util.xsd">
+
+	<bean id="mobileSecurityService-remote" class="org.springframework.aop.framework.ProxyFactoryBean"
+		p:proxyInterfaces="com.archibus.app.common.mobile.security.service.IMobileSecurityService">
+		<property name="target">
+			<bean
+				class="com.archibus.app.common.mobile.security.service.impl.MobileSecurityService"
+                p:mobileLicenseManager-ref="mobileLicenseManager"
+				p:authenticationManager-ref="authenticationManager"
+				p:securityService-ref="securityService" 
+				p:userAccountDao-ref="userAccountDaoDirect"
+                p:encryptor-ref="passwordEncoderForMobileSecurityService"
+				p:securityConfiguration="afm-users">
+			</bean>
+		</property>
+		<property name="interceptorNames">
+			<list>
+				<value>securityInterceptor</value>
+				<value>contextInterceptor</value>
+				<value>projectPopulatingContextInterceptor</value>
+				<value>coreUserSessionPopulatingContextInterceptor</value>
+                <value>exceptionHandlingInterceptor</value>
+				<value>transactionInterceptor.data</value>
+				<value>eventHandlerContextInterceptor</value>
+			</list>
+		</property>
+	</bean>
+
+	<!-- ProjectPopulatingContextInterceptor populates Context with specified 
+		Project. Context must already exist. The * specified projectId must exist 
+		in the ConfigManager. -->
+	<bean id="projectPopulatingContextInterceptor"
+		class="com.archibus.app.common.mobile.security.service.impl.ProjectPopulatingContextInterceptor"
+		p:configManager-ref="configManager" p:projectId="HQ-Sybase-WebEdition">
+	</bean>
+
+	<!-- CoreUserSessionPopulatingContextInterceptor populates Context with 
+		the Core user session. Context must already exist. -->
+	<bean id="coreUserSessionPopulatingContextInterceptor"
+		class="com.archibus.app.common.mobile.security.service.impl.CoreUserSessionPopulatingContextInterceptor"
+		p:configManager-ref="configManager">
+	</bean>
+
+	<!-- userAccountDaoDirect. -->
+	<bean id="userAccountDaoDirect"
+		class="com.archibus.app.common.mobile.security.dao.datasource.UserAccountDataSource"
+		p:userDetailsService-ref="userAccountDao">
+	</bean>
+
+    <bean id="passwordEncoderForMobileSecurityService"
+        class="com.archibus.security.PasswordEncoderVersion2Impl"
+        p:useEncoding="true">
+    </bean>
+
+</beans>
+

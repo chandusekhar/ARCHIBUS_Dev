@@ -1,0 +1,250 @@
+<view version="2.0">
+    <!-- Group by data sources that are used in Portfolio Items by Location view (ab-repm-pfadmin-item-by-location.axvw) -->
+    <!-- Messages -->
+    <message name="title_geo_region" translatable="true">Geographic Business Regions</message>
+    <message name="title_ctry" translatable="true">Countries</message>
+    <message name="title_regn" translatable="true">Regions</message>
+    <message name="title_state" translatable="true">States</message>
+    <message name="title_city" translatable="true">Cities</message>
+    <message name="title_site" translatable="true">Sites</message>
+    <message name="title_property" translatable="true">Properties</message>
+
+    <message name="name_geo_region" translatable="true">Geo-Region Name</message>
+    <message name="name_ctry" translatable="true">Country Name</message>
+    <message name="name_regn" translatable="true">Region Name</message>
+    <message name="name_state" translatable="true">State Name</message>
+    <message name="name_city" translatable="true">City Name</message>
+    <message name="name_site" translatable="true">Site Name</message>
+    <message name="name_property" translatable="true">Property Name</message>
+    
+    <!-- Buildings -->
+    <dataSource id="abRepmPfadminGroupBy_bl_ds" type="grouping" applyVpaRestrictions="false">
+        <sql dialect="generic">
+            SELECT
+                bl.bl_id ${sql.as} bl_id,
+                (SELECT ctry.geo_region_id FROM ctry WHERE ctry.ctry_id = bl.ctry_id) ${sql.as} geo_region_id,
+                (SELECT geo_region.geo_region_name FROM geo_region, ctry WHERE geo_region.geo_region_id = ctry.geo_region_id AND ctry.ctry_id = bl.ctry_id) ${sql.as} vf_geo_region_name,
+                bl.ctry_id ${sql.as} ctry_id,
+                (SELECT ctry.name FROM ctry WHERE ctry.ctry_id = bl.ctry_id) ${sql.as} vf_ctry_name,
+                bl.regn_id ${sql.as} regn_id,
+                (SELECT regn.name FROM regn WHERE regn.ctry_id = bl.ctry_id AND regn.regn_id = bl.regn_id) ${sql.as} vf_regn_name,
+                bl.state_id ${sql.as} state_id,
+                (SELECT state.name FROM state WHERE state.state_id = bl.state_id) ${sql.as} vf_state_name,
+                bl.city_id ${sql.as} city_id, 
+                (SELECT city.name FROM city WHERE city.state_id = bl.state_id AND city.city_id = bl.city_id) ${sql.as} vf_city_name,
+                bl.site_id ${sql.as} site_id,
+                (SELECT site.name FROM site WHERE site.site_id = bl.site_id) ${sql.as} vf_site_name,
+                bl.pr_id ${sql.as} pr_id,
+                (SELECT property.name FROM property WHERE property.pr_id = bl.pr_id) ${sql.as} vf_pr_name,
+                bl.value_book * ${sql.exchangeRateFromBudgetToUserForDate('Budget', 'bl.date_book_val')} ${sql.as} value_book,
+                bl.value_market * ${sql.exchangeRateFromBudgetToUserForDate('Budget', 'bl.date_market_val')} ${sql.as} value_market,
+                bl.area_rentable ${sql.as} area_rentable,
+                bl.count_max_occup ${sql.as} count_max_occup,
+                bl.count_occup ${sql.as} count_occup,
+                (SELECT (CASE COUNT(*) WHEN 0 THEN bl.area_avg_em ELSE bl.area_usable / COUNT(*) END) FROM em WHERE em.bl_id = bl.bl_id ) ${sql.as} vf_area_em,
+                bl.cost_sqft * ${sql.exchangeRateFromBudgetToUser('Budget')} ${sql.as} cost_sqft
+            FROM bl
+            WHERE ${sql.vpaRestriction}
+        </sql>
+        <table name="bl" role="main"/>
+        <field name="vf_name" dataType="text">
+            <sql dialect="generic"> 
+                MAX(${parameters['field_name']})
+            </sql>
+        </field>
+        <field name="key1" dataType="text" groupBy="true">
+            <sql dialect="generic">
+                (${parameters['key1']})
+            </sql>
+        </field>
+        <field name="key2" dataType="text" groupBy="true">
+            <sql dialect="generic">
+                (${parameters['key2']})
+            </sql>
+        </field>
+        <field name="vf_pr_id" formula="max" baseField="bl.pr_id" dataType="text"/>
+        <field name="vf_site_id" formula="max" baseField="bl.site_id" dataType="text"/>
+        <field name="vf_city_id" formula="max" baseField="bl.city_id" dataType="text"/>
+        <field name="vf_state_id" formula="max" baseField="bl.state_id" dataType="text"/>
+        <field name="vf_regn_id" formula="max" baseField="bl.regn_id" dataType="text"/>
+        <field name="vf_ctry_id" formula="max" baseField="bl.ctry_id" dataType="text"/>
+        <field name="vf_geo_region_id" formula="max" baseField="bl.geo_region_id" dataType="text"/>
+        <field name="vf_sum_value_book" formula="sum" baseField="bl.value_book" dataType="number" size="20" decimals="2" currency="${user.userCurrency.code}"/>
+        <field name="vf_sum_value_market" formula="sum" baseField="bl.value_market" dataType="number" size="20" decimals="2" currency="${user.userCurrency.code}"/>
+        <field name="vf_sum_area_rentable" formula="sum" baseField="bl.area_rentable" dataType="number" size="20" decimals="1" numericFormat="area"/>
+        <field name="vf_sum_cnt_max_occup" formula="sum" baseField="bl.count_max_occup" dataType="number" size="20" decimals="0"/>
+        <field name="vf_sum_count_occup" formula="sum" baseField="bl.count_occup" dataType="number" size="20" decimals="0"/>
+        <field name="vf_sum_vacancy_percent" dataType="number" size="20" decimals="0">
+            <sql dialect="generic">
+                ((1 - SUM(bl.count_occup)/ (CASE SUM(bl.count_max_occup) WHEN 0 THEN 9999999999 ELSE SUM(bl.count_max_occup) END))*100)
+            </sql>
+        </field>       
+        <field name="vf_avg_area_em" formula="avg" baseField="bl.vf_area_em" dataType="number" size="20" decimals="1" numericFormat="area"/>
+        <field name="vf_avg_cost_sqft" formula="avg" baseField="bl.cost_sqft" dataType="number" size="20" decimals="2" numericFormat="area" currency="${user.userCurrency.code}"/>
+        <parameter name="key1" dataType="verbatim" value="bl.ctry_id"/>
+        <parameter name="key2" dataType="verbatim" value="bl.regn_id"/>
+        <parameter name="field_name" dataType="verbatim" value="bl.vf_regn_name"/>
+        <parameter name="geoRegionRestriction" dataType="verbatim" value="1 = 1"/>
+        <restriction type="sql" sql="${parameters['key1']} IS NOT NULL AND ${parameters['key2']} IS NOT NULL AND ${parameters['geoRegionRestriction']}"/>
+    </dataSource>
+    
+    <panel type="grid" controlType="reportGrid" id="abRepmPfadminGroupBy_bl" dataSource="abRepmPfadminGroupBy_bl_ds" selectionEnabled="true" layoutRegion="groupingPos" showOnLoad="false">
+        <sortField table="bl" name="vf_name" ascending="true"/>
+        <action id="export_XLS" hidden="false">
+            <title>XLS</title>
+            <command type="exportPanel" outputType="xls" panelId="abRepmPfadminGroupBy_bl"/>
+        </action>
+        <field name="vf_name" dataType="text" controlType="link" onclick="showItemsFor">
+            <title translatable="false">&#160;</title>
+        </field>
+        <field name="vf_pr_id" dataType="text" controlType="link" onclick="showItemsFor">
+            <title>Property Code</title>
+        </field>
+        <field name="vf_site_id" dataType="text" controlType="link" onclick="showItemsFor">
+            <title>Site Code</title>
+        </field>
+        <field name="vf_city_id" dataType="text" controlType="link" onclick="showItemsFor">
+            <title>City Code</title>
+        </field>
+        <field name="vf_state_id" dataType="text" controlType="link" onclick="showItemsFor">
+            <title>State Code</title>
+        </field>
+        <field name="vf_regn_id" dataType="text" controlType="link" onclick="showItemsFor">
+            <title>Region Code</title>
+        </field>
+        <field name="vf_ctry_id" dataType="text" controlType="link" onclick="showItemsFor">
+            <title>Country Code</title>
+        </field>
+        <field name="vf_geo_region_id" dataType="text" controlType="link" onclick="showItemsFor">
+            <title>Geo-Region Code</title>
+        </field>
+        <field name="vf_sum_value_book" dataType="number" size="20" decimals="2" currency="${user.userCurrency.code}">
+            <title>Value Book</title>
+        </field>
+        <field name="vf_sum_value_market" dataType="number" size="20" decimals="2" currency="${user.userCurrency.code}">
+            <title>Value Market</title>
+        </field>
+        <field name="vf_sum_area_rentable" dataType="number" size="20" decimals="1" numericFormat="area">
+            <title>Building Rentable Area ${(activityParameters['AbCommonResources-ConvertAreasLengthsToUserUnits'] == 1)?user.areaUnits.title:''}</title>
+        </field>
+        <field name="vf_sum_cnt_max_occup" dataType="number" size="20" decimals="0">
+            <title>Building Maximum Headcount</title>
+        </field>
+        <field name="vf_sum_count_occup" dataType="number" size="20" decimals="0">
+            <title>Building Occupancy</title>
+        </field>
+        <field name="vf_sum_vacancy_percent" dataType="number" size="20" decimals="0">
+            <title>Vacancy Percent</title>
+        </field>       
+        <field name="vf_avg_area_em" dataType="number" size="20" decimals="1" numericFormat="area">
+            <title>Avg. Area per Emp. ${(activityParameters['AbCommonResources-ConvertAreasLengthsToUserUnits'] == 1)?user.areaUnits.title:''}</title>
+        </field>
+        <field name="vf_avg_cost_sqft" dataType="number" size="20" decimals="2" numericFormat="area" currency="${user.userCurrency.code}">
+            <title>Avg. Cost per Area. ${(activityParameters['AbCommonResources-ConvertAreasLengthsToUserUnits'] == 1)?user.areaUnits.title:''}</title>
+        </field>
+    </panel>
+
+    <!-- Properties -->
+    <dataSource id="abRepmPfadminGroupBy_property_ds" type="grouping" applyVpaRestrictions="false">
+        <sql dialect="generic">
+            SELECT
+                property.pr_id ${sql.as} pr_id,
+                (SELECT ctry.geo_region_id FROM ctry WHERE ctry.ctry_id = property.ctry_id) ${sql.as} geo_region_id,
+                (SELECT geo_region.geo_region_name FROM geo_region, ctry WHERE geo_region.geo_region_id = ctry.geo_region_id AND ctry.ctry_id = property.ctry_id) ${sql.as} vf_geo_region_name,
+                property.ctry_id ${sql.as} ctry_id,
+                (SELECT ctry.name FROM ctry WHERE ctry.ctry_id = property.ctry_id) ${sql.as} vf_ctry_name,
+                property.regn_id ${sql.as} regn_id,
+                (SELECT regn.name FROM regn WHERE regn.ctry_id = property.ctry_id AND regn.regn_id = property.regn_id) ${sql.as} vf_regn_name,
+                property.state_id ${sql.as} state_id,
+                (SELECT state.name FROM state WHERE state.state_id = property.state_id) ${sql.as} vf_state_name,
+                property.city_id ${sql.as} city_id, 
+                (SELECT city.name FROM city WHERE city.state_id = property.state_id AND city.city_id = property.city_id) ${sql.as} vf_city_name,
+                property.site_id ${sql.as} site_id,
+                (SELECT site.name FROM site WHERE site.site_id = property.site_id) ${sql.as} vf_site_name,
+                property.value_book * ${sql.exchangeRateFromBudgetToUserForDate('Budget', 'property.date_book_val')} ${sql.as} value_book,
+                property.value_market * ${sql.exchangeRateFromBudgetToUserForDate('Budget', 'property.date_market_val')} ${sql.as} value_market,
+                property.area_manual ${sql.as} area_manual,
+                property.area_cad ${sql.as} area_cad,
+                property.property_type ${sql.as} property_type
+            FROM property
+            WHERE ${sql.vpaRestriction}
+        </sql>
+        <table name="property" role="main"/>
+        <field name="vf_name" dataType="text">
+            <sql dialect="generic"> 
+                MAX(${parameters['field_name']})
+            </sql>
+        </field>
+        <field name="key1" dataType="text" groupBy="true">
+            <sql dialect="generic">
+                (${parameters['key1']})
+            </sql>
+        </field>
+        <field name="key2" dataType="text" groupBy="true">
+            <sql dialect="generic">
+                (${parameters['key2']})
+            </sql>
+        </field>
+        <field name="vf_site_id" formula="max" baseField="property.site_id" dataType="text"/>
+        <field name="vf_city_id" formula="max" baseField="property.city_id" dataType="text"/>
+        <field name="vf_state_id" formula="max" baseField="property.state_id" dataType="text"/>
+        <field name="vf_regn_id" formula="max" baseField="property.regn_id" dataType="text"/>
+        <field name="vf_ctry_id" formula="max" baseField="property.ctry_id" dataType="text"/>
+        <field name="vf_geo_region_id" formula="max" baseField="property.geo_region_id" dataType="text"/>
+        
+        <field name="vf_sum_value_book" formula="sum" baseField="property.value_book" dataType="number" size="20" decimals="2" currency="${user.userCurrency.code}"/>
+        <field name="vf_sum_value_market" formula="sum" baseField="property.value_market" dataType="number" size="20" decimals="2" currency="${user.userCurrency.code}"/>
+        <field name="vf_sum_area_manual" formula="sum" baseField="property.area_manual" dataType="number" size="20" decimals="1" numericFormat="area"/>
+        <field name="vf_sum_area_cad" formula="sum" baseField="property.area_cad" dataType="number" size="20" decimals="1" numericFormat="area"/>
+
+        
+        <parameter name="key1" dataType="verbatim" value="property.ctry_id"/>
+        <parameter name="key2" dataType="verbatim" value="property.regn_id"/>
+        <parameter name="field_name" dataType="verbatim" value="property.vf_regn_name"/>
+        <parameter name="geoRegionRestriction" dataType="verbatim" value="1 = 1"/>
+        <restriction type="sql" sql="${parameters['key1']} IS NOT NULL AND ${parameters['key2']} IS NOT NULL AND ${parameters['geoRegionRestriction']}"/>
+    </dataSource>
+    
+    <panel type="grid"  controlType="reportGrid" id="abRepmPfadminGroupBy_property" dataSource="abRepmPfadminGroupBy_property_ds" selectionEnabled="true" layoutRegion="groupingPos" showOnLoad="false">
+        <sortField table="property" name="vf_name" ascending="true"/>
+        <action id="export_XLS" hidden="false">
+            <title>XLS</title>
+            <command type="exportPanel" outputType="xls" panelId="abRepmPfadminGroupBy_property"/>
+        </action>
+        <field name="vf_name" dataType="text" controlType="link" onclick="showItemsFor">
+            <title translatable="false">&#160;</title>
+        </field>
+        <field name="vf_site_id" dataType="text" controlType="link" onclick="showItemsFor">
+            <title>Site Code</title>
+        </field>
+        <field name="vf_city_id" dataType="text" controlType="link" onclick="showItemsFor">
+            <title>City Code</title>
+        </field>
+        <field name="vf_state_id" dataType="text" controlType="link" onclick="showItemsFor">
+            <title>State Code</title>
+        </field>
+        <field name="vf_regn_id" dataType="text" controlType="link" onclick="showItemsFor">
+            <title>Region Code</title>
+        </field>
+        <field name="vf_ctry_id" dataType="text" controlType="link" onclick="showItemsFor">
+            <title>Country Code</title>
+        </field>
+        <field name="vf_geo_region_id" dataType="text" controlType="link" onclick="showItemsFor">
+            <title>Geo-Region Code</title>
+        </field>
+        
+        <field name="vf_sum_value_book" dataType="number" size="20" decimals="2" currency="${user.userCurrency.code}">
+            <title>Value Book</title>
+        </field>
+        <field name="vf_sum_value_market" dataType="number" size="20" decimals="2" currency="${user.userCurrency.code}">
+            <title>Value Market</title>
+        </field>
+        
+        <field name="vf_sum_area_manual" dataType="number" size="20" decimals="1" numericFormat="area">
+           <title>Area Manual ${(activityParameters['AbCommonResources-ConvertAreasLengthsToUserUnits'] == 1)?user.areaUnits.title:''}</title>
+        </field>
+        <field name="vf_sum_area_cad" dataType="number" size="20" decimals="1" numericFormat="area">
+            <title>Area CAD ${(activityParameters['AbCommonResources-ConvertAreasLengthsToUserUnits'] == 1)?user.areaUnits.title:''}</title>
+        </field>
+    </panel>
+</view>

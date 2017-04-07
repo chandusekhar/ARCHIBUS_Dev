@@ -1,0 +1,286 @@
+<view version="2.0">
+    <message name="confirmApprove" translatable="true">Approve Invoice?</message>
+		<message name="confirmReject" translatable="true">Reject Invoice?</message>		
+  	<js file="ab-proj-mng-pkg-inv-edit.js"/>
+    
+    <dataSource id="projMngPkgInvEditDs1" applyVpaRestrictions="false">
+            <table name="invoice" role="main" />
+        <field name="project_id" table="invoice"/>
+        <field name="work_pkg_id" table="invoice"/>
+        <field name="invoice_id" table="invoice" />        
+        <field name="status" table="invoice" />
+        <field name="date_expected_rec" table="invoice" />
+        <field name="vn_id" table="invoice" /> 
+        <field name="date_sent" table="invoice" />
+        <field name="contact_id_send_to" table="invoice" />
+        <field name="contact_id_remit_to" table="invoice" />
+        <field name="terms" table="invoice" />
+        <field name="amount_closed" table="invoice"  />
+        <field name="qty_invoiced" table="invoice" />
+        <field name="qty_received" table="invoice" />
+        <field name="qty_accepted" table="invoice" />
+        <field name="ac_id" table="invoice" />
+        <field name="bl_id" table="invoice" />
+        <field name="amount_billed" table="invoice"/>
+        <field name="amount_tax" table="invoice" />
+        <field name="amount_billed_total" table="invoice" />
+        <field name="amount_tot_invoice" table="invoice" />
+        <field name="doc" table="invoice" />
+        <field name="description" table="invoice" />  
+        <field name="amount_reimbursable" table="invoice" />
+        <field name="vn_invoice_num" table="invoice"  />
+        <field name="amount_lien" table="invoice" />
+        <field name="amount_lien_tax" table="invoice" />
+        <field name="amount_deficiency" table="invoice" /> 
+        <field name="amount_deficiency_tax" table="invoice" /> 
+				<field name="fac_org_level_01" table="invoice"/>
+				<field name="fac_org_level_02" table="invoice"/>
+				<field name="fac_org_level_03" table="invoice"/>
+				<field name="fac_org_level_04" table="invoice"/>
+				<field name="fac_org_level_05" table="invoice"/>
+				<field name="fac_org_level_06" table="invoice"/>
+				<field name="tot_invoices" table="invoice" dataType="number" decimals="2"/>
+				<field name="revised_contract" table="invoice" dataType="number" decimals="2"/>
+				<field name="commit_remain" table="invoice" dataType="number" decimals="2"/>
+				<sql dialect="generic">
+				SELECT invoice_id, invoice.project_id, invoice.work_pkg_id, status, date_expected_rec, vn_id,
+				date_sent, contact_id_send_to, contact_id_remit_to, terms, amount_closed, 
+				qty_invoiced, qty_received, qty_accepted, ac_id, bl_id, amount_billed, amount_tax, amount_billed_total,
+				amount_tot_invoice, doc, description, amount_reimbursable, vn_invoice_num, amount_lien, amount_lien_tax,
+				amount_deficiency, amount_deficiency_tax, fac_org_level_01, fac_org_level_02, fac_org_level_03, fac_org_level_04, fac_org_level_05, fac_org_level_06,
+				${sql.isNull('tot_invoices', 0)} ${sql.as} tot_invoices,
+				(${sql.isNull('cost_contract',0)}+${sql.isNull('apprv_cost_change_orders',0)}) ${sql.as} revised_contract, 
+				(${sql.isNull('cost_contract',0)}+${sql.isNull('apprv_cost_change_orders',0)}-${sql.isNull('tot_invoices',0)}) ${sql.as} commit_remain
+				FROM
+				invoice
+				LEFT OUTER JOIN
+				(SELECT SUM(amount_tot_invoice) ${sql.as} tot_invoices, project_id, work_pkg_id FROM invoice WHERE invoice.status IN ('ISSUED','SENT','CLOSED') GROUP BY project_id, work_pkg_id) ${sql.as} invoices
+				ON (invoices.project_id = invoice.project_id AND invoices.work_pkg_id = invoice.work_pkg_id)
+				LEFT OUTER JOIN 
+            (SELECT work_pkg_bids.work_pkg_id, work_pkg_bids.project_id, work_pkg_bids.cost_contract FROM work_pkg_bids WHERE work_pkg_bids.status IN ( 'Contract Signed', 'In Process', 'In Process-On Hold', 'Completed', 'Completed and Verified', 'Paid in Full')) 
+            ${sql.as} contract_amount
+        ON (invoice.project_id = contract_amount.project_id AND invoice.work_pkg_id = contract_amount.work_pkg_id ) 
+        LEFT OUTER JOIN
+            (SELECT activity_log.work_pkg_id, activity_log.project_id, SUM(cost_est_design_cap + cost_est_design_exp) ${sql.as} apprv_cost_change_orders FROM activity_log 
+            WHERE activity_log.activity_type LIKE 'PROJECT - CHANGE ORDER' AND activity_log.status NOT IN('CREATED','REQUESTED','REJECTED','CANCELLED') GROUP BY activity_log.project_id, activity_log.work_pkg_id ) ${sql.as} apprv_change_orders 
+        ON (invoice.project_id = apprv_change_orders.project_id AND invoice.work_pkg_id = apprv_change_orders.work_pkg_id)
+    </sql>
+    </dataSource>
+    
+    <dataSource id="projMngPkgInvEditDs2">
+        <table name="invoice_payment" role="main" />
+        <field name="invoice_id" table="invoice_payment"/>
+        <field name="payment_id" table="invoice_payment"/>
+        <field name="amount_expense" table="invoice_payment" showTotals="true"/>
+        <field name="date_paid" table="invoice_payment"/>
+        <field name="check_number" table="invoice_payment"/>
+        <field name="description" table="invoice_payment"/>
+    </dataSource>
+    
+    <dataSource id="projMngPkgInvEditDs3">
+        <table name="work_pkg_bids" role="main"/>
+        <field name="work_pkg_id" table="work_pkg_bids"/>
+        <field name="project_id" table="work_pkg_bids"/>
+        <field name="vn_id" table="work_pkg_bids" />
+        <field name="status" table="work_pkg_bids"/>
+        <field name="cost_bid" table="work_pkg_bids"/>
+        <field name="cost_contract" table="work_pkg_bids"/>
+        <restriction type="sql" sql="work_pkg_bids.status IN ('Contract Signed','In Process','In Process-On Hold','Completed','Completed and Verified','Paid In Full')"/>          
+    </dataSource>
+    
+    <tabs id="projMngPkgInvEditTabs" workflow="enforced">
+    		<tab name="projMngPkgInvEditTab1" selected="true">
+    				<title>Record Invoice</title>
+						<panel type="form" id="projMngPkgInvEdit_inv" newRecord="false" dataSource="projMngPkgInvEditDs1" showOnLoad="true" columns="2">
+				        <title>Record Invoice</title>
+				        <action id="save" hidden="${!panel.newRecord &amp;&amp; record['invoice.status'] != 'ISSUED'}">
+				        		<title>Save &amp; Next</title>
+				        		<command type="saveForm"/>
+				        		<command type="showPanel" panelId="projMngPkgInvGrid" applyParentRestriction="false"/>
+				        		<command type="selectTabPage" tabPageName="projMngPkgInvEditTab2"/>
+				        </action>
+				        <action id="next" hidden="${record['invoice.status'] != 'SENT' &amp;&amp; record['invoice.status'] != 'CLOSED'}">
+				        		<title>Next &gt;&gt;</title>
+				        </action>		
+				        <field name="project_id" table="invoice" required="true" readOnly="true"/>
+							 <field name="amount_billed" table="invoice" readOnly="${!panel.newRecord &amp;&amp; record['invoice.status'] != 'ISSUED'}" required="false" onchange="calculateTaxRate();onUpdateSubtotal()" style="text-align:right" />
+							 <field name="vn_id" table="invoice" required="true" readOnly="${!panel.newRecord &amp;&amp; record['invoice.status'] != 'ISSUED'}">							 
+							 		<action id="projMngPkgInvEdit_selValVn">
+											<title>...</title>
+											<command type="selectValue"
+													fieldNames="invoice.project_id,invoice.work_pkg_id, invoice.vn_id"
+													selectFieldNames="work_pkg_bids.project_id, work_pkg_bids.work_pkg_id, work_pkg_bids.vn_id"
+									 				visibleFieldNames=" work_pkg_bids.vn_id, work_pkg_bids.work_pkg_id, work_pkg_bids.project_id"
+									 				restriction="work_pkg_bids.status IN ('Contract Signed','In Process','In Process-On Hold','Completed','Completed and Verified','Paid In Full')">
+									        <title>Vendor Work Packages</title>  
+									    </command>         
+									 </action>
+							 </field>
+							 <field name="amount_tax" table="invoice" readOnly="${!panel.newRecord &amp;&amp; record['invoice.status'] != 'ISSUED'}" onchange="calculateTaxRate();onUpdateSubtotal()" style="text-align:right"/>
+							 <field name="work_pkg_id" table="invoice" required="true" readOnly="${!panel.newRecord &amp;&amp; record['invoice.status'] != 'ISSUED'}">
+					        <action id="projMngPkgInvEdit_selValPkg">
+											<title>...</title>
+											<command type="selectValue"
+													fieldNames="invoice.project_id,invoice.work_pkg_id, invoice.vn_id"
+													selectFieldNames="work_pkg_bids.project_id, work_pkg_bids.work_pkg_id, work_pkg_bids.vn_id"
+									 				visibleFieldNames="work_pkg_bids.project_id, work_pkg_bids.work_pkg_id, work_pkg_bids.vn_id"
+									 				restriction="work_pkg_bids.status IN ('Contract Signed','In Process','In Process-On Hold','Completed','Completed and Verified','Paid In Full')">
+									        <title>Work Packages</title>  
+									    </command>         
+									 </action>
+							 </field>
+							 <field name="amount_reimbursable" table="invoice" onchange="onUpdateSubtotal()" style="text-align:right"  readOnly="${!panel.newRecord &amp;&amp; record['invoice.status'] != 'ISSUED'}"/>
+							 <field name="vn_invoice_num" table="invoice"  readOnly="${!panel.newRecord &amp;&amp; record['invoice.status'] != 'ISSUED'}" />
+							 <field name="amount_billed_total" dataType="number" decimals="2" required="false" onchange="onUpdateAmountTotInvoice();" style="text-align:right" readOnly="${!panel.newRecord &amp;&amp; record['invoice.status'] != 'ISSUED'}">
+							 		<title>Billed Total</title>
+							 </field>
+							 <field name="invoice_id" table="invoice" colspan="2" hidden="${record['invoice.invoice_id'] == ''}" readOnly="true"/>
+							 <field name="terms" table="invoice" readOnly="${!panel.newRecord &amp;&amp; record['invoice.status'] != 'ISSUED'}"/>
+							 <field>
+				       		<title>Apply Lien Holdback?</title>
+				       		<html>
+				       				<input type="radio" name="apply_lien_holdback" id="apply_lien_holdback_no" value="apply_lien_holdback_no" checked="true" onchange="onChangeApplyLien();">No</input>
+				       				<input type="radio" name="apply_lien_holdback" id="apply_lien_holdback_yes" value="apply_lien_holdback_yes" onchange="onChangeApplyLien();">Yes</input>																		
+									</html>
+				       </field>
+				       <field name="date_sent" table="invoice" required="true" onchange="setDateDue();" readOnly="${!panel.newRecord &amp;&amp; record['invoice.status'] != 'ISSUED'}"/>			 
+							 <field name="amount_lien" table="invoice"  onchange="calculateLienTax();onUpdateAmountTotInvoice();" style="text-align:right" readOnly="${!panel.newRecord &amp;&amp; record['invoice.status'] != 'ISSUED'}"/>
+							 <field name="date_expected_rec" table="invoice" readOnly="${!panel.newRecord &amp;&amp; record['invoice.status'] != 'ISSUED'}" />
+							 <field name="amount_lien_tax" table="invoice"  onchange="onUpdateAmountTotInvoice();" style="text-align:right" readOnly="${!panel.newRecord &amp;&amp; record['invoice.status'] != 'ISSUED'}"/>	        
+				       <field name="qty_invoiced" table="invoice" readOnly="${!panel.newRecord &amp;&amp; record['invoice.status'] != 'ISSUED'}"/>				       
+				       <field name="amount_deficiency" table="invoice"  onchange="calculateDeficiencyTax();onUpdateAmountTotInvoice();" style="text-align:right" readOnly="${!panel.newRecord &amp;&amp; record['invoice.status'] != 'ISSUED'}"/> 
+				       <field name="qty_received" table="invoice" readOnly="${!panel.newRecord &amp;&amp; record['invoice.status'] != 'ISSUED'}"/>
+				       <field name="amount_deficiency_tax" table="invoice"  onchange="onUpdateAmountTotInvoice();" style="text-align:right" readOnly="${!panel.newRecord &amp;&amp; record['invoice.status'] != 'ISSUED'}"/>
+				       <field name="qty_accepted" table="invoice" readOnly="${!panel.newRecord &amp;&amp; record['invoice.status'] != 'ISSUED'}"/>
+				       <field name="amount_tot_invoice" table="invoice" required="true" readOnly="${!panel.newRecord &amp;&amp; record['invoice.status'] != 'ISSUED'}" style="text-align:right">
+				       			<title>Total Amount this Invoice</title>
+				       </field>
+				       <field name="ac_id" table="invoice" readOnly="${!panel.newRecord &amp;&amp; record['invoice.status'] != 'ISSUED'}"/>
+				       <field name="status" table="invoice" value="ISSUED" hidden="${panel.newRecord || record['invoice.status'] == 'ISSUED'}" readOnly="true"/>
+				       <field name="doc" table="invoice" colspan="2" hidden="${panel.newRecord || record['invoice.status'] == 'ISSUED'}" readOnly="true" />        			 
+        			 <field name="description" table="invoice" colspan="2" hidden="${panel.newRecord || record['invoice.status'] == 'ISSUED'}" readOnly="true" />   				       
+				    </panel>
+				</tab>
+				<tab name="projMngPkgInvEditTab2">
+						<title>Approve Invoice</title>
+				    <panel type="form" id="projMngPkgInvEdit_inv2" dataSource="projMngPkgInvEditDs1" showOnLoad="true" columns="2">
+				    		<title>Approve Invoice</title>
+				    		<action id="previous" hidden="${record['invoice.status'] == 'REJECTED'}">
+				    				<title>&lt;&lt; Back</title>
+				    				<command type="selectTabPage" tabPageName="projMngPkgInvEditTab1"/>
+				    		</action>
+				        <action id="save">
+				        		<title>Save</title>
+				        		<command type="saveForm"/>
+				        		<command type="showPanel" panelId="projMngPkgInvGrid" applyParentRestriction="false"/>
+				        </action>
+				        <action id="approve" mainAction="true">
+				        		<title>Approve</title>
+				        </action>
+				        <action id="reject">
+				        		<title>Reject</title>
+				        </action> 
+				        <action id="saveDis" enabled="false">
+				        		<title>Save</title>
+				        		<command type="saveForm"/>
+				        </action>
+				        <action id="approveDis" enabled="false">
+				        		<title>Approve</title>
+				        </action>
+				        <action id="rejectDis" enabled="false">
+				        		<title>Reject</title>
+				        </action>
+				        <action id="next" hidden="${record['invoice.status'] != 'SENT' &amp;&amp; record['invoice.status'] != 'CLOSED'}">
+				    				<title>Next &gt;&gt;</title>
+				    				<command type="selectTabPage" tabPageName="projMngPkgInvEditTab3"/>
+				    		</action>       
+				        				        <field name="project_id" table="invoice" readOnly="true"/>
+				        
+				       	<field name="vn_invoice_num" table="invoice" readOnly="true"/>
+				        <field name="vn_id" table="invoice" readOnly="true"/>
+				        <field name="invoice_id" table="invoice" readOnly="true"/>
+				        <field name="work_pkg_id" table="invoice" readOnly="true"/>
+				        
+				        <field name="doc" table="invoice" readOnly="${record['invoice.status'] != 'ISSUED'}"/>	
+				        <field name="revised_contract" table="invoice" readOnly="true" dataType="number" decimals="2">
+           					<title>Revised Contract</title>
+           			</field>
+           			<field name="status" table="invoice" readOnly="true"/>			        
+				       	
+				       	<field name="tot_invoices" table="invoice" readOnly="true" dataType="number" decimals="2">
+           					<title>Total Invoices</title>
+           			</field>
+				       	<field name="amount_tot_invoice" table="invoice" required="true" readOnly="true" >
+				       			<title>Total Amount this Invoice</title>
+				       	</field>
+				       	<field name="commit_remain" table="invoice" readOnly="true" dataType="number" decimals="2">
+           					<title>Commitment Remaining</title>
+           			</field>
+           			<field/>
+				       	<field name="description" table="invoice" colspan="2" readOnly="${record['invoice.status'] != 'ISSUED'}" />
+				        <field name="fac_org_level_01" table="invoice" hidden="true" required="false" readOnly="${record['invoice.status'] != 'ISSUED'}"/>
+           			<field name="fac_org_level_02" table="invoice" hidden="true" required="false" readOnly="${record['invoice.status'] != 'ISSUED'}"/>
+           			<field name="fac_org_level_03" table="invoice" hidden="true" required="false" readOnly="${record['invoice.status'] != 'ISSUED'}"/>
+           			<field name="fac_org_level_04" table="invoice" hidden="true" required="false" readOnly="${record['invoice.status'] != 'ISSUED'}"/>
+           			<field name="fac_org_level_05" table="invoice" hidden="true" required="false" readOnly="${record['invoice.status'] != 'ISSUED'}"/>
+           			<field name="fac_org_level_06" table="invoice" hidden="true" required="false" readOnly="${record['invoice.status'] != 'ISSUED'}"/>         			
+            </panel>
+				</tab>
+				<tab name="projMngPkgInvEditTab3">
+						<title>Record Payments</title>
+						<panel type="grid" id="projMngPkgInvEdit_pmts" dataSource="projMngPkgInvEditDs2" showOnLoad="false">
+	    				<title>Payments</title>
+	    				<action id="previous">
+				    				<title> &lt;&lt; Back</title>
+				    		</action>
+	    				<action id="addPayment" mainAction="true">
+	    						<title>Add Payment</title>
+	    						<command type="callFunction" functionName="projMngPkgInvEditController.projMngPkgInvEditTabs.showTab('projMngPkgInvEditTab4')"/>
+	    						<command type="selectTabPage" tabPageName="projMngPkgInvEditTab4" newRecord="true"/>
+	    				</action>
+	    				<action type="menu" id="projMngPkgInvEdit_pmts_toolsMenu" imageName="/schema/ab-core/graphics/icons/view/export.png">
+			            <tooltip>Tools</tooltip>
+			            <action id="exportDOCX">
+			                <title>Export to DOCX</title>
+			                <command type="exportPanel" outputType="docx"  orientation="landscape" panelId="projMngPkgInvEdit_pmts"/>
+			            </action>
+			            <action id="exportXLS">
+			                <title>Export to XLS</title>
+			                <command type="exportPanel" outputType="xls" panelId="projMngPkgInvEdit_pmts"/>
+			            </action>
+			        </action>
+	    				<field controlType="button">
+	    						<title>Details</title>
+	    						<command type="callFunction" functionName="projMngPkgInvEditController.projMngPkgInvEditTabs.showTab('projMngPkgInvEditTab4')"/>
+	    						<command type="selectTabPage" tabPageName="projMngPkgInvEditTab4"/>
+	    				</field>
+	    				<field name="invoice_id" table="invoice_payment" />
+			        <field name="payment_id" table="invoice_payment" hidden="true"/>
+			        <field name="amount_expense" table="invoice_payment" showTotals="true"/>
+			        <field name="date_paid" table="invoice_payment"/>
+			        <field name="check_number" table="invoice_payment"/>
+			        <field name="description" table="invoice_payment"/>
+					</panel>
+				</tab>
+		    <tab name="projMngPkgInvEditTab4">
+		    		<title>Payment Details</title>					
+						<panel type="form" id="projMngPkgInvEdit_pmt" dataSource="projMngPkgInvEditDs2" showOnLoad="false" >
+					    	<title>Payment Details</title>
+					    	<action id="previous">
+					    			<title> &lt;&lt; Back</title>
+					    			<command type="selectTabPage" tabPageName="projMngPkgInvEditTab3" applyParentRestriction="false"/>
+					    			<command type="callFunction" functionName="projMngPkgInvEditController.projMngPkgInvEditTabs.showTab('projMngPkgInvEditTab4', false)"/>
+					    	</action>
+					    	<action id="save" mainAction="true" hidden="${record['invoice_payment.payment_id'] != ''}">
+					    			<title>Record Payment</title>
+					    	</action>
+					    	<field name="invoice_id" table="invoice_payment" readOnly="true"/>
+							  <field name="payment_id" table="invoice_payment" hidden="true" readOnly="true"/>
+							  <field name="amount_expense" table="invoice_payment" required="true" readOnly="${record['invoice_payment.payment_id'] != ''}"/>
+							  <field name="date_paid" table="invoice_payment" readOnly="${record['invoice_payment.payment_id'] != ''}"/>
+							  <field name="check_number" table="invoice_payment" readOnly="${record['invoice_payment.payment_id'] != ''}"/>
+							  <field name="description" table="invoice_payment" readOnly="${record['invoice_payment.payment_id'] != ''}"/>
+						</panel>
+		    </tab>
+		</tabs>
+</view>

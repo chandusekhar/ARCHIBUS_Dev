@@ -1,0 +1,164 @@
+<view version="2.0">
+	<title translatable="true">Rent Income by Lease</title>
+	<js file="ab-rplm-cost-mgmt-rent-inc-by-ls.js" />
+    <js file="ab-repm-cost-mgmt-common.js"/>
+	
+	<message name="add" translatable="true">Add</message>
+	<message name="clear" translatable="true">Clear</message>
+	<message name="yearly_totals" translatable="true">Yearly Totals:</message>
+  	<message name="year_mess" translatable="true">Select a Start Year that is before or equal to the End Year</message>
+
+    <message name="exclude_cost_cat_of" translatable="true">Exclude Cost{0}Categories of</message>
+    <message name="show_cost_cat_of" translatable="true">Include Cost{0}Categories of</message>
+
+	<message name="projectionType_ac" translatable="true">Accounts</message>
+  	<message name="projectionType_bl" translatable="true">Buildings</message>
+  	<message name="projectionType_pr" translatable="true">Properties</message>
+  	<message name="projectionType_ls" translatable="true">Leases</message>
+		
+    <message name="tab_title_RecCosts" translatable="true">Recurring Costs - {0} Costs</message>
+    <message name="tab_title_SchedCosts" translatable="true">Scheduled Costs - {0} Costs</message>
+    <message name="tab_title_ActCosts" translatable="true">Actual Costs - {0} Costs</message>
+    <message name="base" translatable="true">Base</message>
+    <message name="vat" translatable="true">VAT</message>
+    <message name="total" translatable="true">Total</message>
+    <message name="Budget" translatable="true">Budget</message>
+    <message name="Payment" translatable="true">Payment</message>
+    <message name="expenseColumnTitle" translatable="true">Amount Expense - Total (Budget)</message>
+    <message name="incomeColumnTitle" translatable="true">Amount Income - Total (Budget)</message>
+
+	<layout type="borderLayout" id="detailsLayout">
+		<north id="north" autoScroll="true" split="true" initialSize="200" minSize="200"/>
+		<center id="center" autoScroll="true"/> 
+	</layout>
+	<dataSource type="grouping" id="dsYearsCost">
+		<table name="afm_cal_dates" />
+		<field name="year" groupBy="true" dataType="text" formula="year" baseField="afm_cal_dates.cal_date">
+			<title translatable="true">Year</title>
+		</field>
+		<sortField name="year" ascending="false" />
+	</dataSource>
+
+  <dataSource id="dsGet_inc_cost_cat_id">
+  	<sql dialect="generic">
+		SELECT DISTINCT cost_cat_id FROM cost_cat WHERE UPPER(cost_cat.cost_class_id) = 'RENT INCOME'
+	</sql>
+    <table name="cost_cat" role="main"/>
+    <field table="cost_cat" name="cost_cat_id"/>
+  </dataSource>
+	
+  <dataSource id="dsConsoleCost">
+    <table name="bl" role="main"/>
+    <table name="property" role="standard"/>
+    <field table="bl" name="ctry_id"/>
+    <field table="bl" name="regn_id"/>
+    <field table="bl" name="state_id"/>
+    <field table="bl" name="city_id"/>
+    <field table="bl" name="site_id"/>
+    <field table="property" name="pr_id"/>
+    <field table="bl" name="bl_id"/>
+  </dataSource>
+  
+  <panel type="console" columns="5" id="console" dataSource="dsConsoleCost" region="north">
+    <title translatable="true">Filter</title>
+    
+    <action id="selectVAT" hidden="${View.activityParameters['AbCommonResources-EnableVatAndMultiCurrency'] == 0}">
+        <title translatable="true">VAT</title>
+        <command type="openDialog" viewName="ab-rplm-select-vat.axvw" width="400" height="200" closeButton="false"/>
+    </action>
+    <action id="selectCurrency" hidden="${View.activityParameters['AbCommonResources-EnableVatAndMultiCurrency'] == 0}">
+        <title translatable="true">Currency</title>
+        <command type="openDialog" viewName="ab-rplm-select-currency.axvw" width="800" height="200" closeButton="false"/>
+    </action>
+    <action id="filter">
+      <title translatable="true">Show</title>
+    </action>
+    <action id="clear">
+      <title translatable="true">Clear</title>
+    </action>
+    <field table="bl" name="ctry_id" selectValueType="multiple"/>
+	<field table="bl" name="site_id" selectValueType="multiple"/>
+    <field colspan="2" rowspan="2">
+      <title><input type="checkbox" id="cost_cat_id_ex_check" name="excludeCostCat" onClick="check_exclude()"/><span id="exclude_cost_cat_of_label"></span></title>
+      <html>
+      	<table CELLPADDING="0" CELLSPACING="0" class="panel" style="width:100%;border:0 none;">
+      		<tr class="fieldRow">
+      			<td style="width:80%;border:0 none;">
+      				<textarea id="cost_cat_id_storage_ex" wrap="PHYSICAL" style="width:200px; height:50px;" class="defaultEditForm_textareaABData" readOnly="true"></textarea>
+      			</td>
+				<td style="border:0 none;">
+					<input id="addCostCategory_ex" class="selectValue_AbActionButtonFormStdWidth" value="" type="button" onclick="user_addCostCategory_ex()" />&#13;
+					<input id="clearCostCategory_ex" class="selectValue_AbActionButtonFormStdWidth" value="" type="button" onclick="user_clearCostCategory_ex()" />
+				</td>	
+      		</tr>
+      	</table>
+      </html>
+    </field>
+	<field id="show_cost_associated_with" rowspan="4">
+      <title translatable="true">Show Costs Associated with</title>
+		<html>
+    		<input type="radio" id="properties" name="costBy" value="pr" onclick="enableGeo()"><span translatable="true">Properties</span></input><br />
+    		<input type="radio" id="buildings" name="costBy" value="bl" onclick="enableGeo()">&#32;<span translatable="true">Buildings</span></input><br />
+    		<input type="radio" id="accounts" name="costBy" value="ac" onclick="disableGeo()">&#32;<span translatable="true">Accounts</span></input><br />
+            <input type="radio" id="leasesBl" name="costBy" value="lsBl" onclick="enableGeo()">&#32;<span translatable="true">Leases for Buildings</span></input><br />
+            <input type="radio" id="leasesProp" name="costBy" value="lsProp" onclick="enableGeo()">&#32;<span translatable="true">Leases for Properties</span></input><br />
+            <input type="radio" checked="true" id="leasesAll" name="costBy" value="lsAll" onclick="enableGeo()">&#32;<span translatable="true">All Leases</span></input><br />
+		</html>
+	</field>
+    <field table="bl" name="regn_id" selectValueType="multiple"/>
+    <field table="property" name="pr_id" showSelectValueAction="true" selectValueType="multiple"/>
+	<field table="bl" name="state_id" selectValueType="multiple"/>
+    <field table="bl" name="bl_id" showSelectValueAction="true" selectValueType="multiple"/>
+    <field colspan="2" rowspan="2">
+       <title translatable="true"><input type="checkbox" checked="true" center="left" id="cost_cat_id_sh_check" name="showCostCat" onClick="check_show()"/><span id="show_cost_cat_of_label"></span></title>
+      <html>
+      	<table CELLPADDING="0" CELLSPACING="0" class="panel" style="width:100%;border:0 none;">
+      		<tr class="fieldRow">
+      			<td style="width:80%;border:0 none;">
+      				<textarea id="cost_cat_id_storage_sh" wrap="PHYSICAL" style="width:200px; height:50px;" class="defaultEditForm_textareaABData" readOnly="true"></textarea>
+      			</td>
+				<td style="border:0 none;">
+					<input id="addCostCategory_sh" class="selectValue_AbActionButtonFormStdWidth" value="" type="button" onclick="user_addCostCategory_sh()" />&#13;
+					<input id="clearCostCategory_sh" class="selectValue_AbActionButtonFormStdWidth" value="" type="button" onclick="user_clearCostCategory_sh()" />
+				</td>	
+      		</tr>
+      	</table>
+      </html>
+    </field>
+	<field table="bl" name="city_id" selectValueType="multiple"/>
+    <field>
+    	<title translatable="true">From Year - To Year</title>
+    	<html>
+			<select class="inputField_box" name="console_cost.year" id="console_cost.year" onchange="afm_form_values_changed=true;;" onfocus="window.temp=this.value;;" onblur="if(window.temp!=this.value)afm_form_values_changed=true;;" onkeypress=";" tabindex="">
+			</select>
+            <select class="inputField_box" name="console_cost.toyear" id="console_cost.toyear" onchange="afm_form_values_changed=true;;" onfocus="window.temp=this.value;;" onblur="if(window.temp!=this.value)afm_form_values_changed=true;;" onkeypress=";" tabindex="">
+            </select>
+    	</html>
+    </field>
+  </panel>
+	
+	<tabs workflow="free" id="tabsCosts" tabRefreshPolicy="refreshOnLoad" layoutRegion="center">
+	    <tab name="tabsCosts_0" file="ab-rplm-cost-mgmt-cost-recurring-rep.axvw" useFrame="false" selected="true">
+		    <title translatable="true">Recurring Costs</title>
+	    </tab>
+	    <tab name="tabsCosts_1" file="ab-rplm-cost-mgmt-cost-scheduled-rep.axvw" useFrame="false">
+		    <title translatable="true">Scheduled Costs</title>
+	    </tab>
+	    <tab name="tabsCosts_2" file="ab-rplm-cost-mgmt-cost-actual-rep.axvw" useFrame="false">
+		    <title translatable="true">Actual Costs</title>
+	    </tab>
+	</tabs>
+  <dataSource id="selectValueCostCateg_ds">
+      <table name="cost_cat"/>
+      <field name="cost_cat_id"/>
+	  <field name="cost_class_id"/>
+  </dataSource>
+ 
+  <panel type="grid" id="formSelectValueMultiple_grid" dataSource="selectValueCostCateg_ds"
+           recordLimit="200" multipleSelectionEnabled="true" showOnLoad="false" hidden="true">
+        <action id="addSelected">
+            <title>Add Selected</title>
+        </action>   
+  </panel> 
+
+</view>

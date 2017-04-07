@@ -1,0 +1,92 @@
+<view version="2.0">
+    <js file="ab-energy-bas-common-tree.js"/>
+    
+    <message name="msg_no_ctry_id" translatable="true">No Country</message>
+    <message name="msg_no_site_id" translatable="true">No Site</message>
+    <message name="msg_no_bl_id" translatable="true">No Building</message>
+    
+    <dataSource id="energyBasCommonTree_dsCtry" applyVpaRestrictions="false">
+        <table name="ctry" role="main"/>
+        <sql dialect="generic">            
+                    SELECT ctry.name ${sql.as} name,
+                           ctry_id ${sql.as} ctry_id
+                        FROM ctry
+                        WHERE (EXISTS (SELECT 1 FROM bas_measurement_scope LEFT OUTER JOIN site ON site.site_id = bas_measurement_scope.site_id 
+                            WHERE site.ctry_id = ctry.ctry_id)
+                        OR EXISTS (SELECT 1 FROM bas_measurement_scope LEFT OUTER JOIN bl ON bl.bl_id = bas_measurement_scope.bl_id 
+                            WHERE bl.ctry_id = ctry.ctry_id))
+                        UNION
+                    (SELECT '' ${sql.as} name,
+                            'WW99' ${sql.as} ctry_id                                    
+                    FROM bas_data_point
+                    LEFT OUTER JOIN bill_unit ON (bill_unit.bill_unit_id = bas_data_point.bill_unit_id AND bill_unit.bill_type_id = bas_data_point.bill_type_id) 
+                    LEFT OUTER JOIN bas_measurement_scope ON bas_data_point.data_point_id = bas_measurement_scope.data_point_id
+                    LEFT OUTER JOIN site ON site.site_id = bas_measurement_scope.site_id
+                    LEFT OUTER JOIN bl ON bl.bl_id = bas_measurement_scope.bl_id
+                    WHERE (site.ctry_id IS NULL AND bl.ctry_id IS NULL))
+                </sql>
+        <field table="ctry" name="ctry_id" dataType="text"/>
+        <!-- field table="ctry" name="name" dataType="text"/-->
+        <sortField table="ctry" name="ctry_id"/>
+    </dataSource>
+    
+    <dataSource id="energyBasCommonTree_dsSite" applyVpaRestrictions="false">
+        <table name="site" role="main"/>
+        <sql dialect="generic">            
+                    SELECT site.name ${sql.as} name,
+                            site_id ${sql.as} site_id,
+                            ctry_id ${sql.as} ctry_id
+                        FROM site
+                        WHERE ((EXISTS (SELECT 1 FROM bas_measurement_scope WHERE bas_measurement_scope.site_id = site.site_id)
+                        OR EXISTS (SELECT 1 FROM bas_measurement_scope LEFT OUTER JOIN bl ON bl.bl_id = bas_measurement_scope.bl_id 
+                            WHERE bl.site_id = site.site_id)))
+                        UNION
+                    (SELECT '' ${sql.as} name,
+                            'WW99' ${sql.as} site_id,
+                            'WW99' ${sql.as} ctry_id                                                                    
+                    FROM bas_data_point
+                    LEFT OUTER JOIN bill_unit ON (bill_unit.bill_unit_id = bas_data_point.bill_unit_id AND bill_unit.bill_type_id = bas_data_point.bill_type_id) 
+                    LEFT OUTER JOIN bas_measurement_scope ON bas_data_point.data_point_id = bas_measurement_scope.data_point_id
+                    LEFT OUTER JOIN bl ON bl.bl_id = bas_measurement_scope.bl_id
+                    WHERE bas_measurement_scope.site_id IS NULL AND bl.site_id IS NULL)
+                </sql>
+        <field table="site" name="ctry_id" dataType="text" hidden="true"/>
+        <field table="site" name="site_id" dataType="text"/>
+        <!-- field table="site" name="name" dataType="text"/-->
+        <sortField table="site" name="site_id"/>
+    </dataSource>
+    
+    <dataSource id="energyBasCommonTree_dsBl" applyVpaRestrictions="false">
+        <table name="bl" role="main"/>
+        <sql dialect="generic">            
+                    SELECT bl.name ${sql.as} name,
+                            bl_id ${sql.as} bl_id,
+                            site_id ${sql.as} site_id
+                        FROM bl
+                        WHERE EXISTS (SELECT 1 FROM bas_measurement_scope WHERE bas_measurement_scope.bl_id = bl.bl_id)
+                        UNION
+                    (SELECT '' ${sql.as} name,
+                            'WW99' ${sql.as} bl_id,
+                            bas_measurement_scope.site_id ${sql.as} site_id                             
+                    FROM bas_data_point
+                    LEFT OUTER JOIN bill_unit ON (bill_unit.bill_unit_id = bas_data_point.bill_unit_id AND bill_unit.bill_type_id = bas_data_point.bill_type_id) 
+                    LEFT OUTER JOIN bas_measurement_scope ON bas_data_point.data_point_id = bas_measurement_scope.data_point_id
+                    LEFT OUTER JOIN site ON site.site_id = bas_measurement_scope.site_id
+                    LEFT OUTER JOIN bl ON bl.bl_id = bas_measurement_scope.bl_id
+                    WHERE bas_measurement_scope.bl_id IS NULL AND bas_measurement_scope.site_id IS NOT NULL)   
+                        
+                    UNION
+                    (SELECT '' ${sql.as} name,
+                            'WW99' ${sql.as} bl_id,
+                            'WW99' ${sql.as} site_id                            
+                    FROM bas_data_point
+                    LEFT OUTER JOIN bas_measurement_scope ON bas_data_point.data_point_id = bas_measurement_scope.data_point_id
+                    LEFT OUTER JOIN site ON site.site_id = bas_measurement_scope.site_id
+                    WHERE bas_measurement_scope.bl_id IS NULL AND bas_measurement_scope.site_id IS NULL)    
+                </sql>
+        <field table="bl" name="site_id" dataType="text" hidden="true"/>
+        <field table="bl" name="bl_id" dataType="text"/>
+        <field table="bl" name="name" dataType="text"/>
+        <sortField table="bl" name="bl_id"/>
+    </dataSource>
+</view>

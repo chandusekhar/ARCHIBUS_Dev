@@ -1,0 +1,211 @@
+<view version="2.0">
+	<layout type="borderLayout" id="mainLayout">
+		<north initialSize="120" split="true"/>
+		<center autoScroll="true" id="centerRegion"/>
+		<east initialSize="0" id="PrintLayout"/>
+	</layout>
+
+	<title>Work Request Closeout</title>
+
+	<js file="uc-common-functions-data.js"/>
+	<js file="uc-wr-closeout.js"/>
+	<script type="text/javascript" src="/resource/uc-psAccountCode.js"></script>
+
+	<js file="uc-wr-print.js"/>
+	<js file="uc-print1_2.js"/>
+	<js file="vann-barcode.js"/>
+
+	<dataSource id="console_ds1">
+		<table name="wr" role="main"/>
+		<table name="bl" role="standard"/>
+		<table name="eqstd" role="standard"/>
+		<field table="wr" name="tr_id"/>
+		<field table="wr" name="bl_id"/>
+		<field table="wr" name="cf_id"/>
+		<field table="bl" name="zone_id"/>
+		<field table="wr" name="requestor"/>
+		<field table="wr" name="wr_id"/>
+		<field table="wr" name="charge_type"/>
+		<field table="wr" name="eq_id"/>
+		<field table="eq" name="eq_std"/>
+		<field table="wr" name="status"/>
+	</dataSource>
+
+	<panel type="console" id="consolePanel" dataSource="console_ds1" showOnLoad="true"  columns="3" region="north">
+		<title translatable="true">Filter</title>
+
+		<action id="show">
+			<title translatable="true">Show</title>
+		</action>
+
+		<action id="clear">
+			<title translatable="true">Clear</title>
+		</action>
+
+		<field table="wr" name="wr_id">
+			<title>Work Request #</title>
+		</field>
+
+		<field table="wr" name="requestor">
+			<title>Requestor Code</title>
+			<action id="selectReq">
+				<title>...</title>
+				<tooltip>Select Requestor</tooltip>
+				<command type="selectValue"
+					fieldNames="wr.requestor"
+					selectFieldNames="em.em_id"
+					visibleFieldNames="em.em_id,em.name_last,em.name_first,em.phone,em.email" />
+			</action>
+		</field>
+
+		<field table="wr" name="charge_type">
+			<title>Charge Type</title>
+		</field>
+
+
+		<field>
+			<title>Work Unit</title>
+			<html>
+				<select class="inputField_box" id="selectbox_tr_id">
+				</select>
+			</html>
+		</field>
+
+		<field >
+			<title>Demand/Preventive/All</title>
+			<html>
+				<select class="inputField_box" id="selectbox_work_type">
+					<option value="All">All</option>
+					<option value="Demand">Demand</option>
+					<option value="Preventive">Preventive</option>
+				</select>
+			</html>
+		</field>
+
+
+		<field hidden="true">
+			<title>Assigned to Craftsperson/Contractor?</title>
+			<html>
+				<select class="inputField_box" id="selectbox_assigned_to_cf">
+					<option value="All">All</option>
+					<option value="No">No</option>
+					<option value="Yes">Yes</option>
+				</select>
+			</html>
+		</field>
+
+		<field table="wr" name="status"/>
+		<field table="bl" name="zone_id"/>
+		<field table="wr" name="bl_id"/>
+
+
+		<field table="wr" name="cf_id" hidden="true">
+			<title>Craftsperson/Cont. Assigned</title>
+			<action id="selectCf">
+				<title>...</title>
+			</action>
+		</field>
+
+		<field table="wr" name="eq_id" hidden="true"/>
+		<field table="eq" name="eq_std" hidden="true"/>
+	</panel>
+
+	<dataSource id="wrlist_ds">
+		<query>
+			<sql dialect="generic">
+			SELECT wr.*,
+			CASE WHEN (SELECT COUNT(1) FROM
+				(SELECT vn_id cf_id FROM wr_other WHERE wr.wr_id = wr_other.wr_id AND wr_other.other_rs_type = 'CONTRACTOR' and wr_other.vn_id is not null
+					UNION
+				SELECT cf_id FROM wrcf WHERE wr.wr_id = wrcf.wr_id ) t) > 1 THEN 'MULTIPLE'
+			ELSE
+			(SELECT TOP 1 cf_id FROM
+				(SELECT vn_id cf_id FROM wr_other WHERE wr.wr_id = wr_other.wr_id AND wr_other.other_rs_type = 'CONTRACTOR' and wr_other.vn_id is not null
+					UNION
+				SELECT cf_id FROM wrcf WHERE wr.wr_id = wrcf.wr_id ) t) END AS assigned_cf,
+			'' AS is_single_funded,
+			CASE WHEN EXISTS (SELECT 1 FROM wr_other WHERE wr.wr_id = wr_other.wr_id AND wr_other.other_rs_type = 'CONTRACTOR') THEN 'C' ELSE '' END AS has_contractor,
+			CASE WHEN EXISTS (SELECT 1 FROM wrcf WHERE wr.wr_id = wrcf.wr_id AND hours_total = 0 AND entry_type = 'Timecard') THEN 'T' ELSE '' END AS has_inv_time,
+			CASE WHEN EXISTS (SELECT 1 FROM wr_other WHERE wr.wr_id = wr_other.wr_id AND fulfilled &lt;&gt; 1) THEN 'P' ELSE '' END AS has_unfulfilled
+			FROM wr
+			WHERE ${parameters['consoleRest']}
+			</sql>
+		</query>
+		<table name="wr" role="main"/>
+		<field table="wr" name="wr_id" />
+		<field table="wr" name="wo_id" />
+		<field table="wr" name="status" />
+		<field table="wr" name="prob_type" />
+		<field table="wr" name="description" />
+		<field table="wr" name="date_requested" />
+		<field table="wr" name="work_team_id" />
+		<field table="wr" name="site_id" />
+		<field table="wr" name="bl_id" />
+		<field table="wr" name="fl_id" />
+		<field table="wr" name="rm_id" />
+		<field table="wr" name="location" />
+		<field table="wr" name="ac_id" />
+		<field table="wr" name="tr_id"/>
+		<field table="wr" name="charge_type"/>
+		<field table="wr" name="block_id"/>
+		<field table="wr" name="unit_id"/>
+		<field table="wr" name="activity_log_id"/>
+		<field table="wr" name="cf_notes"/>
+		<field table="wr" name="assigned_cf" dataType="text"/>
+		<field table="wr" name="is_single_funded" dataType="text"/>
+		<field table="wr" name="has_contractor" dataType="text"/>
+		<field table="wr" name="has_inv_time" dataType="text"/>
+		<field table="wr" name="has_unfulfilled" dataType="text"/>
+		<parameter name="consoleRest" dataType="verbatim" value="1=1"/>
+		<sortField name="wr_id" table="wr" ascending="false"/>
+	</dataSource>
+
+	 <panel type="grid" id="wrListPanel" dataSource="wrlist_ds" showOnLoad="false" region="center" multipleSelectionEnabled="true" recordLimit="0">
+		<title>Requests</title>
+		<action id="print">
+			<title>Print</title>
+		</action>
+		<action id="completeRequests">
+			<title>Complete</title>
+		</action>
+		<sortField table="wr" name="wr_id" ascending="false"/>
+
+		<field controlType="button" onclick="wrCloseoutController.onViewRequest">
+			<title>View</title>
+		</field>
+
+		<field table="wr" name="wr_id"><title>WR Code</title></field>
+		<field table="wr" name="is_single_funded" dataType="text" size="1"><title>SF</title></field>
+		<field table="wr" name="has_contractor" dataType="text" size="1"><title>C</title></field>
+		<field table="wr" name="has_inv_time" dataType="text" size="1"><title>TS</title></field>
+		<field table="wr" name="has_unfulfilled" dataType="text" size="1"><title>P</title></field>
+		<field table="wr" name="status" hidden="false"/>
+		<field table="wr" name="date_requested" hidden="true"/>
+		<field table="wr" name="wo_id" hidden="true"/>
+		<field table="wr" name="prob_type"/>
+		<field table="wr" name="bl_id"><title>Bldg Code</title></field>
+		<field table="wr" name="ac_id"/>
+		<field table="wr" name="assigned_cf" dataType="text" size="32" hidden="true">
+			<title>Assigned To</title>
+		</field>
+		<field table="wr" name="description"/>
+		<field table="wr" name="cf_notes"/>
+
+		<field table="wr" name="work_team_id" hidden="true"/>
+		<field table="wr" name="site_id" hidden="true"/>
+		<field table="wr" name="bl_id" hidden="true"/>
+		<field table="wr" name="fl_id" hidden="true"/>
+		<field table="wr" name="rm_id" hidden="true"/>
+		<field table="wr" name="location" hidden="true"/>
+		<field table="wr" name="priority" hidden="true"/>
+		
+		<field table="wr" name="tr_id" hidden="true"/>
+		<field table="wr" name="charge_type" hidden="true"/>
+		<field table="wr" name="block_id" hidden="true"/>
+		<field table="wr" name="unit_id" hidden="true"/>
+		<field table="wr" name="activity_log_id" hidden="true"/>
+	</panel>
+
+	<panel type="view" id="defaultHTML" file="uc-discipline-supervisor-manager-report.axvw" dataSource="wrlist_ds" layoutRegion="PrintLayout" useFrame="false" />
+
+</view>

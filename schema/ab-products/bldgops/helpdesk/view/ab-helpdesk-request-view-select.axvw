@@ -1,0 +1,99 @@
+<view version="2.0">
+	
+	<js file="ab-helpdesk-request-view-select.js" />
+	<js file="ab-helpdesk-common-v2.js"/>
+    <js file="ab-helpdesk-request-shared-para.js" />
+ 
+	<message name="error_date_range" translatable="true">Given dates are invalid.</message>
+	<message name="selectTitle" translatable="true">-select-</message>
+	<message name="requestType" translatable="true">Request Type</message>
+    <message name="substituteLegend" translatable="true">Service Requests assigned to you as substitute</message>   
+	
+	<dataSource id="consoleDS">
+		<table name="activity_log" role="main" />
+		<field table="activity_log" name="activity_log_id" />
+		<field table="activity_log" name="status" />
+		<field table="activity_log" name="date_requested" />
+		<field table="activity_log" name="activity_type" />
+	</dataSource>
+
+	<panel type="console" columns="4" labelsPosition="top"
+		id="requestConsole" dataSource="consoleDS">
+		<title translatable="true">Filter</title>
+
+		<action id="filter">
+			<title translatable="true">Show</title>
+		</action>
+		<action id="clear">
+			<title translatable="true">Clear</title>
+		</action>
+
+		<field table="activity_log" name="activity_type" value="">
+			<title translatable="true">Request Type</title>
+			<action>
+				<title>...</title>
+				<command type="callFunction" functionName="ABHDC_onSelectActivityType('activity_log','requestConsole')" />
+			</action>
+		</field>
+		<field table="activity_log" name="status" />
+
+		<field table="activity_log" name="date_requested"
+			alias="activity_log.date_requested.from">
+			<title translatable="true">Date Requested From</title>
+		</field>
+		<field table="activity_log" name="date_requested"
+			alias="activity_log.date_requested.to">
+			<title translatable="true">Date Requested To</title>
+		</field>
+	</panel>
+
+	<dataSource id="requestGridDS">
+		<table name="activity_log" role="main" />
+		<table name="em" role="standard" />
+
+		<field table="activity_log" name="activity_log_id" />
+		<field table="activity_log" name="requestor" />
+		<field table="em" name="name" />
+		<field table="activity_log" name="date_requested" />
+		<field table="activity_log" name="status" />
+		<field table="activity_log" name="activity_type" />
+		<field table="activity_log" name="prob_type" />
+		<field table="activity_log" name="created_by" />
+        
+        <parameter name="emWorkflowSubstitutes" dataType="verbatim" value="''"/>
+		
+		<restriction type="sql"
+			sql="activity_log.activity_type LIKE 'SERVICE DESK%' AND (requestor = ${sql.literal(user.employee.id)} OR created_by = ${sql.literal(user.employee.id)}
+            OR EXISTS (SELECT activity_log_id FROM activity_log_step_waiting WHERE activity_log.activity_log_id=activity_log_step_waiting.activity_log_id 
+            AND activity_log.status = activity_log_step_waiting.status 
+            AND activity_log_step_waiting.step_type IN ('verification','survey')
+                AND ((activity_log_step_waiting.user_name = ${sql.literal(user.name)} 
+                        OR activity_log_step_waiting.em_id ${sql.concat} activity_log_step_waiting.step_type IN (${parameters['emWorkflowSubstitutes']})))))" />
+	</dataSource>
+	
+	<panel type="grid" id="requestReportGrid" controlType="reportGrid"
+		useParentRestriction="false" dataSource="requestGridDS">
+		<sortField table="activity_log" name="activity_log_id"
+			ascending="false" />
+		<sortField table="activity_log" name="date_requested"
+			ascending="false" />
+
+		<field controlType="button">
+			<title translatable="true">Select</title>
+			<command type="callFunction" functionName="SaveConsoleParameters" />
+			<command type="selectTabPage" tabPageName="view" />
+		</field>
+		<field table="activity_log" name="activity_log_id">
+			<title translatable="true">Service Request ID</title>
+		</field>
+		<field table="activity_log" name="requestor" />
+		<field table="em" name="name" hidden="true"/>
+		<field table="activity_log" name="created_by" />
+		<field table="activity_log" name="activity_type">
+			<title translatable="true">Request Type</title>
+		</field>
+		<field table="activity_log" name="prob_type" />
+		<field table="activity_log" name="status" />
+		<field table="activity_log" name="date_requested" />
+	</panel>
+</view>

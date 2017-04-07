@@ -1,0 +1,250 @@
+<view version="2.0">
+	<js file="ab-energy-vn-ac-bill-line-def.js"/>
+    
+	<title>Enter Bills</title>
+	
+    <message name="msg_bill_units" translatable="true">Bill Units</message>
+	<message name="msg_no_vn_id" translatable="true">No Vendor</message>
+	<message name="msg_no_vn_ac_id" translatable="true">No Vendor Account</message>
+	<message name="msg_no_bill_id" translatable="true">No Bill</message>
+	<message name="msg_no_bill_line_id" translatable="true">No Line Item</message>
+	<message name="msg_add_vn" translatable="true">Vendor</message>
+	<message name="msg_add_vn_ac" translatable="true">Vendor Account</message>
+	<message name="msg_add_bill" translatable="true">Bill</message>
+	<message name="msg_add_bill_line" translatable="true">Bill Line</message>
+	<message name="formSaved" translatable="true">Form saved successfully.</message>
+	<message name="messageConfirmDelete" translatable="true">Are you sure you want to delete &apos;{0}&apos; ?</message>
+	<message name="msg_error_no_line" translatable="true">There are no Lines on the Bill you are sending for approval. Please add Lines prior to sending for approval.</message>
+	<message name="msg_confirm_approval" translatable="true">Are you sure you wish to send this Bill for Approval? Once sent, you will no longer have access to edit this Bill from this screen.</message>
+	<message name="msg_error_bill_update" translatable="true">Unable to update the Bill totals, please update the totals for Bill Code: &apos;{0}&apos; manually</message>
+	<message name="msg_service_gap" translatable="true">The Date Service Starts, Date Service Ends, and  Billing Period values seem to be out of sequence, would you still like the save this bill as it is?</message>
+	
+    <layout type="borderLayout" id="mainLayout">
+		<north id="console" initialSize="80" split="true"/>
+		<center autoScroll="true"/>
+	</layout>
+	<layout type="borderLayout" id="nestedLayout" containingLayout="mainLayout" region="center">
+		<west id="pkey" initialSize="20%" split="true"/>
+		<center id="content" autoScroll="true"/>
+	</layout>
+    
+    <panel type="view" id="commonView" file="ab-energy-bill-common.axvw"/>
+    
+	<!-- START FILTER CONSOLE -->
+	<dataSource id="filterConsole_ds">
+		<table name="bill" role="main"/>
+		<field table="bill" name="vn_id"/>
+		<field table="bill" name="vn_ac_id"/>
+		<field table="bill" name="bill_id"/>
+	</dataSource>
+    
+	<panel type="console" id="filterConsole" dataSource="filterConsole_ds" columns="3" labelsPosition="top" layout="mainLayout" region="north">
+		<title translatable="true">Filter</title>
+		<action id="show">
+			<title translatable="true">Show</title>
+		</action>
+		<action id="clear">
+			<title translatable="true">Clear</title>
+		</action>
+		<field table="bill" name="vn_id">
+        <action>
+                <title>...</title>
+                <tooltip>Select Value</tooltip>
+                    <command 
+                    type="selectValue"
+                    fieldNames="bill.vn_id"
+                    selectFieldNames="vn.vn_id"
+                    visibleFieldNames="vn.vn_id,vn.company"
+                    sortFieldNames="vn.vn_id" 
+                    showIndex="true"
+                    restriction="EXISTS(SELECT 1 FROM vn_ac WHERE vn_ac.vn_id = vn.vn_id AND (vn_ac.proration_action = 'NONE' OR (vn_ac.proration_action &lt;&gt; 'NONE' AND EXISTS(SELECT 1 FROM bill b WHERE b.vn_ac_id = vn_ac.vn_ac_id AND b.prorated_aggregated = 'PRORATED-LOCATION'))))">
+                    </command>
+            </action>
+        </field>
+        <field table="bill" name="vn_ac_id">
+        <action>
+                <title>...</title>
+                <tooltip>Select Value</tooltip>
+                    <command 
+                    type="selectValue"
+                    fieldNames="bill.vn_id,bill.vn_ac_id"
+                    selectFieldNames="vn.vn_id, vn_ac.vn_ac_id"
+                    visibleFieldNames="vn.vn_id,vn_ac.vn_ac_id,vn_ac.proration_group_name,vn_ac.proration_action"
+                    sortFieldNames="vn_ac.vn_ac_id" 
+                    showIndex="true"
+                    restriction="vn_ac.proration_action = 'NONE' OR (vn_ac.proration_action &lt;&gt; 'NONE' AND EXISTS(SELECT 1 FROM bill b WHERE b.vn_ac_id = vn_ac.vn_ac_id AND b.prorated_aggregated = 'PRORATED-LOCATION'))">
+                    </command>
+            </action>
+        </field>
+        <field table="bill" name="bill_id" showSelectValueAction="true">
+            <action>
+                <title>...</title>
+                <tooltip>Select Value</tooltip>
+                    <command 
+                    type="selectValue"
+                    fieldNames="bill.bill_id, bill.vn_id, bill.vn_ac_id"
+                    selectFieldNames="bill.bill_id, bill.vn_id, bill.vn_ac_id"
+                    visibleFieldNames="bill.bill_id,bill.vn_id,bill.vn_ac_id"
+                    sortFieldNames="bill.bill_id" 
+                    showIndex="true"
+                    restriction="bill.status IN ('Pending Review', 'Rejected', 'Created') AND (bill.vn_ac_id IN (SELECT DISTINCT vn_ac_id FROM vn_ac WHERE vn_ac.proration_action = 'NONE') OR (bill.vn_ac_id IN (SELECT DISTINCT vn_ac_id FROM vn_ac WHERE vn_ac.proration_action &lt;&gt; 'NONE') AND bill.prorated_aggregated &lt;&gt; 'NO'))">
+                        <title>Bill Code</title>
+                    </command>
+            </action>
+        </field>
+	</panel>
+	<!-- END FILTER CONSOLE -->
+    
+	<!-- BEGIN VENDOR TREE CONSOLE -->
+    <!--                AND (vn.vendor_type = 'Energ')
+     -->
+	<dataSource id="tree_vn_AbEnergyDefBills_ds">
+		<sql dialect="generic">
+			SELECT 
+			    vn.vn_id ${sql.as} vn_id,
+			    vn.description ${sql.as} description
+			FROM vn
+			WHERE 
+				${parameters['vendor_id']}
+				AND ( EXISTS(SELECT 1 FROM vn_ac WHERE vn_ac.vn_id = vn.vn_id AND ${parameters['vendor_account_id']}) OR ${parameters['vendor_account_id_null']})
+                AND ( EXISTS(SELECT 1 FROM vn_ac WHERE vn_ac.vn_id = vn.vn_id AND (vn_ac.proration_action = 'NONE' OR (vn_ac.proration_action &lt;&gt; 'NONE' AND EXISTS(SELECT 1 FROM bill b WHERE b.vn_ac_id = vn_ac.vn_ac_id AND b.prorated_aggregated = 'PRORATED-LOCATION')))))
+				AND ( EXISTS(SELECT 1 FROM bill WHERE bill.vn_id = vn.vn_id AND ${parameters['bill_id']}) OR ${parameters['bill_id_null']})
+                AND ${parameters['vendorType']}
+			UNION
+			SELECT 
+			    'WW99' ${sql.as} vn_id,
+			    '' ${sql.as} description
+			FROM vn
+			WHERE EXISTS(SELECT bill.bill_id FROM bill WHERE bill.vn_ac_id IS NULL AND bill.vn_id IS NULL AND ${parameters['bill_id']} ) 
+		</sql>
+		<table name="vn"/>
+		<field table="vn" name="vn_id"/>
+		<field table="vn" name="description"/>
+		<sortField table="vn" name="vn_id" ascending="true"/>
+		<parameter name="vendor_id" dataType="verbatim" value="1=1"/>
+		<parameter name="vendor_account_id" dataType="verbatim" value="1=1"/>
+		<parameter name="vendor_account_id_null" dataType="verbatim" value="1=1"/>
+		<parameter name="bill_id" dataType="verbatim" value="1=1"/>
+		<parameter name="bill_id_null" dataType="verbatim" value="1=1"/>
+		<parameter name="bill_line_id" dataType="verbatim" value="1=1"/>
+		<parameter name="bill_line_id_null" dataType="verbatim" value="1=1"/>
+        <parameter name="vendorType" dataType="verbatim" value="vn.vendor_type = 'Energ'"/>
+	</dataSource>
+	<!-- END VENDOR TREE CONSOLE -->
+    
+	<!-- BEGIN VENDOR ACCOUNT TREE CONSOLE -->
+	<dataSource id="tree_vn_ac_AbEnergyDefBills_ds">
+		<sql dialect="generic">
+			SELECT 
+				vn_ac.vn_ac_id ${sql.as} vn_ac_id,
+				vn_ac.bill_type_id ${sql.as} bill_type_id,
+				vn_ac.vn_id ${sql.as} vn_id,
+				vn_ac.bl_id ${sql.as} bl_id,
+				vn_ac.site_id ${sql.as} site_id,
+                vn_ac.proration_action ${sql.as} proration_action
+				
+			FROM vn_ac LEFT OUTER JOIN bill on  vn_ac.vn_ac_id=bill.vn_ac_id
+			WHERE 
+				${parameters['vendor_account_id']}
+                AND (vn_ac.proration_action = 'NONE' OR (vn_ac.proration_action &lt;&gt; 'NONE' AND EXISTS(SELECT 1 FROM bill b WHERE b.vn_ac_id = vn_ac.vn_ac_id AND b.prorated_aggregated = 'PRORATED-LOCATION')))
+				AND ( EXISTS(SELECT 1 FROM bill WHERE bill.vn_ac_id = vn_ac.vn_ac_id AND ${parameters['bill_id']}) OR ${parameters['bill_id_null']})
+				AND ( EXISTS(SELECT 1 FROM bill_line WHERE bill_line.bill_id = bill.bill_id AND ${parameters['bill_line_id']}) OR ${parameters['bill_line_id_null']})
+		    UNION
+		    SELECT 
+		        'WW99' ${sql.as} vn_ac_id,
+		        '' ${sql.as} bill_type_id,
+		        ${sql.isNull('bill.vn_id', '\'WW99\'')} ${sql.as} vn_id,
+		        '' ${sql.as} bl_id,
+		        '' ${sql.as} site_id,
+                '' ${sql.as} proration_action
+		    FROM bill
+		    WHERE bill.vn_ac_id IS NULL
+				AND ${parameters['bill_id']}
+				AND ( EXISTS(SELECT 1 FROM bill_line WHERE bill_line.bill_id = bill.bill_id AND ${parameters['bill_line_id']}) OR ${parameters['bill_line_id_null']})
+		</sql>
+		<table name="vn_ac"/>
+		<field table="vn_ac" name="vn_ac_id"/>
+		<field table="vn_ac" name="site_id"/>
+		<field table="vn_ac" name="bl_id"/>
+		<field table="vn_ac" name="bill_type_id"/>		
+		<sortField table="vn_ac" name="vn_ac_id" ascending="true"/>
+		<parameter name="vendor_account_id" dataType="verbatim" value="1=1"/>
+		<parameter name="bill_id" dataType="verbatim" value="1=1"/>
+		<parameter name="bill_id_null" dataType="verbatim" value="1=1"/>
+		<parameter name="bill_line_id" dataType="verbatim" value="1=1"/>
+		<parameter name="bill_line_id_null" dataType="verbatim" value="1=1"/>
+	</dataSource>
+	<!-- END VENDOR ACCOUNT TREE CONSOLE -->
+    
+	<!-- BEGIN BILL TREE CONSOLE -->
+	<dataSource id="tree_bill_AbEnergyDefBills_ds">
+		<sql dialect="generic">
+			SELECT 
+				bill.bill_id ${sql.as} bill_id,
+				bill.status ${sql.as} status,
+				bill.time_period ${sql.as} time_period,
+				bill.amount_expense ${sql.as} amount_expense,
+				${sql.isNull('bill.vn_ac_id', '\'WW99\'')} ${sql.as} vn_ac_id,
+				${sql.isNull('bill.vn_id', '\'WW99\'')} ${sql.as} vn_id,
+                bill.bl_id ${sql.as} bl_id,
+                bill.site_id ${sql.as} site_id
+			FROM bill
+			WHERE 
+				${parameters['bill_id']}
+				AND ( EXISTS(SELECT 1 FROM bill_line WHERE bill_line.bill_id = bill.bill_id AND ${parameters['bill_line_id']}) OR ${parameters['bill_line_id_null']})
+				AND (status IN ('Pending Review', 'Rejected', 'Created'))
+                AND (bill.vn_ac_id IN (SELECT DISTINCT vn_ac_id FROM vn_ac WHERE vn_ac.proration_action = 'NONE') OR (bill.vn_ac_id IN (SELECT DISTINCT vn_ac_id FROM vn_ac WHERE vn_ac.proration_action &lt;&gt; 'NONE') AND bill.prorated_aggregated &lt;&gt; 'NO'))
+		</sql>
+		<table name="bill"/>
+		<field table="bill" name="bill_id"/>
+		<field table="bill" name="status"/>
+		<field table="bill" name="time_period"/>
+		<field table="bill" name="amount_expense"/>
+		<sortField table="bill" name="bill_id" ascending="true"/>
+		<parameter name="bill_id" dataType="verbatim" value="1=1"/>
+		<parameter name="bill_line_id" dataType="verbatim" value="1=1"/>
+		<parameter name="bill_line_id_null" dataType="verbatim" value="1=1"/>
+	</dataSource>
+	<!-- END BILL TREE CONSOLE -->
+    
+	<panel type="tree" id="tree_vn_AbEnergyDefBills" dataSource="tree_vn_AbEnergyDefBills_ds" showOnLoad="false" layout="nestedLayout" region="west">
+		<title translatable="true">Select</title>
+		<event type="onClickNode">
+			<command type="callFunction" functionName="onClickTreeNode"/>
+		</event>
+		<panel type="tree" id="tree_vn_ac_AbEnergyDefBills" dataSource="tree_vn_ac_AbEnergyDefBills_ds">
+			<event type="onClickNode">
+				<command type="callFunction" functionName="onClickTreeNode"/>
+			</event>
+			<field table="vn_ac" name="vn_ac_id"/>
+			<field table="vn_ac" name="bill_type_id"/>
+            <field table="vn_ac" name="site_id" hidden="true"/>
+            <field table="vn_ac" name="bl_id" hidden="true"/>
+		</panel>
+		<panel type="tree" id="tree_bill_AbEnergyDefBills" dataSource="tree_bill_AbEnergyDefBills_ds">
+			<event type="onClickNode">
+				<command type="callFunction" functionName="onClickTreeNode"/>
+			</event>
+			<field table="bill" name="bill_id"/>
+			<field table="bill" name="status"/>
+            <field table="bill" name="time_period" hidden="true"/>
+            <field table="bill" name="amount_expense" hidden="true"/>
+		</panel>
+		<field table="vn" name="vn_id"/>
+	</panel>
+    
+	<tabs id="tabs_AbEnergyDefBills" layout="nestedLayout" region="center">
+		<tab name="tab_vn_AbEnergyDefBills" file="ab-energy-vn-ac-bill-line-def-vn.axvw" selected="true">
+			<title translatable="true">Vendor</title>
+		</tab>
+		<tab name="tab_vn_ac_AbEnergyDefBills" file="ab-energy-vn-ac-bill-line-def-vn-ac.axvw">
+			<title translatable="true">Vendor Accounts</title>
+		</tab>
+		<tab name="tab_bill_AbEnergyDefBills" file="ab-energy-vn-ac-bill-line-def-bill.axvw">
+			<title translatable="true">Bills</title>
+		</tab>
+		<tab name="tab_bill_line_AbEnergyDefBills" file="ab-energy-vn-ac-bill-line-def-bill-line.axvw">
+			<title translatable="true">Bill Lines</title>
+		</tab>
+	</tabs>
+</view>

@@ -1,0 +1,1191 @@
+/******************************************************************************
+01.06.94
+sup.abs
+
+This file contains generic support functions which may be used by any
+.ABS program from any module.
+
+DO NOT CHANGE ANYTHING IN THIS FILE:
+------------------------------------
+The functions in this file should NEVER be changed!  They are used by 
+many different programs and will have far reaching consequenses if they 
+are changed in any way.  If you need a variation on one of these functions
+then you should make a copy of the function, rename it and modify it as 
+needed.
+
+02.11.98 - JH  sup_Get_Enum_Stored_Value changed. It used to get the wrong
+  value if the stored value is the same as the display value. (None of the 
+  default module .ABS files access enumeration lists with this condition
+  so no users with standard schemas are affected.)
+  Added an additional check to see if the first value found in the
+  enum list was actually the stored value rather than the display value.
+
+11.06.98 - JH Declarations for the Windows API functions changed from
+             16 to 32 bit. sup_Show_Help(), sup_ShowOtherFileHelp()
+            changed to work with the 32 bit API functions.
+04.09.99 - JH sup_AdjustShortDateCentury() Function added.
+04.16.99 - JH Modified sup_Show_Help() to also support context strings
+04.30.99 - JH Added sup_GetBMPDirectory()
+06.08.99 - JH Modified sup_ShowOtherFileHelp() to also support context strings
+01.06.99 - JH Modified sup_GetBMPDirectory() -changed /schema to /schema/common
+12.05.00 - JH Added YZ's sup_Check_Is_Valid_International_Date() function
+12.26.00 - JH Added YZ's functions for converting international decimals:
+              Sup_ReplaceCommaWithDot(), Sup_ReplaceDecimalSymbolWithDotForSingle(),
+             Sup_ReplaceDecimalSymbolWithDotForDouble()
+01.22.01 - JH Added YZ's function sup_WindowsLongDateFormat() for localization
+03.12.01 - JH Changed sup_Check_Is_Valid_International_Date() and 
+            sup_AdjustShortDateCentury() to use
+            WindowShortDateWithFourDigitYear instead of 
+            WindowShortDateFormat
+04.24.01 - JH Added YZ's function sup_InternationalTimeFormat() for localization
+05.21.01 - JH Changed afm11.hlp to afm.hlp
+06.05.01 - YQ Add two functions for generating time comparison SQL statement that are used in RoomRes .abs files.
+            Declare Function sup_MakeTimeGreaterSQLStmt( sTimeField As String, sTimeValue As String )
+            Declare Function sup_MakeTimeLessSQLStmt( sTimeField As String, sTimeValue As String )
+06.06.01 - JH Added "NLD" for Dutch to date and time format.
+06.26.01 - JH Added "NON" for Norwegian to date and time format.
+02.04.02 - JH Updated sup_Get_Enum_Stored_Value() to more accurately find redundant values.
+08.02.02 - YQ Add two functions:
+            Declare Function sup_MakeTimeGreaterOrEqualSQLStmt( sTimeField As String,sTimeValue As String )
+            Declare Function sup_MakeTimeLessOrEqualSQLStmt( sTimeField As String, sTimeValue As String )
+08.13.02 - YQ Update Sup_Valid_date: Also check to see if Month, Year or Date are correct.
+05.29.03 - YQ Localization: fix the "help links do not open correct help topics" bug.
+06.16.03 - YQ fix sup_Check_Is_Valid_International_Date() does not work when the system date is set to have a two digit year
+            Add function Function GetYearIndex(sSeparator As String) As Integer to get the year index of WindowShortDateWithFourDigitYear
+09.10.03 - YQ fix the GetYearIndex() function as it returnt the wrong index for year part which causes "BADDATE" error in BScripts.         
+09.11.03 - WSY Added "KOR" for Korean and "ZH" for Chinese to date and time format.
+02.09.04 - EZ Added "," to "1234567890." to accommodate German/French type of decimal separator, ",".
+              This avoids an error dialog of invalid positive number for a number with "," as decimal separator.
+03.10.06 - YQ Modified the sup_Show_Help function to load the html page for both English and Localized version
+              Modified the function sup_ShowOtherFileHelp to call sup_Show_Help.
+04.11.06 - YQ Modified the function sup_ShowOtherFileHelp to search \help folder
+08.08.06 - YQ Modified the function sup_ShowOtherFileHelp to:
+            (1) take only one parameter - help topic
+               (2) search \help\system-management folder
+
+The Declare statements to use in your scripts to call the enclosed routines
+are as follows:
+*********************************************************************************/
+
+Option Explicit
+
+'---- External Functions
+Declare Function SqlFunc_SQLMakeTimeFunc( sTime As String, _
+        sTimePart As String ) As String
+
+'---- Internal Functions 
+Declare Sub sup_Show_Help ( ByVal Help_Topic As String )
+Declare Sub sup_ShowOtherFileHelp( ByVal Help_Topic As String )
+
+Declare Function sup_ISO_Date ( Date_to_Convert As String ) As String
+Declare Function sup_ISOtoBasic ( ISOdateString As String ) As Double
+
+Declare Function sup_Valid_Date( Date_To_Test As String ) As Boolean
+Declare Function sup_Check_Is_Valid_International_Date(sDialogDate As String) As Boolean
+Declare Function sup_Valid_Time( Time_To_Test As String ) As Boolean
+Declare Function sup_Valid_Positive_Num( Number_To_Test As String ) As Boolean
+
+Declare Sub sup_Fill_Enum_Array( ByVal Enum_List As String, _
+                                Drop_List() As String )
+Declare Function sup_Get_Enum_Display_Value( Stored_Value As String, _
+        Enum_List As String ) As String
+Declare Function sup_Get_Enum_Stored_Value( Display_Value As String, _
+        Enum_List As String ) As String
+
+Declare Function sup_Get_All_Field_Names_For_Table(Table As String) As String   
+Declare Function sup_MakeLiteralOrNull( strVal As String ) As String
+Declare Function sup_MakeLiteralOrBlank( strVal As String ) As String
+Declare Function sup_ID_Exists( Table As String, FirstIDField As String, _
+        SecondIDField As String, FirstID As String, SecondID As String ) As _
+        Boolean
+Declare Function sup_MakeTimeMatchingSQLStmt( sTimeField As String, _
+        sTimeValue As String )
+Declare Function sup_MakeTimeGreaterSQLStmt( sTimeField As String, _
+        sTimeValue As String )
+Declare Function sup_MakeTimeLessSQLStmt( sTimeField As String, _
+        sTimeValue As String )
+Declare Function sup_MakeTimeGreaterOrEqualSQLStmt( sTimeField As String, _
+        sTimeValue As String )
+Declare Function sup_MakeTimeLessOrEqualSQLStmt( sTimeField As String, _
+        sTimeValue As String )
+Declare Function sup_AdjustShortDateCentury( sDialogDate As String ) As String
+Declare Function ReviseCentury( sYearStr As String ) As String
+Declare Function sup_GetBMPDirectory( sBmpName As String ) As String
+
+Declare Function Sup_ReplaceCommaWithDot( sForeignNumber As String ) As String
+Declare Function Sup_ReplaceDecimalSymbolWithDotForSingle( rForeignNumber As Single ) As String
+Declare Function Sup_ReplaceDecimalSymbolWithDotForDouble( dForeignNumber As Double ) As String
+Declare Function sup_WindowsLongDateFormat() As String
+Declare Function sup_InternationalTimeFormat() As String
+
+
+Declare Function GetYearIndex(sSeparator As String) As Integer
+
+'------------------------------------------------------------------------------
+'----                                 TRANSLATE
+Const ThisIsAHeadingMsg$            = "This is a heading; not a menu choice."
+Const AFMNavigatorMsg$          = "ARCHIBUS/FM Navigator"
+Const RecordForMsg$             = "Record for" 
+Const AlreadyExistsMsg$         = "already exists."
+Const DuplicateEntriesNotPermMsg$   = "Duplicate entries are not permitted."
+Const DuplicateIDMsg$           = "Duplicate ID"
+Const kIsNotAValidDateMsg$      = "Invalid date:"
+Const kInvalidDateMsg$          = "Invalid Date"
+Const kDateDoesNotMatchRegionalDateFormatMsg$ = "This date does not match the regional date format:"
+
+
+'------------------------------------------------------------------------------
+'---- Do NOT Translate
+Const kintCenturySwitchDate%        = 60
+Const kDefaultHelpFile$         = "AFM.HLP"
+'------------------------------------------------------------------------------
+
+
+'******************************************************************************
+'*  HELP Functions  
+'******************************************************************************
+'------------------------------------------------------------------------------
+'------------------------------------------------------------------------------
+'---- Declare externally defined functions which provide for accessing 
+'---- the Windows Help System.
+'   Help engine declarations.
+'   Commands to pass WinHelp()  
+
+Const HELP_KEY = &H101          ' Display topic for keyword in Data
+Const HELP_COMMAND = &H102&     ' Runs a command macro
+
+Declare Function apiGetActiveWindow Lib "user32" Alias "GetActiveWindow" () As Long
+
+Declare Function WinHelp Lib "User32" Alias "WinHelpA" _
+    ( ByVal hWnd As Long, _
+      ByVal lpHelpFile As String, ByVal wCommand As Long, _
+      ByVal dwData As String ) As Long
+ 
+'------------------------------------------------------------------------------
+'---- Displays the windows help system for a help topic in AFM10.HLP
+Sub sup_Show_Help (ByVal Help_Topic As String)
+
+    Dim strHelpPath As String
+    Dim strLangExt As String
+    Dim strHomePath As String
+
+
+    strHomePath = Basic.HomeDir$
+    strHelpPath = Item$( strHomePath, 1, ItemCount( strHomePath, "\")-1, "\") & "\help\archibus_fm_help"
+
+    If strLangExt <> "" Then
+        Dim oServicesProvider   As Object
+        Set oServicesProvider   = CreateObject("ARCHIBUS.ServicesProvider.1")
+        strLangExt = oServicesProvider.SysVarsService.GetLanguageExt
+        strHelpPath = strHelpPath + "_" + strLangExt
+    End If
+
+
+'   ---- If there is an underscore in Help_Topic then assume the Help_Topic
+'   ---- is a context string and use a macro to locate the topic.
+
+    If Help_Topic <> "" Then 
+        Dim strTopic As String
+        strTopic = Help_Topic & ".htm"
+
+        Dim bResult As Boolean
+        bResult = AfmGetHelpPath(strHelpPath, strTopic)
+
+    End If
+
+End Sub
+
+'------------------------------------------------------------------------------
+'---- Displays windows help system for a help topic in a specified help file
+Sub sup_ShowOtherFileHelp( ByVal Help_Topic As String )
+
+    Dim strHelpPath As String
+    Dim strLangExt As String
+    Dim strHomePath As String
+
+
+    strHomePath = Basic.HomeDir$
+    strHelpPath = Item$( strHomePath, 1, ItemCount( strHomePath, "\")-1, "\") & "\help\system-management"
+
+'   ---- If there is an underscore in Help_Topic then assume the Help_Topic
+'   ---- is a context string and use a macro to locate the topic.
+
+    If Help_Topic <> "" Then 
+        Dim strTopic As String
+        strTopic = Help_Topic & ".htm"
+
+        Dim bResult As Boolean
+        bResult = AfmGetHelpPath(strHelpPath, strTopic)
+    End If
+
+End Sub
+
+
+'------------------------------------------------------------------------------
+'------------------------------------------------------------------------------
+
+
+'******************************************************************************
+'*  DATE Functions  
+'******************************************************************************
+'------------------------------------------------------------------------------
+'------------------------------------------------------------------------------
+'---- Convert a date retrieved from SQL or Windows format into ISO format.
+Function sup_ISO_Date ( Date_to_Convert As String ) As String
+    sup_ISO_Date = Format$( DateValue( Date_to_Convert ), "yyyy-mm-dd" )
+End Function
+'------------------------------------------------------------------------------
+'------------------------------------------------------------------------------
+
+'------------------------------------------------------------------------------
+'------------------------------------------------------------------------------
+' ---- Define function for converting ISO format Dates returned by selVals
+' ---- function to a value which can be formatted by Basic according to the
+' ---- International Date format defined in the Windows Control Panel.
+Function sup_ISOtoBasic (ISOdateString$) As Double
+    sup_ISOtoBasic = DateSerial( Val( Left$( ISOdateString,4 )), _
+        Val( Mid$( ISOdateString,6,2 )),Val( Mid$( ISOdateString,9,2 )))
+End Function
+'------------------------------------------------------------------------------
+'------------------------------------------------------------------------------
+
+
+'******************************************************************************
+'*  VALID DATE, TIME, NUMBER Functions  
+'******************************************************************************
+'------------------------------------------------------------------------------
+'------------------------------------------------------------------------------
+'---- Tests to see if a string variable contains a valid date.
+Function sup_Valid_Date( Date_To_Test As String ) As Boolean
+
+    sup_Valid_Date = sup_Check_Is_Valid_International_Date(Date_To_Test) 
+
+/****** 
+ ****** Replaced by sup_Check_Is_Valid_International_Date() above
+    If Date_To_Test <> "" Then
+        If Not sup_Valid_Positive_Num( Date_To_Test ) Then
+            If IsDate( Date_To_Test ) Then 
+'               ---- Test to see if it is a time instead of a date.
+                If DateValue( Date_To_Test ) = 0 Then
+                    sup_Valid_Date = False
+                Else
+                    sup_Valid_Date = True
+                End If
+            Else
+                sup_Valid_Date = False
+            End If
+        Else
+            sup_Valid_Date = False
+        End If
+    Else
+        sup_Valid_Date = True
+    End If
+******/
+
+End Function
+'------------------------------------------------------------------------------
+'------------------------------------------------------------------------------
+
+'------------------------------------------------------------------------------
+'------------------------------------------------------------------------------
+'---- Test if a date string returned from dialog is valid -- YZ - 12.05.00
+Function sup_Check_Is_Valid_International_Date(sDialogDate As String) As Boolean
+
+    Dim sWinSDFormat As String
+    Dim sSeparator As String
+    Dim iSeparatorPos As Integer
+    Dim iHyphenPos As Integer
+    Dim iDotPos As Integer
+    Dim i As Integer
+    Dim j As Integer
+    Dim iNumSeparators As Integer
+    Dim iLenString As Integer
+    Dim iNumItems As Integer
+    Dim sItem As String
+    Dim strDate As String
+    Dim sDateItem As String
+    Dim iYearIndex As Integer
+
+'   ---- If a blank value leave as is.
+    If sDialogDate = "" Then
+        sup_Check_Is_Valid_International_Date = True
+
+'   ---- Else if it is a valid date 
+    Else
+
+        sWinSDFormat = WindowShortDateWithFourDigitYear
+
+'       ----    Find the first "-" or "/" or "." in the WindowShortDateFormat;
+'       ----    assume that this is the date separator character.
+        iSeparatorPos = InStr( sWinSDFormat, "/" )
+        sSeparator = "/"
+        iHyphenPos = InStr( sWinSDFormat, "-" )
+        iDotPos = InStr( sWinSDFormat, "." )
+        If iHyphenPos > iSeparatorPos Then 
+            iSeparatorPos = iHyphenPos
+            sSeparator = "-"
+        End If
+        If iDotPos > iSeparatorPos Then sSeparator = "."
+
+'       ---- Make sure sDialogDate contains at least one separator
+        iSeparatorPos = Instr( sDialogDate, sSeparator )
+        If iSeparatorPos = 0 Then
+            sup_Check_Is_Valid_International_Date = False
+            Exit Function
+        End If
+
+'       ----    Check if there are only 2 separators in sDialogDate. Otherwise return False
+        iNumSeparators = 0
+        j = 0
+        iLenString = Len(sDialogDate)
+        While j <= iLenString
+            j = j + 1
+            If Mid$(sDialogDate,j,1) = sSeparator Then iNumSeparators = iNumSeparators + 1
+        Wend
+
+        If iNumSeparators <> 2 Then 
+            sup_Check_Is_Valid_International_Date = False
+            Exit Function
+        End If
+
+'       ----    Extract string items separated by separators in sDialogDate
+'       ---- and check if each item is a valid positive number
+        iNumItems = ItemCount (sDialogDate, sSeparator)
+
+        If iNumItems = 3 Then 
+            On Error Goto ErrMsg
+
+            ' YQ 06.16.03 Add comments for change in 04.13.02 - fix a bug in French. 
+            ' When user enter an invalid date,  such as 13/08/200, use the function 
+            ' Format$(DateValue(sDialogDate), WindowShortDateWithFourDigitYear) to cast
+            ' the string to date, and then compare the result. If the date is invalid, then the returned 
+            ' date (strDate ) from the function will be different from the original value (sDialogDate). 
+            strDate = Format$(DateValue(sDialogDate), WindowShortDateWithFourDigitYear)
+
+            ' find out which part of the string is year.
+            iYearIndex = GetYearIndex(sSeparator)
+
+            For i = 1 to iNumItems
+                sItem = Item$ (sDialogDate, i, i, sSeparator)
+                sDateItem = Item$(strDate, i, i, sSeparator)
+                
+                ' YQ 06.16.03 for year part, trim the first two chars. This is to fix the problem that if the date is 
+                ' with two digit year, then the function comparing year 1972 and 72 and consider this is not 
+                ' equal thus return the FALSE
+                If i = iYearIndex Then
+                    ' trim the sItem from 3rd chars to end only when it's length is greater than 2
+                    If Len(sItem) > 2 Then sItem = Mid$(sItem, 3) 
+                    sDateItem = Mid$(sDateItem, 3)
+                End If
+
+                ' YQ 04.14.02 fix a bug in French. When user enter an invalid date,  such as 13/08/200, 
+                ' Use the function Format$(DateValue(sDialogDate), WindowShortDateWithFourDigitYear) to cast
+                ' the string to date, and then compare the result. If the date is invalid, then the returned 
+                ' date (strDate ) from the function will be different from the original value (sDialogDate). 
+
+                If Not sup_Valid_Positive_Num (sItem) OR CInt(sItem) <> CInt(sDateItem) Then
+                    sup_Check_Is_Valid_International_Date = False
+                    Exit Function
+                End If
+            Next i
+
+            sup_Check_Is_Valid_International_Date = True
+            
+            On Error Goto 0
+        Else
+            sup_Check_Is_Valid_International_Date = False
+        End If
+        
+    End If
+Exit Function
+ErrMsg:
+    sup_Check_Is_Valid_International_Date = False
+End Function
+'------------------------------------------------------------------------------
+'------------------------------------------------------------------------------
+
+'------------------------------------------------------------------------------
+'------------------------------------------------------------------------------
+'---- Tests to see if a string variable contains a valid time.
+Function sup_Valid_Time( Time_To_Test As String ) As Boolean
+
+    If Time_To_Test <> "" Then
+        If IsDate( Time_To_Test ) Then 
+'           ---- Test to see if it is a date instead of a time.
+            On Error Goto Time_Error
+            If DateValue( Time_To_Test ) <> 0 Then
+                sup_Valid_Time = False
+            Else
+                If InStr( Time_To_Test, "." ) = 0 Then
+                    sup_Valid_Time = True
+                Else
+                    sup_Valid_Time = False
+                End If
+            End If
+            On Error Goto 0
+        Else
+            sup_Valid_Time = False
+        End If
+    Else
+        sup_Valid_Time = True
+    End If
+    Exit Function
+
+'---- This handles single numbers which pass the Is_Date but cause an error
+'---- with DateValue.
+Time_Error:
+    sup_Valid_Time = False
+    Resume Next
+
+End Function
+'------------------------------------------------------------------------------
+'------------------------------------------------------------------------------
+
+'------------------------------------------------------------------------------
+'------------------------------------------------------------------------------
+'---- Tests to see whether a string contains any letters or negative numbers
+Function sup_Valid_Positive_Num( Number_To_Test As String ) As Boolean
+    
+    Dim j As Integer
+    Dim BadNum As Boolean
+    Dim NumPeriods As Integer
+    Dim LenOfNum As Integer
+
+    j = 0
+    BadNum = FALSE
+    NumPeriods = 0
+    LenOfNum = Len( Number_To_Test )
+    
+    If LenOfNum = 1 And Mid$(Number_To_Test,1,1) = "." Then BadNum = TRUE
+
+    While j <= LenOfNum And Not BadNum
+       j = j + 1
+       If InStr("1234567890.,",Mid$(Number_To_Test,j,1))=FALSE Then BadNum=TRUE
+       If Mid$(Number_To_Test,j,1) = "." Then NumPeriods = NumPeriods + 1
+    Wend
+    
+    If NumPeriods > 1 Then BadNum = TRUE
+
+    sup_Valid_Positive_Num = Not BadNum
+
+End Function
+'------------------------------------------------------------------------------
+'------------------------------------------------------------------------------
+
+
+'******************************************************************************
+'*  ENUMERATION LIST Functions  
+'******************************************************************************
+'------------------------------------------------------------------------------
+'------------------------------------------------------------------------------
+'---- Fills an array for a dialog drop list, from the enum
+'---- list as defined in the database. 
+Sub sup_Fill_Enum_Array( ByVal Enum_List As String, Drop_List() As String )
+
+    Dim i As Integer
+    Dim j As Integer
+
+'   ---- Every other item in an enum list is a display value.
+    For i = 2 To ItemCount( Enum_List, ";" ) Step 2
+        j = i/2 - 1
+        Redim Preserve Drop_List( j )
+        Drop_List( j ) = Item$( Enum_List, i, i, ";" )
+    Next
+
+End Sub
+'------------------------------------------------------------------------------
+'------------------------------------------------------------------------------
+
+'------------------------------------------------------------------------------
+'------------------------------------------------------------------------------
+'---- Given the Stored value for an enum list returns the corresponding
+'---- display value.
+'---- The Enum_List string must be in the same format as defined in the 
+'---- database table, eg.: y;Yes;n;No
+Function sup_Get_Enum_Display_Value( Stored_Value As String, _
+        Enum_List As String) As String
+    
+    Dim Position_Start As Integer
+    Dim Position_End As Integer
+    Dim Value_Length As Integer
+    Dim bExactMatch As Boolean
+
+    Position_Start = 0
+    bExactMatch = FALSE
+
+    Do While Not bExactMatch
+        bExactMatch = TRUE
+        Position_Start = Position_Start + 1
+        Position_Start = InStr( Position_Start, Enum_List, Stored_Value, 1 ) 
+
+        If Position_Start <= 0 Then         '---- item not found
+            sup_Get_Enum_Display_Value = Stored_Value   
+            Exit Function
+        End If
+
+'       ---- Test for ";" immediately before (if not first item in list)
+        If Position_Start <> 1 Then
+            If Mid$( Enum_List, Position_Start - 1, 1) <> ";" Then
+                bExactMatch = FALSE
+            End If
+        End If
+
+'       ---- Test for ";" immediately after
+        If Mid$( Enum_List, Position_Start + Len(Stored_Value), 1)<>";" Then
+            bExactMatch = FALSE
+        End If
+    Loop 
+
+    Position_Start = InStr( Position_Start, Enum_List, ";" ) + 1
+    Position_End = InStr( Position_Start, Enum_List, ";" )
+    Value_Length = Position_End - Position_Start
+
+    If Position_End <> 0 Then 
+      sup_Get_Enum_Display_Value = Mid$(Enum_List,Position_Start,Value_Length)
+    Else    '---- there is no semi-colon after last value
+      sup_Get_Enum_Display_Value = Mid$( Enum_List, Position_Start )
+    End If
+
+End Function
+'------------------------------------------------------------------------------
+'------------------------------------------------------------------------------
+
+'------------------------------------------------------------------------------
+'------------------------------------------------------------------------------
+'---- Given the Display value for an enum list returns the 
+'---- corresponding value to store.  
+'---- The Enum_List string must be in the same format as defined in the 
+'---- database table, eg.: y;Yes;n;No
+Function sup_Get_Enum_Stored_Value( Display_Value As String, _
+        Enum_List As String) As String
+    
+    Dim Stored_End As Integer
+    Dim Display_Start As Integer
+    Dim DisplayValLen As Integer
+    Dim Upto_Val As String
+    Dim Item_Val As Integer
+    Dim bExactMatch As Boolean
+
+'   ---- Move back 2 characters from where the display_value is found to
+'   ---- account for the first character of the display_value and the 
+'   ---- prior semi-colon.
+
+    Stored_End = -2
+    bExactMatch = FALSE
+
+    Do While Not bExactMatch
+        bExactMatch = TRUE
+        Stored_End = InStr( Stored_End + 3, Enum_List, Display_Value) - 2
+
+        If Stored_End <= 0 Then         '---- item not found
+            sup_Get_Enum_Stored_Value = Display_Value   
+            Exit Function
+        End If
+
+'       ---- Test for ";" immediately before
+        If Mid$( Enum_List, Stored_End + 1, 1) <>";" Then bExactMatch = FALSE
+
+'       ---- Test for ";" immediately after  (if not last item in list)
+        If InStr( Stored_End + 2, Enum_List, ";" ) <> 0 Then
+            If Mid$(Enum_List,Stored_End + Len(Display_Value)+2,1)<>";" Then
+                bExactMatch = FALSE
+            End If
+        End If
+
+'       ---- If the Display Value was found then check to make sure that
+'       ---- there is not another match immediately following the found
+'       ---- value. This can happen if the Stored Value is the same as the
+'       ---- the display value. In this case Stored_End must be moved
+'       ---- forward by the Length of the Display Value + 1.
+        If bExactMatch Then
+            DisplayValLen = Len( Display_Value )
+            Display_Start = InStr( Stored_End + DisplayValLen + 3, _
+                    Mid$( Enum_List, 1, Stored_End + DisplayValLen + 3 + DisplayValLen ), _
+                    Display_Value )
+            If Display_Start > 0 Then Stored_End = Display_Start - 2
+        End If
+
+    Loop  
+
+'   ---- The stored value is listed prior to the display value in the
+'   ---- enumeration list. Upto_Val is everything prior to Display_Value
+    Upto_Val = Mid$( Enum_List, 1, Stored_End )
+
+'   ---- Item_Val is the last item in the Upto_Val list
+    Item_Val = ItemCount( Upto_Val, ";" )
+
+'   ---- Stored value is last item in Upto_Val list
+    sup_Get_Enum_Stored_Value = Item$( Upto_Val, Item_Val, Item_Val, ";" )
+    
+End Function
+'------------------------------------------------------------------------------
+'------------------------------------------------------------------------------
+
+
+'******************************************************************************
+'*  DATABASE Functions  
+'******************************************************************************
+'------------------------------------------------------------------------------
+'------------------------------------------------------------------------------
+Function sup_Get_All_Field_Names_For_Table( Table As String ) As String 
+
+    Dim rs as New Recordset
+    Dim Fields_List As String
+    Dim i As Integer
+
+    rs.Open "SELECT field_name FROM afm_flds WHERE table_name = '" +Table +"'"
+
+    i = 1
+    Do While Not rs.EOF
+
+        If i <> 1 Then Fields_List = Fields_List + "," 
+        
+        Fields_List = Fields_List + rs.Fields( 0 ).Value
+
+        rs.MoveNext
+        i = i + 1
+    Loop
+    rs.Close
+
+    sup_Get_All_Field_Names_For_Table = Fields_List
+
+End Function
+'------------------------------------------------------------------------------
+'------------------------------------------------------------------------------
+
+
+'------------------------------------------------------------------------------
+'------------------------------------------------------------------------------
+'---- Called by sup_MakeLiteralOrNull
+Function MakeLiteral( strVal As String ) As String
+
+'   ---- Search thru string, replacing all single quotes with two
+'   single quotes.
+
+    Dim strLiteralQuote As String
+    Dim strTmp As String
+    Dim strLiteral As String
+    Dim nIndex As Integer
+
+'   ---- Step through the string replacing all single quotes with
+'   an extra single quote.
+
+    strLiteralQuote = "'"
+    strTmp = strVal
+
+    strLiteral = strLiteralQuote
+    
+    Do
+
+'       ---- Find the next single quote.
+        nIndex = InStr( strTmp, strLiteralQuote )
+        If nIndex = 0 Then
+
+'           ---- There are no more quotes, so add the rest of the str.
+            strLiteral = strLiteral + strTmp
+            Exit Do
+        End If
+
+'       ---- Add all the chars upto the index to the literal string.
+        strLiteral = strLiteral + Left$( strTmp, nIndex - 1 )
+
+'       ---- Double up the literal quote.
+        strLiteral = strLiteral + strLiteralQuote + strLiteralQuote
+
+'       ---- Set the string equal to everything after the index.
+        strTmp = Mid$( strTmp, nIndex + 1 )
+
+    Loop While TRUE
+
+'   ---- Add the closing quote.
+    strLiteral = strLiteral + strLiteralQuote
+
+    MakeLiteral = strLiteral
+
+End Function
+'------------------------------------------------------------------------------
+'------------------------------------------------------------------------------
+'---- Given "xy'z", return "'xy''z'"; if given "", return "null"
+Function sup_MakeLiteralOrNull( strVal As String ) As String
+
+    If strVal = "" Then
+        sup_MakeLiteralOrNull = "NULL"
+    Else
+        sup_MakeLiteralOrNull = MakeLiteral( strVal )
+    End If
+
+End Function
+'------------------------------------------------------------------------------
+'---- Only puts doubles up internal quotes - does not put quotes on each end
+Function sup_MakeLiteralOrBlank( strVal As String ) As String
+    
+    Dim sLiteralStr As String
+
+    If strVal = "" Then
+        sup_MakeLiteralOrBlank = ""
+    Else
+        sLiteralStr = MakeLiteral( strVal )
+        sup_MakeLiteralOrBlank = Mid$( sLiteralStr, 2, Len( sLiteralStr ) -2)
+    End If
+
+End Function
+'------------------------------------------------------------------------------
+'------------------------------------------------------------------------------
+
+
+'------------------------------------------------------------------------------
+'------------------------------------------------------------------------------
+Function sup_ID_Exists( Table As String, FirstIDField As String, _
+        SecondIDField As String, FirstID As String, SecondID As String ) As _
+        Boolean
+
+    Dim rs As New RecordSet
+
+    rs.Open "SELECT " + FirstID + " FROM " + Table + _
+           " WHERE " + FirstIDField + " = " + FirstID + _
+           " AND " + SecondIDField + " = " + SecondID
+          
+    If Not rs.EOF Then
+        MsgBox RecordForMsg + " '" + FirstID + "' - '" + SecondID + _
+              " " & AlreadyExistsMsg + Basic.Eoln$ + _
+              DuplicateEntriesNotPermMsg, ebInformation, _
+              DuplicateIDMsg
+        sup_ID_Exists = TRUE
+    Else
+        sup_ID_Exists = FALSE
+    End If
+
+    rs.Close
+
+End Function
+'------------------------------------------------------------------------------
+'------------------------------------------------------------------------------
+
+
+'******************************************************************************
+'*  MISCELLANEOUS Functions 
+'******************************************************************************
+'------------------------------------------------------------------------------
+'------------------------------------------------------------------------------
+'---- Does Nothing.
+Sub sup_Dummy
+
+    MsgBox ThisIsAHeadingMsg, ebInformation, AFMNavigatorMsg
+
+End Sub
+'------------------------------------------------------------------------------
+'------------------------------------------------------------------------------
+
+'------------------------------------------------------------------------------
+'------------------------------------------------------------------------------
+'---- Makes a SQL Where clause which can be used to match a time field to 
+'---- a time value
+Function sup_MakeTimeMatchingSQLStmt( sTimeField As String, _
+        sTimeValue As String )
+
+    Dim sSqlStmt As String
+    
+    sSqlStmt = " AND" & SqlFunc_SQLMakeTimeFunc( sTimeField, "HOUR" ) & _
+                   "=" & SqlFunc_SQLMakeTimeFunc( ProjDb.ISOToNativeTime( _
+                            sTimeValue ), "HOUR" ) & _
+             " AND" & SqlFunc_SQLMakeTimeFunc( sTimeField, "MINUTE" ) & _
+                   "=" & SqlFunc_SQLMakeTimeFunc( ProjDb.ISOToNativeTime( _
+                            sTimeValue ), "MINUTE" ) & _
+             " AND" & SqlFunc_SQLMakeTimeFunc( sTimeField, "SECOND" ) & _
+                   "=" & SqlFunc_SQLMakeTimeFunc( ProjDb.ISOToNativeTime( _
+                            sTimeValue ), "SECOND" )
+
+    sup_MakeTimeMatchingSQLStmt = sSqlStmt
+
+End Function
+'------------------------------------------------------------------------------
+'------------------------------------------------------------------------------
+
+
+'------------------------------------------------------------------------------
+'------------------------------------------------------------------------------
+Function sup_MakeTimeGreaterSQLStmt( sTimeField As String, _
+        sTimeValue As String )
+
+    Dim sSqlStmt As String
+    
+    sSqlStmt = " AND ((" & SqlFunc_SQLMakeTimeFunc( ProjDb.ISOToNativeTime(sTimeField), "HOUR" ) & _
+                   ">" & SqlFunc_SQLMakeTimeFunc( ProjDb.ISOToNativeTime( sTimeValue ), "HOUR" ) & ")" &_
+             "   OR (" & SqlFunc_SQLMakeTimeFunc( ProjDb.ISOToNativeTime(sTimeField), "HOUR" ) & _
+                   "=" & SqlFunc_SQLMakeTimeFunc( ProjDb.ISOToNativeTime( sTimeValue ), "HOUR" ) & _
+             "      AND " & SqlFunc_SQLMakeTimeFunc( ProjDb.ISOToNativeTime(sTimeField), "MINUTE" ) & _
+                   ">" & SqlFunc_SQLMakeTimeFunc( ProjDb.ISOToNativeTime( sTimeValue ), "MINUTE" ) & ")" &_ 
+             "   OR (" & SqlFunc_SQLMakeTimeFunc( ProjDb.ISOToNativeTime(sTimeField), "HOUR" ) & _
+                   "=" & SqlFunc_SQLMakeTimeFunc( ProjDb.ISOToNativeTime( sTimeValue ), "HOUR" ) & _
+             "      AND " & SqlFunc_SQLMakeTimeFunc( ProjDb.ISOToNativeTime(sTimeField), "MINUTE" ) & _
+                   "=" & SqlFunc_SQLMakeTimeFunc( ProjDb.ISOToNativeTime( sTimeValue ), "MINUTE" ) & _
+             "     AND " & SqlFunc_SQLMakeTimeFunc( ProjDb.ISOToNativeTime(sTimeField), "SECOND" ) & _
+                   ">" & SqlFunc_SQLMakeTimeFunc( ProjDb.ISOToNativeTime(sTimeValue ), "SECOND" ) & "))"
+
+    sup_MakeTimeGreaterSQLStmt = sSqlStmt
+
+End Function
+'------------------------------------------------------------------------------
+'------------------------------------------------------------------------------
+
+'------------------------------------------------------------------------------
+'------------------------------------------------------------------------------
+Function sup_MakeTimeGreaterOrEqualSQLStmt( sTimeField As String, _
+        sTimeValue As String )
+
+    Dim sSqlStmt As String
+    
+    sSqlStmt = " AND ((" & SqlFunc_SQLMakeTimeFunc( ProjDb.ISOToNativeTime(sTimeField), "HOUR" ) & _
+                   ">" & SqlFunc_SQLMakeTimeFunc( ProjDb.ISOToNativeTime( sTimeValue ), "HOUR" ) & ")" &_
+             "   OR (" & SqlFunc_SQLMakeTimeFunc( ProjDb.ISOToNativeTime(sTimeField), "HOUR" ) & _
+                   "=" & SqlFunc_SQLMakeTimeFunc( ProjDb.ISOToNativeTime( sTimeValue ), "HOUR" ) & _
+             "      AND " & SqlFunc_SQLMakeTimeFunc( ProjDb.ISOToNativeTime(sTimeField), "MINUTE" ) & _
+                   ">" & SqlFunc_SQLMakeTimeFunc( ProjDb.ISOToNativeTime( sTimeValue ), "MINUTE" ) & ")" &_ 
+             "   OR (" & SqlFunc_SQLMakeTimeFunc( ProjDb.ISOToNativeTime(sTimeField), "HOUR" ) & _
+                   "=" & SqlFunc_SQLMakeTimeFunc( ProjDb.ISOToNativeTime( sTimeValue ), "HOUR" ) & _
+             "      AND " & SqlFunc_SQLMakeTimeFunc( ProjDb.ISOToNativeTime(sTimeField), "MINUTE" ) & _
+                   "=" & SqlFunc_SQLMakeTimeFunc( ProjDb.ISOToNativeTime( sTimeValue ), "MINUTE" ) & _
+             "     AND " & SqlFunc_SQLMakeTimeFunc( ProjDb.ISOToNativeTime(sTimeField), "SECOND" ) & _
+                   ">=" & SqlFunc_SQLMakeTimeFunc( ProjDb.ISOToNativeTime(sTimeValue ), "SECOND" ) & "))"
+
+    sup_MakeTimeGreaterOrEqualSQLStmt = sSqlStmt
+
+End Function
+'------------------------------------------------------------------------------
+'------------------------------------------------------------------------------
+
+
+'------------------------------------------------------------------------------
+'------------------------------------------------------------------------------
+Function sup_MakeTimeLessSQLStmt( sTimeField As String, _
+        sTimeValue As String )
+
+    Dim sSqlStmt As String
+    
+    sSqlStmt = " AND ((" & SqlFunc_SQLMakeTimeFunc( ProjDb.ISOToNativeTime(sTimeField), "HOUR" ) & _
+                   "<" & SqlFunc_SQLMakeTimeFunc( ProjDb.ISOToNativeTime( sTimeValue ), "HOUR" ) & ")" &_
+             "   OR (" & SqlFunc_SQLMakeTimeFunc( ProjDb.ISOToNativeTime(sTimeField), "HOUR" ) & _
+                   "=" & SqlFunc_SQLMakeTimeFunc( ProjDb.ISOToNativeTime( sTimeValue ), "HOUR" ) & _
+             "      AND " & SqlFunc_SQLMakeTimeFunc( ProjDb.ISOToNativeTime(sTimeField), "MINUTE" ) & _
+                   "<" & SqlFunc_SQLMakeTimeFunc( ProjDb.ISOToNativeTime( sTimeValue ), "MINUTE" ) & ")" & _
+             "   OR (" & SqlFunc_SQLMakeTimeFunc( ProjDb.ISOToNativeTime(sTimeField), "HOUR" ) & _
+                   "=" & SqlFunc_SQLMakeTimeFunc( ProjDb.ISOToNativeTime( sTimeValue ), "HOUR" ) & _
+             "      AND " & SqlFunc_SQLMakeTimeFunc( ProjDb.ISOToNativeTime(sTimeField), "MINUTE" ) & _
+                   "=" & SqlFunc_SQLMakeTimeFunc( ProjDb.ISOToNativeTime( sTimeValue ), "MINUTE" ) & _
+             "     AND " & SqlFunc_SQLMakeTimeFunc( ProjDb.ISOToNativeTime(sTimeField), "SECOND" ) & _
+                   "<" & SqlFunc_SQLMakeTimeFunc( ProjDb.ISOToNativeTime(sTimeValue ), "SECOND" ) & "))"
+
+    sup_MakeTimeLessSQLStmt = sSqlStmt
+
+End Function
+'------------------------------------------------------------------------------
+'------------------------------------------------------------------------------
+
+'------------------------------------------------------------------------------
+'------------------------------------------------------------------------------
+Function sup_MakeTimeLessOrEqualSQLStmt( sTimeField As String, _
+        sTimeValue As String )
+
+    Dim sSqlStmt As String
+    
+    sSqlStmt = " AND ((" & SqlFunc_SQLMakeTimeFunc( ProjDb.ISOToNativeTime(sTimeField), "HOUR" ) & _
+                   "<" & SqlFunc_SQLMakeTimeFunc( ProjDb.ISOToNativeTime( sTimeValue ), "HOUR" ) & ")" &_
+             "   OR (" & SqlFunc_SQLMakeTimeFunc( ProjDb.ISOToNativeTime(sTimeField), "HOUR" ) & _
+                   "=" & SqlFunc_SQLMakeTimeFunc( ProjDb.ISOToNativeTime( sTimeValue ), "HOUR" ) & _
+             "      AND " & SqlFunc_SQLMakeTimeFunc( ProjDb.ISOToNativeTime(sTimeField), "MINUTE" ) & _
+                   "<" & SqlFunc_SQLMakeTimeFunc( ProjDb.ISOToNativeTime( sTimeValue ), "MINUTE" ) & ")" & _
+             "   OR (" & SqlFunc_SQLMakeTimeFunc( ProjDb.ISOToNativeTime(sTimeField), "HOUR" ) & _
+                   "=" & SqlFunc_SQLMakeTimeFunc( ProjDb.ISOToNativeTime( sTimeValue ), "HOUR" ) & _
+             "      AND " & SqlFunc_SQLMakeTimeFunc( ProjDb.ISOToNativeTime(sTimeField), "MINUTE" ) & _
+                   "=" & SqlFunc_SQLMakeTimeFunc( ProjDb.ISOToNativeTime( sTimeValue ), "MINUTE" ) & _
+             "     AND " & SqlFunc_SQLMakeTimeFunc( ProjDb.ISOToNativeTime(sTimeField), "SECOND" ) & _
+                   "<=" & SqlFunc_SQLMakeTimeFunc( ProjDb.ISOToNativeTime(sTimeValue ), "SECOND" ) & "))"
+
+    sup_MakeTimeLessOrEqualSQLStmt = sSqlStmt
+
+End Function
+'------------------------------------------------------------------------------
+'------------------------------------------------------------------------------
+
+
+'------------------------------------------------------------------------------
+'------------------------------------------------------------------------------
+Function sup_AdjustShortDateCentury( sDialogDate As String ) As String
+
+    Dim sWinSDFormat As String
+    Dim sSeparator As String
+    Dim iSeparatorPos As Integer
+    Dim iHyphenPos As Integer
+    Dim iDotPos As Integer
+    Dim iYearPos As String
+    Dim sYearStr As String
+    Dim sRestOfDateStr As String
+
+'   ---- If a blank value leave as is.
+    If sDialogDate = "" Then
+        sup_AdjustShortDateCentury = sDialogDate
+
+'   ---- If the date is not valid show a message and return "BADDATE"
+    ElseIf Not sup_Valid_Date( sDialogDate ) Then
+        MsgBox kIsNotAValidDateMsg & Chr$(9) & sDialogDate, _
+            ebCritical, kInvalidDateMsg
+        sup_AdjustShortDateCentury = "BADDATE"
+
+'   ---- Else if it is a valid date 
+    Else
+'       ---- If WindowShortDateFormat has only "yy" rather then "yyyy" Then:    
+        sWinSDFormat = WindowShortDateWithFourDigitYear
+
+'       ----    1) Find the first - or / or . in the WindowShortDateFormat;
+'       ----        assume that this is the date separator character.
+        iSeparatorPos = InStr( sWinSDFormat, "/" )
+        sSeparator = "/"
+        iHyphenPos = InStr( sWinSDFormat, "-" )
+        iDotPos = InStr( sWinSDFormat, "." )
+        If iHyphenPos > iSeparatorPos Then 
+            iSeparatorPos = iHyphenPos
+            sSeparator = "-"
+        End If
+        If iDotPos > iSeparatorPos Then sSeparator = "."
+
+'       ---- Make sure sDialogDate uses same format as WindowShortDateFormat
+        iSeparatorPos = Instr( sDialogDate, sSeparator )
+        If iSeparatorPos = 0 Then
+            MsgBox kDateDoesNotMatchRegionalDateFormatMsg$ & Chr$(9) & _
+                    sWinSDFormat & Chr$(9) & sDialogDate, _
+                    ebCritical, kInvalidDateMsg
+            sup_AdjustShortDateCentury = "BADDATE"
+            Exit Function
+        End If
+
+'       ----    2) Find the year location in sDialogDate based on the relative
+'       ---- location of "yy" in WindowShortDateFormat to the separator.
+'       ---- Assume "yy" is either before first separator or after the last.
+        iYearPos = Instr( sWinSDFormat, "yy" )
+        If iYearPos = 1 Then
+            sYearStr = Mid$( sDialogDate, 1, iSeparatorPos -1 )
+            sRestOfDateStr = Mid$( sDialogDate, iSeparatorPos )
+        Else    '---- If not at the beginning then 
+'            ---- after the 2nd separator; assume only 2 separators.
+            iYearPos=InStr(iSeparatorPos +1, sDialogDate, sSeparator)+1
+            sYearStr = Mid$( sDialogDate, iYearPos )
+            sRestOfDateStr = Mid$( sDialogDate, 1, iYearPos - 1 )
+        End If
+
+        If Len( sYearStr ) > 2 Then 
+            sup_AdjustShortDateCentury = sDialogDate
+        Else 
+'           ----    3) Replace the two digit year with a four digit year.
+            If iYearPos = 1 Then
+                sup_AdjustShortDateCentury = ReviseCentury( sYearStr ) & _
+                                                sRestOfDateStr
+            Else
+                sup_AdjustShortDateCentury = sRestOfDateStr & _
+                                        ReviseCentury( sYearStr )
+            End If
+        End If
+
+    End If  '---- Valid date
+
+End Function
+'------------------------------------------------------------------------------
+'------------------------------------------------------------------------------
+'---- Replace the two digit year with a four digit year.
+Function ReviseCentury( sYearStr As String ) As String
+
+    If sYearStr = "" Then 
+        ReviseCentury = CStr( Year ( Date() ) )
+    Else
+        If Len( sYearStr ) = 1 Then sYearStr = "0" & sYearStr
+
+        If CInt( sYearStr ) < kintCenturySwitchDate Then
+            ReviseCentury = "20" & sYearStr
+        Else
+            ReviseCentury = "19" & sYearStr
+        End If
+    End If
+        
+End Function
+'------------------------------------------------------------------------------
+'------------------------------------------------------------------------------
+
+'------------------------------------------------------------------------------
+'---- Checks the AFM\Schema\common directory for the BMP file passed.
+'---- If there returns that directory; otherwise returns the Windows directory.
+Function sup_GetBMPDirectory( sBmpName As String ) As String
+
+    Dim sDir As String
+
+    sDir = Item$( Basic.HomeDir$,1, ItemCount(Basic.HomeDir$,"\")-1, "\") & "\Schema\common"
+
+    If FileExists( sDir & "\" & sBmpName ) Then 
+        sup_GetBMPDirectory = sDir & "\" & sBmpName
+    Else 
+        sup_GetBMPDirectory = System.WindowsDirectory$ & "\" & sBmpName
+    End If
+
+End Function
+'------------------------------------------------------------------------------
+'------------------------------------------------------------------------------
+
+
+'------------------------------------------------------------------------------
+'---- For certain languages, the decimal separator is a coma, ",". This causes
+'---- a problem with numbers being assembled into SQL statements.
+'---- This function checks if a string generated from a single/double number contains 
+'---- a coma, ",". If yes, replace it with a dot, "."
+Function Sup_ReplaceCommaWithDot( sForeignNumber As String ) As String
+
+    Dim i As Integer
+    Dim iLen As Integer
+    Dim tempChar As String
+    Dim sPrev As String
+    Dim sNext As String
+    
+     '--- If the string does not contain a comma, no conversion is necessary
+    If Instr( sForeignNumber, "," ) = 0 Then 
+         Sup_ReplaceCommaWithDot = sForeignNumber
+
+     '--- If the string does contain a coma, replace the coma with a dot
+    Else
+        iLen = Len (sForeignNumber)
+
+        '--- Find the first decimal symbol ","
+        For i = 1 To iLen
+            tempChar = Mid$(sForeignNumber, i, 1)  
+
+            If (tempChar = ",") Then
+
+                '--- Replace comma, "," with a dot, "."
+                Mid$ (sForeignNumber, i) = "."
+                Sup_ReplaceCommaWithDot = sForeignNumber
+                Exit For
+            End If
+        Next i
+    End If
+
+End Function
+'------------------------------------------------------------------------------
+'------------------------------------------------------------------------------
+
+'------------------------------------------------------------------------------
+'---- For certain languages, the decimal separator is a coma, ",". This causes
+'---- a problem with numbers being assembled into SQL statements.
+'---- This function checks if a non-integer number declared as Single contains 
+'---- a coma, ",". If yes, replace it with a dot, "."
+Function Sup_ReplaceDecimalSymbolWithDotForSingle( rForeignNumber As Single ) As String
+
+    Dim sForeignNumber As String
+
+    sForeignNumber = Str (rForeignNumber)
+
+    Sup_ReplaceDecimalSymbolWithDotForSingle = Sup_ReplaceCommaWithDot (sForeignNumber)
+
+End Function
+'------------------------------------------------------------------------------
+'------------------------------------------------------------------------------
+
+'------------------------------------------------------------------------------
+'---- For certain languages, the decimal separator is a coma, ",". This causes
+'---- a problem with numbers being assembled into SQL statements.
+'---- This function checks if a non-integer number (double/real/float) contains 
+'---- a coma, ",". If yes, replace it with a dot, "."
+Function Sup_ReplaceDecimalSymbolWithDotForDouble( dForeignNumber As Double ) As String
+
+    Dim sForeignNumber As String
+
+    sForeignNumber = Str (dForeignNumber)
+
+    Sup_ReplaceDecimalSymbolWithDotForDouble = Sup_ReplaceCommaWithDot (sForeignNumber)
+
+End Function
+'------------------------------------------------------------------------------
+'------------------------------------------------------------------------------
+
+'------------------------------------------------------------------------------
+'---- Establish Windows long date format for different locales.
+'---- This format is used in certain dialogs that display dates;
+'---- for example, work order and move order dialogs.
+Function sup_WindowsLongDateFormat() As String
+    Dim sRegSetting As String
+    sRegSetting = BASIC.Locale$
+
+    If Instr( 1, sRegSetting, "DEU", 1 ) > 0 Then
+        sup_WindowsLongDateFormat = "ddd, d. MMMM yyyy" 
+    ElseIf Instr( 1, sRegSetting, "NLD", 1 ) > 0 Then
+        sup_WindowsLongDateFormat = "ddd, d. MMMM yyyy" 
+    ElseIf Instr( 1, sRegSetting, "FRA", 1 ) > 0 Then
+        sup_WindowsLongDateFormat = "ddd  d MMMM yyyy" 
+    ElseIf Instr( 1, sRegSetting, "ESP", 1 ) > 0 Then
+        sup_WindowsLongDateFormat = "ddd  d MMMM yyyy"
+    ElseIf Instr( 1, sRegSetting, "NON", 1 ) > 0 Then
+         sup_WindowsLongDateFormat = "ddd, d. MMMM yyyy" 
+    ElseIf Instr( 1, sRegSetting, "KOR", 1 ) > 0 Then
+         sup_WindowsLongDateFormat = "yyyy.MM.dd (DDD)"
+    ElseIf Instr( 1, sRegSetting, "ZH", 1 ) > 0 Then
+         sup_WindowsLongDateFormat = "yyyy.MM.dd (DDD)"
+    Else
+        sup_WindowsLongDateFormat = "ddd   mmm d, yyyy" 
+    End If
+End Function
+'------------------------------------------------------------------------------
+
+'------------------------------------------------------------------------------
+'---- Establish Windows time format for different locales.
+'---- This format is used in certain dialogs that display times;
+'---- for example, work order and move order dialogs.
+'---- Medium time uses a 12 hour clock and AM and PM; 
+'-----  short time uses 24 hour clock.
+Function sup_InternationalTimeFormat() As String
+    Dim sRegSetting As String
+    sRegSetting = BASIC.Locale$
+
+    If Instr( 1, sRegSetting, "DEU", 1 ) > 0 Then
+        sup_InternationalTimeFormat = "Short Time"
+    ElseIf Instr( 1, sRegSetting, "NLD", 1 ) > 0 Then
+        sup_InternationalTimeFormat = "Short Time" 
+    ElseIf Instr( 1, sRegSetting, "FRA", 1 ) > 0 Then
+        sup_InternationalTimeFormat = "Short Time" 
+    ElseIf Instr( 1, sRegSetting, "ESP", 1 ) > 0 Then
+        sup_InternationalTimeFormat = "Short Time"
+    ElseIf Instr( 1, sRegSetting, "NON", 1 ) > 0 Then
+        sup_InternationalTimeFormat = "Short Time"
+    ElseIf Instr( 1, sRegSetting, "KOR", 1 ) > 0 Then
+        sup_InternationalTimeFormat = "Short Time"
+    ElseIf Instr( 1, sRegSetting, "ZH", 1 ) > 0 Then
+        sup_InternationalTimeFormat = "Short Time"
+    Else
+        sup_InternationalTimeFormat = "Medium Time" 
+    End If
+End Function
+
+
+'- This function is used to find the index of year part
+Function GetYearIndex(sSeparator As String) As Integer
+
+    Dim strToday As String
+    Dim iNumItems As Integer
+    Dim i As Integer
+    Dim sItem As String
+    Dim iYearIndex As Integer
+
+    '-- assume the year is the last portion of the date format
+    iYearIndex = 3
+
+    strToday = Format$( Date(), WindowShortDateWithFourDigitYear )
+    iNumItems = ItemCount (strToday, sSeparator)
+
+    '-- year portion suppose to have 4 digits, using this info identify the index number of the year portion
+    For i = 1 to iNumItems
+        sItem = Item$ (strToday, i, i, sSeparator)
+        If Len(sItem) = 4 Then
+            iYearIndex = i
+            Exit For
+        End If
+    Next i
+            
+    GetYearIndex = iYearIndex
+
+End Function
+
+'------------------------------------------------------------------------------

@@ -1,0 +1,165 @@
+<view version="2.0">
+	<title>Space and Occupancy History</title>
+  
+    <js file="ab-sp-express-loc-his.js"/>
+    
+    <layout type="borderLayout" id="mainLayout">
+        <north initialSize="120" split="false"/>
+        <center initialSize="30%" autoScroll="true" />
+        <south initialSize="50%" autoScroll="true" />        
+    </layout>
+	<message name="rm" translatable="true">Room History</message>
+	<message name="em" translatable="true">Employee History</message>
+	<message name="dateRequired" translatable="true">Date in Console is Rquired</message>
+      
+    <!--data field for console filters   -->
+    <dataSource id="filterDs">
+       <table name="rmpct" role="main"/>
+       <field table="rmpct" name="bl_id"/>
+       <field table="rmpct" name="fl_id"/>
+       <field table="rmpct" name="rm_id" />
+       <field table="rmpct" name="rm_cat"/>
+       <field table="rmpct" name="rm_type"/>
+       <field table="rmpct" name="dv_id"/>
+       <field table="rmpct" name="dp_id"/>
+       <field table="rmpct" name="date_start"/>
+    </dataSource>
+	<!--Panel to show filters  -->
+    <panel type="console" id="filter" showOnLoad="true" dataSource="filterDs" columns="3" layout="mainLayout" region="north">
+        <title>Filter</title>
+        <action id="show">
+				<title>Show</title> 
+        </action>
+        <action id="clear">
+	    <title>Clear</title>
+            <command type="clearPanel"  />
+            <command type="callFunction" functionName="spaceExpressHistory.hidePanels()" /> 
+        </action>
+       
+        <field table="rmpct" name="bl_id"/>
+        <field table="rmpct" name="fl_id"/>
+        <field table="rmpct" name="rm_id"/>
+        <field table="rmpct" name="dv_id"/>
+        <field table="rmpct" name="dp_id"/>
+        <field id="select_type" controlType="comboBox"   onchange="spaceExpressHistory.onTypeOptionChange(this.value)">
+            <title>Type</title>
+            <option value="rooms" selected="true" translatable="true">Rooms</option>
+            <option value="employees" translatable="true">Employees</option>
+        </field>
+ 
+        <field table="rmpct" name="rm_cat" />
+        <field table="rmpct" name="rm_type" />
+        <field table="rmpct" name="date_start" required="true"  value="${sql.currentDate}">
+             <title>Date</title>
+       	</field>
+    </panel>
+
+    <!--For room list  -->
+    <dataSource id="roomsListDs"  >        
+        <table name="rm" role="main"/>
+        <field table="rm" name="bl_id"/>
+        <field table="rm" name="fl_id" />
+        <field table="rm" name="rm_id" />
+        <field table="rm" name="rm_cat" />
+        <field table="rm" name="rm_type" />
+        <field table="rm" name="dv_id" />
+        <field table="rm" name="dp_id" />
+        <field table="rm" name="rm_std" />
+    	 <restriction type="sql" sql=" exists ( select 1 from    
+						(SELECT bl_id, fl_id, rm_id, dv_id, dp_id,  rm_cat, rm_type, date_start FROM rmpct WHERE  ${parameters['rmp']}   
+						UNION 
+						SELECT bl_id, fl_id, rm_id, dv_id, dp_id,  rm_cat, rm_type, date_start FROM hrmpct WHERE  ${parameters['hrmp']}    
+						)  ${sql.as} hu where  rm.bl_id=hu.bl_id and rm.fl_id=hu.fl_id and  rm.rm_id=hu.rm_id 
+					)  "/>
+        <parameter name="rmp" dataType="verbatim" value="1=1"/>
+        <parameter name="hrmp" dataType="verbatim" value="1=1"/>
+    </dataSource>
+	<!-- Panel to display room list -->
+    <panel type="grid" id="roomList" showOnLoad="false" dataSource="roomsListDs" layout="mainLayout" region="center">
+        <title>Rooms</title>
+   		<event type="onClickItem">
+            <command type="callFunction" functionName="spaceExpressHistory.showHistoryByRoom()"/>
+		</event>
+    </panel>
+    
+    <!-- Data source for employee list  from hrmpct & rmpct  -->
+    <dataSource id="employeesListDs">        
+        <table name="em" role="main"/>
+        <field table="em" name="em_id"/>
+        <field table="em" name="bl_id"/>
+        <field table="em" name="fl_id"/>
+        <field table="em" name="rm_id"/>
+        <field table="em" name="dv_id"/>
+        <field table="em" name="dp_id"/>
+        <field table="em" name="date_hired"/>
+    	 <restriction type="sql" sql=" exists ( select 1 from    
+						(SELECT bl_id, fl_id, rm_id, em_id, dv_id, dp_id,  rm_cat, rm_type, date_start FROM rmpct WHERE  ${parameters['rmp']} 
+						UNION 
+						SELECT bl_id, fl_id, rm_id, em_id, dv_id, dp_id,  rm_cat, rm_type, date_start FROM hrmpct WHERE  ${parameters['hrmp']}
+						)  ${sql.as} hu where  em.em_id=hu.em_id   
+					)  "/>
+        <parameter name="rmp" dataType="verbatim" value="1=1"/>
+        <parameter name="hrmp" dataType="verbatim" value="1=1"/>
+    </dataSource>
+	<!-- Panel to display employee list -->
+    <panel type="grid" id="employeeList" showOnLoad="false" dataSource="employeesListDs" layout="mainLayout" region="center">
+        <title> Employees</title>
+   		<event type="onClickItem">
+            <command type="callFunction" functionName="spaceExpressHistory.showHistoryByEmployee()"/>
+		</event>
+    </panel>
+    
+    <!--The space history list  -->
+    <dataSource id="rmpct_hrmpct_union" >
+        <sql dialect="generic">
+            
+            SELECT  rmpct.bl_id , 
+            rmpct.fl_id, 
+            rmpct.rm_id,
+            rmpct.dv_id,
+            rmpct.dp_id, 
+            rmpct.rm_cat, 
+            rmpct.rm_type, 
+            rmpct.date_start, 
+            rmpct.date_end ,
+            rmpct.em_id
+            from rmpct 
+            WHERE ${parameters['rmp']} 
+            
+            UNION
+            
+            SELECT  hrmpct.bl_id , 
+            hrmpct.fl_id, 
+            hrmpct.rm_id, 
+            hrmpct.dv_id, 
+            hrmpct.dp_id , 
+            hrmpct.rm_cat, 
+            hrmpct.rm_type, 
+            hrmpct.date_start, 
+            hrmpct.date_end ,
+            hrmpct.em_id
+            from    hrmpct
+            WHERE ${parameters['hrmp']}
+            
+        </sql>
+        <table name="hrmpct" role="main"/>
+        <field table="hrmpct" name="bl_id"/>
+        <field table="hrmpct" name="fl_id"/> 
+        <field table="hrmpct" name="rm_id"/>
+        <field table="hrmpct" name="date_start"/>
+        <field table="hrmpct" name="date_end"/>
+        <field table="hrmpct" name="em_id"/>
+        <field table="hrmpct" name="dv_id"/>
+        <field table="hrmpct" name="dp_id"/>
+    
+        <field table="hrmpct" name="rm_cat"/>
+        <field table="hrmpct" name="rm_type"/>
+
+        <parameter name="rmp" dataType="verbatim" value="1=1"/>
+        <parameter name="hrmp" dataType="verbatim" value="1=1"/>
+    </dataSource>    
+    <!-- Panel to display space history list  -->
+    <panel type="grid" id="historyList" showOnLoad="false" dataSource="rmpct_hrmpct_union" layout="mainLayout" region="south">
+        <title></title>
+    </panel> 
+</view>

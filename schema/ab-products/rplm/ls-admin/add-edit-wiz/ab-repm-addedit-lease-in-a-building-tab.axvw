@@ -1,0 +1,855 @@
+<view version="2.0">
+	<js file="ab-repm-addedit-lease-in-a-building-tab.js"/>
+    <js file="ab-repm-addedit-lease-form.js"/>
+    <js file="ab-rplm-common-functions.js"/>
+    <js file="ab-schema-utils.js"/>
+        
+	<layout type="borderLayout" id="mainLayout">
+		<north split="true"  initialSize="80" minSize="80"/>
+		<center autoScroll="true"/>
+	</layout>
+	<layout type="borderLayout" id="nestedLayout" containingLayout="mainLayout" region="center">
+   		<west autoScroll="false" split="true" initialSize="20%"/>
+   		<center autoScroll="false"/>
+	</layout>
+	
+	<message name="message_confirm_delete" translatable="true">Are you sure you want to remove this record?</message>
+	<message name="message_confirm_unassign" translatable="true">Are you sure you want to unassign the selected suite?</message>
+	<message name="tree_panel_title" translatable="true">Selected Building or Lease:</message>
+	<message name="err_selection" translatable="true">You must select a building or a lease before adding a new lease or sublease</message>
+	<message name="addNewDoc" translatable="true">Add Document</message>
+	<message name="editDoc" translatable="true">Edit Document</message>
+	<message name="title_add_contact" translatable="true">Add New Contact</message>
+	<message name="title_edit_contact" translatable="true">Edit contact</message>
+	<message name="edit_base_rent" translatable="true">Edit Recurring Cost</message>
+	<message name="add_base_rent" translatable="true">Add Recurring Cost</message>
+	<message name="add_new_clause" translatable="true">Add Clause</message>
+	<message name="edit_clause" translatable="true">Edit Clause</message>
+	<message name="error_delete" translatable="true">Could not delete selected item.</message>
+	<message name="add_new_option" translatable="true">Add Option</message>
+	<message name="edit_option" translatable="true">Edit Option</message>
+	<message name="error_no_description" translatable="true">A description must be entered.</message>
+	<message name="add_new_amendment" translatable="true">Add Amendment</message>
+	<message name="edit_amendment" translatable="true">Edit Amendment</message>
+	<message name="add_new_suite" translatable="true">Add Suite</message>
+	<message name="edit_suite" translatable="true">Edit Suite</message>
+	<message name="err_ls_landlord" translatable="true">You cannot add a sublease to a lease where you are the landlord</message>
+	<message name="err_no_lease" translatable="true">Enter Lease Code</message>
+	<message name="err_lsId" translatable="true">You must choose another lease code, this one is already used.</message>
+	<message name="error_date_end_before_date_start" translatable="true">The 'End Date' must be greater than the 'Start Date'.</message>
+	<message name="error_date_move_before_date_start" translatable="true">The 'Move Date' must be greater than the 'Start Date'.</message>
+	<message name="err_base_rent_dates" translatable="true">The 'End Date' must be greater than the 'Start Date'.</message>
+	<message name="err_base_rent_seasonal_dates" translatable="true">The 'Seasonal End Date' must be greater than the 'Seasonal Start Date'.</message>
+	<message name="err_options_dates" translatable="true">The 'Date Option Expires' must be greater than the 'Date Option Available'.</message>
+	<message name="addNew_lease" translatable="true">Add New Lease/Sublease</message>
+	<message name="addEdit_geographical" translatable="true">Add/Edit Geographical Locations</message>
+	<message name="addEdit_bldgs" translatable="true">Add/Edit Buildings</message>
+    <message name="titleEditLease" translatable="true">General Lease Information</message>
+    <message name="titleAddLease" translatable="true">Add New Lease</message>
+    <message name="amount_security_title" translatable="true">Amount - Security Dep.</message>
+    
+    <message name="expand_all_title" translatable="true">Expand All</message>
+    <message name="collapse_all_title" translatable="true">Collapse All</message>
+    
+    <message name="msgConfirmDelete" translatable="true">Do you want to delete contact?</message>
+    <message name="msgConfirmUnassign" translatable="true">Do you want to unassign selected contact(s)?</message>
+    <message name="errorNoSelection" translatable="true">You didn't select any contact.</message>
+    
+
+    <!-- DataSources -->	
+    <dataSource id="abRepmAddEditLeaseInABuildingCtry_ds" applyVpaRestrictions="false">
+        <table name="ctry" role="main"/>
+        <table name="bl" role="standard"/>
+        <field table="ctry" name="ctry_id"/>
+        <restriction type="sql" sql="EXISTS(SELECT 1 FROM bl WHERE bl.ctry_id = ctry.ctry_id AND ${sql.getVpaRestrictionForTable('bl')} AND ${parameters['console']})"/>
+        <parameter name="console" dataType="verbatim" value="1=1"/>
+        <sortField table="ctry" name="ctry_id" ascending="true"/>
+    </dataSource>
+    
+    <dataSource id="abRepmAddEditLeaseInABuildingCity_ds" applyVpaRestrictions="false">
+        <table name="city" role="main"/>
+        <table name="bl" role="standard"/>
+        <field table="city" name="city_id"/>
+        <field table="city" name="state_id"/>
+        <restriction type="sql" sql="EXISTS(SELECT 1 FROM bl WHERE bl.city_id = city.city_id AND ${sql.getVpaRestrictionForTable('bl')} AND ${parameters['console']})"/>
+        <parameter name="console" dataType="verbatim" value="1=1"/>
+        <sortField table="city" name="state_id" ascending="true"/>
+        <sortField table="city" name="city_id" ascending="true"/>
+    </dataSource>
+
+    <dataSource id="abRepmAddEditLeaseInABuildingBl_ds">
+        <table name="bl"/>
+        <field name="ctry_id"/>
+        <field name="city_id"/>
+        <field name="regn_id"/>
+        <field name="site_id"/>
+        <field name="bl_id"/>
+        <restriction type="sql" sql="${parameters['console']}"/>
+        <parameter name="console" dataType="verbatim" value="1=1"/>
+        <sortField table="bl" name="bl_id" ascending="true"/>
+    </dataSource>
+    
+    <!-- lease_sublease condition must be removed when sample data issue is fixed -->
+    <dataSource id="abRepmAddEditLeaseInABuildingLs_ds" distinct="true">
+        <sql dialect="generic">
+            SELECT 
+                ls.ls_id ${sql.as} ls_parent_id , 
+                ls.landlord_tenant, 
+                ls.bl_id 
+            FROM ls 
+            WHERE ls.lease_sublease IN ('LEASE', 'SUBLEASE') AND ls.use_as_template = 0 AND ls.ls_parent_id IS NULL
+        </sql>  
+        <table name="ls" role="main"/>
+        <field table="ls" name="ls_parent_id"/>
+        <field table="ls" name="landlord_tenant"/>
+        <sortField table="ls" name="ls_parent_id"/>
+    </dataSource>
+
+    <dataSource id="abRepmAddEditLeaseInABuildingSublease_ds">
+        <table name="ls" role="main"/>
+        <field table="ls" name="ls_id"/>
+        <restriction type="parsed">
+            <clause op="IN" table="ls" name="lease_sublease" value="LEASE,SUBLEASE" relop="AND"/>
+            <clause op="=" table="ls" name="use_as_template" value="0" relop="AND"/>
+            <clause op="IS NOT NULL" table="ls" name="ls_parent_id" relop="AND"/>
+        </restriction>   
+    </dataSource>
+    
+    <!-- Filter console -->
+	<panel type="console" id="abRepmAddEditLeaseInABuildingConsole" dataSource="abRepmAddEditLeaseInABuildingBl_ds" columns="3" layout="mainLayout" region="north">
+		<title translatable="true">Filter</title>	
+		<action id="show">
+			<title translatable="true">Show</title>
+			<command type="callFunction" functionName="filter"/>
+		</action>	
+		<action id="clear">
+			<title translatable="true">Clear</title>
+			<command type="clearForm" panelId="abRepmAddEditLeaseInABuildingConsole"/>
+		</action>
+        <field name="ctry_id"/>
+        <field name="city_id"/>
+        <field name="bl_id"/>
+	</panel>
+    
+    <!-- Tree Control -->
+	<panel type="tree" id="abRepmAddEditLeaseInABuildingCtryTree" dataSource="abRepmAddEditLeaseInABuildingCtry_ds" layout="nestedLayout" region="west">
+        <title translatable="true">Selected Building or Lease:</title>
+        <action id="expand">
+            <title translatable="true">Expand All</title>
+            <command type="callFunction" functionName="abRepmAddeditLeaseFormCtrl.onExpand(abRepmAddEditLeaseInABuilding_ctrl.abRepmAddEditLeaseInABuildingCtryTree, abRepmAddEditLeaseInABuilding_ctrl.abRepmAddEditLeaseInABuildingCtryTree.treeView.getRoot())"/>
+        </action>
+		<action id="addEdit">
+	        <title translatable="true">Add/Edit</title>
+        </action>
+        <panel type="tree" id="abRepmAddEditLeaseInABuildingCityTree" dataSource="abRepmAddEditLeaseInABuildingCity_ds">
+            <field table="city" name="city_id"/>
+            <field table="city" name="state_id" hidden="true"/>
+        </panel>
+		<panel type="tree" id="abRepmAddEditLeaseInABuildingBlTree" dataSource="abRepmAddEditLeaseInABuildingBl_ds">
+            <event type="onClickNode">
+				<command type="callFunction" functionName="hidePanels"/>
+				<command type="callFunction" functionName="showDetails"/>
+                <command type="callFunction" functionName="updateTreeTitle"/>
+            </event>
+            <field name="ctry_id" hidden="true"/>
+            <field name="city_id" hidden="true"/>
+            <field name="regn_id" hidden="true"/>
+            <field name="site_id" hidden="true"/>
+            <field name="bl_id"/>
+        </panel>
+		<panel type="tree" id="abRepmAddEditLeaseInABuildingLsTree" dataSource="abRepmAddEditLeaseInABuildingLs_ds">
+            <event type="onClickNode">
+            	<command type="callFunction" functionName="showDetails"/>
+                <command type="callFunction" functionName="updateTreeTitle"/>
+            </event>
+        </panel>
+		<panel type="tree" id="abRepmAddEditLeaseInABuildingSubleaseTree" dataSource="abRepmAddEditLeaseInABuildingSublease_ds">
+            <event type="onClickNode">
+            	<command type="callFunction" functionName="showDetails"/>
+                <command type="callFunction" functionName="updateTreeTitle"/>
+            </event>
+        </panel>
+    </panel>
+	
+    <!-- Lease form -->
+	<dataSource id="abRepmAddEditLeaseInABuildingLease_ds" applyVpaRestrictions="false">
+		<table name="ls" role="main"/>
+		<field table="ls" name="ls_id"/>
+		<field table="ls" name="description"/>
+		<field table="ls" name="date_start"/>
+		<field table="ls" name="date_move"/>
+		<field table="ls" name="date_end"/>
+		<field table="ls" name="lease_sublease"/>
+		<field table="ls" name="area_negotiated"/>
+		<field table="ls" name="automatic_renewal"/>
+		<field table="ls" name="comments"/>
+		<field table="ls" name="signed"/>
+		<field table="ls" name="ld_name"/>
+		<field table="ls" name="ld_contact"/>
+		<field table="ls" name="tn_name"/>
+		<field table="ls" name="tn_contact"/>
+		<field table="ls" name="amount_security" dataType="number" decimals="2">
+            <sql dialect="generic">
+                ls.amount_security * ${sql.exchangeRateFromBudgetToUser('Budget')}
+            </sql>
+        </field>
+		<field table="ls" name="qty_occupancy"/>
+		<field table="ls" name="floors"/>
+		<field table="ls" name="landlord_tenant"/>
+		<field table="ls" name="ls_parent_id"/>
+		<field table="ls" name="bl_id"/>
+		<field table="ls" name="ac_id"/>
+		<field table="ls" name="lease_type"/>
+		<field table="ls" name="space_use"/>
+        <field table="ls" name="vat_exclude"/>
+        <field table="ls" name="cost_index"/>
+        <field table="ls" name="use_as_template"/>
+	</dataSource>
+	
+	<panel type="form" id="abRepmAddEditLeaseInABuildingLease_form" dataSource="abRepmAddEditLeaseInABuildingLease_ds" columns="3" layout="nestedLayout" region="center" showOnLoad="false">
+        <title translatable="false"></title>
+		<action id="save">
+            <title translatable="true">Save</title>
+        </action>
+        <action id="delete" enabled="${!panel.newRecord}">
+            <title translatable="true">Delete</title>
+        </action>
+        <action id="useTemplate" hidden="${!panel.newRecord}">
+            <title>Use Template</title>
+        </action>
+	<!-- First row -->
+		<field table="ls" name="ls_id" readOnly="${!panel.newRecord}"/>
+		<field table="ls" name="signed"/>
+		<field table="ls" name="amount_security"/>
+	<!-- Second row -->
+		<field table="ls" name="description"/>
+		<field table="ls" name="ld_name" showSelectValueAction="true"/>
+		<field table="ls" name="qty_occupancy"/>
+	<!-- third row -->
+		<field table="ls" name="bl_id" readOnly="true"/>
+		<field table="ls" name="ld_contact">
+            <action>
+                <title translatable="false">...</title>
+                <tooltip>Select Value</tooltip>
+                <command type="callFunction" functionName="onSelectLdContact"/>
+            </action>
+        </field>
+		<field table="ls" name="floors"/>
+	<!-- fourth row -->
+		<field table="ls" name="date_start" required="true"/>
+		<field table="ls" name="tn_name" showSelectValueAction="true"/>
+		<field table="ls" name="landlord_tenant"/>
+	<!-- fifth row -->
+		<field table="ls" name="date_move"/>
+		<field table="ls" name="tn_contact">
+            <action>
+                <title translatable="false">...</title>
+                <tooltip>Select Value</tooltip>
+                <command type="callFunction" functionName="onSelectTnContact"/>
+            </action>
+        </field>
+		<field table="ls" name="ls_parent_id" readOnly="true"/>
+			
+	<!-- sixth row -->
+		<field table="ls" name="date_end" required="true"/>
+		<field table="ls" name="area_negotiated"/>
+		<field table="ls" name="lease_sublease" readOnly="true"/>
+	<!-- seventh row -->
+		<field table="ls" name="automatic_renewal">
+			<title translatable="true">Assume Renewal for KPI Calculations</title>
+		</field>
+		<field table="ls" name="ac_id"/>
+		<field table="ls" name="lease_type"/>
+	<!-- eight row -->
+		<field table="ls" name="space_use"/>
+        <field table="ls" name="cost_index"/>
+		<field/>	
+
+        <field table="ls" name="vat_exclude" hidden="${View.activityParameters['AbCommonResources-EnableVatAndMultiCurrency'] == 0}"/>
+        <field hidden="${View.activityParameters['AbCommonResources-EnableVatAndMultiCurrency'] == 0}"/>
+		<field hidden="${View.activityParameters['AbCommonResources-EnableVatAndMultiCurrency'] == 0}"/>	
+
+		<field table="ls" name="comments"  colspan="3"/>
+	</panel>
+	
+    <!--  Lease templates -->
+	<panel type="grid" id="abRepmAddEditLeaseInABuildingLsTmp_grid" dataSource="abRepmAddEditLeaseInABuildingLease_ds" showOnLoad="false" hidden="true">
+		<title translatable="true">Select Lease Template</title>
+		<sortField table="ls" name="ls_id"/>
+		<field table="ls" name="ls_id" controlType="link" onclick="createNewLease"/>	
+		<field table="ls" name="description" controlType="link" onclick="createNewLease"/>
+		<field table="ls" name="ld_name" controlType="link" onclick="createNewLease"/>
+		<field table="ls" name="tn_name" controlType="link" onclick="createNewLease"/>
+		<field table="ls" name="comments" controlType="link" onclick="createNewLease"/>
+        <field table="ls" name="use_as_template" hidden="true"/>
+	</panel>
+	
+    <!--  Suite -->
+	<dataSource id="abRepmAddEditLeaseInABuildingSuites_ds">
+		<table name="su" role="main"/>
+		<field table="su" name="su_id"/>
+		<field table="su" name="name"/>
+		<field table="su" name="description"/>
+		<field table="su" name="facility_type_id"/>
+		<field table="su" name="fl_id"/>
+		<field table="su" name="area_manual"/>
+		<field table="su" name="area_usable"/>
+		<field table="su" name="ls_id"/>
+		<field table="su" name="bl_id"/>
+	</dataSource>
+    
+	<panel type="grid" id="abRepmAddEditLeaseInABuildingSuites_grid" dataSource="abRepmAddEditLeaseInABuildingSuites_ds" showOnLoad="false" layout="nestedLayout" region="center">
+        <sortField name="su_id" table="su" ascending="true"/>
+		<title translatable="true">Suites Assigned to the Selected Lease/Sublease</title>
+		<action id="addNewAssigned">
+            <title translatable="true">Add New</title>
+			<command type="openDialog" panelId="abRepmAddEditLeaseInABuildingSuitesEdit_form" newRecord="true"/>
+			<command type="callFunction" functionName="View.panels.get('abRepmAddEditLeaseInABuildingSuitesEdit_form').setTitle(getMessage('add_new_suite'))"/>
+			<command type="callFunction" functionName="View.panels.get('abRepmAddEditLeaseInABuildingSuitesEdit_form').setFieldValue('su.bl_id' , View.panels.get('abRepmAddEditLeaseInABuildingLease_form').getFieldValue('ls.bl_id'))"/>
+			
+        </action>
+        <action id="assign">
+            <title translatable="true">Assign Existing Suite</title>
+            <command type="callFunction" functionName="showExistingSuite"/>
+        </action>
+
+        <field controlType="button" id="editAssigned">
+            <title translatable="true">Edit</title>
+            <command type="openDialog" panelId="abRepmAddEditLeaseInABuildingSuitesEdit_form" applyParentRestriction="true"/>
+            <command type="callFunction" functionName="View.panels.get('abRepmAddEditLeaseInABuildingSuitesEdit_form').setTitle(getMessage('edit_suite'))"/>
+        </field>    
+        <field controlType="button" id="unassign">
+          <title translatable="true">Unassign</title>
+        </field>    
+		<field table="su" name="su_id"/>
+		<field table="su" name="name"/>
+		<field table="su" name="description"/>
+		<field table="su" name="facility_type_id"/>
+		<field table="su" name="fl_id"/>
+		<field table="su" name="area_manual"/>
+		<field table="su" name="area_usable"/>
+	</panel>
+	
+	<panel type="grid" id="abRepmAddEditLeaseInABuildingSelectSuites_grid" dataSource="abRepmAddEditLeaseInABuildingSuites_ds" multipleSelectionEnabled="true" showOnLoad="false" hidden="true">
+		<title translatable="true">Select Suites</title>
+		<action id="addSuites">
+			<title translatable="true">Add Suite(s) to Lease</title>
+		</action>
+		<field table="su" name="su_id"/>
+		<field table="su" name="fl_id"/>
+		<field table="su" name="ls_id" hidden="true"/>
+		<field table="su" name="bl_id" hidden="true"/>
+	</panel>
+	
+	<panel type="form" id="abRepmAddEditLeaseInABuildingSuitesEdit_form" dataSource="abRepmAddEditLeaseInABuildingSuites_ds" showOnLoad="false" columns="2" hidden="true">
+	    <action id="save">
+	        <title translatable="true">Save</title>
+			<command type="saveForm" panelId="abRepmAddEditLeaseInABuildingSuitesEdit_form"/>
+			<command type="showPanel" panelId="abRepmAddEditLeaseInABuildingSuites_grid" applyParentRestriction="false"/>
+			<command type="closeDialog"/>
+	    </action>
+		<field table="su" name="su_id"/>
+		<field table="su" name="fl_id">
+			<action onclick="selectFloor">
+        		<title>...</title>
+        		<tooltip>Select Value</tooltip>
+      		</action>
+		</field>
+		<field table="su" name="ls_id" readOnly="true"/>	
+		<field table="su" name="area_manual"/>
+		
+		<field table="su" name="name"/>
+		<field table="su" name="facility_type_id"/>
+		<field table="su" name="area_usable"/>
+		<field table="su" name="bl_id" required="false"  readOnly="true"/>
+		<field table="su" name="description" colspan="2"/>
+	</panel>
+    
+    <!-- Documents -->	
+	<dataSource id="abRepmAddEditLeaseInABuildingDocs_ds" applyVpaRestrictions="false">
+		<table name="docs_assigned" role="main"/>
+		<field table="docs_assigned" name="doc_id"/>
+		<field table="docs_assigned" name="ls_id"/>
+		<field table="docs_assigned" name="bl_id"/>
+		<field table="docs_assigned" name="pr_id"/>
+		<field table="docs_assigned" name="doc"/>
+		<field table="docs_assigned" name="name"/>
+		<field table="docs_assigned" name="classification"/>
+		<field table="docs_assigned" name="description"/>
+	</dataSource>
+
+	<panel type="grid" id="abRepmAddEditLeaseInABuildingDocs_grid" dataSource="abRepmAddEditLeaseInABuildingDocs_ds" showOnLoad="false" layout="nestedLayout" region="center">
+		<title translatable="true">Documents</title>
+		<action id="addNewDocuments">
+			<title translatable="true">Add New</title>
+			<command type="openDialog" panelId="abRepmAddEditLeaseInABuildingDocsEdit_form" newRecord="true"/>
+			<command type="callFunction" functionName="View.panels.get('abRepmAddEditLeaseInABuildingDocsEdit_form').setTitle(getMessage('addNewDoc'))"/>
+		</action>
+        <field controlType="button" id="editDocuments">
+            <title translatable="true">Edit</title>
+            <command type="openDialog" panelId="abRepmAddEditLeaseInABuildingDocsEdit_form" applyParentRestriction="true"/>
+            <command type="callFunction" functionName="View.panels.get('abRepmAddEditLeaseInABuildingDocsEdit_form').setTitle(getMessage('editDoc'))"/>
+        </field>
+        <field controlType="button" id="deleteDocuments">
+          <title translatable="true">Delete</title>
+        </field>
+        <field controlType="button" id="viewDocuments" enabled="${record['docs_assigned.doc'] != ''}">
+          <title translatable="true">View Document</title>
+        </field>    
+        	
+		<field table="docs_assigned" name="name"/>
+		<field table="docs_assigned" name="classification"/>
+		<field table="docs_assigned" name="description"/>
+		<field table="docs_assigned" name="doc_id" hidden="true"/>
+	</panel>
+	
+	<panel type="form" id="abRepmAddEditLeaseInABuildingDocsEdit_form" dataSource="abRepmAddEditLeaseInABuildingDocs_ds" showOnLoad="false" hidden="true">
+	    <action id="save">
+	        <title translatable="true">Save</title>
+			<command type="callFunction" functionName="saveRecord(View.panels.get('abRepmAddEditLeaseInABuildingDocsEdit_form'),View.panels.get('abRepmAddEditLeaseInABuildingDocs_grid'))"/>
+	    </action>
+		<field table="docs_assigned" name="name"/>
+		<field table="docs_assigned" name="classification"/>
+		<field table="docs_assigned" name="description"/>
+		<field table="docs_assigned" name="doc"/>
+		<field table="docs_assigned" name="doc_id" hidden="true"/>
+		<field table="docs_assigned" name="ls_id" hidden="true"/>
+	</panel>
+    	
+    <!--  Contacts -->    
+	<dataSource id="abRepmAddEditLeaseInABuildingContacts_ds">
+        <table name="contact" role="main"/>
+        <field name="contact_id"/>
+        <field name="contact_type"/>
+        <field name="company"/>
+        <field name="city_id"/>
+        <field name="honorific"/>
+        <field name="state_id"/>
+        <field name="name_last"/>
+        <field name="zip"/>
+        <field name="regn_id"/>
+        <field name="name_first"/>
+        <field name="county_id"/>
+        <field name="address1"/>
+        <field name="address2"/>
+        <field name="ctry_id"/>
+        <field name="phone"/>
+        <field name="cellular_number"/>
+        <field name="fax"/>
+        <field name="pager"/>
+        <field name="email"/>
+        <field name="status"/>
+        <field name="notes"/>
+        <field name="bl_id"/>
+        <field name="ls_id"/>
+        <field name="pr_id"/>
+	</dataSource>
+
+	<panel type="grid" id="abRepmAddEditLeaseInABuildingContacts_grid" layout="nestedLayout" region="center" showOnLoad="false" multipleSelectionEnabled="true" dataSource="abRepmAddEditLeaseInABuildingContacts_ds">
+        <sortField table="contact" name="contact_id"/>
+		<title translatable="true">Contacts</title>
+        
+        <action id="assign">
+            <title>Assign</title>
+        </action>
+        <action id="unassign">
+            <title>Unassign</title>
+        </action>
+
+        <field controlType="button" id="edit" hidden="true">
+            <title>Edit</title>
+            <command type="openDialog" panelId="abRepmAddEditLeaseInABuildingContactsEdit_form" newRecord="false" width="1024"/>
+        </field>
+        <field name="contact_id" controlType="link">
+            <command type="openDialog" panelId="abRepmAddEditLeaseInABuildingContactsEdit_form" newRecord="false" width="1024"/>
+        </field>
+        <field name="name_first" controlType="link">
+            <command type="openDialog" panelId="abRepmAddEditLeaseInABuildingContactsEdit_form" newRecord="false" width="1024"/>
+        </field>
+        <field name="name_last" controlType="link">
+            <command type="openDialog" panelId="abRepmAddEditLeaseInABuildingContactsEdit_form" newRecord="false" width="1024"/>
+        </field>
+        <field name="contact_type" controlType="link">
+            <command type="openDialog" panelId="abRepmAddEditLeaseInABuildingContactsEdit_form" newRecord="false" width="1024"/>
+        </field>
+        <field name="company" controlType="link">
+            <command type="openDialog" panelId="abRepmAddEditLeaseInABuildingContactsEdit_form" newRecord="false" width="1024"/>
+        </field>
+        <field name="city_id" controlType="link">
+            <command type="openDialog" panelId="abRepmAddEditLeaseInABuildingContactsEdit_form" newRecord="false" width="1024"/>
+        </field>
+        <field name="state_id" controlType="link">
+            <command type="openDialog" panelId="abRepmAddEditLeaseInABuildingContactsEdit_form" newRecord="false" width="1024"/>
+        </field>
+        <field name="ctry_id" controlType="link">
+            <command type="openDialog" panelId="abRepmAddEditLeaseInABuildingContactsEdit_form" newRecord="false" width="1024"/>
+        </field>
+	</panel>
+	
+	<!-- Company -->
+	<dataSource id="abRepmAddEditLeaseInABuildingTab_dsCompany">
+		<table name="company" role="main"/>
+		<field name="company"/>
+		<field name="address1"/>
+		<field name="address2"/>
+		<field name="city_id"/>
+		<field name="ctry_id"/>
+		<field name="regn_id"/>
+		<field name="state_id"/>
+		<field name="zip"/>
+	</dataSource>
+	
+	<panel type="form" id="abRepmAddEditLeaseInABuildingContactsEdit_form" dataSource="abRepmAddEditLeaseInABuildingContacts_ds" showOnLoad="false" hidden="true" columns="3">
+        <title>Contact Details</title>
+        <action id="save">
+            <title>Save</title>
+        </action>
+        <action id="delete">
+            <title>Delete</title>
+        </action>
+        <action id="unassign">
+            <title>Unassign</title>
+        </action>
+
+        <field name="contact_id"/>
+        <field name="contact_type"/>
+        <field name="company"/>
+
+        <field name="honorific"/>
+        <field name="name_first"/>
+        <field name="name_last"/>
+        <field name="address1"/>
+        <field name="address2"/>
+        <field name="city_id"/>
+        <field name="state_id"/>
+        <field name="ctry_id"/>
+        <field name="phone"/>
+        <field name="cellular_number"/>
+        <field name="email"/>
+        <field name="fax"/>
+        <field name="status"/>
+        <field name="notes" colspan="2"/>
+        <field name="ls_id" hidden="true"/>
+        <field name="bl_id" hidden="true"/>
+        <field name="pr_id" hidden="true"/>
+	</panel>
+	
+	<!-- Base rents -->
+	<dataSource id="abRepmAddEditLeaseInABuildingBaseRents_ds" applyVpaRestrictions="false">
+		<table name="cost_tran_recur" role="main"/>
+		<field name="ls_id"/>
+		<field name="bl_id"/>
+		<field name="cost_tran_recur_id"/>
+		<field name="amount_income"/>
+		<field name="amount_expense"/>
+		<field name="period"/>
+		<field name="description"/>
+		<field name="date_start"/>
+		<field name="date_end"/>
+		<field name="status_active"/>
+		<field name="cost_cat_id"/>
+        <field name="currency_budget"/>
+        <field name="currency_payment"/>
+        <field name="amount_income_base_payment"/>
+        <field name="amount_income_vat_payment"/>
+        <field name="amount_income_total_payment"/>
+        <field name="amount_expense_base_payment"/>
+        <field name="amount_expense_vat_payment"/>
+        <field name="amount_expense_total_payment"/>
+        <field name="ctry_id"/>
+        <field name="vat_percent_value"/>
+        <field name="vat_percent_override"/>
+        <field name="vat_amount_override"/>
+        <field name="exchange_rate_override"/>
+	</dataSource>
+	
+	<panel type="grid" id="abRepmAddEditLeaseInABuildingBaseRents_grid" dataSource="abRepmAddEditLeaseInABuildingBaseRents_ds" showOnLoad="false" layout="nestedLayout" region="center">
+		<title translatable="true">Base Rents</title>
+		<action id="addNewBaseRents">
+			<title translatable="true">Add New</title>
+            <command type="callFunction" functionName="addBaseRent"/>
+		</action>
+        <field controlType="button" id="editBaseRents" onclick="editBaseRent">
+            <title translatable="true">Edit</title>
+        </field>    
+        <field name="cost_cat_id"/>
+		<field name="date_start"/>
+		<field name="date_end"/>
+		<field name="cost_tran_recur_id"/>
+		<field name="amount_expense" hidden="${View.activityParameters['AbCommonResources-EnableVatAndMultiCurrency'] == 1}"/>
+		<field name="amount_income" hidden="${View.activityParameters['AbCommonResources-EnableVatAndMultiCurrency'] == 1}"/>
+        <field name="amount_income_base_payment" hidden="${View.activityParameters['AbCommonResources-EnableVatAndMultiCurrency'] == 0}"/>
+        <field name="amount_income_vat_payment" hidden="${View.activityParameters['AbCommonResources-EnableVatAndMultiCurrency'] == 0}"/>
+        <field name="amount_income_total_payment" hidden="${View.activityParameters['AbCommonResources-EnableVatAndMultiCurrency'] == 0}"/>
+        <field name="amount_expense_base_payment" hidden="${View.activityParameters['AbCommonResources-EnableVatAndMultiCurrency'] == 0}"/>
+        <field name="amount_expense_vat_payment" hidden="${View.activityParameters['AbCommonResources-EnableVatAndMultiCurrency'] == 0}"/>
+        <field name="amount_expense_total_payment" hidden="${View.activityParameters['AbCommonResources-EnableVatAndMultiCurrency'] == 0}"/>
+        <field name="currency_payment" hidden="${View.activityParameters['AbCommonResources-EnableVatAndMultiCurrency'] == 0}"/>
+        <field name="vat_percent_value" hidden="${View.activityParameters['AbCommonResources-EnableVatAndMultiCurrency'] == 0}"/>
+		<field name="description"/>
+	</panel>
+
+	<dataSource id="abRepmAddEditLeaseInABuildingClauses_ds">
+		<table name="ls_resp" role="main"/>
+		<field table="ls_resp" name="resp_id"/>
+		<field table="ls_resp" name="clause_type_id"/>
+		<field table="ls_resp" name="description"/>
+		<field table="ls_resp" name="resp_party"/>
+		<field table="ls_resp" name="dates_match_lease"/>
+		<field table="ls_resp" name="date_start"/>
+		<field table="ls_resp" name="date_end"/>
+		<field table="ls_resp" name="reference_loc"/>
+		<field table="ls_resp" name="ls_id"/>
+		<field table="ls_resp" name="doc"/>
+        <field table="ls_resp" name="contact_id"/>
+	</dataSource>
+	
+	<panel type="grid" id="abRepmAddEditLeaseInABuildingClauses_grid" dataSource="abRepmAddEditLeaseInABuildingClauses_ds" showOnLoad="false" layout="nestedLayout" region="center">
+		<title translatable="true">Clauses</title>
+		<action id="chrgAgreements">
+			<title translatable="true">Create Chargeback Agreements</title>
+			<command type="openDialog" viewName="ab-rplm-lsadmin-clauses-chrbk-agree.axvw" width="1000" height="600"/>
+		</action>
+		<action id="addNewClauses">
+			<title translatable="true">Add New</title>
+			<command type="openDialog" panelId="abRepmAddEditLeaseInABuildingClausesEdit_form" newRecord="true"/>
+			<command type="callFunction" functionName="checkClauseFields(View.panels.get('abRepmAddEditLeaseInABuildingClausesEdit_form'))"/>
+			<command type="callFunction" functionName="View.panels.get('abRepmAddEditLeaseInABuildingClausesEdit_form').setTitle(getMessage('add_new_clause'))"/>
+			<command type="callFunction" functionName="setAmenityButton"/>
+		</action>
+        <field controlType="button" id="editClauses">
+            <title translatable="true">Edit</title>
+            <command type="openDialog" panelId="abRepmAddEditLeaseInABuildingClausesEdit_form" applyParentRestriction="true"/>
+            <command type="callFunction" functionName="checkClauseFields(View.panels.get('abRepmAddEditLeaseInABuildingClausesEdit_form'))"/>
+            <command type="callFunction" functionName="View.panels.get('abRepmAddEditLeaseInABuildingClausesEdit_form').setTitle(getMessage('edit_clause'))"/>
+            <command type="callFunction" functionName="setAmenityButton"/>
+        </field>    
+        <field controlType="button" id="deleteClauses">
+          <title translatable="true">Delete</title>
+        </field>    
+        <field controlType="button" id="documentClauses" enabled="${record['ls_resp.doc'] != ''}">
+          <title translatable="true">View Document</title>
+        </field>    
+        <field table="ls_resp" name="doc" hidden="true"/>
+		<field table="ls_resp" name="ls_id" hidden="true"/>
+		<field table="ls_resp" name="resp_id"/>
+		<field table="ls_resp" name="clause_type_id"/>
+		<field table="ls_resp" name="description"/>
+		<field table="ls_resp" name="resp_party"/>
+		<field table="ls_resp" name="dates_match_lease"/>
+		<field table="ls_resp" name="date_start"/>
+		<field table="ls_resp" name="date_end"/>
+		<field table="ls_resp" name="reference_loc"/>
+	</panel>	
+	
+	<panel type="form" id="abRepmAddEditLeaseInABuildingClausesEdit_form" dataSource="abRepmAddEditLeaseInABuildingClauses_ds" columns="2" showOnLoad="false" hidden="true">
+		<action id="save">
+			<title translatable="true">Save</title>
+			<command type="callFunction" functionName="saveRecord(View.panels.get('abRepmAddEditLeaseInABuildingClausesEdit_form'), View.panels.get('abRepmAddEditLeaseInABuildingClauses_grid'), {dates:[{startDateField:'ls_resp.date_start',endDateField:'ls_resp.date_end',errMessage:getMessage('error_date_end_before_date_start')}]}, false)"/>			
+		</action>
+		<field table="ls_resp" name="resp_id"/>
+		<field table="ls_resp" name="dates_match_lease" onchange="checkClauseFields(View.panels.get('abRepmAddEditLeaseInABuildingClausesEdit_form'))"/>
+		<field table="ls_resp" name="clause_type_id" onchange="setAmenityButton()">
+	    	<action>
+	       		<title>...</title>
+	           	<tooltip>Select Value</tooltip>
+	           	<command type="selectValue" 
+	                fieldNames="ls_resp.clause_type_id" 
+                    selectFieldNames="ls_clause_type.clause_type_id" 
+                    visibleFieldNames="ls_clause_type.clause_type_id"
+					actionListener="setAmenityButton"
+				/>
+	         </action>
+		</field>
+		<field table="ls_resp" name="date_start"/>
+		<field table="ls_resp" name="resp_party"/>
+		<field table="ls_resp" name="date_end"/>
+		<field table="ls_resp" name="doc"/>
+		<field table="ls_resp" name="contact_id"/>
+		<field table="ls_resp" name="reference_loc"/>
+		<field table="ls_resp" name="ls_id" required="false" readOnly="true"/>
+		
+		<field table="ls_resp" name="description" colspan="2">
+			 <action>
+                <title>Add Amenity Description</title>
+				<command type="callFunction" functionName="View.panels.get('abRepmAddEditLeaseInABuildingClausesAmntType').addParameter('bl_id' ,View.panels.get('abRepmAddEditLeaseInABuildingLease_form').getFieldValue('ls.bl_id'))"/>
+                <command type="openDialog" panelId="abRepmAddEditLeaseInABuildingClausesAmntType" applyParentRestriction="false"/>
+         	</action>
+		</field>
+	</panel>
+	
+	<dataSource id="abRepmAddEditLeaseInABuildingClausesAmntType_ds">
+		<sql dialect="generic">
+			SELECT 
+                prop_amenity.amenity_type ${sql.as} amenity_type, 
+                prop_amenity.comments ${sql.as} comments 
+			FROM prop_amenity 
+            WHERE prop_amenity.pr_id IN (SELECT pr_id FROM bl WHERE bl.bl_id = '${parameters['bl_id']}')
+			UNION
+			SELECT 
+                bl_amenity.amenity_type ${sql.as} amenity_type, 
+                bl_amenity.comments ${sql.as} comments 
+			FROM bl_amenity 
+            WHERE bl_amenity.bl_id = '${parameters['bl_id']}'
+		</sql>	
+		<table name="bl_amenity" role="main"/>
+		<field table="bl_amenity" name="amenity_type" dataType="text"/>
+		<field table="bl_amenity" name="comments" dataType="text"/>
+		<parameter name="bl_id" dataType="verbatim" value=""/>
+	</dataSource>
+	
+	<panel type="grid" id="abRepmAddEditLeaseInABuildingClausesAmntType" dataSource="abRepmAddEditLeaseInABuildingClausesAmntType_ds" multipleSelectionEnabled="true" showOnLoad="false" hidden="true">
+		<title>Select Amenities</title>
+		<action id="addAmenityType">
+			<title>Add Amenities</title>
+			<command type="callFunction" functionName="setAmenityType"/>
+		</action>	
+		<field table="bl_amenity" name="amenity_type" dataType="text">
+			<title>Amenity Type</title>
+		</field>	
+		<field table="bl_amenity" name="comments" dataType="text">
+			<title>Comments</title>
+		</field>
+	</panel>
+	
+	<dataSource id="abRepmAddEditLeaseInABuildingOptions_ds">
+        <table name="op" role="main"/>
+        <field table="op" name="op_id"/>
+        <field table="op" name="date_option_introduced"/>
+        <field table="op" name="description"/>
+        <field table="op" name="dates_match_lease"/>
+        <field table="op" name="op_type"/>
+        <field table="op" name="date_start"/>
+        <field table="op" name="who_can_exercise"/>
+        <field table="op" name="date_option"/>
+        <field table="op" name="date_exercised"/>
+        <field table="op" name="doc"/>
+        <field table="op" name="exercised_by"/>
+        <field table="op" name="date_review"/>
+        <field table="op" name="date_exercising_applicable"/>
+        <field table="op" name="comments"/>
+        <field table="op" name="ls_id"/>
+	</dataSource>
+	
+	<panel type="grid" id="abRepmAddEditLeaseInABuildingOptions_grid" dataSource="abRepmAddEditLeaseInABuildingOptions_ds" showOnLoad="false" layout="nestedLayout" region="center">
+		<title translatable="true">Options</title>
+		<action id="addNewOptions">
+			<title translatable="true">Add New</title>
+			<command type="openDialog" panelId="abRepmAddEditLeaseInABuildingOptionsEdit_form" newRecord="true"/>
+			<command type="callFunction" functionName="setOptionDatesIfMatchLease(View.panels.get('abRepmAddEditLeaseInABuildingOptionsEdit_form'))"/>
+			<command type="callFunction" functionName="View.panels.get('abRepmAddEditLeaseInABuildingOptionsEdit_form').setTitle(getMessage('add_new_option'))"/>
+		</action>
+        <field controlType="button" id="editOptions">
+            <title translatable="true">Edit</title>
+            <command type="openDialog" panelId="abRepmAddEditLeaseInABuildingOptionsEdit_form" applyParentRestriction="true"/>
+            <command type="callFunction" functionName="setOptionDatesIfMatchLease(View.panels.get('abRepmAddEditLeaseInABuildingOptionsEdit_form'))"/>
+            <command type="callFunction" functionName="View.panels.get('abRepmAddEditLeaseInABuildingOptionsEdit_form').setTitle(getMessage('edit_option'))"/>
+        </field>    
+        <field controlType="button" id="deleteOptions">
+          <title translatable="true">Delete</title>
+        </field>    
+        <field controlType="button" id="documentOptions" enabled="${record['op.doc'] != ''}">
+          <title translatable="true">View Document</title>
+        </field>    
+		<field table="op" name="doc" hidden="true"/>
+		<field table="op" name="ls_id" hidden="true"/>
+		<field table="op" name="op_id"/>
+		<field table="op" name="description"/>
+		<field table="op" name="op_type"/>
+		<field table="op" name="date_exercised"/>
+		<field table="op" name="date_exercising_applicable"/>
+		<field table="op" name="comments"/>
+		<field table="op" name="dates_match_lease" hidden="true"/>
+	</panel>	
+	
+	<panel type="form" id="abRepmAddEditLeaseInABuildingOptionsEdit_form" dataSource="abRepmAddEditLeaseInABuildingOptions_ds" columns="2" showOnLoad="false" hidden="true">
+		<action id="save">
+			<title translatable="true">Save</title>
+			<command type="callFunction" functionName="saveRecord(View.panels.get('abRepmAddEditLeaseInABuildingOptionsEdit_form'), View.panels.get('abRepmAddEditLeaseInABuildingOptions_grid'), {dates:[{startDateField:'op.date_start',endDateField:'op.date_option',errMessage:getMessage('err_options_dates')}]}, false)"/>
+		</action>
+		<field table="op" name="op_id"/>
+		<field table="op" name="date_option_introduced"/>
+		<field table="op" name="description" required="true"/>
+		<field table="op" name="dates_match_lease" onchange="setOptionDatesIfMatchLease(View.panels.get('abRepmAddEditLeaseInABuildingOptionsEdit_form'))"/>
+		<field table="op" name="op_type"/>
+		<field table="op" name="date_start"/>
+		<field table="op" name="who_can_exercise"/>
+		<field table="op" name="date_option"/>
+		<field table="op" name="date_exercised"/>
+		<field table="op" name="doc"/>
+		<field table="op" name="exercised_by"/>
+		<field table="op" name="date_review"/>
+		<field table="op" name="date_exercising_applicable"/>
+		<field table="op" name="ls_id" readOnly="true" required="false"/>
+		<field table="op" name="comments" colspan="2"/>
+	</panel>
+	
+	
+	<dataSource id="abRepmAddEditLeaseInABuildingAmendments_ds">
+		<table name="ls_amendment" role="main"/>
+		<field table="ls_amendment" name="ls_amend_id"/>
+		<field table="ls_amendment" name="description"/>
+		<field table="ls_amendment" name="date_requested"/>
+		<field table="ls_amendment" name="date_effective"/>
+		<field table="ls_amendment" name="exercised_by"/>
+		<field table="ls_amendment" name="comments"/>
+		<field table="ls_amendment" name="ls_id"/>
+		<field table="ls_amendment" name="doc"/>
+	</dataSource>
+	
+	<panel type="grid" id="abRepmAddEditLeaseInABuildingAmendments_grid" dataSource="abRepmAddEditLeaseInABuildingAmendments_ds" showOnLoad="false" layout="nestedLayout" region="center">
+		<title translatable="true">Amendments</title>
+		<action id="addNewAmendments">
+			<title translatable="true">Add New</title>
+			<command type="openDialog" panelId="abRepmAddEditLeaseInABuildingAmendmentsEdit_form" newRecord="true"/>
+			<command type="callFunction" functionName="View.panels.get('abRepmAddEditLeaseInABuildingAmendmentsEdit_form').setTitle(getMessage('add_new_amendment'))"/>
+		</action>
+        <field controlType="button" id="editAmendments">
+            <title translatable="true">Edit</title>
+            <command type="openDialog" panelId="abRepmAddEditLeaseInABuildingAmendmentsEdit_form" applyParentRestriction="true"/>
+            <command type="callFunction" functionName="View.panels.get('abRepmAddEditLeaseInABuildingAmendmentsEdit_form').setTitle(getMessage('edit_amendment'))"/>
+        </field>    
+        <field controlType="button" id="deleteAmendments">
+          <title translatable="true">Delete</title>
+        </field>    
+        <field controlType="button" id="documentAmendments" enabled="${record['ls_amendment.doc'] != ''}">
+          <title translatable="true">View Document</title>
+        </field>
+		<field table="ls_amendment" name="doc" hidden="true"/>	
+		<field table="ls_amendment" name="ls_amend_id"/>
+		<field table="ls_amendment" name="description"/>
+		<field table="ls_amendment" name="date_requested"/>
+		<field table="ls_amendment" name="date_effective"/>
+		<field table="ls_amendment" name="exercised_by"/>
+		<field table="ls_amendment" name="comments"/>
+	</panel>
+
+	<panel type="form" id="abRepmAddEditLeaseInABuildingAmendmentsEdit_form" dataSource="abRepmAddEditLeaseInABuildingAmendments_ds" columns="2" showOnLoad="false" hidden="true">
+		<action id="save">
+			<title translatable="true">Save</title>
+			<command type="callFunction" functionName="saveRecord(View.panels.get('abRepmAddEditLeaseInABuildingAmendmentsEdit_form'),View.panels.get('abRepmAddEditLeaseInABuildingAmendments_grid'))"/>
+		</action>
+		<field table="ls_amendment" name="ls_amend_id"/>
+		<field table="ls_amendment" name="date_requested"/>
+		<field table="ls_amendment" name="description" required="true"/>
+		<field table="ls_amendment" name="date_effective"/>
+		<field table="ls_amendment" name="doc"/>
+		<field table="ls_amendment" name="exercised_by"/>
+		<field table="ls_amendment" name="comments" colspan="2"/>
+		<field table="ls_amendment" name="ls_id" hidden="true"/>
+	</panel>
+    
+    <dataSource id="dsHelperLeaseForOptionDatesMatch">
+        <table name="ls"/>
+        <field name="ls_id"/>
+        <field name="date_start"/>
+        <field name="date_end"/>
+    </dataSource>
+    
+    <dataSource id="abRepmLsContacts_ds">
+        <table name="ls_contacts"/>
+        <field name="ls_id"/>
+        <field name="contact_id"/>
+    </dataSource>
+    
+</view>

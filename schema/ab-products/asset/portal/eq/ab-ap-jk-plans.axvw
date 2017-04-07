@@ -1,0 +1,148 @@
+<view version="2.0">
+	<js file="ab-ap-jk-plans.js"/>
+	
+	<layout file="ab-ap-eq-plans-layout.axvw"/>
+	
+	<title translatable="true">View Jack Plan</title>
+	<message name="title_dwg" translatable="true">Jack Plan for</message>
+    <dataSource id="ds_abApJkPlans_console">
+		<table name="bl" role="main"/>
+        <field name="site_id"/>
+        <field name="bl_id"/>
+    </dataSource>
+
+    <dataSource id="ds_abApJkPlans_blTree" distinct="true">
+		<table name="bl" role="main"/>
+		<field name="bl_id"/>
+		<field name="name"/>
+        <restriction type="sql" sql="EXISTS (SELECT 1 FROM jk WHERE jk.bl_id IS NOT NULL AND jk.fl_id IS NOT NULL AND jk.bl_id = bl.bl_id)"/>
+		<sortField table="bl" name="bl_id" ascending="true"/>
+    </dataSource>
+
+    <dataSource id="ds_abApJkPlans_flTree">
+        <sql dialect="generic">
+            SELECT
+            DISTINCT
+			bl.site_id ${sql.as} site_id, 
+			fl.bl_id   ${sql.as} bl_id,
+            fl.fl_id   ${sql.as} state_id,
+			fl.name    ${sql.as} name,
+            rm.dwgname ${sql.as} dwgname
+            FROM fl 
+			LEFT JOIN bl ON fl.bl_id = bl.bl_id
+            LEFT JOIN rm ON fl.bl_id = rm.bl_id AND fl.fl_id = rm.fl_id
+            WHERE rm.dwgname IS NOT NULL
+            AND EXISTS (SELECT 1 FROM jk WHERE jk.bl_id IS NOT NULL AND jk.fl_id IS NOT NULL AND jk.bl_id = fl.bl_id AND jk.fl_id=fl.fl_id)
+        </sql>
+        <table name="bl" role="main"/>
+        <field name="state_id"/>
+		<field name="name"/>
+        <field name="dwgname"/>
+        <sortField table="bl" name="state_id" ascending="true"/>
+    </dataSource>
+
+    <!-- Jacks -->
+    <dataSource id="highlight_jk_ds" type="DrawingControlHighlight">
+        <title translatable="true">Jacks Standard</title>
+        <table name="jk" role="main"/>
+        <field table="jk" name="jk_id"/>
+        <field table="jk" name="jk_std" legendKey="true"/>
+        <sortField table="jk" name="jk_std"/>
+    </dataSource>
+    <dataSource id="label_jk_ds" type="DrawingControlLabels">
+        <title translatable="true">Jack Names</title>
+        <table name="jk" role="main"/>
+        <field name="bl_id" hidden="true"/>
+        <field name="fl_id" hidden="true"/>
+        <field name="rm_id" hidden="true"/>
+        <field name="jk_id"/>
+        <field name="jk_std"/>
+    </dataSource>
+
+    <!-- Faceplates -->
+    <dataSource id="highlight_fp_ds" type="DrawingControlHighlight">
+        <title translatable="true">Faceplates Standard</title>
+        <table name="fp" role="main"/>
+        <field table="fp" name="fp_id"/>
+        <field table="fp" name="fp_std" legendKey="true"/>
+        <sortField table="fp" name="fp_std"/>
+    </dataSource>
+    <dataSource id="label_fp_ds" type="DrawingControlLabels">
+        <title translatable="true">Faceplate Names</title>
+        <table name="fp" role="main"/>
+        <field name="fp_id"/>
+        <field table="fp" name="fp_std" legendKey="true"/>
+        <sortField table="fp" name="fp_std"/>
+    </dataSource>
+
+	<dataSource id="ds_abApRmPlans_drawingLabel">
+		<table name="rm" role="main"/>
+        <field name="bl_id" hidden="true"/>
+        <field name="fl_id" hidden="true"/>
+        <field name="rm_id"/>
+	</dataSource>
+
+    <panel type="console" id="panel_abApJkPlans_console" dataSource="ds_abApJkPlans_console" layoutRegion="console" columns="2">
+        <title translatable="true">Filter</title>
+        <action id="show">
+            <title translatable="true">Show</title>
+            <command type="showPanel" panelId="panel_abApJkPlans_blTree"/>
+        </action>
+        <action id="clear">
+            <title translatable="true">Clear</title>
+            <command type="clearForm"/>
+        </action>
+        <!--action id="paginatedReport">
+            <title translatable="true">Paginated Report</title>
+        </action-->
+		<action id="exportDOCX">
+			<title>DOC</title>
+			<command type="exportPanel" outputType="docx" panelId="panel_abApJkPlans_drawing"/>
+	    </action>  
+        <field name="site_id" required="false"/>
+        <field name="bl_id" required="false">
+			<action>
+				<title translatable="false">...</title>
+				<command type="selectValue" 
+					fieldNames="bl.bl_id,bl.site_id"
+					selectFieldNames="bl.bl_id,bl.site_id"
+					visibleFieldNames="bl.bl_id,bl.name,bl.site_id"/>
+			</action>
+		</field>
+    </panel>
+
+    <panel type="tree" id="panel_abApJkPlans_blTree" dataSource="ds_abApJkPlans_blTree" showOnLoad="true" layoutRegion="pkey">
+        <title translatable="true">Floor List</title>
+		<panel type="tree" id="panel_abApJkPlans_flTree" dataSource="ds_abApJkPlans_flTree">
+			<event type="onClickNode">
+				<command type="callFunction" functionName="abApJkPlans_showJacks"/>
+			</event>
+		</panel>
+    </panel>
+	
+    <panel type="drawing" id="panel_abApJkPlans_drawing" layoutRegion="content" showOnLoad="false"
+        assetTypes="null" 
+		multiple="false"
+        highlightSelector="false" 
+        labelSelector="false"
+		selectionMode="0">
+		<title translatable="false"></title>
+    </panel>
+
+	<dataSource id="ds_abApJkPlans_jkDetails">
+		<table name="jk" role="main"/>
+		<field table="jk" name="jk_id"/>
+		<field table="jk" name="jk_std"/>
+		<field table="jk" name="bl_id"/>
+		<field table="jk" name="fl_id"/>
+		<field table="jk" name="rm_id"/>
+		<field table="jk" name="em_id"/>
+		<field table="jk" name="tc_use"/>
+		<field table="jk" name="tc_use_status"/>
+	</dataSource>
+	
+	<panel type="grid" controlType="reportGrid" id="panel_abApJkPlans_jkDetails" dataSource="ds_abApJkPlans_jkDetails" showOnLoad="false" layoutRegion="details">
+		<sortField table="jk" name="jk_id" ascending="true"/>
+		<title translatable="true">Jacks List Details</title>
+	</panel>
+</view>

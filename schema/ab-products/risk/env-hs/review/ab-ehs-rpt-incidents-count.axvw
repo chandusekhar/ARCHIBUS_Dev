@@ -1,0 +1,487 @@
+<view version="2.0">
+    <title translatable="true">Incidents Count</title>
+    
+    <message name="typeChartTitle" translatable="true">Incidents Count by Type</message>
+    <message name="typeAndTimeChartTitle" translatable="true">Incidents Count by Type Over Time</message>
+    <message name="siteChartTitle" translatable="true">Incidents Count by Site</message>
+    <message name="propertyChartTitle" translatable="true">Incidents Count by Property</message>
+    <message name="buildingChartTitle" translatable="true">Incidents Count by Building</message>
+    <message name="businessUnitChartTitle" translatable="true">Incidents Count by Business Unit</message>
+    <message name="divisionChartTitle" translatable="true">Incidents Count by Division</message>
+    <message name="departmentChartTitle" translatable="true">Incidents Count by Department</message>
+    
+    <message name="typeGroupingAxisTitle" translatable="true">Incident Type</message>
+    <message name="siteGroupingAxisTitle" translatable="true">Incident Site</message>
+    <message name="propertyGroupingAxisTitle" translatable="true">Incident Property</message>
+    <message name="buildingGroupingAxisTitle" translatable="true">Incident Building</message>
+    <message name="divisionGroupingAxisTitle" translatable="true">Incident Division</message>
+    <message name="departmentGroupingAxisTitle" translatable="true">Incident Department</message>
+    
+    <message name="unavalableData" translatable="true">{0} values were not available for columns: {1}</message>
+    <message name="unitAreaTitle" translatable="true">Unit Area</message>
+    <message name="headcountTitle" translatable="true">Headcount</message>
+    <message name="noValueTitle" translatable="true">(no value)</message>
+    <message name="nonEmployeeAffected" translatable="true">Non-Employee Affected</message>
+    <message name="noDvForAffectedEm" translatable="true">No Division for Affected Employee</message>
+    
+    <js file="ab-ehs-rpt-incidents-count.js"/>
+    <js file="ab-ehs-rpt-common.js"/>
+    
+    <layout id="main">
+        <north id="main_north" initialSize="210" split="true"/>
+        <center id="main_center"/>
+    </layout>
+    
+    <!--  Filter -->
+    <dataSource id="abEhsRptIncidentsCount_ds">
+        <table name="ehs_incidents" role="main"/>
+        
+        <field name="incident_id"/>
+        <field name="incident_type"/>
+        <field name="date_incident"/>
+        <field name="site_id"/>
+        <field name="pr_id"/>
+        <field name="bl_id"/>
+        <field name="fl_id"/>
+        <field name="em_id_affected"/>
+        <field name="eq_id"/>
+        <field name="responsible_mgr"/>
+        <field name="cause_category_id"/>
+        <field name="injury_category_id"/>
+        <field name="injury_area_id"/>
+    </dataSource>
+    <panel type="console" id="abEhsRptIncidentsCount_filter" dataSource="abEhsRptIncidentsCount_ds" columns="3" layoutRegion="main_north">
+        <title translatable="true">Filter</title>
+        <action id="filter">
+            <title translatable="true">Show</title>
+        </action>
+        <action id="clear">
+            <title translatable="true">Clear</title>
+        </action>
+        <field id="vf_group_by" required="true">
+            <title translatable="true">Group By</title>
+            <html>
+                <select id="groupBy" name="groupBy" class="inputField_box" onchange="abEhsRptIncidentsCountCtrl.setStateDivideBy()">
+                    <option value="Incident Type" selected="true"><span translatable="true">Incident Type</span></option>
+                    <option value="Incident Type Over Time"><span translatable="true">Incident Type Over Time</span></option>
+                    <option value="Site"><span translatable="true">Site</span></option>
+                    <option value="Property"><span translatable="true">Property</span></option>
+                    <option value="Building"><span translatable="true">Building</span></option>
+                    <option value="BusinessUnit"><span translatable="true">Business Unit</span></option>
+                    <option value="Division"><span translatable="true">Division</span></option>
+                    <option value="Department"><span translatable="true">Department</span></option>
+                </select>
+            </html>
+        </field>
+        <field name="incident_type" selectValueType="multiple" required="false"/>
+        <field name="incident_id">
+            <action>
+                <title translatable="false">...</title>
+                <tooltip translatable="true">Select Value</tooltip>
+                <command type="selectValue"
+                    fieldNames="ehs_incidents.incident_id"
+                    selectFieldNames="ehs_incidents.incident_id"
+                    visibleFieldNames="ehs_incidents.incident_id, ehs_incidents.incident_type, ehs_incidents.date_incident, ehs_incidents.em_id_affected, ehs_incidents.description"/>
+            </action>
+        </field>
+        <field alias="date_incident_from" name="date_incident" required="false">
+            <title translatable="true">Incident Date From</title>
+        </field>
+        <field alias="date_incident_to" name="date_incident" required="false">
+            <title translatable="true">Incident Date To</title>
+        </field>
+        <field name="em_id_affected"/>
+        <field name="site_id" selectValueType="multiple"/>
+        <field name="pr_id" selectValueType="multiple"/>
+        <field name="bl_id" selectValueType="multiple"/>
+        <field name="fl_id" selectValueType="multiple"/>
+        <field name="eq_id"/>
+        <field name="responsible_mgr"/>
+        <field name="cause_category_id"/>
+        <field name="injury_category_id"/>
+        <field name="injury_area_id"/>
+        <field id="vf_divide_by" required="true">
+            <title translatable="true">Divide totals by</title>
+            <html>
+                <select id="divideBy" name="divideBy" class="inputField_box">
+                    <option value="none" selected="true"><span translatable="true">None</span></option>
+                    <option value="unitArea"><span translatable="true">Unit Area</span></option>
+                    <option value="headcount"><span translatable="true">Headcount</span></option>
+                </select>
+            </html>
+        </field>
+    </panel>
+    
+    <!-- Incident Count By Type Over Time - Column chart grouped by two criteria -->
+    <!--  data source for the grouping axis --> 
+    <dataSource id="abEhsRptIncidentsCount_ds_groupingAxis" type="grouping">
+        <table name="ehs_incidents"/>
+        <field table="ehs_incidents" name="chart_year_and_month" dataType="text" groupBy="true"> 
+            <title translatable="true">Date of Incident (grouped by month)</title>
+            <sql dialect="generic">
+                '('${sql.concat} ${sql.yearMonthOf('ehs_incidents.date_incident')} ${sql.concat}')' 
+            </sql>
+        </field>
+        <sortField name="chart_year_and_month" ascending="true"/>
+    </dataSource>
+
+    <!--  data sources for two data axis --> 
+    <dataSource id="abEhsRptIncidentsCount_ds_dataAxis" type="grouping">   
+        <table name="ehs_incidents"/>
+        <field name="incident_type" groupBy="true"/>
+        <field name="incidents_count" dataType="number" size="6" decimals="0"> 
+            <title translatable="true">Incidents Count</title>
+            <sql dialect="generic">COUNT(DISTINCT parent_incident_id)</sql>
+        </field>
+    
+        <sortField name="incident_type" ascending="true"/>
+        
+        <restriction type="sql" sql="'(' ${sql.concat} ${sql.yearMonthOf('ehs_incidents.date_incident')} ${sql.concat} ')' = ${parameters['summaryValueForThisGroup']} 
+                                    AND ${parameters['consoleRestriction']}"/>
+        
+        <parameter name="summaryValueForThisGroup" dataType="text" value=""/> 
+        <parameter name="consoleRestriction" dataType="verbatim" value="1=1"/>
+    </dataSource>      
+
+    <panel id="abEhsRptIncidentsCount_twoCritChart" 
+           type="chart" 
+           controlType="columnChart" 
+           dataSource="abEhsRptIncidentsCount_ds_dataAxis" 
+           showOnLoad="false" 
+           legendLocation="right" 
+           showLegendAsPopUp="false"
+           layoutRegion="main_center">
+        <title>Incidents Count by Type Over Time</title>
+        <action id="report">
+            <title translatable="true">All Details</title>
+        </action>   
+        <action id="exportDOCX">
+            <title translatable="true">DOCX</title>
+            <command type="exportPanel" outputType="docx" panelId="abEhsRptIncidentsCount_twoCritChart" printRestriction="true"/>
+        </action>
+        <event type="onClickItem">                 
+            <command type="callFunction" functionName="displayChartItemsDialog" />
+        </event>    
+        <groupingAxis table="ehs_incidents" field="chart_year_and_month"  dataSource="abEhsRptIncidentsCount_ds_groupingAxis">
+            <title translatable="true">Date of Incident (grouped by month)</title> 
+        </groupingAxis>        
+        <secondaryGroupingAxis table="ehs_incidents" field="incident_type">
+            <title translatable="true">Incident Types</title> 
+        </secondaryGroupingAxis>
+        <dataAxis table="ehs_incidents" field="incidents_count">
+            <title translatable="true">Incidents Count</title>
+        </dataAxis>
+    </panel>
+    
+    <!-- Column chart grouped by one criterion -->
+    <dataSource id="abEhsRptIncidentsCount_oneCrit_ds" type="grouping">
+        <sql dialect="generic">
+            SELECT parent_incident_id,
+                ${parameters["customField"]} ${sql.as} vf_generic,
+                incident_id, incident_type, site_id, pr_id, bl_id, date_incident,
+                fl_id, em_id_affected,eq_id, responsible_mgr, cause_category_id,
+                injury_category_id, injury_area_id
+            FROM ehs_incidents
+        </sql>
+        <table name="ehs_incidents" />
+        <field table="ehs_incidents" name="vf_generic" dataType="text" groupBy="true"/>
+        <field name="incidents_count" dataType="number" size="6" decimals="2"> 
+            <title translatable="true">Incidents Count</title>
+            <sql dialect="generic">
+                (CASE WHEN (${parameters['isDividable']} = 'true') 
+                        THEN (CASE ${parameters['divideBy']}
+                                WHEN 'none' 
+                                    THEN COUNT(DISTINCT ehs_incidents.parent_incident_id)
+                                WHEN 'unitArea' 
+                                    THEN (CASE '${parameters["customField"]}'
+                                            WHEN 'ehs_incidents.site_id'
+                                                THEN (CASE WHEN ((SELECT site.area_gross_int FROM site WHERE site.site_id = ehs_incidents.vf_generic) IS NOT NULL AND
+                                                                (SELECT site.area_gross_int FROM site WHERE site.site_id = ehs_incidents.vf_generic) > 0)
+                                                               THEN (COUNT(DISTINCT ehs_incidents.parent_incident_id)/(SELECT site.area_gross_int * 0.001 FROM site WHERE site.site_id = ehs_incidents.vf_generic))
+                                                          ELSE 1.0
+                                                     END)
+                                            WHEN 'ehs_incidents.pr_id'
+                                                THEN (CASE WHEN ((SELECT property.area_bl_gross_int FROM property WHERE property.pr_id = ehs_incidents.vf_generic) IS NOT NULL AND
+                                                                 (SELECT property.area_bl_gross_int FROM property WHERE property.pr_id = ehs_incidents.vf_generic) > 0)
+                                                               THEN (COUNT(DISTINCT ehs_incidents.parent_incident_id)/(SELECT property.area_bl_gross_int * 0.001 FROM property WHERE property.pr_id = ehs_incidents.vf_generic))
+                                                           ELSE 1.0
+                                                      END)
+                                            WHEN 'ehs_incidents.bl_id'
+                                                THEN (CASE WHEN ((SELECT bl.area_gross_int FROM bl WHERE bl.bl_id = ehs_incidents.vf_generic) IS NOT NULL AND
+                                                                 (SELECT bl.area_gross_int FROM bl WHERE bl.bl_id = ehs_incidents.vf_generic) > 0)
+                                                               THEN (COUNT(DISTINCT ehs_incidents.parent_incident_id)/(SELECT bl.area_gross_int * 0.001 FROM bl WHERE bl.bl_id = ehs_incidents.vf_generic))
+                                                           ELSE 1.0
+                                                      END)
+                                          END) 
+                                WHEN 'headcount'
+                                    THEN (CASE '${parameters["customField"]}'
+                                            WHEN 'ehs_incidents.site_id'
+                                                THEN (CASE WHEN (EXISTS(SELECT em.em_id FROM em, bl WHERE em.bl_id = bl.bl_id AND bl.site_id = ehs_incidents.vf_generic)) 
+                                                            THEN (COUNT(ehs_incidents.incident_id)*1.0/(SELECT count(em.em_id) FROM em, bl WHERE em.bl_id = bl.bl_id AND bl.site_id = ehs_incidents.vf_generic))
+                                                           ELSE (CASE WHEN ((EXISTS(SELECT bl.count_em FROM bl WHERE bl.site_id = ehs_incidents.vf_generic)) AND
+                                                                            (SELECT SUM(bl.count_em) FROM bl WHERE bl.site_id = ehs_incidents.vf_generic) > 0)
+                                                                        THEN (COUNT(DISTINCT ehs_incidents.parent_incident_id)/(SELECT SUM(bl.count_em) FROM bl WHERE bl.site_id = ehs_incidents.vf_generic))
+                                                                    ELSE (CASE WHEN COUNT(DISTINCT ehs_incidents.parent_incident_id) > 0 THEN 1.0 ELSE 0.0 END)
+                                                                 END)
+                                                      END)
+                                            WHEN 'ehs_incidents.pr_id'
+                                                THEN (CASE WHEN (EXISTS(SELECT em.em_id FROM em, bl WHERE em.bl_id = bl.bl_id AND bl.pr_id = ehs_incidents.vf_generic)) 
+                                                            THEN (COUNT(ehs_incidents.incident_id)*1.0/(SELECT count(em.em_id) FROM em, bl WHERE em.bl_id = bl.bl_id AND bl.pr_id = ehs_incidents.vf_generic))
+                                                           ELSE (CASE WHEN ((EXISTS(SELECT bl.count_em FROM bl WHERE bl.pr_id = ehs_incidents.vf_generic)) AND
+                                                                            (SELECT SUM(bl.count_em) FROM bl WHERE bl.pr_id = ehs_incidents.vf_generic) > 0)
+                                                                        THEN (COUNT(DISTINCT ehs_incidents.parent_incident_id)/(SELECT SUM(bl.count_em) FROM bl WHERE bl.pr_id = ehs_incidents.vf_generic))
+                                                                    ELSE (CASE WHEN COUNT(DISTINCT ehs_incidents.parent_incident_id) > 0 THEN 1.0 ELSE 0.0 END)
+                                                                 END)
+                                                      END)
+                                            WHEN 'ehs_incidents.bl_id'
+                                                THEN (CASE WHEN (EXISTS(SELECT em.em_id FROM em WHERE em.bl_id = ehs_incidents.vf_generic)) 
+                                                            THEN (COUNT(ehs_incidents.incident_id)*1.0/(SELECT count(em.em_id) FROM em WHERE em.bl_id = ehs_incidents.vf_generic))
+                                                           ELSE (CASE WHEN ((EXISTS(SELECT bl.count_em FROM bl WHERE bl.bl_id = ehs_incidents.vf_generic)) AND
+                                                                            (SELECT bl.count_em FROM bl WHERE bl.bl_id = ehs_incidents.vf_generic) > 0)
+                                                                        THEN (COUNT(DISTINCT ehs_incidents.parent_incident_id)/(SELECT bl.count_em FROM bl WHERE bl.bl_id = ehs_incidents.vf_generic))
+                                                                    ELSE (CASE WHEN COUNT(DISTINCT ehs_incidents.parent_incident_id) > 0 THEN 1.0 ELSE 0.0 END)
+                                                                 END)
+                                                      END)
+                                          END)
+                             END)  
+                        ELSE COUNT(DISTINCT ehs_incidents.parent_incident_id)
+                END)
+            </sql>
+        </field>
+        <field name="vf_valid_divide" dataType="text"> 
+            <title translatable="true">Values available for divide</title>
+            <sql dialect="generic">
+                (CASE WHEN (${parameters['isDividable']} = 'true') 
+                        THEN (CASE ${parameters['divideBy']}
+                                WHEN 'none' 
+                                    THEN 'true'
+                                WHEN 'unitArea' 
+                                    THEN (CASE '${parameters["customField"]}'
+                                            WHEN 'ehs_incidents.site_id'
+                                                THEN (CASE WHEN ((SELECT site.area_gross_int FROM site WHERE site.site_id = ehs_incidents.vf_generic) IS NOT NULL AND
+                                                                (SELECT site.area_gross_int FROM site WHERE site.site_id = ehs_incidents.vf_generic) > 0)
+                                                               THEN 'true'
+                                                          ELSE 'false'
+                                                     END)
+                                            WHEN 'ehs_incidents.pr_id'
+                                                THEN (CASE WHEN ((SELECT property.area_bl_gross_int FROM property WHERE property.pr_id = ehs_incidents.vf_generic) IS NOT NULL AND
+                                                                 (SELECT property.area_bl_gross_int FROM property WHERE property.pr_id = ehs_incidents.vf_generic) > 0)
+                                                               THEN 'true'
+                                                           ELSE 'false'
+                                                      END)
+                                            WHEN 'ehs_incidents.bl_id'
+                                                THEN (CASE WHEN ((SELECT bl.area_gross_int FROM bl WHERE bl.bl_id = ehs_incidents.vf_generic) IS NOT NULL AND
+                                                                 (SELECT bl.area_gross_int FROM bl WHERE bl.bl_id = ehs_incidents.vf_generic) > 0)
+                                                               THEN 'true'
+                                                           ELSE 'false'
+                                                      END)
+                                          END) 
+                                WHEN 'headcount'
+                                    THEN (CASE '${parameters["customField"]}'
+                                            WHEN 'ehs_incidents.site_id'
+                                                THEN (CASE WHEN (EXISTS(SELECT em.em_id FROM em, bl WHERE em.bl_id = bl.bl_id AND bl.site_id = ehs_incidents.vf_generic)) 
+                                                            THEN 'true'
+                                                           ELSE (CASE WHEN ((EXISTS(SELECT bl.count_em FROM bl WHERE bl.site_id = ehs_incidents.vf_generic)) AND
+                                                                            (SELECT SUM(bl.count_em) FROM bl WHERE bl.site_id = ehs_incidents.vf_generic) > 0)
+                                                                        THEN 'true'
+                                                                    ELSE 'false'
+                                                                 END)
+                                                      END)
+                                            WHEN 'ehs_incidents.pr_id'
+                                                THEN (CASE WHEN (EXISTS(SELECT em.em_id FROM em, bl WHERE em.bl_id = bl.bl_id AND bl.pr_id = ehs_incidents.vf_generic)) 
+                                                            THEN 'true'
+                                                           ELSE (CASE WHEN ((EXISTS(SELECT bl.count_em FROM bl WHERE bl.pr_id = ehs_incidents.vf_generic)) AND
+                                                                            (SELECT SUM(bl.count_em) FROM bl WHERE bl.pr_id = ehs_incidents.vf_generic) > 0)
+                                                                        THEN 'true'
+                                                                    ELSE 'false'
+                                                                 END)
+                                                      END)
+                                            WHEN 'ehs_incidents.bl_id'
+                                                THEN (CASE WHEN (EXISTS(SELECT em.em_id FROM em WHERE em.bl_id = ehs_incidents.vf_generic)) 
+                                                            THEN 'true'
+                                                           ELSE (CASE WHEN ((EXISTS(SELECT bl.count_em FROM bl WHERE bl.bl_id = ehs_incidents.vf_generic)) AND
+                                                                            (SELECT bl.count_em FROM bl WHERE bl.bl_id = ehs_incidents.vf_generic) > 0)
+                                                                        THEN 'true'
+                                                                    ELSE 'false'
+                                                                 END)
+                                                      END)
+                                          END)
+                             END)  
+                        ELSE 'true'
+                END)
+            </sql>
+        </field>
+        <sortField table="ehs_incidents" name='vf_generic' />
+        <parameter name="customField" dataType="verbatim" value="incident_type"/>
+        <parameter name="isDividable" dataType="text" value="false"/>
+        <parameter name="divideBy" dataType="text" value="none"/>
+    </dataSource>
+
+    <panel  id="abEhsRptIncidentsCount_oneCritChart" 
+            type="chart" 
+            controlType="columnChart" 
+            dataSource="abEhsRptIncidentsCount_oneCrit_ds"
+            showOnLoad="true" 
+            legendLocation="right"
+            showLegendAsPopUp="false"
+            layoutRegion="main_center">
+        <title>Incidents Count by Type</title>   
+        <action id="report">
+            <title translatable="true">All Details</title>
+        </action>
+        <action id="exportDOCX">
+            <title translatable="true">DOCX</title>
+            <command type="exportPanel" outputType="docx" panelId="abEhsRptIncidentsCount_oneCritChart" printRestriction="true"/>
+        </action>
+        <event type="onClickItem">                 
+            <command type="callFunction" functionName="displayChartItemsDialog" />
+        </event>
+        <groupingAxis dataSource="abEhsRptIncidentsCount_oneCrit_ds" table="ehs_incidents" field="vf_generic" showLabel="true" labelRotation="45">
+        </groupingAxis>
+        <dataAxis dataSource="abEhsRptIncidentsCount_oneCrit_ds" table="ehs_incidents" field="incidents_count" showLabel="true">
+            <title translatable="true">Incidents Count</title>
+        </dataAxis>
+    </panel>
+    
+    <!-- Column chart grouped by one criterion for grouping by bu-->
+    <dataSource id="abEhsRptIncidentsCount_oneCritBu_ds" type="grouping">
+        <sql dialect="generic">
+            SELECT 
+                    parent_incident_id,
+                    ehs_incidents.incident_id,
+                    dv.bu_id ${sql.as} bu_id,
+                    ehs_incidents.incident_type, ehs_incidents.site_id, 
+                    ehs_incidents.pr_id, ehs_incidents.bl_id, ehs_incidents.date_incident,
+                    ehs_incidents.fl_id, ehs_incidents.em_id_affected, ehs_incidents.eq_id, 
+                    ehs_incidents.responsible_mgr, ehs_incidents.cause_category_id,
+                    ehs_incidents.injury_category_id, ehs_incidents.injury_area_id
+                FROM ehs_incidents, em, dv
+                WHERE em.em_id = ehs_incidents.em_id_affected
+                    AND dv.dv_id = em.dv_id 
+            UNION
+            SELECT
+                    parent_incident_id,
+                    ehs_incidents.incident_id,
+                    ${parameters["nonEm"]} ${sql.as} bu_id,
+                    ehs_incidents.incident_type, ehs_incidents.site_id, 
+                    ehs_incidents.pr_id, ehs_incidents.bl_id, ehs_incidents.date_incident,
+                    ehs_incidents.fl_id, ehs_incidents.em_id_affected, ehs_incidents.eq_id, 
+                    ehs_incidents.responsible_mgr, ehs_incidents.cause_category_id,
+                    ehs_incidents.injury_category_id, ehs_incidents.injury_area_id
+                FROM ehs_incidents
+                WHERE ehs_incidents.em_id_affected IS NULL 
+            UNION
+            SELECT
+                    parent_incident_id,
+                    ehs_incidents.incident_id,
+                    ${parameters["noDv"]} ${sql.as} bu_id,
+                    ehs_incidents.incident_type, ehs_incidents.site_id, 
+                    ehs_incidents.pr_id, ehs_incidents.bl_id, ehs_incidents.date_incident,
+                    ehs_incidents.fl_id, ehs_incidents.em_id_affected, ehs_incidents.eq_id, 
+                    ehs_incidents.responsible_mgr, ehs_incidents.cause_category_id,
+                    ehs_incidents.injury_category_id, ehs_incidents.injury_area_id
+                FROM ehs_incidents, em
+                WHERE em.em_id = ehs_incidents.em_id_affected
+                    AND em.dv_id IS NULL
+        </sql>
+        <table name="ehs_incidents" />
+        <field table="ehs_incidents" name="bu_id" dataType="text" groupBy="true"/>
+        <field name="incidents_count" dataType="number" size="6" decimals="0"> 
+            <title translatable="true">Incidents Count</title>
+            <sql dialect="generic">COUNT(DISTINCT parent_incident_id)</sql>
+        </field>
+        <sortField table="ehs_incidents" name='bu_id' />
+        <parameter name="nonEm" dataType="text" value=""/>
+        <parameter name="noDv" dataType="text" value=""/>
+    </dataSource>
+
+    <panel  id="abEhsRptIncidentsCount_oneCritChartBu" 
+            type="chart" 
+            controlType="columnChart" 
+            dataSource="abEhsRptIncidentsCount_oneCritBu_ds"
+            showOnLoad="false" 
+            legendLocation="right"
+            showLegendAsPopUp="false"
+            layoutRegion="main_center">
+        <title>Incidents Count by Business Unit</title>
+        <action id="report">
+            <title translatable="true">All Details</title>
+        </action>   
+        <action id="exportDOCX">
+            <title translatable="true">DOCX</title>
+            <command type="exportPanel" outputType="docx" panelId="abEhsRptIncidentsCount_oneCritChartBu" printRestriction="true"/>
+        </action>
+        <event type="onClickItem">                 
+            <command type="callFunction" functionName="displayChartItemsDialog" />
+        </event>
+        <groupingAxis dataSource="abEhsRptIncidentsCount_oneCritBu_ds" table="ehs_incidents" field="bu_id" showLabel="true" labelRotation="45">
+        </groupingAxis>
+        <dataAxis dataSource="abEhsRptIncidentsCount_oneCritBu_ds" table="ehs_incidents" field="incidents_count" showLabel="true">
+            <title translatable="true">Incidents Count</title>
+        </dataAxis>
+    </panel>
+    
+    <!-- Column chart grouped by one criterion for grouping by dv and dp -->
+    <dataSource id="abEhsRptIncidentsCount_oneCritDvDp_ds" type="grouping">
+        <sql dialect="generic">
+            SELECT
+                    parent_incident_id,
+                    ehs_incidents.incident_id, 
+                    ${parameters["customField"]} ${sql.as} vf_generic,
+                    ehs_incidents.incident_type, ehs_incidents.site_id, 
+                    ehs_incidents.pr_id, ehs_incidents.bl_id, ehs_incidents.date_incident,
+                    ehs_incidents.fl_id, ehs_incidents.em_id_affected, ehs_incidents.eq_id, 
+                    ehs_incidents.responsible_mgr, ehs_incidents.cause_category_id,
+                    ehs_incidents.injury_category_id, ehs_incidents.injury_area_id
+                FROM ehs_incidents, em
+                WHERE em.em_id = ehs_incidents.em_id_affected
+            UNION
+            SELECT
+                    parent_incident_id,
+                    ehs_incidents.incident_id,
+                    ${parameters["nonEm"]} ${sql.as} vf_generic,
+                    ehs_incidents.incident_type, ehs_incidents.site_id, 
+                    ehs_incidents.pr_id, ehs_incidents.bl_id, ehs_incidents.date_incident,
+                    ehs_incidents.fl_id, ehs_incidents.em_id_affected, ehs_incidents.eq_id, 
+                    ehs_incidents.responsible_mgr, ehs_incidents.cause_category_id,
+                    ehs_incidents.injury_category_id, ehs_incidents.injury_area_id
+                FROM ehs_incidents
+                WHERE ehs_incidents.em_id_affected IS NULL
+        </sql>
+        <table name="ehs_incidents" />
+        <field table="ehs_incidents" name="vf_generic" dataType="text" groupBy="true"/>
+        <field name="incidents_count" dataType="number" size="6" decimals="0"> 
+            <title translatable="true">Incidents Count</title>
+            <sql dialect="generic">COUNT(DISTINCT parent_incident_id)</sql>
+        </field>
+        <sortField table="ehs_incidents" name='vf_generic' />
+        <parameter name="customField" dataType="verbatim" value="em.dv_id"/>
+        <parameter name="nonEm" dataType="text" value=""/>
+    </dataSource>
+
+    <panel  id="abEhsRptIncidentsCount_oneCritChartDvDp" 
+            type="chart" 
+            controlType="columnChart" 
+            dataSource="abEhsRptIncidentsCount_oneCritDvDp_ds"
+            showOnLoad="false" 
+            legendLocation="right"
+            showLegendAsPopUp="false"
+            layoutRegion="main_center">
+        <title>Incidents Count by Division</title>
+        <action id="report">
+            <title translatable="true">All Details</title>
+        </action>   
+        <action id="exportDOCX">
+            <title translatable="true">DOCX</title>
+            <command type="exportPanel" outputType="docx" panelId="abEhsRptIncidentsCount_oneCritChartDvDp" printRestriction="true"/>
+        </action>
+        <event type="onClickItem">                 
+            <command type="callFunction" functionName="displayChartItemsDialog" />
+        </event>
+        <groupingAxis dataSource="abEhsRptIncidentsCount_oneCritDvDp_ds" table="ehs_incidents" field="vf_generic" showLabel="true" labelRotation="45">
+        </groupingAxis>
+        <dataAxis dataSource="abEhsRptIncidentsCount_oneCritDvDp_ds" table="ehs_incidents" field="incidents_count" showLabel="true">
+            <title translatable="true">Incidents Count</title>
+        </dataAxis>
+    </panel>
+</view>

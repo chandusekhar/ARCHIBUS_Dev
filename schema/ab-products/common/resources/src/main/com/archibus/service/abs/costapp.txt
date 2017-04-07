@@ -1,0 +1,703 @@
+/*****************************************************************************
+costapp.abs
+12.30.96
+
+06.29.98 - JH - Added entry points for process toolbars
+04.14.99 - JH - Changed Format "Short Date" to WindowShortDateWithFourDigitYear
+06.03.99 - JH - Localization - Added $ to constant declaration (kCustomPeriod)
+06.04.99 - JH - Localization - broke up kRecurFields, kCostFields strings to 
+						 < 256 chars to allow localization propagation .
+09.15.99 - JH - MSSQL - Changed:  <> "Oracle"    To:  = "Sybase"
+03.08.00 - JH - Localization - Updated string constants for trailing spaces
+12.26.00 - JH - Localization: Added call for international number formats:
+			 Sup_ReplaceDecimalSymbolWithDotForDouble()
+12.28.00 - JH - Localization: Added CDate() inside of Format$() for string date
+01.13.06 - EZ - Added monthly/yearly factor and methods to handle the actual number of days in lease.
+	        Merged NS's changes in.
+
+Provides for creating Scheduled Costs records from selected Recurring
+Costs records.  Also, provides for moving selected Scheduled Costs
+records to the Costs table.
+
+Creating Costs:
+---------------
+
+There are three Costs tables:
+- Recurring Costs
+- Scheduled Costs
+- Costs
+
+Costs are only considered actual costs if they are listed in the 
+Costs table. Recurring Costs and Scheduled Costs are methods of
+listing Costs which have not yet been approved or paid.
+
+The process of approving Recurring Costs and Scheduled Costs so that
+they become actual Costs is documented below. 
+
+Costs may only be manually entered as Recurring Costs or Scheduled
+Costs.  When Recurring Costs are scheduled (with an action) they
+become Scheduled Costs.  When Scheduled Costs are approved (with an
+action) they become Costs.
+
+The scheduling and approval processes basically copies or moves data
+from one cost table to another. In particular, the mapping, listed below, 
+of the fields in each of the costs tables define how data is:
+- Copied (from Recurring Costs to Scheduled Costs) with the 'Schedule
+     Recurring Costs' view actions 
+- Moved (from Scheduled Costs to Costs) with the 'Approve Costs' view actions.
+
+Not all Recurring Costs fields are mapped to Scheduled Costs as some
+of the Recurring Costs fields are only neccessary to define the 
+recurring cost rules; not the individual costs. 
+
+Scheduled Costs have additional fields which hold information which
+will only be entered for individual costs and are not defined in
+Recurring Costs.
+
+___________________________
+Cost Tables fields Mapping:
+
+Recurring Costs:    Scheduled Costs:         Costs:         
+-------------------------------------------------------------------------------
+
+ac_id               ac_id                    ac_id
+				activity_log_id		activity_log_id
+amount_expense      amount_expense           amount_expense
+amount_income       amount_income            amount_income
+                    amount_tax_late1         amount_tax_late1
+                    amount_tax_late2         amount_tax_late2
+                    amount_tax_late3         amount_tax_late3
+bl_id               bl_id                    bl_id
+cost_cat_id         cost_cat_id              cost_cat_id
+                                             cost_tran_id
+cost_tran_recur_id  cost_tran_recur_id       cost_tran_recur_id
+                    cost_tran_sched_id  
+                    date_assessed            date_assessed
+                    date_due                 date_due
+                    date_paid                date_paid
+                    date_tax_late1           date_tax_late1
+                    date_tax_late2           date_tax_late2
+                    date_tax_late3           date_tax_late3
+date_end                                     
+date_seasonal_end                                      
+date_seasonal_start                               
+date_start                                             
+date_trans_created  date_trans_created       date_trans_created   ***** 
+description         description              description
+dp_id               dp_id                    dp_id
+dv_id               dv_id                    dv_id
+                                             invoice_id
+ls_id               ls_id                    ls_id
+option1             option1                  option1
+option2             option2                  option2
+pa_name             pa_name                  pa_name
+parcel_id           parcel_id                parcel_id 
+period                                                 
+period_custom                                     
+pr_id               pr_id                    pr_id
+status_active                                          
+yearly_factor                                     
+                    status **                  
+                                             status    **
+                    tax_authority_contact    tax_authority_contact    
+                    tax_bill_num             tax_bill_num
+                    tax_milage_rate          tax_milage_rate
+                    tax_type                 tax_type
+                    tax_value_assessed       tax_value_assessed
+				tax_clr				tax_clr
+				tax_period_in_months	tax_period_in_months
+
+** - the status field is different for Scheduled costs and costs
+***** - date_trans_created is not copied; it is automatically filled in
+          with the current date
+          
+******************************************************************************/
+
+Option Explicit
+
+
+'---- External Functions
+Declare Sub SelDate_Main( ByRef sChosenDate As String, _
+					 sSelectDateHeading As String, _
+					 sSelectDateLabel As String, _
+					 sMinDate As String, _
+					 sMaxDate As String )
+Declare Function sup_ISO_Date ( Date_to_Convert As String ) As String
+Declare Function sup_ISOtoBasic ( ISOdateString As String ) As Double
+Declare Function sup_MakeLiteralOrNull( strVal As String ) As String
+Declare Function Sup_ReplaceDecimalSymbolWithDotForDouble( dForeignNumber As Double ) As String
+Declare Function SqlFunc_SQLIsNull() As String
+
+Declare Function LSSUP_GetDaysInMonth(InputDate As Date) As Integer
+
+'---- Internal Functions
+Declare Sub ApproveAllSchedCosts( sOwnerTableIdField As String )
+Declare Function GetSelectedRecords( sCostTable As String ) As String
+Declare Sub SchedRecurCosts( sSelectedRecords As String )
+Declare Sub CreateSchedCostsRecords( sSelectedRecords As String, _
+		sEndDateChosen As String )
+Declare Function costapp_GetRecurChangeOverDate( sCostTranRecurId As String, _
+		sDateStart As String, sInterval As String, _
+		iIncrement As Integer ) As Date
+Declare Function costapp_GetLastDateRecurCostScheduled( _
+		sRecurCostId As String, sStartDate As String, _
+		bCostOrSchedCostRecExists As Boolean ) As String
+Declare Function costapp_GetInterval( sPeriod As String ) As String
+Declare Function costapp_OutOfSeason( dNextDate As Date, _
+		sSeasonStartDate As String, sSeasonEndDate As String) As Boolean
+Declare Sub costapp_ComputeIncomeAndExpense( ByRef rAmountIncome As Double, _
+		ByRef rAmountExpense As Double, ByVal rYearlyFactor As Single, _
+		ByVal sDateStart As String, ByVal sNextDate As String, _
+		ByVal rRsAmountIncome As Double, ByVal rRsAmountExpense As Double, _ 
+		ByVal rMonthlyFactor As Single )
+Declare Sub CopyRecurDataToSchedTable( rs As RecordSet, dNextDate As Date, _
+		rAmountIncome As Double, rAmountExpense As Double )
+Declare Sub ApproveSchedCosts( sSelectedRecords As String )
+
+
+'------------------------------------------------------------------------------
+'----							 TRANSLATE
+Const kGridNotFoundMsg$				= "Grid not found for:"
+Const kRecurringCosts$				= "Recurring Costs"
+Const kScheduledCosts$				= "Scheduled Costs"
+Const kNoRecordsSelectedMsg$			= "No records selected."
+Const kToRunThisActionMsg$			= "To run this action you must first select one or more records from:"
+
+Const kSchedRecurCostsHeading$		= "Schedule Recurring Costs"
+Const kSchedRecurCostsUntilDateLable$	="Schedule Recurring Costs Until Date:"
+Const kApproveScheduledCostsHeading$	= "Approve Scheduled Costs"
+
+Const kQueryingRecurringCostDataMsg$	= "Querying Recurring Cost data."
+Const kPleaseWaitMsg$				= "     Please wait..."
+Const kCreatingScheduledCostsMsg$		= "Creating Scheduled Costs."
+Const kMovingSchedCostsToCostsMsg$		= "Moving Scheduled Costs to Costs."
+
+'------------------------------------------------------------------------------
+'---- Do NOT Translate
+Const kRecurCostsTbl$				= "cost_tran_recur"
+Const kSchedCostsTbl$				= "cost_tran_sched"
+Const kCostsTbl$					= "cost_tran"
+Const kTab$						= Chr$(9)
+Const kCrlf$						= Chr$(13) & Chr$(10)
+
+Const kMonthPeriod$					= "MONTH"
+Const kQuarterPeriod$				= "QUARTER"
+Const kYearPeriod$					= "YEAR"
+Const kCustomPeriod$				= "CUSTOM"
+
+Const kRecurFields$					= "ac_id, amount_expense, amount_income, bl_id, cost_cat_id, cost_tran_recur_id, date_end, date_seasonal_end, date_seasonal_start, date_start, description, dp_id, dv_id, ls_id," & _
+" option1, option2, pa_name, parcel_id, period, period_custom, pr_id, status_active, yearly_factor"
+
+Const kSchedFields$					= "ac_id, amount_expense, amount_income, bl_id, cost_cat_id, cost_tran_recur_id, date_due, description, dv_id, dp_id, ls_id, option1, option2, pa_name, parcel_id, pr_id, status"
+
+Const kCostFields$					= "ac_id, activity_log_id, amount_expense, amount_income, amount_tax_late1, amount_tax_late2, amount_tax_late3, bl_id, cost_cat_id, cost_tran_recur_id, date_assessed, date_due, date_tax_late1," & _
+" date_tax_late2, date_tax_late3, description, dp_id, dv_id, ls_id, option1, option2, pa_name, parcel_id, pr_id, tax_authority_contact, tax_bill_num, tax_milage_rate, tax_type, tax_value_assessed, tax_clr, tax_period_in_months"
+
+Const kDefaultRecurToSchedStatus$		= "AUTO-RECURRING"
+
+'-- "1" = Apply YearlyFactor on each Lease Anniversary
+'-- "0" = Apply YearlyFactor on January 1st of each year of Lease term
+Const kApplyYearlyFactorAtAnniversary$ = "1"
+
+'------------------------------------------------------------------------------
+
+Private psMsgHeading As String
+
+Sub SchedRecurCostsMain()
+	psMsgHeading = kSchedRecurCostsHeading
+	SchedRecurCosts GetSelectedRecords( kRecurCostsTbl )
+	Avw.SetTblChanged kSchedCostsTbl, AVW_TBLCHANGE_INSERT
+	Avw.Requery
+End Sub
+
+Sub costapp_SchedRecurCostsMain()
+	SchedRecurCostsMain
+End Sub
+
+Sub ApproveSchedCostsMain()
+	psMsgHeading = kApproveScheduledCostsHeading
+	ApproveSchedCosts GetSelectedRecords( kSchedCostsTbl )
+	Avw.SetTblChanged kSchedCostsTbl, AVW_TBLCHANGE_DELETE
+	Avw.SetTblChanged kCostsTbl, AVW_TBLCHANGE_INSERT
+	Avw.Requery
+End Sub
+
+Sub costapp_ApproveSchedCostsMain()
+	ApproveSchedCostsMain
+End Sub
+
+'------------------------------------------------------------------------------
+'---- Given a cost table name returns any selected records from that table
+Function GetSelectedRecords( sCostTable As String ) As String
+
+	Dim sCostTableName As String
+	Dim ed As Editor
+
+'	---- Define variable used in error messages
+	Select Case sCostTable
+	Case "cost_tran_recur"
+		sCostTableName = kRecurringCosts
+	Case "cost_tran_sched"
+		sCostTableName = kScheduledCosts
+	End Select
+
+'	---- Get an editor object
+	Set ed = Avw.GetEditor( sCostTable )
+	If ed Is Nothing Then 
+		MsgBox kGridNotFoundMsg & " " & sCostTableName, _
+						ebExclamation, psMsgHeading
+		End  '----  ends the program
+	End If
+
+'	---- Get the primary key values of the selected records.
+	If ed.SelRecKeys = "" Then
+		MsgBox kNoRecordsSelectedMsg & BASIC.EOLN$ & kToRunThisActionMsg & _
+			" " & sCostTableName, ebExclamation, psMsgHeading
+		End '---- ends the program
+	End If
+
+	GetSelectedRecords = ed.SelRecKeys
+
+End Function
+'------------------------------------------------------------------------------
+
+
+'------------------------------------------------------------------------------
+'---- Recurring costs must be scheduled for a selected date range.
+'---- Start date is determined for each selected cost_tran_recur record
+'----	and is explained in the CreateSchedCostsRecords routine.
+'---- End date is input by user - default is current date.
+Sub SchedRecurCosts( sSelectedRecords As String )
+
+	Dim sEndDate As String
+	
+	sEndDate = Format$( Date(), WindowShortDateWithFourDigitYear )
+	SelDate_Main sEndDate, kSchedRecurCostsHeading, _
+		kSchedRecurCostsUntilDateLable, "", ""
+	
+	If sEndDate <> "" Then 
+		CreateSchedCostsRecords sSelectedRecords, _
+								Format$( CDate( sEndDate ), "yyyy-mm-dd" )
+	Else
+		End
+	End If
+
+End Sub
+'------------------------------------------------------------------------------
+
+'------------------------------------------------------------------------------
+'---- Create Sched Cost table records for selected Recurring Cost records based
+'---- on the rules in the Recurring Cost tables records
+Sub CreateSchedCostsRecords( sSelectedRecords As String, _
+		sEndDateChosen As String )
+
+	MsgOpen kQueryingRecurringCostDataMsg & BASIC.EOLN$ & BASIC.EOLN$ & _
+		kPleaseWaitMsg, 0, FALSE, FALSE
+
+	Dim sSqlStatement		As String
+	Dim rsRecur			As New RecordSet
+	Dim sCostTranRecurId	As String
+	Dim sDateStart			As String
+	Dim dNextDate			As Date
+	Dim sInterval			As String
+	Dim iIncrement			As Integer
+	Dim sDateEnd			As String
+	Dim dDateEnd			As String
+	Dim sSeasonStartDate	As String
+	Dim sSeasonEndDate		As String
+	Dim rYearlyFactor		As Single
+	Dim rRsAmountIncome		As Double
+	Dim rRsAmountExpense	As Double
+	Dim rAmountIncome		As Double
+	Dim rAmountExpense		As Double
+	Dim rCalcMonthlyFactor As Single
+
+'	---- Get data from recurring cost records for selected active records
+	sSqlStatement = "SELECT " & kRecurFields & " FROM cost_tran_recur" & _
+				" WHERE " & sSelectedRecords & _
+				" AND status_active = 1"
+
+	rsRecur.Open sSqlStatement
+
+	MsgSetText kCreatingScheduledCostsMsg & BASIC.EOLN$ & BASIC.EOLN$ & _
+		kPleaseWaitMsg
+
+'	---- Loop over the Recurring cost records; create Scheduled cost records
+'	---- based on the values in each Recurring cost record
+	Do While Not rsRecur.EOF 
+
+		sCostTranRecurId = rsRecur.Fields( "cost_tran_recur_id" ).Value
+		sDateStart = rsRecur.Fields( "date_start" ).Value
+	
+'		---- Set the values required by the DateAdd function
+'		---- to determine the date intervals at which this recur cost occurs
+		sInterval = costapp_GetInterval( rsRecur.Fields( "period" ).Value )
+		If sInterval = "d" Then 
+			iIncrement = rsRecur.Fields( "period_custom" ).NumValue
+		Else 
+			iIncrement = 1
+		End If
+
+		dNextDate = costapp_GetRecurChangeOverDate( sCostTranRecurId, _
+					sDateStart, sInterval, iIncrement )
+		
+'		---- Set the seasonal dates and yearly factor
+		sSeasonStartDate = rsRecur.Fields( "date_seasonal_start" ).Value
+		sSeasonEndDate = rsRecur.Fields( "date_seasonal_end" ).Value
+		
+		rYearlyFactor = rsRecur.Fields( "yearly_factor" ).NumValue
+
+'		---- Get earliest end date for this record-chosen date vs. recur date
+		sDateEnd = rsRecur.Fields( "date_end" ).Value
+		If sDateEnd <> "" Then
+			dDateEnd = sup_ISOtoBasic( sDateEnd )
+			If sup_ISOtoBasic( sEndDateChosen ) < dDateEnd Then 
+				dDateEnd = sup_ISOtoBasic( sEndDateChosen )
+			End If
+		Else
+			dDateEnd = sup_ISOtoBasic( sEndDateChosen )
+		End If
+
+		rRsAmountIncome = rsRecur.Fields( "amount_income" ).NumValue
+		rRsAmountExpense = rsRecur.Fields( "amount_expense" ).NumValue
+
+'		---- Repeat incrementing date and creating scheduled costs,
+'		---- for each increment create a new scheduled cost record, until
+'		---- reach the end date picked.
+		Do While dNextDate <= dDateEnd
+
+			If Not costapp_OutOfSeason( dNextDate, sSeasonStartDate, _
+											sSeasonEndDate ) Then
+			rCalcMonthlyFactor = 1		
+			If DateDiff("y",dNextDate,dDateEnd) < LSSUP_GetDaysInMonth(dNextDate) AND _ 
+												DateDiff("y",dNextDate,dDateEnd) > 0 Then
+				
+				rCalcMonthlyFactor = DateDiff("y",dNextDate,dDateEnd) / LSSUP_GetDaysInMonth(dNextDate)
+				
+			End If 
+						
+
+'				---- Compute Income and Expense values using yearly factor
+				costapp_ComputeIncomeAndExpense _
+					rAmountIncome, rAmountExpense, _
+					rYearlyFactor, sDateStart, _
+					Format$( dNextDate, "yyyy-mm-dd" ), _
+					rRsAmountIncome, rRsAmountExpense, rCalcMonthlyFactor
+
+'				---- Create Scheduled costs records
+				CopyRecurDataToSchedTable rsRecur, dNextDate, _
+					rAmountIncome, rAmountExpense
+
+			End If
+
+			dNextDate = DateAdd( sInterval, iIncrement, _
+								Format$( dNextDate, "yyyy-mm-dd" ) )
+		Loop	'---- Next date
+
+		rsRecur.MoveNext
+	Loop '---- Next Recurring cost record
+
+	MsgClose
+
+End Sub
+'------------------------------------------------------------------------------
+
+'------------------------------------------------------------------------------
+'---- Determines the date to start calculating recur costs from based on
+'---- last date a cost or sched cost was created for. A recur costs recordset
+'---- is passed to this function.
+Function costapp_GetRecurChangeOverDate( sCostTranRecurId As String, _
+		sDateStart As String, sInterval As String, _
+		iIncrement As Integer ) As Date
+
+	Dim sLastDateRecurCostScheduled	As String
+	Dim bCostOrSchedCostRecExists		As Boolean
+
+'	---- Get the last date this recurring cost was scheduled; if it was never
+'	---- scheduled then last date = dateStart
+	sLastDateRecurCostScheduled = costapp_GetLastDateRecurCostScheduled( _
+		sCostTranRecurId, sDateStart, bCostOrSchedCostRecExists )
+	
+'	---- If this recur cost had any costs ever created, then add an 
+'	---- increment, of the interval and increment specified in the 
+'	---- recur record, to the last date this recurring cost had a 
+'	---- cost or sched cost created.
+	If ( sLastDateRecurCostScheduled <> sDateStart ) Or _
+			( bCostOrSchedCostRecExists = TRUE ) Then
+		costapp_GetRecurChangeOverDate = DateAdd( sInterval, iIncrement, _
+									sLastDateRecurCostScheduled )
+									
+
+	Else
+		costapp_GetRecurChangeOverDate=DateValue(sLastDateRecurCostScheduled)
+	End If
+
+End Function
+'------------------------------------------------------------------------------
+
+
+'------------------------------------------------------------------------------
+'---- For a particular Recurring Cost record returns the last due date that 
+'---- a Scheduled Cost or Cost record exists for that Recurring Cost record.
+'---- If none exists returns the sStartDate passed
+Function costapp_GetLastDateRecurCostScheduled( sRecurCostId As String, _
+		sStartDate As String, bCostOrSchedCostRecExists As Boolean ) _
+		As String
+
+	Dim rs As New RecordSet
+	Dim sSchedLastDate As String
+	Dim sCostLastDate As String
+
+	bCostOrSchedCostRecExists = FALSE
+
+'	---- cost_tran_recur_id added to query because rs.EOF is wrong otherwise
+	rs.Open "SELECT MAX( date_due ), cost_tran_recur_id" & _
+		  " FROM cost_tran_sched" & _
+		  " WHERE cost_tran_recur_id = " & sRecurCostId & _
+		  " GROUP BY cost_tran_recur_id"
+	sSchedLastDate = rs.Fields( 0 ).Value
+	If Not rs.EOF Then bCostOrSchedCostRecExists = TRUE
+	rs.Close
+
+'	---- cost_tran_recur_id added to query because rs.EOF is wrong otherwise
+	rs.Open "SELECT MAX( date_due ), cost_tran_recur_id" & _
+		   " FROM cost_tran" & _
+		   " WHERE cost_tran_recur_id = " & sRecurCostId & _
+		   " GROUP BY cost_tran_recur_id"
+	sCostLastDate = rs.Fields( 0 ).Value
+	If Not rs.EOF Then bCostOrSchedCostRecExists = TRUE
+	rs.Close
+
+'	---- Compare the two dates to find largest or non null value
+	If ( sSchedLastDate <> "" ) And ( sCostLastDate <> "" ) Then
+		If sup_ISOtoBasic(sSchedLastDate) >sup_ISOtoBasic(sCostLastDate) Then
+			costapp_GetLastDateRecurCostScheduled = sSchedLastDate
+		Else 
+			costapp_GetLastDateRecurCostScheduled = sCostLastDate
+		End If
+	ElseIf ( sSchedLastDate <> "" ) And ( sup_ISOtoBasic( sSchedLastDate) > _
+								   sup_ISOtoBasic( sStartDate) ) Then
+			costapp_GetLastDateRecurCostScheduled = sSchedLastDate
+	ElseIf ( sCostLastDate <> "" ) And ( sup_ISOtoBasic( sCostLastDate) > _
+								   sup_ISOtoBasic( sStartDate) ) Then
+			costapp_GetLastDateRecurCostScheduled = sCostLastDate
+	Else		'---- both are null (sStartDate will never by null, db enforced)
+		costapp_GetLastDateRecurCostScheduled = sStartDate
+	End If
+
+End Function
+'------------------------------------------------------------------------------
+
+'------------------------------------------------------------------------------
+'---- Passed the period stored in database returns the Basic interval
+Function costapp_GetInterval( sPeriod As String ) As String
+
+	Select Case sPeriod
+	Case kMonthPeriod
+		costapp_GetInterval = "m"
+	Case kQuarterPeriod
+		costapp_GetInterval = "q"
+	Case kYearPeriod
+		costapp_GetInterval = "yyyy"
+	Case kCustomPeriod
+		costapp_GetInterval = "d"
+	End Select
+		
+End Function
+'------------------------------------------------------------------------------
+
+'------------------------------------------------------------------------------
+'---- Checks to see if a date is out of season. Only the Month and day
+'---- of a season date are used to determine a season. The End Season date
+'---- may be earlier than the start date (winter seasons).
+'---- sSeasonStartDate and sSeasonEndDate are any expression which can be
+'---- evaluated as a date.
+Function costapp_OutOfSeason( dNextDate As Date, sSeasonStartDate As String, _
+          sSeasonEndDate As String) As Boolean
+
+     Dim iSeasonStartMonth    As Integer
+     Dim iSeasonStartDay      As Integer
+     Dim iSeasonEndMonth      As Integer
+     Dim iSeasonEndDay        As Integer
+	Dim iYear				As Integer
+	Dim dCurrentSeasonStart	As Date
+	Dim dCurrentSeasonEnd	As Date
+
+     If ( sSeasonStartDate = "" ) Or ( sSeasonEndDate = "" ) Then
+          costapp_OutOfSeason = FALSE
+     Else
+          iSeasonStartMonth = DatePart( "m", sSeasonStartDate )
+          iSeasonStartDay   = DatePart( "d", sSeasonStartDate )
+          iSeasonEndMonth   = DatePart( "m", sSeasonEndDate )
+          iSeasonEndDay     = DatePart( "d", sSeasonEndDate )
+		iYear		   = DatePart( "yyyy",Format$(dNextDate,"yyyy-mm-dd"))
+         
+		dCurrentSeasonStart = DateSerial( iYear, iSeasonStartMonth, _
+										 iSeasonStartDay )
+		dCurrentSeasonEnd = DateSerial( iYear, iSeasonEndMonth,iSeasonEndDay)
+		
+
+'		---- Test if in season; 1st test if Season End after Start		
+          If dCurrentSeasonStart < dCurrentSeasonEnd Then
+               If ( dNextDate < dCurrentSeasonStart ) Or _
+					( dNextDate > dCurrentSeasonEnd ) Then
+                    costapp_OutOfSeason = TRUE
+               Else
+                    costapp_OutOfSeason = FALSE
+               End If
+          Else '---- Season End earlier than Start
+               If ( dNextDate > dCurrentSeasonStart ) Or _
+					( dNextDate < dCurrentSeasonEnd ) Then
+                    costapp_OutOfSeason = FALSE
+               Else
+                    costapp_OutOfSeason = TRUE
+               End If
+          End If
+     End If
+
+End Function
+'------------------------------------------------------------------------------
+
+'------------------------------------------------------------------------------
+'---- Compute Income and Expense values for Recurring Costs using yearly factor
+'--
+'-- NKS -- Added rMonthlyFactor to compute partial month values for income
+'-- and expense items
+
+Sub costapp_ComputeIncomeAndExpense( ByRef rAmountIncome As Double, _
+		ByRef rAmountExpense As Double, ByVal rYearlyFactor As Single, _
+		ByVal sDateStart As String, ByVal sNextDate As String, _
+		ByVal rRsAmountIncome As Double, ByVal rRsAmountExpense As Double, _ 
+		ByVal rMonthlyFactor As Single )
+
+	Dim iYearsDiff As Integer
+	Dim rMultiplier As Double
+
+	If rYearlyFactor <> 0 Then
+		'-- NKS added code to determine when to apply YearlyFactor	
+		If kApplyYearlyFactorAtAnniversary = "0" Then
+			iYearsDiff = DateDiff( "yyyy", sDateStart, sNextDate )
+		Else
+			If DateDiff( "m", sDateStart, sNextDate ) >= 12 Then
+				iYearsDiff = Int( DateDiff("m", sDateStart, sNextDate )/12 )
+			End If 	
+		
+		End If 
+					
+		If iYearsDiff > 0 Then 
+			rMultiplier = rYearlyFactor ^ iYearsDiff
+			rAmountIncome =  rMultiplier * rRsAmountIncome * rMonthlyFactor
+			rAmountExpense = rMultiplier * rRsAmountExpense * rMonthlyFactor
+		Else
+			rAmountIncome = rRsAmountIncome * rMonthlyFactor
+			rAmountExpense = rRsAmountExpense * rMonthlyFactor
+		End If
+	Else
+		rAmountIncome = rRsAmountIncome * rMonthlyFactor
+		rAmountExpense = rRsAmountExpense * rMonthlyFactor
+	End If
+
+End Sub
+'------------------------------------------------------------------------------
+
+'------------------------------------------------------------------------------
+Sub CopyRecurDataToSchedTable( rs As RecordSet, dNextDate As Date, _
+		rAmountIncome As Double, rAmountExpense As Double )
+
+	Dim sSqlStatement As String
+
+	sSqlStatement = "INSERT INTO cost_tran_sched (" & kSchedFields & ")" & _
+		" VALUES ( " & _
+		sup_MakeLiteralOrNull( rs.Fields( "ac_id" ).Value ) & "," & _
+		Sup_ReplaceDecimalSymbolWithDotForDouble( rAmountExpense ) & "," & _
+		Sup_ReplaceDecimalSymbolWithDotForDouble( rAmountIncome ) & "," & _
+		sup_MakeLiteralOrNull( rs.Fields( "bl_id" ).Value ) & "," & _
+		sup_MakeLiteralOrNull( rs.Fields( "cost_cat_id" ).Value ) & "," & _
+		rs.Fields( "cost_tran_recur_id" ).Value & "," & _
+		ProjDb.ISOToNativeDate( Format$( dNextDate, "yyyy-mm-dd" )) & "," & _
+		sup_MakeLiteralOrNull( rs.Fields( "description" ).Value ) & "," & _
+		sup_MakeLiteralOrNull( rs.Fields( "dv_id" ).Value ) & "," & _
+		sup_MakeLiteralOrNull( rs.Fields( "dp_id" ).Value ) & "," & _
+		sup_MakeLiteralOrNull( rs.Fields( "ls_id" ).Value ) & "," & _
+		sup_MakeLiteralOrNull( rs.Fields( "option1" ).Value ) & "," & _
+		sup_MakeLiteralOrNull( rs.Fields( "option2" ).Value ) & "," & _
+		sup_MakeLiteralOrNull( rs.Fields( "pa_name" ).Value ) & "," & _
+		sup_MakeLiteralOrNull( rs.Fields( "parcel_id" ).Value ) & "," & _
+		sup_MakeLiteralOrNull( rs.Fields( "pr_id" ).Value ) & ",'" & _
+		kDefaultRecurToSchedStatus & "' )"
+
+	ProjDb.ExecuteSql sSqlStatement
+
+End Sub
+'------------------------------------------------------------------------------
+
+
+'------------------------------------------------------------------------------
+'---- Move selected Scheduled Cost records to the Costs table
+Sub ApproveSchedCosts( sSelectedRecords As String )
+
+	MsgOpen kMovingSchedCostsToCostsMsg & BASIC.EOLN$ & BASIC.EOLN$ & _
+		kPleaseWaitMsg, 0, FALSE, FALSE
+
+	Dim sSqlStatement As String
+
+'---- The following two lines can be used to automatically set the date paid
+'---- for a cost to the current date if the date paid in sched cost is null.
+'---- However, this causes an editing problem since from the grid you can NOT
+'---- reset the date to null.
+'----				SqlFunc_SQLIsNull() & "( date_paid, " & _
+'----				ProjDb.ISOToNativeDate( "CURRENT DATE" ) & " )" & _
+
+	sSqlStatement = "INSERT INTO cost_tran (" & kCostFields & _
+					", status, date_paid )" & _
+				" SELECT " & kCostFields & ", 'PAYABLE', date_paid" & _
+				" FROM cost_tran_sched" & _
+				" WHERE " & sSelectedRecords
+     If ProjDb.ServerType = "Sybase" Then sSqlStatement = sSqlStatement & _
+				" ORDER BY date_due"
+	ProjDb.ExecuteSql sSqlStatement
+
+	sSqlStatement = "UPDATE cost_tran SET status = 'RECEIVABLE'" & _
+				" WHERE amount_income > amount_expense" & _
+				" AND status = 'PAYABLE'"
+	ProjDb.ExecuteSql sSqlStatement
+
+	ProjDb.ExecuteSql "DELETE FROM cost_tran_sched WHERE " & sSelectedRecords
+
+	MsgClose
+
+End Sub
+'------------------------------------------------------------------------------
+
+
+'------------NKS Added to calculate partial month cost-------------------------
+'------------------------------------------------------------------------------
+Sub CopyPartialRecurDataToSchedTable( rs As RecordSet, dNextDate As Date, _
+		rAmountIncome As Double, rAmountExpense As Double )
+
+	Dim sSqlStatement As String
+
+	sSqlStatement = "INSERT INTO cost_tran_sched (" & kSchedFields & ")" & _
+		" VALUES ( " & _
+		sup_MakeLiteralOrNull( rs.Fields( "ac_id" ).Value ) & "," & _
+		Sup_ReplaceDecimalSymbolWithDotForDouble( rAmountExpense ) & "," & _
+		Sup_ReplaceDecimalSymbolWithDotForDouble( rAmountIncome ) & "," & _
+		sup_MakeLiteralOrNull( rs.Fields( "bl_id" ).Value ) & "," & _
+		sup_MakeLiteralOrNull( rs.Fields( "cost_cat_id" ).Value ) & "," & _
+		rs.Fields( "cost_tran_recur_id" ).Value & "," & _
+		ProjDb.ISOToNativeDate( Format$( dNextDate, "yyyy-mm-dd" )) & "," & _
+		sup_MakeLiteralOrNull( rs.Fields( "description" ).Value ) & "," & _
+		sup_MakeLiteralOrNull( rs.Fields( "dv_id" ).Value ) & "," & _
+		sup_MakeLiteralOrNull( rs.Fields( "dp_id" ).Value ) & "," & _
+		sup_MakeLiteralOrNull( rs.Fields( "ls_id" ).Value ) & "," & _
+		sup_MakeLiteralOrNull( rs.Fields( "option1" ).Value ) & "," & _
+		sup_MakeLiteralOrNull( rs.Fields( "option2" ).Value ) & "," & _
+		sup_MakeLiteralOrNull( rs.Fields( "pa_name" ).Value ) & "," & _
+		sup_MakeLiteralOrNull( rs.Fields( "parcel_id" ).Value ) & "," & _
+		sup_MakeLiteralOrNull( rs.Fields( "pr_id" ).Value ) & ",'" & _
+		kDefaultRecurToSchedStatus & "' )"
+
+	ProjDb.ExecuteSql sSqlStatement
+
+End Sub
+'------------------------------------------------------------------------------

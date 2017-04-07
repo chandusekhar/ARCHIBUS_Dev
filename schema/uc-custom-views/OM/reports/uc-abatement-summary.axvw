@@ -1,0 +1,112 @@
+<view version="2.0">
+	<title>Abatement Summary Report</title>
+	<preferences>
+		<viewTitleBar show="false" />
+	</preferences>
+
+	<layout file="console-small.axvw" />
+	<js file="ab-ondemand-common.js" />
+	<js file="ab-ondemand-report-common.js" />
+	<js file="uc-abatement-summary.js" />
+
+	<message name="selectTitle" translatable="true">-select-</message>
+
+	<dataSource id="consoleDS">
+		<table name="wrhwr" role="main" />
+		<field table="wrhwr" name="prob_type" />
+        <field table="wrhwr" name="date_requested" />
+	</dataSource>
+
+	<dataSource id="crossTableRowDS">
+		<table name="bl"/>
+		<field name="bl_id"/>
+		<field name="name"/>
+		<parameter name="wr_rest" dataType="verbatim" value="1=1"/>
+		<restriction type="sql" sql="EXISTS (SELECT 1 FROM wrhwr WHERE wrhwr.bl_id = bl.bl_id AND status NOT IN ('Rej','Can') AND (${parameters['wr_rest']}))">
+		</restriction>
+	</dataSource>
+
+	<dataSource id="crossTableDS" type="grouping" applyVpaRestrictions="false">
+		<query>
+			<sql dialect="generic">
+				SELECT wrhwr.*, (SELECT SUM(o.cost_total) FROM wrotherhwrother o where o.wr_id = wrhwr.wr_id) AS cost_cont, rm.area AS rm_area FROM wrhwr LEFT OUTER JOIN rm ON wrhwr.bl_id = rm.bl_id AND wrhwr.fl_id = rm.fl_id AND wrhwr.rm_id = rm.rm_id
+			</sql>
+		</query>
+
+		<table name="wrhwr" role="main" />
+
+		<sortField name="bl_id" ascending="true" />
+
+		<parameter name="wr_rest" dataType="verbatim" value="1=1"/>
+		<restriction type="sql" sql="wrhwr.status NOT IN ('Rej','Can') AND wrhwr.bl_id IS NOT NULL AND (${parameters['wr_rest']})" />
+
+		<field name="bl_id" table="wrhwr" groupBy="true" dataType="text" size="64">
+			<title translatable="true">ID</title>
+		</field>
+
+		<field name="area_total" table="wrhwr" baseField="wrhwr.rm_area" formula="sum" dataType="number" size="6" decimals="0">
+			<title>Total Area</title>
+		</field>
+
+		<field name="num_wr" formula="count" dataType="number"
+			baseField="wrhwr.wr_id" size="6" decimals="0">
+			<title translatable="true">#</title>
+		</field>
+
+		<field name="cost_labor_total" table="wrhwr" formula="sum" baseField="wrhwr.cost_labor" dataType="number" size="8" decimals="2">
+			<title>Labor Cost</title>
+		</field>
+
+		<field name="cost_cont_total" table="wrhwr" formula="sum" baseField="wrhwr.cost_cont" dataType="number" size="8" decimals="2">
+			<title>Contractor Cost</title>
+		</field>
+
+		<field name="cost_labor_cont_total" table="wrhwr" formula="sum" dataType="number" size="8" decimals="2">
+			<title>Total Cost</title>
+			<sql dialect="generic">ISNULL(SUM(cost_labor),0) + ISNULL(SUM(cost_cont),0)</sql>
+		</field>
+	</dataSource>
+
+	<panel type="console" columns="3" id="requestConsole"
+		dataSource="consoleDS" region="north">
+		<title translatable="true">Filter</title>
+		<action id="filter">
+			<title translatable="true">Show</title>
+			<!--command type="callFunction"
+				functionName="ABODRPTC_setRestriction('wrhwr.month','reportPanel')" /-->
+			<command type="callFunction"
+				functionName="apply_console_restriction()" />
+		</action>
+		<action id="clear">
+			<title translatable="true">Clear</title>
+			<command type="clearForm"
+				panelId="reportPanel" />
+		</action>
+		<field>
+			<title>Summary Type</title>
+			<html>
+				<select id="summaryTypeSelect">
+					<option value="IMP">IMP</option>
+					<option value="ASB">ASB-MGMT</option>
+				</select>
+			</html>
+		</field>
+		<field table="wrhwr" name="date_requested" alias="wrhwr.date_requested.from" >
+			<title>Date From</title>
+		</field>
+		<field table="wrhwr" name="date_requested" alias="wrhwr.date_requested.to" >
+			<title>To</title>
+		</field>
+		<field table="wrhwr" name="prob_type" hidden="true" />
+	</panel>
+
+	<panel id="reportPanel" type="crossTable"
+		dataSource="crossTableDS" rowDimensionDataSource="crossTableRowDS" region="center" showOnLoad="false">
+		<title translatable="true">
+			Total Work Requests
+		</title>
+		<event type="onClickItem">
+		    <command type="callFunction" functionName="onCrossTableClick"/>
+		</event>
+	</panel>
+</view>

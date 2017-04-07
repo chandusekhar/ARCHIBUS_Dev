@@ -1,0 +1,370 @@
+<view version="2.0">
+    <title translatable="true">SDS Chemical Inventory</title>
+   <report />
+
+    <dataSource id="abRiskMsdsSummaryReportDS">
+        <table name="msds_chemical" role="main"/>
+        <field name="cas_number"/>
+        <field name="chemical_id"/>
+        <field name="alias"/>
+        <field name="tier2"/>
+        <field name="sumContainerSize" dataType="number" decimals="4">
+            <sql dialect="generic">
+                  ( select sum(hazard_container_type.container_size * msds_h_location.num_containers 
+				  									* bill_unit.conversion_factor)  
+                        from msds_h_location  
+								left outer join  hazard_container_type on msds_h_location.container_type=hazard_container_type.container_type AND msds_h_location.container_cat=hazard_container_type.container_cat  
+								left outer join msds_constituent on msds_constituent.msds_id=msds_h_location.msds_id
+                                left outer join bill_unit on bill_unit.bill_unit_id = hazard_container_type.units
+						where ${parameters['classificationRes']} and ${parameters['locationRes']} 
+									and msds_constituent.chemical_id=msds_chemical.chemical_id
+                                    and hazard_container_type.units_type = 'MSDS - VOLUME'  AND bill_unit.bill_type_id = 'MSDS - VOLUME') 											  
+				/(SELECT conversion_factor FROM bill_unit WHERE is_dflt = 1 AND bill_type_id = 'MSDS - VOLUME')
+                </sql>
+        </field>
+        <field name="sumQuantityMass" dataType="number" decimals="4">
+            <sql dialect="generic">
+                  ( select sum(msds_h_location.quantity * bill_unit.conversion_factor) 
+                        from msds_h_location  
+                                left outer join msds_constituent on msds_constituent.msds_id=msds_h_location.msds_id
+                                left outer join bill_unit on bill_unit.bill_unit_id = msds_h_location.quantity_units
+                        where ${parameters['classificationRes']} and ${parameters['locationRes']} 
+                                    and msds_constituent.chemical_id=msds_chemical.chemical_id 
+                                    and msds_h_location.quantity_units_type = 'MSDS - MASS' and bill_unit.bill_type_id = 'MSDS - MASS') 	   
+				/(SELECT conversion_factor FROM bill_unit WHERE is_dflt = 1 AND bill_type_id = 'MSDS - MASS')
+            </sql>
+        </field>
+        <field name="sumQuantityVolume" dataType="number" decimals="4">
+            <sql dialect="generic">
+                  ( select sum(msds_h_location.quantity * bill_unit.conversion_factor) 
+                        from msds_h_location  
+                                left outer join msds_constituent on msds_constituent.msds_id=msds_h_location.msds_id
+                                left outer join bill_unit on bill_unit.bill_unit_id = msds_h_location.quantity_units
+                        where ${parameters['classificationRes']} and ${parameters['locationRes']} 
+                                    and msds_constituent.chemical_id=msds_chemical.chemical_id 
+                                    and msds_h_location.quantity_units_type = 'MSDS - VOLUME' and bill_unit.bill_type_id = 'MSDS - VOLUME') 	
+					/(SELECT conversion_factor FROM bill_unit WHERE is_dflt = 1 AND bill_type_id = 'MSDS - VOLUME')
+            </sql>
+        </field>
+        <field name="onSiteDays" dataType="integer">
+            <sql dialect="generic">
+            ( case when (select min(msds_h_location.date_start) 
+                                                from msds_h_location                                                     
+                                                    left outer join msds_constituent on msds_constituent.msds_id=msds_h_location.msds_id
+                                                where ${parameters['classificationRes']} and ${parameters['locationRes']} 
+                                                    and msds_constituent.chemical_id=msds_chemical.chemical_id)  is null 
+                                then -9999999
+                  else ( 
+                      ( case when (select max(msds_h_location.date_end) 
+                                                    from msds_h_location                                                         
+                                                        left outer join msds_constituent on msds_constituent.msds_id=msds_h_location.msds_id
+                                                    where ${parameters['classificationRes']} and ${parameters['locationRes']} 
+                                                        and msds_constituent.chemical_id=msds_chemical.chemical_id)  is null 
+                                    then ${parameters['dateEnd']} 
+                                 when (select max(msds_h_location.date_end) 
+                                                    from msds_h_location 
+                                                        left outer join msds_constituent on msds_constituent.msds_id=msds_h_location.msds_id
+                                                    where ${parameters['classificationRes']} and ${parameters['locationRes']} 
+                                                        and msds_constituent.chemical_id=msds_chemical.chemical_id) &gt;= ${parameters['dateEnd']}  
+                                    then  ${parameters['dateEnd']} 
+                                 else  (select max(msds_h_location.date_end) 
+                                                    from msds_h_location 
+                                                        left outer join msds_constituent on msds_constituent.msds_id=msds_h_location.msds_id
+                                                    where ${parameters['classificationRes']} and ${parameters['locationRes']} 
+                                                        and msds_constituent.chemical_id=msds_chemical.chemical_id) 
+                        end 
+                      )  
+                      -  
+                      ( case when (select min(msds_h_location.date_start) 
+                                                    from msds_h_location 
+                                                        left outer join msds_constituent on msds_constituent.msds_id=msds_h_location.msds_id
+                                                    where ${parameters['classificationRes']} and ${parameters['locationRes']} 
+                                                        and msds_constituent.chemical_id=msds_chemical.chemical_id)  is null 
+                                    then ${parameters['dateStart']} 
+                                 when (select min(msds_h_location.date_start)  
+                                                    from msds_h_location 
+                                                        left outer join msds_constituent on msds_constituent.msds_id=msds_h_location.msds_id
+                                                    where ${parameters['classificationRes']} and ${parameters['locationRes']} 
+                                                        and msds_constituent.chemical_id=msds_chemical.chemical_id) &lt;= ${parameters['dateStart']}  
+                                    then  ${parameters['dateStart']} 
+                                 else   (select min(msds_h_location.date_start)  
+                                                    from msds_h_location 
+                                                        left outer join msds_constituent on msds_constituent.msds_id=msds_h_location.msds_id
+                                                    where ${parameters['classificationRes']} and ${parameters['locationRes']} 
+                                                        and msds_constituent.chemical_id=msds_chemical.chemical_id) 
+                        end) 
+                      )
+                 end)
+            </sql>
+            <sql dialect="sqlserver">
+            ( case when (select min(msds_h_location.date_start) 
+                                                from msds_h_location 
+                                                    left outer join msds_constituent on msds_constituent.msds_id=msds_h_location.msds_id
+                                                where ${parameters['classificationRes']} and ${parameters['locationRes']} 
+                                                    and msds_constituent.chemical_id=msds_chemical.chemical_id)  is null 
+                                then -9999999
+                  else (
+                        DATEDIFF(day,
+                          ( case when (select min(msds_h_location.date_start) 
+                                                from msds_h_location 
+                                                    left outer join msds_constituent on msds_constituent.msds_id=msds_h_location.msds_id
+                                                where ${parameters['classificationRes']} and ${parameters['locationRes']} 
+                                                    and msds_constituent.chemical_id=msds_chemical.chemical_id)  is null 
+                                then ${parameters['dateStart']} 
+                             when (select min(msds_h_location.date_start)  
+                                                from msds_h_location 
+                                                    left outer join msds_constituent on msds_constituent.msds_id=msds_h_location.msds_id
+                                                where ${parameters['classificationRes']} and ${parameters['locationRes']} 
+                                                    and msds_constituent.chemical_id=msds_chemical.chemical_id) &lt;= ${parameters['dateStart']}  
+                                then  ${parameters['dateStart']} 
+                             else   (select min(msds_h_location.date_start)  
+                                                from msds_h_location 
+                                                    left outer join msds_constituent on msds_constituent.msds_id=msds_h_location.msds_id
+                                                where ${parameters['classificationRes']} and ${parameters['locationRes']} 
+                                                    and msds_constituent.chemical_id=msds_chemical.chemical_id) 
+                    end 
+                  ),
+                  ( case when (select max(msds_h_location.date_end) 
+                                                from msds_h_location 
+                                                    left outer join msds_constituent on msds_constituent.msds_id=msds_h_location.msds_id
+                                                where ${parameters['classificationRes']} and ${parameters['locationRes']} 
+                                                    and msds_constituent.chemical_id=msds_chemical.chemical_id)  is null 
+                                then ${parameters['dateEnd']} 
+                             when (select max(msds_h_location.date_end) 
+                                                from msds_h_location 
+                                                    left outer join msds_constituent on msds_constituent.msds_id=msds_h_location.msds_id
+                                                where ${parameters['classificationRes']} and ${parameters['locationRes']} 
+                                                    and msds_constituent.chemical_id=msds_chemical.chemical_id) &gt;= ${parameters['dateEnd']}  
+                                then  ${parameters['dateEnd']} 
+                             else  (select max(msds_h_location.date_end) 
+                                                from msds_h_location 
+                                                    left outer join msds_constituent on msds_constituent.msds_id=msds_h_location.msds_id
+                                                where ${parameters['classificationRes']} and ${parameters['locationRes']} 
+                                                    and msds_constituent.chemical_id=msds_chemical.chemical_id) 
+                    end) 
+                  )
+                )
+              end )  
+            </sql>            
+        </field>
+        <restriction type="sql" sql="  ${parameters['ntier2Res']} and exists ( select 1 from msds_constituent 
+                                                                                    right join msds_h_location   on msds_h_location.msds_id=msds_constituent.msds_id 
+                                                                                where msds_constituent.chemical_id=msds_chemical.chemical_id
+                                                                                            and ( msds_h_location.date_end is null or msds_h_location.date_end &gt;= ${parameters['dateStart']}  )
+                                                                                            and ( msds_h_location.date_start is null or msds_h_location.date_start &lt;= ${parameters['dateEnd']}  )
+                                                                                            and ${parameters['classificationRes']} and ${parameters['locationRes']}                                                                                             
+                                                                            ) " />
+        <parameter name="classificationRes" dataType="verbatim" value="1=1"/>
+        <parameter name="locationRes" dataType="verbatim" value="1=1 "/>
+        <parameter name="ntier2Res" dataType="verbatim" value="1=1 "/>
+        <parameter name="dateStart" dataType="date" value="1900-01-01"/>
+        <parameter name="dateEnd" dataType="date" value="2200-01-01"/>
+    </dataSource>   
+    
+    
+    <panel type="paginatedReport" id="abRiskMsdsSummaryReport" dataSource="abRiskMsdsSummaryReportDS" format="table" role="parent">
+        <title translatable="true">SDS Locations</title>
+        <field name="cas_number"  >
+            <title translatable="true">CAS_Number</title>
+        </field>
+        <field name="chemical_id" restrictionParameterName="parameter_chemical_id">
+            <title translatable="true">Chemical</title>
+            
+        </field>
+        <field name="alias"  >
+            <title translatable="true">Alias</title>
+            
+        </field>
+        <field name="tier2"   >
+            <title translatable="true">Tier2 Classification</title>
+            
+        </field>
+        <field name="sumContainerSize" >
+            <title translatable="true">Approximate Total Container Volume</title>
+            
+        </field>
+        <field name="sumQuantityMass">
+            <title translatable="true">Approximate Total Product Mass</title>
+            
+        </field>
+        <field name="sumQuantityVolume">
+            <title translatable="true">Approximate Total Product Volume</title>
+            
+        </field>
+        <field name="onSiteDays"  >
+            <title translatable="true">Days On-site</title>
+            
+        </field>
+    </panel>
+
+    <dataSource id="abRiskMsdsSummaryReportPopUpDS">
+        <table name="msds_h_location" role="main"/>
+        <table name="hazard_container_type" role="standard"/>
+        <table name="bill_unit" role="standard"/>
+        <field table="msds_h_location" name="site_id"/>
+        <field table="msds_h_location" name="bl_id"/>
+        <field table="msds_h_location" name="fl_id" />
+        <field table="msds_h_location" name="rm_id"/>
+        <field table="msds_h_location" name="eq_id"/>
+        <field table="msds_h_location" name="quantity"/>
+        <field table="msds_h_location" name="quantity_units"/>
+        <field table="msds_h_location" name="report_quantity" dataType="number" size="12" decimals="2">
+            <title translatable="true">Standardized Quantity</title>
+            <sql dialect="generic">
+                (case when 
+                    (msds_h_location.quantity * (select bill_unit.conversion_factor from bill_unit where bill_unit.bill_unit_id=msds_h_location.quantity_units and bill_unit.bill_type_id=msds_h_location.quantity_units_type ) / 
+                    (case when   
+                           (select conversion_factor from bill_unit,bill_type where  bill_type.bill_type_id = bill_unit.bill_type_id  and bill_type.bill_type_id 
+                            like  RTRIM(msds_h_location.quantity_units_type) and bill_type.activity_id = 'AbRiskMSDS' and is_dflt=1) 
+                         is not null then
+                            (select conversion_factor from bill_unit,bill_type where  bill_type.bill_type_id = bill_unit.bill_type_id  and bill_type.bill_type_id 
+                            like  RTRIM(msds_h_location.quantity_units_type) and bill_type.activity_id = 'AbRiskMSDS' and is_dflt=1) 
+                     else  
+                          (select conversion_factor from bill_unit where  bill_unit_id =( select min(bill_unit.bill_unit_id)  from bill_unit,bill_type where 
+                           bill_type.bill_type_id = bill_unit.bill_type_id and bill_type.activity_id = 'AbRiskMSDS'  
+                           and bill_type.bill_type_id like  RTRIM(msds_h_location.quantity_units_type))) 
+                        end)) 
+                 is  null then 0  else
+                  (msds_h_location.quantity * (select bill_unit.conversion_factor from bill_unit where bill_unit.bill_unit_id=msds_h_location.quantity_units and bill_unit.bill_type_id=msds_h_location.quantity_units_type ) / 
+                    (case when   
+                           (select conversion_factor from bill_unit,bill_type where  bill_type.bill_type_id = bill_unit.bill_type_id  and bill_type.bill_type_id 
+                            like  RTRIM(msds_h_location.quantity_units_type) and bill_type.activity_id = 'AbRiskMSDS' and is_dflt=1) 
+                         is not null then
+                            (select conversion_factor from bill_unit,bill_type where  bill_type.bill_type_id = bill_unit.bill_type_id  and bill_type.bill_type_id 
+                            like  RTRIM(msds_h_location.quantity_units_type) and bill_type.activity_id = 'AbRiskMSDS' and is_dflt=1) 
+                     else  
+                          (select conversion_factor from bill_unit where  bill_unit_id =( select min(bill_unit.bill_unit_id)  from bill_unit,bill_type where 
+                           bill_type.bill_type_id = bill_unit.bill_type_id and bill_type.activity_id = 'AbRiskMSDS'  
+                           and bill_type.bill_type_id like RTRIM(msds_h_location.quantity_units_type))) 
+                        end)) 
+                 end)
+            </sql>
+        </field>
+        <field table="msds_h_location" name="conversion_unit" dataType="text">
+            <title translatable="true">Standardized Units</title>
+            <sql dialect="generic">
+                 (case when   
+                   (select bill_unit.bill_unit_id from bill_unit,bill_type where  bill_type.bill_type_id = bill_unit.bill_type_id  and bill_type.bill_type_id 
+                    like  RTRIM(msds_h_location.quantity_units_type) and bill_type.activity_id = 'AbRiskMSDS' and is_dflt=1) 
+                 is not null then
+                    (select bill_unit.bill_unit_id from bill_unit,bill_type where  bill_type.bill_type_id = bill_unit.bill_type_id  and bill_type.bill_type_id 
+                    like  RTRIM(msds_h_location.quantity_units_type) and bill_type.activity_id = 'AbRiskMSDS' and is_dflt=1) 
+                else  
+                  (select bill_unit.bill_unit_id from bill_unit where  bill_unit_id =( select min(bill_unit.bill_unit_id)  from bill_unit,bill_type where 
+                   bill_type.bill_type_id = bill_unit.bill_type_id and bill_type.activity_id = 'AbRiskMSDS'  
+                   and bill_type.bill_type_id like  RTRIM(msds_h_location.quantity_units_type))) 
+                end)
+            </sql>
+        </field>
+        <field table="hazard_container_type" name="container_type"/>
+        <field table="hazard_container_type" name="container_size"/>
+        <field table="hazard_container_type" name="units">
+            <title translatable="true">Container Units</title>
+        </field>
+        <field table="hazard_container_type" name="std_container_quantity" dataType="number" size="12" decimals="4">
+            <title translatable="true">Standardized Container Quantity</title>
+            <sql dialect="generic">
+                (case when 
+                    (hazard_container_type.container_size * (select bill_unit.conversion_factor from bill_unit where bill_unit.bill_unit_id=hazard_container_type.units and bill_unit.bill_type_id=hazard_container_type.units_type ) / 
+                    (case when   
+                           (select conversion_factor from bill_unit,bill_type where  bill_type.bill_type_id = bill_unit.bill_type_id  and bill_type.bill_type_id 
+                            like  RTRIM(hazard_container_type.units_type) and bill_type.activity_id = 'AbRiskMSDS' and is_dflt=1) 
+                         is not null then
+                            (select conversion_factor from bill_unit,bill_type where  bill_type.bill_type_id = bill_unit.bill_type_id  and bill_type.bill_type_id 
+                            like  RTRIM(hazard_container_type.units_type) and bill_type.activity_id = 'AbRiskMSDS' and is_dflt=1) 
+                     else  
+                          (select conversion_factor from bill_unit where  bill_unit_id =( select min(bill_unit.bill_unit_id)  from bill_unit,bill_type where 
+                           bill_type.bill_type_id = bill_unit.bill_type_id and bill_type.activity_id = 'AbRiskMSDS'  
+                           and bill_type.bill_type_id like  RTRIM(hazard_container_type.units_type))) 
+                        end)) 
+                 is  null then 0  else
+                  (hazard_container_type.container_size * (select bill_unit.conversion_factor from bill_unit where bill_unit.bill_unit_id=hazard_container_type.units and bill_unit.bill_type_id=hazard_container_type.units_type ) / 
+                    (case when   
+                           (select conversion_factor from bill_unit,bill_type where  bill_type.bill_type_id = bill_unit.bill_type_id  and bill_type.bill_type_id 
+                            like  RTRIM(hazard_container_type.units_type) and bill_type.activity_id = 'AbRiskMSDS' and is_dflt=1) 
+                         is not null then
+                            (select conversion_factor from bill_unit,bill_type where  bill_type.bill_type_id = bill_unit.bill_type_id  and bill_type.bill_type_id 
+                            like  RTRIM(hazard_container_type.units_type) and bill_type.activity_id = 'AbRiskMSDS' and is_dflt=1) 
+                     else  
+                          (select conversion_factor from bill_unit where  bill_unit_id =( select min(bill_unit.bill_unit_id)  from bill_unit,bill_type where 
+                           bill_type.bill_type_id = bill_unit.bill_type_id and bill_type.activity_id = 'AbRiskMSDS'  
+                           and bill_type.bill_type_id like RTRIM(hazard_container_type.units_type))) 
+                        end)) 
+                 end)
+            </sql>
+        </field>
+        <field table="hazard_container_type" name="std_container_unit" dataType="text">
+            <title translatable="true">Standardized Container Units</title>
+            <sql dialect="generic">
+                 (case when   
+                   (select bill_unit.bill_unit_id from bill_unit,bill_type where  bill_type.bill_type_id = bill_unit.bill_type_id  and bill_type.bill_type_id 
+                    like  RTRIM(hazard_container_type.units_type) and bill_type.activity_id = 'AbRiskMSDS' and is_dflt=1) 
+                 is not null then
+                    (select bill_unit.bill_unit_id from bill_unit,bill_type where  bill_type.bill_type_id = bill_unit.bill_type_id  and bill_type.bill_type_id 
+                    like  RTRIM(hazard_container_type.units_type) and bill_type.activity_id = 'AbRiskMSDS' and is_dflt=1) 
+                else  
+                  (select bill_unit.bill_unit_id from bill_unit where  bill_unit_id =( select min(bill_unit.bill_unit_id)  from bill_unit,bill_type where 
+                   bill_type.bill_type_id = bill_unit.bill_type_id and bill_type.activity_id = 'AbRiskMSDS'  
+                   and bill_type.bill_type_id like  RTRIM(hazard_container_type.units_type))) 
+                end)
+            </sql>
+        </field>
+        <field table="msds_h_location" name="num_containers"/>
+        <field table="msds_h_location" name="temperature"/>
+        <field table="msds_h_location" name="temperature_units"/>
+        <field table="msds_h_location" name="pressure"/>
+        <field table="msds_h_location" name="pressure_units"/>
+        <field table="msds_h_location" name="date_start"/>
+        <field table="msds_h_location" name="date_end"/>
+        <restriction type="sql" sql="  ( msds_h_location.date_end is null or msds_h_location.date_end &gt;= ${parameters['dateStart']}  )
+                                                                                            and ( msds_h_location.date_start is null or msds_h_location.date_start &lt;= ${parameters['dateEnd']}  )
+                                                                                            and ${parameters['locationRes']}" />
+        <restriction type="sql" sql="(exists (select 1 from msds_constituent, msds_chemical 
+                                            where msds_h_location.msds_id = msds_constituent.msds_id 
+                                                and msds_constituent.chemical_id = msds_chemical.chemical_id 
+                                                and msds_chemical.chemical_id ='${parameters['parameter_chemical_id']}' and ${parameters['locationRes']} ))" /> 
+        <restriction type="parsed">
+            <clause relop="AND" op="=" table="rm" name="chemical_id" value="${parameters['parameter_chemical_id']}" />
+        </restriction>
+        <parameter name="locationRes" dataType="verbatim" value="1=1 "/>
+        <parameter name="ntier2Res" dataType="verbatim" value="1=1 "/>
+        <parameter name="dateStart" dataType="date" value="1900-01-01"/>
+        <parameter name="dateEnd" dataType="date" value="2200-01-01"/>
+        <parameter name="parameter_chemical_id" dataType="verbatim" value=""/>
+        
+    </dataSource>
+    <panel type="paginatedReport" id="abRiskMsdsSummaryReportPopUpPanel" dataSource="abRiskMsdsSummaryReportPopUpDS"  format="column" columns="3" role="data">
+        <title translatable="true">Storage Location Details</title>
+        <field table="msds_h_location" name="site_id"/>
+        <field table="msds_h_location" name="bl_id"/>
+        <field table="msds_h_location" name="fl_id" />
+        <field table="msds_h_location" name="rm_id"/>
+        <field table="msds_h_location" name="eq_id"/>
+        <field table="msds_h_location" name="quantity"/>
+        <field table="msds_h_location" name="quantity_units"/>
+        <field table="msds_h_location" name="report_quantity">
+            <title translatable="true">Standardized Quantity</title>
+        </field>
+        <field table="msds_h_location" name="conversion_unit">
+            <title translatable="true">Standardized Units</title>
+        </field>
+        <field table="hazard_container_type" name="container_type"/>
+        <field table="hazard_container_type" name="container_size"/>
+        <field table="hazard_container_type" name="units">
+            <title translatable="true">Container Units</title>
+        </field>
+        <field table="hazard_container_type" name="std_container_quantity">
+            <title translatable="true">Standardized Container Quantity</title>
+        </field>
+        <field table="hazard_container_type" name="std_container_unit">
+            <title translatable="true">Standardized Container Units</title>
+        </field>
+        <field table="msds_h_location" name="num_containers"/>
+        <field table="msds_h_location" name="temperature"/>
+        <field table="msds_h_location" name="temperature_units"/>
+        <field table="msds_h_location" name="pressure"/>
+        <field table="msds_h_location" name="pressure_units"/>
+        <field table="msds_h_location" name="date_start"/>
+        <field table="msds_h_location" name="date_end"/>
+    </panel>
+</view>

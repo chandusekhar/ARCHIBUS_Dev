@@ -1,0 +1,49 @@
+<view version="2.0">
+	<dataSource id="abPmRptEqMaintHistChlineGroupingAxisDS" type="grouping">
+		<table name="afm_cal_dates" />
+		<field name="month" groupBy="true" dataType="text" formula="month" baseField="afm_cal_dates.cal_date">
+			<title translatable="true">Month</title>
+		</field>
+		<restriction type="sql" 
+			sql="${sql.yearMonthDayOf('cal_date')} &gt;= ${parameters['dateStart']} AND ${sql.yearMonthDayOf('cal_date')} &lt;= ${parameters['dateEnd']}" />
+		<parameter name="dateStart" dataType="text" value="2010-01-01" />
+		<parameter name="dateEnd" dataType="text" value="2010-12-31" />
+		<sortField table="afm_cal_dates" name="cal_date" ascending="true" />
+	</dataSource>
+	
+	<dataSource id="abPmRptEqMaintHistChlineDataAxisDS" type="grouping">
+		<sql dialect="generic">
+			(SELECT 
+				  wrhwr.eq_id ${sql.as} eq_id,
+				  case when wrhwr.cost_total &lt;=0 then 0 else SUM(wrhwr.cost_total) end ${sql.as} month_value
+				  FROM wrhwr JOIN eq on wrhwr.eq_id=eq.eq_id 
+				  WHERE   
+						 wrhwr.status NOT IN ('Rej','Can')  
+						AND ${sql.yearMonthOf("wrhwr.date_completed")}=${parameters['summaryValueForThisGroup']}  
+						AND  ${parameters['parentRestriction']}  
+			  	 group by wrhwr.eq_id ,wrhwr.cost_total 
+				) 
+		</sql>	
+		<table name="wrhwr" role="main"/>
+		<field table="wrhwr" name="eq_id"  dataType="verbatim" groupBy="true"  />
+	        <field table="wrhwr" name="sum_cost_total" formula="sum" baseField="wrhwr.month_value" dataType="number"  size="6" decimals="2"/>
+		
+		<parameter name="summaryValueForThisGroup" dataType="text" value="" />
+		<parameter name="parentRestriction" dataType="verbatim" value=" 1=1 " />
+		
+		<sortField name="eq_id" table="wrhwr" ascending="false"/>
+	</dataSource>
+
+	<panel id="abPmRptEqMaintHistChlineByMonthByEChart" type="chart" showLegendOnLoad="false" controlType="lineChart" legendLocation="right" showOnLoad="true"  >
+		<title translatable="true">Equipment History Line Chart</title>
+		<groupingAxis table="afm_cal_dates" field="month" dataSource="abPmRptEqMaintHistChlineGroupingAxisDS">
+			<title translatable="true">Date</title>
+		</groupingAxis>
+		<secondaryGroupingAxis table="wrhwr" field="eq_id" dataSource="abPmRptEqMaintHistChlineDataAxisDS" />
+		<dataAxis  table="wrhwr" field="sum_cost_total" dataSource="abPmRptEqMaintHistChlineDataAxisDS">
+		</dataAxis>
+	</panel>	
+	
+	<js file="ab-pm-rpt-eq-maint-hist-cht-line-by-eq-dash.js"/>
+	<js file="ab-bldgops-report-common.js" />
+</view>

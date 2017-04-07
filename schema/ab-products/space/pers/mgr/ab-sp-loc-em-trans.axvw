@@ -1,0 +1,212 @@
+<view version="2.0">
+	<message name="drawingPanelTitle1" translatable="true">Highlight Room for Employee</message>
+    <message name="dateRange" translatable="true">for Date Range [{0}] to [{1}]</message>
+    <layout id="main">
+		<north id="filterPosition" initialSize="75" split="true"/>
+		<west id="selectedEmployees" initialSize="25%" split="true"/>
+		<center/>
+	</layout>
+	<layout id="nested_center" containingLayout="main" region="center">
+		<center/>
+		<south id="empDetailsPosition" initialSize="20%" split="true"/>
+	</layout>
+	<layout id="nested_nested_center" containingLayout="nested_center" region="center">
+		<west id="legendPosition" initialSize="150" split="true"/>
+		<center id="dwgPosition"/>
+	</layout>
+	<title translatable="true">Locate Employee</title>
+
+	<dataSource id="abSpLocEmTrans_rmcptDS">
+		<table name="rmpct" role="main"/>
+		<table name="rm" role="standard"/>
+		<table name="em" role="standard"/>
+		<field table="rmpct" name="em_id"/>
+        <field table="em" name="em_id"/>
+        <field table="em" name="em_photo"/>
+        
+		<field table="rm" name="bl_id"/>
+		<field table="rm" name="fl_id"/>
+		<field table="rm" name="rm_id"/>
+		<field table="em" name="phone"/>
+		<field table="em" name="email"/>
+		<field table="rmpct" name="dv_id"/>
+		<field table="rmpct" name="dp_id"/>
+		<field table="rmpct" name="primary_em"/>
+		<field table="rmpct" name="date_start"/>
+		<field table="rm" name="dwgname"/>
+		<restriction type="sql" sql="rmpct.em_id IS NOT NULL 
+		AND rmpct.status = 1 AND (rmpct.date_start IS NULL OR rmpct.date_start &lt;= ${parameters['date']}) 
+		AND (rmpct.date_end IS NULL OR rmpct.date_end &gt;= ${parameters['date']})"/>
+		<parameter name="date" dataType="date" value=""/>
+	</dataSource>
+
+	<panel type="console" id="abSpLocEmTrans_console" columns="2" dataSource="abSpLocEmTrans_rmcptDS" layoutRegion="filterPosition">
+		<title translatable="true">Filter</title>
+		<action id="show">
+			<title translatable="true">Show</title>
+		</action>
+		<action id="clear">
+			<title translatable="true">Clear</title>
+			<command type="clearPanel" panelId="abSpLocEmTrans_console"/>
+		</action>
+        <action>
+            <title translatable="true">Paginated Report</title>
+            <command type="callFunction" functionName="generateReport"/>
+        </action>
+		<field table="rmpct" name="em_id"/>
+        <field table="rmpct" name="date_start" required="true"/>
+	</panel>
+
+	<panel type="grid" id="abSpLocEmTrans_em_grid" showOnLoad="false" multipleSelectionEnabled="false" dataSource="abSpLocEmTrans_rmcptDS" layoutRegion="selectedEmployees">
+		<title translatable="true">Employees</title>
+		<sortField table="rmpct" name="em_id" ascending="true"/>
+		<field table="rmpct" name="em_id" controlType="link">
+			<command type="callFunction" functionName="showEmLocations"/>
+		</field>
+		<field table="rm" name="bl_id" controlType="link">
+			<command type="callFunction" functionName="showEmLocations"/>
+		</field>
+		<field table="rm" name="fl_id" controlType="link">
+			<command type="callFunction" functionName="showEmLocations"/>
+		</field>
+		<field table="rm" name="rm_id" controlType="link">
+			<command type="callFunction" functionName="showEmLocations"/>
+		</field>
+	</panel>
+
+	<dataSource id="abSpLocEmTrans_rmLabel">
+        <sql dialect="generic">
+          select bl_id,fl_id,rm_id,dv_id,dp_id,em_id ${sql.as} org_id 
+          from rmpct where rmpct.status = 1 AND (rmpct.date_start IS NULL OR rmpct.date_start &lt;= ${parameters['date']}) 
+        AND (rmpct.date_end IS NULL OR rmpct.date_end &gt;= ${parameters['date']})
+        </sql>
+        <table name="rm" role="main"/>
+        <field name="bl_id" hidden="true"/>
+        <field name="fl_id" hidden="true"/>
+        <field name="rm_id"/>
+        <field name="dv_id"/>
+        <field name="dp_id"/>
+        <field name="org_id"/>
+        <parameter name="date" dataType="date" value=""/>
+	</dataSource>
+
+	<panel type="html" id="abSpLocEmTrans_highlightLegend" layoutRegion="legendPosition">
+		<title>Legend</title>
+		<html>
+			<div id="abSpLocEmTrans_highlightLegend_legendDiv" style="width:100%; display: none">
+				<table class=" panelReport">
+					<tr class="dataRow">
+						<td class="color" width="">
+							<div style="width:100%;height:16px;background-color:#FFFF00;"></div>
+						</td>
+						<td translatable="true" class="text" width="80%">Main Location</td>
+					</tr>
+					<tr class="dataRow">
+						<td class="color" width="">
+							<div style="width:100%;height:16px;background-color:#0000FF;"></div>
+						</td>
+						<td translatable="true" class="text" width="80%">Satellite Location</td>
+					</tr>
+				</table>
+			</div>
+		</html>
+	</panel>
+    
+    <dataSource id="ds_ab-sp-loc-em_drawing_rmHighlight">
+        <table name="rmpct" role="main"/>
+        <table name="rm" role="standard"/>
+        <field table="rmpct" name="bl_id" hidden="true"/>
+        <field table="rmpct" name="fl_id" hidden="true"/>
+        <field table="rmpct" name="rm_id"/>
+        <field table="rm" name="dwgname"/>
+        <parameter name="existsBlflrm" dataType="verbatim" value=""/>
+        <restriction type="sql" sql=" rmpct.area_rm>0  ${parameters['existsBlflrm']}"/>
+    </dataSource>
+    <panel type="html" id="timeLineButton"  layoutRegion="dwgPosition">
+        <action id="previousYear">
+            <tooltip translatable="true">Year</tooltip>
+            <title translatable="true">&lt;&lt;&lt;</title>
+            <command type="callFunction" functionName="previousYear"/>
+        </action>
+        <action id="previousMonth">
+            <title translatable="true">&lt;&lt;</title>
+            <tooltip translatable="true">Month</tooltip>
+            <command type="callFunction" functionName="previousMonth"/>
+        </action>
+        <action id="previousWeek">
+            <title translatable="true">&lt;</title>
+            <tooltip translatable="true">Week</tooltip>
+            <command type="callFunction" functionName="previousWeek"/>
+        </action>
+        <action id="currentDate">
+            <title translatable="true">current date</title>
+        </action>
+        <action id="nextWeek">
+            <title translatable="true">&gt;</title>
+            <tooltip translatable="true">Week</tooltip>
+            <command type="callFunction" functionName="nextWeek"/>
+        </action>
+        <action id="nextMonth">
+            <title translatable="true">&gt;&gt;</title>
+            <tooltip translatable="true">Month</tooltip>
+            <command type="callFunction" functionName="nextMonth"/>
+        </action>
+        <action id="nextYear">
+            <title translatable="true">&gt;&gt;&gt;</title>
+            <tooltip translatable="true">Year</tooltip>
+            <command type="callFunction" functionName="nextYear"/>
+        </action>
+    </panel>
+	<panel type="drawing" id="abSpLocEmTrans_floorPlan" layoutRegion="dwgPosition" 
+        highlightDataSource="ds_ab-sp-loc-em_drawing_rmHighlight" 
+        labelsDataSource="abSpLocEmTrans_rmLabel" selectionMode="0" toolbarSettings="hide=resetAssets,clearAssets">
+		<action id="exportDOCX">
+			<title translatable="true">DOC</title>
+			<tooltip translatable="true">Export current view of drawing to Docx file.</tooltip>
+			<command type="exportPanel" outputType="docx" panelId="abSpLocEmTrans_floorPlan"/>
+		</action>
+		<title translatable="true"></title>
+	</panel>
+
+	<panel type="grid" id="abSpLocEmTrans_emDetails" showOnLoad="false" dataSource="abSpLocEmTrans_rmcptDS" layoutRegion="empDetailsPosition">
+		<title translatable="true">Employees Details</title>
+		<sortField name="primary_em" table="rmpct" ascending="false"/>
+        <field table="em" name="em_id" controlType="link">
+            <command type="callFunction" functionName="openDialogForEm"/>
+        </field>
+		<field table="rm" name="bl_id"/>
+		<field table="rm" name="fl_id"/>
+		<field table="rm" name="rm_id"/>
+		<field table="em" name="phone"/>
+		<field table="em" name="email"/>
+		<field table="rmpct" name="dv_id"/>
+		<field table="rmpct" name="dp_id"/>
+		<field table="rmpct" name="primary_em" hidden="true"/>
+		<field table="rm" name="dwgname" hidden="true"/>
+	</panel>
+
+    <dataSource id="emDS">
+        <table name="em" role="main"/>
+        <table name="rm" role="standard"/>
+        <field table="em" name="em_id"/>
+        <field table="rm" name="bl_id"/>
+        <field table="rm" name="fl_id"/>
+        <field table="rm" name="rm_id"/>
+        <field table="em" name="phone"/>
+        <field table="em" name="email"/>
+        <field table="em" name="dv_id"/>
+        <field table="em" name="dp_id"/>
+        <field table="em" name="em_photo"/>
+        
+    </dataSource>
+    
+    <panel type="form" id="emPhotoForm" hidden="true" showOnLoad="false" labelsPosition="top" dataSource="emDS">
+        <field table="em" name="em_id" hidden="true"/>
+        <field table="em" name="em_photo" displayField="image_field"  hidden="true"/>
+        <field id="image_field" controlType="image" >
+        </field>
+    </panel>
+    
+	<js file="ab-sp-loc-em-trans.js"/>
+    <js file="ab-sp-timeline-common.js"/>
+</view>

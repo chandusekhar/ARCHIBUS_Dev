@@ -1,0 +1,145 @@
+<view version="2.0">
+  <title>Parts Cycle Time Report</title>
+  <preferences>
+    <viewTitleBar show="false" />
+  </preferences>
+  
+  <layout file="console-small.axvw" />
+  <js file="uc-ab-parts-cycle-report.js" />
+
+  <message name="selectTitle" translatable="true">-select-</message>
+
+  <dataSource id="pcconsoleDS2">
+    <table name="uc_wr_audit" role="main" />
+    <table name="wrhwr" role="main" />
+    <field table="wrhwr" name="date_requested" />
+    <field table="uc_wr_audit" name="status_old" />
+    <field table="uc_wr_audit" name="status_new" />
+  </dataSource>
+  <dataSource id="pccrossTableDS8">
+      <sql dialect="generic">
+        select sub1.uc_wr_audit_id, sub1.wr_id,sub1.date_requested, sub1.date_modified, sub1.status_old, sub1.status_new, sub1.Delta1,
+        datediff(day, (select max(c.date_modified) from uc_wr_audit c where sub1.uc_wr_audit_id > c.uc_wr_audit_id and sub1.wr_id=c.wr_id), sub1.date_modified) as Delta2,
+        sub1.work_team_id, sub1.prob_type, sub1.charge_type,
+        CASE WHEN wro.countwro is null then 'N' ELSE 'Y' END AS has_contractor_y_n,
+        CASE WHEN wrc.countwrcf is null then 'N' ELSE 'Y' END AS has_employee_y_n,
+        (SELECT  STUFF(( SELECT ','  + rtrim(vn_id) FROM (select distinct vn_id, wr_id from wrotherhwrother) vn_names where wr_id=sub1.wr_id FOR XML PATH('')) , 1, 1, '')) AS Contractor,
+        (SELECT  STUFF(( SELECT ','  + rtrim(cf_id) FROM (select distinct cf_id, wr_id from wrcfhwrcf) cf_names where wr_id=sub1.wr_id FOR XML PATH('')) , 1, 1, '')) AS Employee
+        from
+        (select a.uc_wr_audit_id, w.wr_id, w.date_requested, a.date_modified, a.status_old, a.status_new,
+        datediff(day, w.date_requested, a.date_modified) as Delta1, w.work_team_id, w.prob_type, w.charge_type
+        FROM uc_wr_audit a
+        left join wrhwr w on a.wr_id=w.wr_id
+        WHERE status_old is not null and status_new is not null
+        group by a.uc_wr_audit_id, w.wr_id, a.date_modified, a.status_old, a.status_new, w.date_requested, w.work_team_id, w.prob_type, w.charge_type
+        ) sub1
+        left join
+        (select count(*) as countwro, wrotherhwrother.wr_id from wrotherhwrother where wrotherhwrother.other_rs_type='CONTRACTOR' group by wrotherhwrother.wr_id) wro on sub1.wr_id=wro.wr_id
+        left join
+        (select count(*) as countwrcf, wrcfhwrcf.wr_id from wrcfhwrcf group by wrcfhwrcf.wr_id) wrc on sub1.wr_id=wrc.wr_id
+        where sub1.date_requested > '2010-09-28'
+      </sql>
+    <table name="uc_wr_audit" role="main"/>
+    <field table="uc_wr_audit" name="uc_wr_audit_id"/>
+    <field table="uc_wr_audit" name="wr_id" />
+    <field table="wrhwr" name="date_requested"/>
+    <field table="uc_wr_audit" name="date_modified"/>
+    <field table="uc_wr_audit" name="status_old"/>
+    <field table="uc_wr_audit" name="status_new"/>
+    <field table="uc_wr_audit" name="Delta1" dataType="number" decimals="0" size="8"/>
+    <field table="uc_wr_audit" name="Delta2" dataType="number" decimals="0" size="8"/>
+    <field table="wrhwr" name="work_team_id"/>
+    <field table="wrhwr" name="prob_type"/>
+    <field table="wrhwr" name="charge_type"/>
+    <field table="uc_wr_audit" name="has_contractor_y_n" dataType="text"/>
+    <field table="uc_wr_audit" name="has_employee_y_n" dataType="text"/>
+    <field table="uc_wr_audit" name="Contractor" dataType="text"/>
+    <field table="uc_wr_audit" name="Employee" dataType="text"/>
+  </dataSource>
+  <panel type="console" id="requestConsole"	dataSource="pcconsoleDS2" columns="2" region="north">
+    <title translatable="true">Filter</title>
+    <action id="filter">
+      <title translatable="true">Show</title>
+      <command type="callFunction"	functionName="apply_console_restriction()" />
+    </action>
+    <action id="clear">
+      <title translatable="true">Clear</title>
+      <command type="clearForm"
+				panelId="reportPanel" />
+    </action>
+    <field table="wrhwr" name="date_requested" alias="wrhwr.date_requested.from">
+      <title>Requested Date From:</title>
+    </field>
+    <field table="wrhwr" name="date_requested" alias="wrhwr.date_requested.to">
+      <title>To:</title>
+    </field>
+    <field table="uc_wr_audit" name="status_old" alias="uc_wr_audit.status_old">
+      <title>Status Old</title>
+    </field>
+    <field table="uc_wr_audit" name="status_new" alias="uc_wr_audit.status_new">
+      <title>Status New</title>
+    </field>
+  </panel>
+  <panel id="reportPanel" type="grid"	dataSource="pccrossTableDS8" showOnLoad="false">
+    <action id="report_refresh">
+      <title translatable="true">Refresh</title>
+      <command type="callFunction" functionName="refreshSearch"/>
+    </action>
+    <action id="exportDOCX">
+      <title>DOCX</title>
+      <command type="exportPanel" outputType="docx" panelId="reportPanel"/>
+    </action>
+    <action id="exportXLS">
+      <title>XLS</title>
+      <command type="exportPanel" outputType="xls" panelId="reportPanel"/>
+    </action>
+    <title translatable="true">Parts Cycle</title>
+    <field table="uc_wr_audit" name="uc_wr_audit_id">
+      <title>WR Audit ID</title>
+    </field>
+    <field table="uc_wr_audit" name="wr_id">
+      <title>WR ID</title>
+    </field>
+    <field table="wrhwr" name="date_requested">
+      <title>Date Requested</title>
+    </field>
+    <field table="uc_wr_audit" name="date_modified">
+      <title>Date Modified</title>
+    </field>
+    <field table="uc_wr_audit" name="status_old">
+      <title>Status Old</title>
+    </field>
+    <field table="uc_wr_audit" name="status_new">
+      <title>Status New</title>
+    </field>
+    <field table="uc_wr_audit" name="Delta1" dataType="number" decimals="0" size="8">
+      <title>Cycle Time Requested to New</title>
+    </field>
+    <field table="uc_wr_audit" name="Delta2" dataType="number" decimals="0" size="8">
+      <title>Cycle Time Status Old to New</title>
+    </field>
+    <field table="wrhwr" name="work_team_id">
+      <title>Work Team ID</title>
+    </field>
+    <field table="wrhwr" name="prob_type">
+      <title>Problem Type</title>
+    </field>
+    <field table="wrhwr" name="charge_type">
+      <title>Charge Type</title>
+    </field>
+    <field table="uc_wr_audit" name="has_contractor_y_n" dataType="text">
+      <title>Has Contractor (Y/N)</title>
+    </field>
+    <field table="uc_wr_audit" name="has_employee_y_n" dataType="text">
+      <title>Has Employee (Y/N)</title>
+    </field>
+    <field table="uc_wr_audit" name="Contractor" dataType="text">
+      <title>Contractor(s)</title>
+    </field>
+    <field table="uc_wr_audit" name="Employee" dataType="text">
+      <title>Employee(s)</title>
+    </field>
+	  <indexField table="uc_wr_audit" name="wr_id"/>
+    <sortField name="wr_id" table="uc_wr_audit" ascending="true"/>
+  </panel>
+</view>

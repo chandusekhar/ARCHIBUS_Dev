@@ -1,0 +1,969 @@
+<view version="2.0">
+	<title translatable="true">Vehicle Management</title>
+
+	<js file="uc-manage-vehicle-eq-pms.js"/>
+	<js file="brg-common.js"/>
+	<js file="brg-common-ui.js"/>
+
+	<layout id="main">
+		<west initialSize="30%" split="true"/>
+		<center/>
+	</layout>
+
+	<layout id="nested_west" containingLayout="main" region="west">
+		<north id="row1col1" initialSize="40%" split="false"/>
+		<center id="row2col1" initialSize="60%"/>
+	</layout>
+	<layout id="nested_east" containingLayout="main" region="center">
+		<center id="row1col2"/>
+	</layout>
+
+	<!--
+		Using groups to check security access levels and hide or show or readOnly a field example...
+		!(View.user.role=='UC_FleetManager' || View.user.role=='UC-SYSDEV')
+	-->
+
+	<designInfo type="edit" pattern="ab-viewdef-editform-drilldown-two-level" isAlterable="true"/>
+	<!--layout file="dashboard-2-1-0.axvw"/-->
+
+	<!-- ************** EQUIPMENT STANDARD DRILLDOWN ************************* -->
+	<dataSource id="vehicle_type_ds">
+		<table name="vehicle_type" role="main"/>
+		<field table="vehicle_type" name="vehicle_type_id"/>
+		<field table="vehicle_type" name="class_id"/>
+	</dataSource>
+
+	<panel type="grid" id="vehicle_type_drilldown" dataSource="vehicle_type_ds" selectionEnabled="true" layoutRegion="row1col1" recordLimit="0">
+		<title translatable="true">Vehicle Type</title>
+
+		<action id="refresh">
+			<title translatable="true">Refresh</title>
+			<command type="showPanel" panelId="vehicle_type_drilldown"/>
+			<command type="showPanel" panelId="vehicle_details" newRecord="false" show="false"/>
+			<command type="showPanel" panelId="vehiclerisk_details" newRecord="false" show="false"/>
+			<command type="showPanel" panelId="eq_docs" show="false"/>
+			<command type="showPanel" panelId="eq_riskdocs" show="false"/>
+			<command type="showPanel" panelId="pms_grid" show="false"/>
+		</action>
+		<field name="class_id" table="vehicle_type" controlType="link">
+			<command type="showPanel" panelId="vehicle_drilldown"/>
+			<command type="showPanel" panelId="vehicle_details" newRecord="false" show="false"/>
+			<command type="showPanel" panelId="vehiclerisk_details" newRecord="false" show="false"/>
+			<command type="showPanel" panelId="eq_docs" show="false"/>
+			<command type="showPanel" panelId="eq_riskdocs" show="false"/>
+			<command type="showPanel" panelId="pms_grid" show="false"/>
+		</field>
+		<field name="vehicle_type_id" table="vehicle_type" controlType="link">
+			<command type="showPanel" panelId="vehicle_drilldown"/>
+			<command type="showPanel" panelId="vehicle_details" newRecord="false" show="false"/>
+			<command type="showPanel" panelId="vehiclerisk_details" newRecord="false" show="false"/>
+			<command type="showPanel" panelId="eq_docs" show="false"/>
+			<command type="showPanel" panelId="eq_riskdocs" show="false"/>
+			<command type="showPanel" panelId="pms_grid" show="false"/>
+		</field>
+		<sortField name="vehicle_type_id" table="vehicle_type" ascending="true" />
+	</panel>
+
+
+	<!-- ************************ VEHICLE DRILLDOWN ************************* -->
+	<dataSource id="vehiclenav_ds">
+		<table name="vehicle" role="main"/>
+		<field table="vehicle" name="eq_id"/>
+		<field table="vehicle" name="vehicle_id"/>
+		<field table="vehicle" name="mfr_id"/>
+		<field table="vehicle" name="model_id"/>
+		<field table="vehicle" name="num_serial"/>
+		<field table="vehicle" name="license"/>
+		<field table="vehicle" name="vehicle_type_id"/>
+		<field table="vehicle" name="cost_ins_perils"/>
+		<field table="vehicle" name="hazmat_types"/>
+		<restriction type="sql" sql="IsNull(status,'na')!='disp'"/>
+	</dataSource>
+
+	<panel type="grid" id="vehicle_drilldown" dataSource="vehiclenav_ds" showOnLoad="false" selectionEnabled="true" layoutRegion="row2col1" recordLimit="0">
+		<title translatable="true">Vehicle</title>
+		<action id="vehicle_refresh">
+			<title translatable="true">Refresh</title>
+			<command type="showPanel" panelId="vehicle_drilldown"/>
+		</action>
+		<field name="vehicle_id" table="vehicle" controlType="link" onclick="getEquipmentDetails">
+		</field>
+		<field name="mfr_id" table="vehicle" controlType="link" onclick="getEquipmentDetails">
+		</field>
+		<field name="model_id" table="vehicle" controlType="link" onclick="getEquipmentDetails">
+		</field>
+		<field name="num_serial" table="vehicle" controlType="link" onclick="getEquipmentDetails">
+			<title>VIN</title>
+		</field>
+		<field table="vehicle" name="eq_id" hidden="true"/>
+		<field table="vehicle" name="license" hidden="true"/>
+		<field table="vehicle" name="vehicle_type_id" hidden="true"/>
+		<field table="vehicle" name="cost_ins_perils" hidden="true"/>
+		<field table="vehicle" name="hazmat_types" hidden="true"/>
+		<sortField name="vehicle_id" table="vehicle" ascending="true" />
+	</panel>
+
+	<dataSource id="eqdet_ds">
+		<table name="eq" role="main"/>
+		<field table="eq" name="eq_id"/>
+		<field table="eq" name="eq_std"/>
+		<field table="eq" name="status"/>
+		<field table="eq" name="use1"/>
+		<field table="eq" name="option1"/>
+		<field table="eq" name="option2"/>
+		<field table="eq" name="meter"/>
+		<field table="eq" name="meter_units"/>
+		<field table="eq" name="comments"/>
+		<field table="eq" name="dv_id"/>
+		<field table="eq" name="dp_id"/>
+		<restriction type="sql" sql="eq_std = 'VEHCL-XXXX-XXXXX'"/>
+	</dataSource>
+
+	<dataSource id="vehicle_log_ds">
+		<table name="uc_vehicle_log" role="main"/>
+		<field name="vehicle_id" table="uc_vehicle_log"/>
+		<field name="hazmat_to" table="uc_vehicle_log"/>
+		<field name="hazmat_from" table="uc_vehicle_log"/>
+		<field name="hazmat_types" table="uc_vehicle_log"/>
+		<field name="uc_vehicle_log_id" table="uc_vehicle_log"/>
+		<field name="safety_quest" table="uc_vehicle_log"/>
+		<field name="date_stamp" table="uc_vehicle_log"/>
+		<field name="time_stamp" table="uc_vehicle_log"/>
+		<field name="em_id" table="uc_vehicle_log"/>
+	</dataSource>
+
+	<dataSource id="vehicledet_ds">
+		<table name="vehicle" role="main"/>
+		<field table="vehicle" name="ac_id"/>
+		<field table="vehicle" name="age_acquired"/>
+		<field table="vehicle" name="avail_fdo"/>
+		<field table="vehicle" name="avail_fro"/>
+		<field table="vehicle" name="eq_id"/>
+		<field table="vehicle" name="battery"/>
+		<field table="vehicle" name="color"/>
+		<field table="vehicle" name="comments"/>
+		<field table="vehicle" name="condition"/>
+		<field table="vehicle" name="cost_ins_perils"/>
+		<field table="vehicle" name="cost_ins_premium"/>
+		<field table="vehicle" name="date_ins"/>
+		<field table="vehicle" name="date_ins_cancelled"/>
+		<field table="vehicle" name="meter_delivery"/>
+		<field table="vehicle" name="cost_purchase"/>
+		<field table="vehicle" name="inspected_by"/>
+		<field table="vehicle" name="vn_id"/>
+		<field table="vehicle" name="cost_mkt"/>
+		<field table="vehicle" name="curb_weight"/>
+		<field table="vehicle" name="date_assign"/>
+		<field table="vehicle" name="date_assign_em"/>
+		<field table="vehicle" name="date_excessed"/>
+		<field table="vehicle" name="date_installed"/>
+		<field table="vehicle" name="date_lease_ends"/>
+		<field table="vehicle" name="date_lease_start"/>
+		<field table="vehicle" name="date_manufactured"/>
+		<field table="vehicle" name="date_meter_last_read"/>
+		<field table="vehicle" name="date_mkt"/>
+		<field table="vehicle" name="date_purchased"/>
+		<field table="vehicle" name="description"/>
+		<field table="vehicle" name="dp_id"/>
+		<field table="vehicle" name="drive_type"/>
+		<field table="vehicle" name="dv_id"/>
+		<field table="vehicle" name="em_id"/>
+		<field table="vehicle" name="engine"/>
+		<field table="vehicle" name="engine_size"/>
+		<field table="vehicle" name="front_tires"/>
+		<field table="vehicle" name="fuel_capacity"/>
+		<field table="vehicle" name="fuel_type_id"/>
+		<field table="vehicle" name="gvw"/>
+		<field table="vehicle" name="hailstorm_repair"/>
+		<field table="vehicle" name="hailstorm_writeoff"/>
+		<field table="vehicle" name="haz_doc"/>
+		<field table="vehicle" name="hazmat_from"/>
+		<field table="vehicle" name="hazmat_to"/>
+		<field table="vehicle" name="hazmat_types"/>
+		<field table="vehicle" name="image_spec"/>
+		<field table="vehicle" name="image_veh_assy"/>
+		<field table="vehicle" name="image_veh_lub"/>
+		<field table="vehicle" name="image_vehicle"/>
+		<field table="vehicle" name="license"/>
+		<field table="vehicle" name="loc_manual_maint"/>
+		<field table="vehicle" name="loc_manual_other"/>
+		<field table="vehicle" name="loc_manual_part"/>
+		<field table="vehicle" name="loc_vehicle"/>
+		<field table="vehicle" name="maint_prior"/>
+		<field table="vehicle" name="meter"/>
+		<field table="vehicle" name="meter_in_miles"/>
+		<field table="vehicle" name="meter_units"/>
+		<field table="vehicle" name="mfr_id"/>
+		<field table="vehicle" name="model_id"/>
+		<field table="vehicle" name="model_year"/>
+		<field table="vehicle" name="num_lease"/>
+		<field table="vehicle" name="num_serial"/>
+		<field table="vehicle" name="occ"/>
+		<field table="vehicle" name="option1"/>
+		<field table="vehicle" name="option2"/>
+		<field table="vehicle" name="owned"/>
+		<field table="vehicle" name="parking_id"/>
+		<field table="vehicle" name="payload"/>
+		<field table="vehicle" name="photo"/>
+		<field table="vehicle" name="qty_life_expct"/>
+		<field table="vehicle" name="qty_life_expct_units"/>
+		<field table="vehicle" name="rear_tires"/>
+		<field table="vehicle" name="rem_acquisition"/>
+		<field table="vehicle" name="rent_rate_day"/>
+		<field table="vehicle" name="rent_rate_hour"/>
+		<field table="vehicle" name="rent_rate_month"/>
+		<field table="vehicle" name="rent_rate_mtr_unit"/>
+		<field table="vehicle" name="risk_comments"/>
+		<field table="vehicle" name="spec_height"/>
+		<field table="vehicle" name="spec_length"/>
+		<field table="vehicle" name="spec_width"/>
+		<field table="vehicle" name="status"/>
+		<field table="vehicle" name="transmission"/>
+		<field table="vehicle" name="turning_rad"/>
+		<field table="vehicle" name="vehicle_id"/>
+		<field table="vehicle" name="vehicle_type_id"/>
+		<field table="vehicle" name="org_contact"/>
+		<field table="vehicle" name="org_admin"/>
+		<field table="vehicle" name="budget_owner"/>
+
+		<field table="vehicle" name="po_acq"/>
+		<field table="vehicle" name="po_doc"/>
+		<field table="vehicle" name="reg_renew"/>
+		<field table="vehicle" name="cost_register"/>
+		<field table="vehicle" name="econ_city"/>
+		<field table="vehicle" name="econ_highway"/>
+		<field table="vehicle" name="emissions"/>
+		<field table="vehicle" name="disposal_no"/>
+		<field table="vehicle" name="salvage_value"/>
+		<field table="vehicle" name="disposal_requestor"/>
+		<field table="vehicle" name="disposal_authorizer"/>
+		<field table="vehicle" name="haz_doc"/>
+		<field table="vehicle" name="date_reg_cancelled"/>
+		<field table="vehicle" name="qty_pms"/>
+		<field table="vehicle" name="vehicle_quest"/>
+	</dataSource>
+
+	<dataSource id="ds_docs">
+		<table name="uc_docs_extension" role="main"/>
+		<field table="uc_docs_extension" name="table_name"/>
+		<field table="uc_docs_extension" name="pkey"/>
+		<field table="uc_docs_extension" name="doc_type_code"/>
+		<field table="uc_docs_extension" name="doc_name"/>
+		<field table="uc_docs_extension" name="created_by"/>
+		<field table="uc_docs_extension" name="date_created"/>
+		<field table="uc_docs_extension" name="modified_by"/>
+		<field table="uc_docs_extension" name="date_modified"/>
+		<field table="uc_docs_extension" name="description"/>
+		<field table="uc_docs_extension" name="uc_docs_extension_id"/>
+		<parameter name="clientRestriction" dataType="verbatim" value=""/>
+		<restriction type="sql" sql="1=1 ${parameters['clientRestriction']}"/>
+	</dataSource>
+
+	<dataSource id="pms_ds">
+		<table name="pms" role="main"/>
+		<field table="pms" name="pms_id"/>
+		<field table="pms" name="pmp_id"/>
+		<field table="pms" name="pm_group"/>
+		<field table="pms" name="eq_id"/>
+		<field table="pms" name="comments"/>
+		<field table="pms" name="date_first_todo"/>
+		<field table="pms" name="date_last_completed"/>
+		<field table="pms" name="date_next_alt_todo"/>
+		<field table="pms" name="date_next_todo"/>
+		<field table="pms" name="dv_id"/>
+		<field table="pms" name="dp_id"/>
+		<field table="pms" name="hours_calc"/>
+		<field table="pms" name="hours_est"/>
+		<field table="pms" name="interval_1"/>
+		<field table="pms" name="interval_type"/>
+		<field table="pms" name="nactive"/>
+		<field table="pms" name="priority"/>
+		<parameter name="clientRestriction" dataType="verbatim" value=""/>
+		<restriction type="sql" sql="1=1 ${parameters['clientRestriction']}"/>
+	</dataSource>
+
+	<tabs workflow="free" id="vehicleManagementTabs" layoutRegion="row1col2">
+		<tab name="fleetMGRTab" selected="true">
+			<title translatable="true">Vehicle and Standards</title>
+
+			<!-- ************** EQUIPMENT DETAILS PANEL ************************* -->
+			<panel type="form" id="eq_details" dataSource="eqdet_ds" hidden="true" columns="2" layoutRegion="row1col2">
+				<field name="eq_id" table="eq" hidden="true" readOnly="true"/>
+				<field name="eq_std" table="eq" hidden="true" readOnly="true" value="VEHCL-XXXX-XXXXX"><title>Standard</title></field>
+				<field table="eq" name="dv_id" hidden="true" readOnly="true"/>
+				<field table="eq" name="dp_id" hidden="true" readOnly="true"/>
+				<field name="use1" table="eq" hidden="true" readOnly="true" value="FLEET VEHICLE"><title>Equipment Use1</title></field>
+				<field name="status" table="eq" hidden="true" readOnly="true"/>
+				<field name="option1" table="eq" hidden="true" readOnly="true"><title>Manufacturer</title></field>
+				<field name="option2" table="eq" hidden="true" readOnly="true"><title>Model</title></field>
+				<field table="eq" name="meter" hidden="true" readOnly="true"/>
+				<field table="eq" name="meter_units" hidden="true" readOnly="true"/>
+				<field table="eq" name="comments" hidden="true" readOnly="true"/>
+
+			</panel>
+
+			<!--***************** VEHICLE LOG PANEL ****************************-->
+			<panel type="form" id="vehicle_log_panel" dataSource="vehicle_log_ds" hidden="true" columns="2" layoutRegion="row1col2" newRecord="true">
+				<field name="vehicle_id" table="uc_vehicle_log" hidden="true" readOnly="true"/>
+				<field name="hazmat_to" table="uc_vehicle_log" hidden="true" readOnly="true"/>
+				<field name="hazmat_from" table="uc_vehicle_log" hidden="true" readOnly="true"/>
+				<field name="hazmat_types" table="uc_vehicle_log" hidden="true" readOnly="true"/>
+				<field name="uc_vehicle_log_id" table="uc_vehicle_log" hidden="true" readOnly="true"/>
+				<field name="safety_quest" table="uc_vehicle_log" hidden="true" readOnly="true"/>
+				<field name="date_stamp" table="uc_vehicle_log" hidden="true" readOnly="true"/>
+				<field name="time_stamp" table="uc_vehicle_log" hidden="true" readOnly="true"/>
+				<field name="em_id" table="uc_vehicle_log" hidden="true" readOnly="true"/>
+
+			</panel>
+
+			<!-- ************** VEHICLE DETAILS PANEL ************************* -->
+			<panel type="form" id="vehicle_details" dataSource="vehicledet_ds" showOnLoad="false" columns="2" layoutRegion="row1col2">
+				<title translatable="true">Vehicle Make Details</title>
+
+				<field table="vehicle" name="description" readOnly="true"/>
+				<field name="vehicle_id" table="vehicle"  readOnly="true"/>
+				<field table="vehicle" name="status" readOnly="true"/>
+				<field table="vehicle" name="eq_id" showSelectValueAction="false" readOnly="true"/>
+
+				<field table="vehicle" name="mfr_id" readOnly="true"/>
+				<field table="vehicle" name="model_id" readOnly="true"/>
+				<field table="vehicle" name="num_serial" readOnly="true"><title>VIN</title></field>
+				<field table="vehicle" name="model_year" readOnly="true"/>
+				<field table="vehicle" name="color" readOnly="true"/>
+
+				<field table="vehicle" name="vehicle_type_id" readOnly="true"/>
+				<field table="vehicle" name="drive_type" readOnly="true"/>
+				<field table="vehicle" name="transmission" readOnly="true"/>
+				<field table="vehicle" name="occ" readOnly="true"/>
+
+				<field table="vehicle" name="gvw" readOnly="true"/>
+				<field table="vehicle" name="license" readOnly="true"/>
+				<field table="vehicle" name="curb_weight" readOnly="true"/>
+				<field table="vehicle" name="qty_life_expct_units" readOnly="true"/>
+				<field table="vehicle" name="fuel_type_id" readOnly="true"/>
+				<field table="vehicle" name="fuel_capacity" readOnly="true"/>
+				<field table="vehicle" name="engine" readOnly="true"/>
+				<field table="vehicle" name="engine_size" readOnly="true"/>
+				<field table="vehicle" name="meter" readOnly="true"/>
+				<field table="vehicle" name="meter_units" readOnly="true"/>
+				<field table="vehicle" name="date_meter_last_read" readOnly="true"/>
+
+
+				<field table="vehicle" name="cost_mkt" readOnly="true"/>
+				<field table="vehicle" name="date_mkt" readOnly="true"/>
+
+				<!--colspan=number of panel colums-->
+				<field colspan="4">
+					  <html>
+						<!--Keep Name and ID as sectionLabels this is used by the JS-->
+						<div class="x-toolbar x-small-editor panelToolbar " name="sectionLabels" id="sectionLabels" style="width: 100%">
+						  <table cellspacing="0">
+							<tbody>
+							  <tr>
+								<td style="background-color: transparent;border:none;height:auto;padding:0">
+						<!--Change Section Title here-->
+								  <span class="ytb-text" id="sectionLabels_title">Registration Details</span>
+								</td>
+								<td style="width: 100%; background-color: transparent;border:none;height:auto;padding:0" id="ext-gen253">
+								  <div class="ytb-spacer" id="ext-gen54"></div>
+								</td>
+
+						<!--You can add one or more buttons with the following code.  Note change FunctionName() and ButtonTitle-->
+								<!--
+								<td style="background-color: transparent;border:none;height:auto;padding:0">
+								  <table cellspacing="0" cellpadding="0" border="0" class="x-btn-wrap x-btn " style="width: auto;">
+									<tbody>
+									  <tr>
+										<td class="x-btn-left" style="background-color: transparent;border:none;height:auto;padding:0">
+										  <i></i>
+										</td>
+										<td class="x-btn-center" style="background-color: transparent;border:none;height:auto;padding:0">
+										  <em unselectable="on">
+											<button type="button" class="x-btn-text" onclick="FunctionName()">ButtonTitle</button>
+										  </em>
+										</td>
+										<td class="x-btn-right" style="background-color: transparent;border:none;height:auto;padding:0">
+										  <i></i>
+										</td>
+									  </tr>
+									</tbody>
+								  </table>
+								</td>
+								-->
+								<!--End of button code-->
+
+							  </tr>
+							</tbody>
+						  </table>
+						</div>
+					  </html>
+				</field>
+
+				<field table="vehicle" name="reg_renew" readOnly="true"/>
+				<field table="vehicle" name="cost_register" readOnly="true"/>
+				<!--colspan=number of panel colums-->
+				<field colspan="4">
+					  <html>
+						<!--Keep Name and ID as sectionLabels this is used by the JS-->
+						<div class="x-toolbar x-small-editor panelToolbar " name="sectionLabels" id="sectionLabels" style="width: 100%">
+						  <table cellspacing="0">
+							<tbody>
+							  <tr>
+								<td style="background-color: transparent;border:none;height:auto;padding:0">
+						<!--Change Section Title here-->
+								  <span class="ytb-text" id="sectionLabels_title">Ownership Details</span>
+								</td>
+								<td style="width: 100%; background-color: transparent;border:none;height:auto;padding:0" id="ext-gen253">
+								  <div class="ytb-spacer" id="ext-gen54"></div>
+								</td>
+
+						<!--You can add one or more buttons with the following code.  Note change FunctionName() and ButtonTitle-->
+								<!--
+								<td style="background-color: transparent;border:none;height:auto;padding:0">
+								  <table cellspacing="0" cellpadding="0" border="0" class="x-btn-wrap x-btn " style="width: auto;">
+									<tbody>
+									  <tr>
+										<td class="x-btn-left" style="background-color: transparent;border:none;height:auto;padding:0">
+										  <i></i>
+										</td>
+										<td class="x-btn-center" style="background-color: transparent;border:none;height:auto;padding:0">
+										  <em unselectable="on">
+											<button type="button" class="x-btn-text" onclick="FunctionName()">ButtonTitle</button>
+										  </em>
+										</td>
+										<td class="x-btn-right" style="background-color: transparent;border:none;height:auto;padding:0">
+										  <i></i>
+										</td>
+									  </tr>
+									</tbody>
+								  </table>
+								</td>
+								-->
+								<!--End of button code-->
+
+							  </tr>
+							</tbody>
+						  </table>
+						</div>
+					  </html>
+				</field>
+				<field table="vehicle" name="dp_id" readOnly="true"/>
+				<field table="vehicle" name="dv_id" readOnly="true"/>
+
+				<field table="vehicle" name="org_contact" readOnly="true"/>
+				<field table="vehicle" name="budget_owner" readOnly="true"/>
+				<field table="vehicle" name="org_admin" readOnly="true"/>
+				<field table="vehicle" name="loc_vehicle" readOnly="true"/>
+				<field table="vehicle" name="po_acq" readOnly="true"/>
+				<field table="vehicle" name="po_doc" readOnly="true"/>
+
+
+
+				<field table="vehicle" name="comments" colspan="2" readOnly="true"/>
+				<!--colspan=number of panel colums-->
+				<field colspan="4">
+					  <html>
+						<!--Keep Name and ID as sectionLabels this is used by the JS-->
+						<div class="x-toolbar x-small-editor panelToolbar " name="sectionLabels" id="sectionLabels" style="width: 100%">
+						  <table cellspacing="0">
+							<tbody>
+							  <tr>
+								<td style="background-color: transparent;border:none;height:auto;padding:0">
+						<!--Change Section Title here-->
+								  <span class="ytb-text" id="sectionLabels_title">Purchase Details</span>
+								</td>
+								<td style="width: 100%; background-color: transparent;border:none;height:auto;padding:0" id="ext-gen253">
+								  <div class="ytb-spacer" id="ext-gen54"></div>
+								</td>
+
+						<!--You can add one or more buttons with the following code.  Note change FunctionName() and ButtonTitle-->
+								<!--
+								<td style="background-color: transparent;border:none;height:auto;padding:0">
+								  <table cellspacing="0" cellpadding="0" border="0" class="x-btn-wrap x-btn " style="width: auto;">
+									<tbody>
+									  <tr>
+										<td class="x-btn-left" style="background-color: transparent;border:none;height:auto;padding:0">
+										  <i></i>
+										</td>
+										<td class="x-btn-center" style="background-color: transparent;border:none;height:auto;padding:0">
+										  <em unselectable="on">
+											<button type="button" class="x-btn-text" onclick="FunctionName()">ButtonTitle</button>
+										  </em>
+										</td>
+										<td class="x-btn-right" style="background-color: transparent;border:none;height:auto;padding:0">
+										  <i></i>
+										</td>
+									  </tr>
+									</tbody>
+								  </table>
+								</td>
+								-->
+								<!--End of button code-->
+
+							  </tr>
+							</tbody>
+						  </table>
+						</div>
+					  </html>
+				</field>
+				<field table="vehicle" name="date_installed" readOnly="true"><title>Delivery Date</title></field>
+				<field table="vehicle" name="meter_delivery" readOnly="true"/>
+				<field table="vehicle" name="cost_purchase" readOnly="true"/>
+				<field table="vehicle" name="vn_id" readOnly="true"/>
+				<field table="vehicle" name="condition" readOnly="true"/>
+				<field table="vehicle" name="inspected_by" readOnly="true"/>
+
+
+				<!--colspan=number of panel colums-->
+				<field colspan="4">
+					  <html>
+						<!--Keep Name and ID as sectionLabels this is used by the JS-->
+						<div class="x-toolbar x-small-editor panelToolbar " name="sectionLabels" id="sectionLabels" style="width: 100%">
+						  <table cellspacing="0">
+							<tbody>
+							  <tr>
+								<td style="background-color: transparent;border:none;height:auto;padding:0">
+						<!--Change Section Title here-->
+								  <span class="ytb-text" id="sectionLabels_title">Environmental Details</span>
+								</td>
+								<td style="width: 100%; background-color: transparent;border:none;height:auto;padding:0" id="ext-gen253">
+								  <div class="ytb-spacer" id="ext-gen54"></div>
+								</td>
+
+						<!--You can add one or more buttons with the following code.  Note change FunctionName() and ButtonTitle-->
+								<!--
+								<td style="background-color: transparent;border:none;height:auto;padding:0">
+								  <table cellspacing="0" cellpadding="0" border="0" class="x-btn-wrap x-btn " style="width: auto;">
+									<tbody>
+									  <tr>
+										<td class="x-btn-left" style="background-color: transparent;border:none;height:auto;padding:0">
+										  <i></i>
+										</td>
+										<td class="x-btn-center" style="background-color: transparent;border:none;height:auto;padding:0">
+										  <em unselectable="on">
+											<button type="button" class="x-btn-text" onclick="FunctionName()">ButtonTitle</button>
+										  </em>
+										</td>
+										<td class="x-btn-right" style="background-color: transparent;border:none;height:auto;padding:0">
+										  <i></i>
+										</td>
+									  </tr>
+									</tbody>
+								  </table>
+								</td>
+								-->
+								<!--End of button code-->
+
+							  </tr>
+							</tbody>
+						  </table>
+						</div>
+					  </html>
+				</field>
+				<field table="vehicle" name="econ_city" readOnly="true"/>
+				<field table="vehicle" name="econ_highway" readOnly="true"/>
+				<field table="vehicle" name="emissions" readOnly="true"/>
+				<field/>
+				<!--colspan=number of panel colums-->
+				<field colspan="4">
+					  <html>
+						<!--Keep Name and ID as sectionLabels this is used by the JS-->
+						<div class="x-toolbar x-small-editor panelToolbar " name="sectionLabels" id="sectionLabels" style="width: 100%">
+						  <table cellspacing="0">
+							<tbody>
+							  <tr>
+								<td style="background-color: transparent;border:none;height:auto;padding:0">
+						<!--Change Section Title here-->
+								  <span class="ytb-text" id="sectionLabels_title">Disposal Details</span>
+								</td>
+								<td style="width: 100%; background-color: transparent;border:none;height:auto;padding:0" id="ext-gen253">
+								  <div class="ytb-spacer" id="ext-gen54"></div>
+								</td>
+
+						<!--You can add one or more buttons with the following code.  Note change FunctionName() and ButtonTitle-->
+								<!--
+								<td style="background-color: transparent;border:none;height:auto;padding:0">
+								  <table cellspacing="0" cellpadding="0" border="0" class="x-btn-wrap x-btn " style="width: auto;">
+									<tbody>
+									  <tr>
+										<td class="x-btn-left" style="background-color: transparent;border:none;height:auto;padding:0">
+										  <i></i>
+										</td>
+										<td class="x-btn-center" style="background-color: transparent;border:none;height:auto;padding:0">
+										  <em unselectable="on">
+											<button type="button" class="x-btn-text" onclick="FunctionName()">ButtonTitle</button>
+										  </em>
+										</td>
+										<td class="x-btn-right" style="background-color: transparent;border:none;height:auto;padding:0">
+										  <i></i>
+										</td>
+									  </tr>
+									</tbody>
+								  </table>
+								</td>
+								-->
+								<!--End of button code-->
+
+							  </tr>
+							</tbody>
+						  </table>
+						</div>
+					  </html>
+				</field>
+				<field table="vehicle" name="disposal_no" readOnly="true"/>
+				<field table="vehicle" name="date_excessed" readOnly="true"/>
+
+				<field table="vehicle" name="disposal_requestor" readOnly="true"/>
+				<field table="vehicle" name="disposal_authorizer" readOnly="true"/>
+				<field table="vehicle" name="date_reg_cancelled" readOnly="true"/>
+				<field table="vehicle" name="date_ins_cancelled" readOnly="true"/>
+				<field table="vehicle" name="salvage_value" readOnly="true"/>
+				<field table="vehicle" name="haz_doc" hidden="${record['vehicle.hazmat_types']==''}" readOnly="true"/>
+				<!--colspan=number of panel colums-->
+				<field colspan="4">
+					  <html>
+						<!--Keep Name and ID as sectionLabels this is used by the JS-->
+						<div class="x-toolbar x-small-editor panelToolbar " name="sectionLabels" id="sectionLabels" style="width: 100%">
+						  <table cellspacing="0">
+							<tbody>
+							  <tr>
+								<td style="background-color: transparent;border:none;height:auto;padding:0">
+						<!--Change Section Title here-->
+								  <span class="ytb-text" id="sectionLabels_title">Safety Details</span>
+								</td>
+								<td style="width: 100%; background-color: transparent;border:none;height:auto;padding:0" id="ext-gen253">
+								  <div class="ytb-spacer" id="ext-gen54"></div>
+								</td>
+
+						<!--You can add one or more buttons with the following code.  Note change FunctionName() and ButtonTitle-->
+								<!--
+								<td style="background-color: transparent;border:none;height:auto;padding:0">
+								  <table cellspacing="0" cellpadding="0" border="0" class="x-btn-wrap x-btn " style="width: auto;">
+									<tbody>
+									  <tr>
+										<td class="x-btn-left" style="background-color: transparent;border:none;height:auto;padding:0">
+										  <i></i>
+										</td>
+										<td class="x-btn-center" style="background-color: transparent;border:none;height:auto;padding:0">
+										  <em unselectable="on">
+											<button type="button" class="x-btn-text" onclick="FunctionName()">ButtonTitle</button>
+										  </em>
+										</td>
+										<td class="x-btn-right" style="background-color: transparent;border:none;height:auto;padding:0">
+										  <i></i>
+										</td>
+									  </tr>
+									</tbody>
+								  </table>
+								</td>
+								-->
+								<!--End of button code-->
+
+							  </tr>
+							</tbody>
+						  </table>
+						</div>
+					  </html>
+				</field>
+				<field table="vehicle" name="vehicle_quest" hidden="true" readOnly="true"/>
+			</panel>
+			<panel type="view" id="questionnaireViewPanel" file="ab-questionnaire.axvw" layoutRegion="row1col2"/>
+			<!-- *********************** DOCUMENTS GRID************************** -->
+			<panel type="grid" id="eq_docs" selectionEnabled="true" showOnLoad="false" dataSource="ds_docs" layoutRegion="row1col2">
+				<title translatable="true">Vehicle Docs</title>
+				<field id="doc_download" controlType="button" enabled="${record['uc_docs_extension.doc_name']!=''}" onclick="grid_onShow">
+					<title translatable="true">View</title>
+				</field>
+
+				<field table="uc_docs_extension" name="doc_type_code"/>
+				<field table="uc_docs_extension" name="doc_name"/>
+				<field table="uc_docs_extension" name="table_name"/>
+				<field table="uc_docs_extension" name="created_by"/>
+				<field table="uc_docs_extension" name="date_created"/>
+				<field table="uc_docs_extension" name="description"/>
+				<field table="uc_docs_extension" name="uc_docs_extension_id" hidden="true"/>
+				<field table="uc_docs_extension" name="date_modified" hidden="true"/>
+				<field table="uc_docs_extension" name="modified_by" hidden="true" value="${user.employee.id}"/>
+				<field table="uc_docs_extension" name="pkey" hidden="true"/>
+				<!--
+				<field id="doc_upload" controlType="button" enabled="${record['uc_docs_extension.doc_name']==''}" onclick="editDocument">
+					<title translatable="true">Upload</title>
+				</field>
+				-->
+				<sortField name="date_created" table="uc_docs_extension" ascending="false"/>
+				<sortField name="doc_type_code" table="uc_docs_extension" ascending="true"/>
+			</panel>
+
+			<!-- *********************** EQUIPMENT SCHEDULE GRID************************** -->
+			<panel type="grid" id="pms_grid" dataSource="pms_ds" showOnLoad="false" layoutRegion="row1col2">
+				<title translatable="true">Planned Maintenance Schedules</title>
+				<field table="pms" name="pms_id" hidden="true"/>
+				<field table="pms" name="pmp_id"/>
+				<field table="pms" name="pm_group"/>
+				<field table="pms" name="eq_id" hidden="true"/>
+				<field table="pms" name="comments"/>
+			</panel>
+
+			<!-- *********************** MODIFY/ADD SCHEDULE ************************** -->
+
+			<panel type="form" id="schedule_edit" dataSource="pms_ds" showOnLoad="false" columns="2" formLabelWidth="20">
+				<title translatable="true">Equipment Schedule</title>
+
+
+				<field table="pms" name="pms_id" hidden="true" readOnly="true"/>
+				<field table="pms" name="pmp_id" readOnly="true"><title>Procedure</title></field>
+				<field table="pms" name="eq_id" readOnly="true"><title>Barcode</title></field>
+
+				<field table="pms" name="pm_group" readOnly="true"><title>Schedule Group</title></field>
+				<field/>
+				<field colspan="2"/>
+
+				<field table="pms" name="interval_1" readOnly="true"><title>Frequency</title></field>
+				<field table="pms" name="interval_type" readOnly="true"><title>Frequency Type</title></field>
+
+				<!--field table="pms" name="date_first_todo"/-->
+				<field table="pms" name="date_next_todo" readOnly="true"><title>Calc. Date for Next PM</title></field>
+				<field table="pms" name="date_next_alt_todo" readOnly="true"><title>Manual Date for Next PM</title></field>
+				<field table="pms" name="date_last_completed" readOnly="true"/>
+				<field/>
+				<field table="pms" name="dv_id" hidden="true" readOnly="true"/>
+				<field table="pms" name="dp_id" hidden="true" readOnly="true"/>
+
+				<field table="pms" name="hours_est" readOnly="true"/>
+				<field table="pms" name="hours_calc" readOnly="true"/>
+				<field table="pms" name="nactive" readOnly="true"/>
+				<field table="pms" name="priority" readOnly="true"/>
+
+				<field table="pms" name="comments" colspan="2" rowspan="3" readOnly="true"/>
+			</panel>
+		</tab>
+		<tab name="riskMGRTab">
+			<title translatable="true">Risk Management</title>
+			<panel type="form" id="vehiclerisk_details" dataSource="vehicledet_ds" showOnLoad="false" columns="2" layoutRegion="row1col2">
+				<title translatable="true">Vehicle Details</title>
+
+				<field table="vehicle" name="description" readOnly="true" readOnly="true"/>
+				<field/>
+				<field name="vehicle_id" table="vehicle" readOnly="true"/>
+				<field table="vehicle" name="eq_id" readOnly="true"/>
+				<field table="vehicle" name="status" readOnly="true"/>
+				<field table="vehicle" name="num_serial" readOnly="true"><title>VIN</title></field>
+				<field table="vehicle" name="mfr_id" readOnly="true"/>
+				<field table="vehicle" name="model_id" readOnly="true"/>
+				<field table="vehicle" name="model_year" readOnly="true"/>
+				<field table="vehicle" name="color" readOnly="true"/>
+				<field table="vehicle" name="vehicle_type_id" readOnly="true"/>
+				<field table="vehicle" name="license" readOnly="true"/>
+				<!--colspan=number of panel colums-->
+				<field colspan="4">
+					  <html>
+						<!--Keep Name and ID as sectionLabels this is used by the JS-->
+						<div class="x-toolbar x-small-editor panelToolbar " name="sectionLabels" id="sectionLabels" style="width: 100%">
+						  <table cellspacing="0">
+							<tbody>
+							  <tr>
+								<td style="background-color: transparent;border:none;height:auto;padding:0">
+						<!--Change Section Title here-->
+								  <span class="ytb-text" id="sectionLabels_title">Insurance</span>
+								</td>
+								<td style="width: 100%; background-color: transparent;border:none;height:auto;padding:0" id="ext-gen253">
+								  <div class="ytb-spacer" id="ext-gen54"></div>
+								</td>
+
+						<!--You can add one or more buttons with the following code.  Note change FunctionName() and ButtonTitle-->
+
+								<td style="background-color: transparent;border:none;height:auto;padding:0">
+								  <table cellspacing="0" cellpadding="0" border="0" class="x-btn-wrap x-btn " style="width: auto;">
+									<tbody>
+									  <tr>
+										<td class="x-btn-left" style="background-color: transparent;border:none;height:auto;padding:0">
+										  <i></i>
+										</td>
+										<td class="x-btn-center" style="background-color: transparent;border:none;height:auto;padding:0">
+										  <em unselectable="on">
+											<input type="checkbox" id="insCheckBox" onclick="showCheckedFields();"><b>Insurance Required?</b></input>
+										  </em>
+										</td>
+										<td class="x-btn-right" style="background-color: transparent;border:none;height:auto;padding:0">
+										  <i></i>
+										</td>
+									  </tr>
+									</tbody>
+								  </table>
+								</td>
+
+								<!--End of button code-->
+
+							  </tr>
+							</tbody>
+						  </table>
+						</div>
+					  </html>
+				</field>
+				<field table="vehicle" name="cost_ins_perils" readOnly="true"/>
+				<field table="vehicle" name="cost_ins_premium" readOnly="true"/>
+				<field table="vehicle" name="hailstorm_writeoff" readOnly="true"/>
+				<field table="vehicle" name="hailstorm_repair" readOnly="true"/>
+				<field table="vehicle" name="date_ins" readOnly="true"/>
+				<field table="vehicle" name="date_ins_cancelled" readOnly="true"/>
+				<!--colspan=number of panel colums-->
+				<field colspan="4">
+					  <html>
+						<!--Keep Name and ID as sectionLabels this is used by the JS-->
+						<div class="x-toolbar x-small-editor panelToolbar " name="sectionLabels" id="sectionLabels" style="width: 100%">
+						  <table cellspacing="0">
+							<tbody>
+							  <tr>
+								<td style="background-color: transparent;border:none;height:auto;padding:0">
+						<!--Change Section Title here-->
+								  <span class="ytb-text" id="sectionLabels_title">Hazardous Materials</span>
+								</td>
+								<td style="width: 100%; background-color: transparent;border:none;height:auto;padding:0" id="ext-gen253">
+								  <div class="ytb-spacer" id="ext-gen54"></div>
+								</td>
+
+						<!--You can add one or more buttons with the following code.  Note change FunctionName() and ButtonTitle-->
+								<td style="background-color: transparent;border:none;height:auto;padding:0">
+								  <table cellspacing="0" cellpadding="0" border="0" class="x-btn-wrap x-btn " style="width: auto;">
+									<tbody>
+									  <tr>
+										<td class="x-btn-left" style="background-color: transparent;border:none;height:auto;padding:0">
+										  <i></i>
+										</td>
+										<td class="x-btn-center" style="background-color: transparent;border:none;height:auto;padding:0">
+										  <em unselectable="on">
+											<input type="checkbox" id="hazCheckBox" onclick="showCheckedFields();"><b>Hazardous Material Carried?</b></input>
+										  </em>
+										</td>
+										<td class="x-btn-right" style="background-color: transparent;border:none;height:auto;padding:0">
+										  <i></i>
+										</td>
+									  </tr>
+									</tbody>
+								  </table>
+								</td>
+								<!--End of button code-->
+
+							  </tr>
+							</tbody>
+						  </table>
+						</div>
+					  </html>
+				</field>
+				<field table="vehicle" name="hazmat_types" readOnly="true"/>
+				<field table="vehicle" name="haz_doc" readOnly="true"/>
+				<field table="vehicle" name="hazmat_from" readOnly="true"/>
+				<field table="vehicle" name="hazmat_to" readOnly="true"/>
+
+				<!--colspan=number of panel colums-->
+				<field colspan="4">
+					  <html>
+						<!--Keep Name and ID as sectionLabels this is used by the JS-->
+						<div class="x-toolbar x-small-editor panelToolbar " name="sectionLabels" id="sectionLabels" style="width: 100%">
+						  <table cellspacing="0">
+							<tbody>
+							  <tr>
+								<td style="background-color: transparent;border:none;height:auto;padding:0">
+						<!--Change Section Title here-->
+								  <span class="ytb-text" id="sectionLabels_title">Risk Comments</span>
+								</td>
+								<td style="width: 100%; background-color: transparent;border:none;height:auto;padding:0" id="ext-gen253">
+								  <div class="ytb-spacer" id="ext-gen54"></div>
+								</td>
+
+						<!--You can add one or more buttons with the following code.  Note change FunctionName() and ButtonTitle-->
+								<!--
+								<td style="background-color: transparent;border:none;height:auto;padding:0">
+								  <table cellspacing="0" cellpadding="0" border="0" class="x-btn-wrap x-btn " style="width: auto;">
+									<tbody>
+									  <tr>
+										<td class="x-btn-left" style="background-color: transparent;border:none;height:auto;padding:0">
+										  <i></i>
+										</td>
+										<td class="x-btn-center" style="background-color: transparent;border:none;height:auto;padding:0">
+										  <em unselectable="on">
+											<button type="button" class="x-btn-text" onclick="FunctionName()">ButtonTitle</button>
+										  </em>
+										</td>
+										<td class="x-btn-right" style="background-color: transparent;border:none;height:auto;padding:0">
+										  <i></i>
+										</td>
+									  </tr>
+									</tbody>
+								  </table>
+								</td>
+								-->
+								<!--End of button code-->
+
+							  </tr>
+							</tbody>
+						  </table>
+						</div>
+					  </html>
+				</field>
+				<field table="vehicle" name="risk_comments" colspan="2" rowspan="5" readOnly="true"/>
+			</panel>
+
+			<!-- *********************** DOCUMENTS GRID************************** -->
+			<panel type="grid" id="eq_riskdocs" selectionEnabled="true" showOnLoad="false" dataSource="ds_docs" layoutRegion="row1col2">
+				<title translatable="true">Vehicle Docs</title>
+
+				<field id="doc_download" controlType="button" enabled="${record['uc_docs_extension.doc_name']!=''}" onclick="grid_onShow">
+					<title translatable="true">View</title>
+				</field>
+
+				<field table="uc_docs_extension" name="doc_type_code"/>
+				<field table="uc_docs_extension" name="doc_name"/>
+				<field table="uc_docs_extension" name="table_name"/>
+				<field table="uc_docs_extension" name="created_by"/>
+				<field table="uc_docs_extension" name="date_created"/>
+				<field table="uc_docs_extension" name="description"/>
+				<field table="uc_docs_extension" name="uc_docs_extension_id" hidden="true"/>
+				<field table="uc_docs_extension" name="date_modified" hidden="true"/>
+				<field table="uc_docs_extension" name="modified_by" hidden="true" value="${user.employee.id}"/>
+				<field table="uc_docs_extension" name="pkey" hidden="true"/>
+				<!--
+				<field id="doc_upload" controlType="button" enabled="${record['uc_docs_extension.doc_name']==''}" onclick="editDocument">
+					<title translatable="true">Upload</title>
+				</field>
+				-->
+				<sortField name="date_created" table="uc_docs_extension" ascending="false"/>
+				<sortField name="doc_type_code" table="uc_docs_extension" ascending="true"/>
+			</panel>
+
+			<panel type="form" id="hidden_fields_panel" dataSource="vehicledet_ds" showOnLoad="false" columns="2" formLabelWidth="20">
+				<field name="vehicle_id" table="vehicle" readOnly="true"/>
+				<field id="hazmat_to_old">
+					<html>
+						<ui>
+							<input type="hidden" id="old_hazmat_to" name="old_hazmat_to"/>
+						</ui>
+					</html>
+				</field>
+				<field id="hazmat_types_old">
+					<html>
+						<ui>
+							<input type="hidden" id="old_hazmat_types" name="old_hazmat_types"/>
+						</ui>
+					</html>
+				</field>
+				<field id="hazmat_from_old">
+					<html>
+						<ui>
+							<input type="hidden" id="old_hazmat_from" name="old_hazmat_from"/>
+						</ui>
+					</html>
+				</field>
+				<field colspan="3">
+					<title>update or insert</title>
+					<html>
+						<ui>
+							<input name="update_or_insert" id="update_or_insert" type="hidden"/>
+						</ui>
+					</html>
+				</field>
+			</panel>
+		</tab>
+	</tabs>
+
+</view>

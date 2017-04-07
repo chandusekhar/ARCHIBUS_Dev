@@ -1,0 +1,641 @@
+/*****************************************************************************
+payment.abs
+04.01.97
+
+Presents the Apply Payment Dialog which allows you To apply payments
+To issued invoices which still have costs which have Not yet been paid.
+
+09.04.97 - JH - Localization. Changed commented delimiters in TRANSLATE section
+				 To allow reading into language localization database.
+10.15.97 - JH - Localization. Made some controls wider in Dialog.
+04.13.99 - JH - Added calls To sup_AdjustShortDateCentury()
+04.14.99 - JH Changed Format "Short Date" To WindowShortDateWithFourDigitYear
+05.27.99 - JH - Changed formatting of Invoice amounts so that they will always
+			 display 2 decimals And so the numbers align w/each other.
+06.01.99 - JH - Localization - "Check Number" changed To "Payment Number"
+06.11.99 - JH - Widened Dialog To handle really big numbers.
+03.06.00 - JH - Localization: Help strings changed To context strs from keyword
+03.09.00 - JH - Localization - Updated String constants For trailing spaces
+04.19.00 - JH - Localization - Updated String constants For trailing spaces
+12.26.00 - JH - Localization: Added calls For international number formats:
+			 Sup_ReplaceDecimalSymbol...()
+05.09.02 - YQ - change MsgBox To AfmMsgBox For localization
+07.19.02 - YQ - Localization: use Format$(CDate(),WindowShortDateWithFourDigitYear)
+10.15.03 - WSY - Localization: widened .InvDescrText tofix KB3006119 item 16
+*****************************************************************************/
+
+Option Explicit
+
+'--- External subs and functions
+Declare Sub sup_Show_Help (ByVal Help_Topic As String)
+Declare Function sup_ISO_Date ( Date_to_Convert As String ) As String
+Declare Function sup_MakeLiteralOrNull( strVal As String ) As String
+Declare Function sup_AdjustShortDateCentury( sDialogDate As String ) As String
+Declare Function Sup_ReplaceDecimalSymbolWithDotForDouble( dForeignNumber As Double ) As String
+
+'--- Internal functions
+Declare Sub ApplyPayments ()
+Declare Sub ApplyPaymentDlg()
+
+Declare Function SetInvoiceFilter (contact As String) As String
+Declare Function SetContactFilter() As String
+Declare Function GetIdFromKey (KeyString As String) As String
+Declare Sub ApplyPayToInvoice (InvoiceNum As String, _
+						 AmountPayment As Double, _
+						 PaymentDescription As String, _
+						 CheckNumber As String, _
+						 DatePayment As String)
+Declare Function PadString( sStrToMakeASize As String, iSize As Integer, _
+		bPadLeft As Boolean ) As String
+
+'------------------------------------------------------------------------------
+'----					TRANSLATE 
+Const kExitMsg$			= "Exit"
+Const kCancelMsg$			= "Cancel"
+Const kHelpMsg$			= "Help"
+Const kHeadMsg$			= "Apply Payment to Invoice"
+Const kInvalidDateMsg$		= "Invalid date."
+Const kInvalidPaymentFromMsg$	= "Invalid Contact Name:"
+Const kInvalidInvoiceNumMsg$  = "Invalid Invoice Number:"
+Const kEnterValidNameMsg$	= "Please enter a valid entry."
+Const kZeroWarningMsg$        = "Please enter a non-zero payment amount."
+Const kInvalidNumberMsg$		= "Invalid number."
+Const kSelectPaymentFromMsg$	= "Payment From:"
+Const kSelectInvoiceNumMsg$	= "Invoice Number:"
+Const kAppliedPaymentMsg$	= "Applied payment to invoice."
+Const kNoInvoiceNumberMsg$    = "No invoice number."
+Const kNoPaymentAmountMsg$	= "No payment amount."
+Const kPaymentExceedsMsg$    ="The payment amount exceeds the invoice balance."
+Const kApplyRemainMsg$        ="Do you want to apply the remaining amount to another invoice?"
+Const kPleaseClearValMsg$     = "Please clear the value or enter a new one."
+Const kUseApplyPaymentMsg$    = "Please use the Apply Payment button to apply a payment."
+Const kInvoiceClosedMsg$		= "Invoice closed."
+Const kInvoiceAlreadyClosedMsg$= "The selected invoice is already closed."
+Const kNoRecordsSelectedMsg$	= "No invoice selected."
+Const kInvoiceNotIssuedMsg$   = "Invoice has not been issued yet."
+Const kNoInvoiceFound$		= "No invoice found."
+
+Const kPayFrom$			= "Payment From:"
+Const kInvoiceNum$			= "Invoice Number:"
+Const kInvDescr$			= "Invoice Description:"
+Const kInvAmount$			= "Amount Invoice:"
+Const kInvPaid$			= "Amount Paid:"
+Const kInvBalance$			= "Amount Balance:"
+Const kPayDate$			= "Payment Date:"
+Const kPayAmount$			= "Amount Payment:"
+Const kApplyPayment$		= "Apply Payment"
+Const kCheckNum$			= "Payment Number:"
+Const kPayDescr$			= "Payment Description:"
+
+'------------------------------------------------------------------------------
+
+'------------------------------------------------------------------------------
+'---- Do NOT Translate
+Const kCrlf$				= Chr$(13) & Chr$(10)
+Const kCurrencyFormat$		= "##,###,###,##0.00"
+Const kCurrencyWidth%		= 17
+
+'------------------------------------------------------------------------------
+
+
+Private pInvoiceId		 As String
+
+
+/* Main Sub called from the Navigator */
+
+Sub ApplyPayments ()
+	Dim ed As Editor
+	Dim rs As New Recordset
+	Dim selRecords As String
+
+	'--- Check if we have an invoice table in the view.
+	Set ed = Avw.GetEditor ( "invoice" )
+	If ed Is Not Nothing Then
+		SelRecords = ed.SelRecKeys
+		If SelRecords <> "" Then
+			pInvoiceId = GetIdFromKey(ed.CurRecKey)
+			rs.Open "SELECT status FROM invoice WHERE invoice_id = '" & _
+				   pInvoiceId & "'"
+			If Not rs.EOF Then
+				If rs.Fields(0).Value = "'CLOSED'" Then
+					MsgBox kInvoiceAlreadyClosedMsg,ebExclamation,kHeadMsg
+				End If
+				If rs.Fields(0).Value = "'N/A'" Then
+					MsgBox kInvoiceNotIssuedMsg,ebExclamation,kHeadMsg
+				End If
+			Else
+				pInvoiceId = ""
+				MsgBox kNoInvoiceFound, ebExclamation, kHeadMsg
+			End If
+			rs.Close
+		Else
+			pInvoiceId = ""
+			MsgBox kNoRecordsSelectedMsg,ebExclamation,kHeadMsg
+		End If
+	Else
+		pInvoiceId = ""
+	End If
+
+	'--- call the payment dialog
+	ApplyPaymentDlg
+End Sub
+
+
+/* Sub that calls the Dialog */
+
+Sub ApplyPaymentDlg()
+
+Begin Dialog ApplyPayment ,,360,209,kHeadMsg,.ApplyPaymentDlgProc
+	GroupBox 4,2,352,24,"",.GroupBox1
+
+	Text 12,12,72,8,kPayFrom,.PaymentFromText
+	TextBox 94,10,124,12,.PaymentFromTextBox
+	PushButton 220,10,10,12,"...",.PaymentFromPushButton
+
+	GroupBox 4,26,352,58,"",.GroupBox2
+
+	Text 12,36,72,8,kInvoiceNum,.InvoiceNumText
+	TextBox 94,36,74,12,.InvoiceNumTextBox
+	PushButton 170,36,10,12,"...",.InvoiceNumPushButton
+
+	Text 12,52,156,8,kInvDescr,.InvDescrText
+	Text 12,64,168,18,"",.InvDescrVText
+
+	Text 192,36,68,8,kInvAmount,.AmountInvoiceText
+	Text 262,36,92,12,"",.AmountInvoiceVText,"Courier"
+	Text 192,52,68,8,kInvPaid,.AmountPaidText
+	Text 262,52,92,12,"",.AmountPaidVText,"Courier"
+	Text 192,68,68,8,kInvBalance,.AmountBalanceText
+	Text 262,68,92,12,"",.AmountBalanceVText,"Courier"
+
+	GroupBox 4,84,352,102,"",.GroupBox3
+
+	Text 12,96,74,8,kPayDate,.DatePayText
+	TextBox 94,96,74,12,.DatePayTextBox
+	PushButton 170,96,10,12,"...",.DatePayPushButton
+
+	Text 190,98,64,8,kPayAmount,.AmountPaymentText
+	TextBox 260,96,90,12,.AmountPaymentTextBox
+	PushButton 260,110,90,18,kApplyPayment,.ApplyPaymentPushButton
+
+	Text 12,116,74,8,kCheckNum,.CheckNumText
+	TextBox 94,114,74,12,.CheckNumTextBox
+
+	Text 12,134,250,8,kPayDescr,.PayDescrText
+	TextBox 10,144,340,36,.PayDescrTextBox,1
+
+	PushButton 45,190,60,14,kExitMsg,.ExitButton
+	PushButton 150,190,60,14,kCancelMsg,.CancelButton
+	PushButton 255,190,60,14,kHelpMsg,.HelpButton
+End Dialog
+	
+	Dim ApplyPay As ApplyPayment
+
+	Dialog ApplyPay
+End Sub
+
+
+/* Proc Function For the above Dialog */
+
+Function ApplyPaymentDlgProc (ControlName$, Action%, SuppValue%)
+
+	Dim selVals$()
+	Dim rs As New RecordSet
+	Dim dfltDate As Date
+	Dim AmountPayment As Double
+	Dim AmountPaymentApplied As Double
+	Dim RemainPayment As Double
+	Dim AmountInvoice    As Double
+	Dim AmountPaid       As Double
+	Dim sFixedDate As String
+
+	Select Case Action
+	Case 1
+		'--- if the user selected an invoice at the grid
+		If pInvoiceId <> "" Then				
+			rs.Open "SELECT amount_tot_invoice,amount_closed" & _
+				   ",description,contact_id_send_to" & _
+				   " FROM invoice" & _
+				   " WHERE invoice_id ='" & pInvoiceId & "'"
+
+			DlgFocus "AmountPaymentTextBox"
+
+			DlgText  "InvoiceNumTextBox", pInvoiceId
+			DlgText  "InvDescrVText", rs.Fields(2).Value
+			DlgText  "AmountInvoiceVText", PadString( Format$( rs.Fields(0).NumValue, kCurrencyFormat ), 0, TRUE )
+			DlgText  "AmountPaidVText", PadString( Format$( rs.Fields(1).NumValue, kCurrencyFormat ), 0, TRUE )
+			DlgText  "AmountBalanceVText", PadString( Format$( rs.Fields(0).NumValue - rs.Fields(1).NumValue, kCurrencyFormat ), 0, TRUE )
+			DlgText  "PaymentFromTextBox", Trim(rs.Fields(3).Value)
+			rs.Close
+		End If
+
+		'--- initialize the date
+		DlgText "DatePayTextBox", Format$(Date(), WindowShortDateWithFourDigitYear)
+		
+	Case 2		
+		Select Case ControlName
+		Case "ExitButton"
+			'--- If there is a payment stay in the dialog box
+			If Trim(DlgText$("InvoiceNumTextBox")) <> "" And _
+			   Trim(DlgText$("AmountPaymentTextBox")) <> "" Then
+			   
+				MsgBox kUseApplyPaymentMsg,ebExclamation,kHeadMsg
+				ApplyPaymentDlgProc = 1
+			End If
+
+		Case "CancelButton"
+
+		Case "HelpButton"
+			sup_Show_Help "Apply_Payments_to_Invoices_action"
+ 			ApplyPaymentDlgProc = 1
+
+		Case "PaymentFromPushButton"
+			If Avw.PromptFld( selVals, "contact.contact_id", _
+						   SetContactFilter() ) Then
+				DlgText "PaymentFromTextBox", selVals( 0 )
+
+				'--- flush values since we will have a new invoice
+				DlgText "InvoiceNumTextBox", ""
+				DlgText "InvDescrVText", ""
+				DlgText "AmountInvoiceVText", ""
+				DlgText "AmountPaidVText", ""
+				DlgText "AmountBalanceVText", ""
+			End If
+			ApplyPaymentDlgProc = 1
+
+		Case "InvoiceNumPushButton"
+			If Avw.PromptFld( selVals, "invoice.invoice_id", _
+				SetInvoiceFilter(DlgText$("PaymentFromTextBox")) ) Then
+				
+				rs.Open "SELECT amount_tot_invoice,amount_closed" & _
+					   ",description,contact_id_send_to" & _
+					   " FROM invoice" & _
+					   " WHERE invoice_id ='" & Trim(selVals(0)) & "'"
+
+				DlgText "InvoiceNumTextBox", selVals( 0 )
+				DlgText "InvDescrVText", rs.Fields(2).Value
+				DlgText  "AmountInvoiceVText", PadString( Format$( rs.Fields(0).NumValue, kCurrencyFormat ), 0, TRUE )
+				DlgText  "AmountPaidVText", PadString( Format$( rs.Fields(1).NumValue, kCurrencyFormat ), 0, TRUE )
+				DlgText  "AmountBalanceVText", PadString( Format$( rs.Fields(0).NumValue - rs.Fields(1).NumValue, kCurrencyFormat ), 0, TRUE )
+				DlgText "PaymentFromTextBox", Trim(rs.Fields(3).Value)
+				DlgFocus "AmountPaymentTextBox"
+				rs.Close
+			End If
+			ApplyPaymentDlgProc = 1
+
+		Case "DatePayPushButton"
+			'--- Use the current date as the default date
+
+			dfltDate = DateValue( Date() )
+			dfltDate = DateValue(Format$(dfltDate,WindowShortDateWithFourDigitYear)) 
+			If PopupCalendar( dfltDate ) Then
+				DlgText "DatePayTextBox", sup_AdjustShortDateCentury( _
+					Format$(dfltDate, WindowShortDateWithFourDigitYear) )
+			End If
+			ApplyPaymentDlgProc = 1
+
+		Case "ApplyPaymentPushButton"
+
+			If Trim((DlgText$("InvoiceNumTextBox"))) = "" Then
+				MsgBox  kNoInvoiceNumberMsg,ebExclamation,kHeadMsg
+				DlgFocus "InvoiceNumTextBox"
+				GoTo NoPaymentMade
+			End If
+
+			If Trim((DlgText$("AmountPaymentTextBox"))) = "" Then
+				MsgBox kNoPaymentAmountMsg,ebExclamation,kHeadMsg
+				DlgFocus "AmountPaymentTextBox"
+				GoTo NoPaymentMade
+			End If
+
+			'--- At this point we know we have a valid payment
+
+			AmountPayment = CDbl(Trim((DlgText$("AmountPaymentTextBox"))))
+			AmountInvoice = CDbl(Trim((DlgText$("AmountInvoiceVText"))))
+			AmountPaid    = CDbl(Trim((DlgText$("AmountPaidVText"))))
+
+			'--- First case. Payment is greater than balance.
+			'--- We go back to dialog after issuing a warning.
+			If AmountPayment > AmountInvoice - AmountPaid Then
+
+				AmountPaymentApplied = AmountInvoice - AmountPaid
+				RemainPayment = AmountPayment - AmountPaymentApplied
+			
+				If AfmMsgBox(kPaymentExceedsMsg & kCrlf & _
+						kApplyRemainMsg,ebYesNo,kHeadMsg) <> 6 Then
+					DlgFocus "AmountPaymentTextBox"
+					GoTo NoPaymentMade
+				End If
+
+				ApplyPayToInvoice Trim(DlgText$("InvoiceNumTextBox")), _
+							   AmountPaymentApplied, _
+							   Trim(DlgText$("PayDescrTextBox")), _
+							   Trim(DlgText$("CheckNumTextBox")), _
+							   Trim(DlgText$("DatePayTextBox"))
+							  
+				'--- Place the remaining payment, flush the invoice info.
+				'--- Leave the contact name, in case you apply it to
+				'--- another invoice from the same vendor.
+
+				'DlgText "PaymentFromTextBox", ""
+				DlgText "AmountPaymentTextBox", CStr(RemainPayment)
+				DlgText "InvoiceNumTextBox", ""
+				DlgText "InvDescrVText", ""
+				DlgText "AmountInvoiceVText", ""
+				DlgText "AmountPaidVText", ""
+				DlgText "AmountBalanceVText", ""
+			End If
+
+			'--- Second case. Payment is smaller than balance.
+			If AmountPayment < AmountInvoice - AmountPaid Then
+
+				ApplyPayToInvoice Trim(DlgText$("InvoiceNumTextBox")), _
+							   AmountPayment, _
+							   Trim(DlgText$("PayDescrTextBox")), _
+							   Trim(DlgText$("CheckNumTextBox")), _
+							   Trim(DlgText$("DatePayTextBox"))
+							  
+				'--- Flush the payment info keep invoice
+				DlgText "AmountPaymentTextBox", ""
+				DlgText "PayDescrTextBox", ""
+				DlgText "CheckNumTextBox", ""
+
+				'--- We can recompute the invoice numbers now.
+				rs.Open "SELECT amount_tot_invoice,amount_closed" & _
+					   " FROM invoice" & _
+					   " WHERE invoice_id ='" & _
+							Trim(DlgText$("InvoiceNumTextBox")) & "'"
+				
+				DlgText  "AmountInvoiceVText", PadString( Format$( rs.Fields(0).NumValue, kCurrencyFormat ), 0, TRUE )
+				DlgText  "AmountPaidVText", PadString( Format$( rs.Fields(1).NumValue, kCurrencyFormat ), 0, TRUE )
+				DlgText  "AmountBalanceVText", PadString( Format$( rs.Fields(0).NumValue - rs.Fields(1).NumValue, kCurrencyFormat ), 0, TRUE )
+				DlgFocus "AmountPaymentTextBox"
+				rs.Close
+
+				'--- initialize the date
+				DlgText "DatePayTextBox", Format$(Date(), WindowShortDateWithFourDigitYear)
+			End If
+
+			'--- Third case. Payment is equal to the balance.
+			If AmountPayment = AmountInvoice - AmountPaid Then
+
+				ApplyPayToInvoice Trim(DlgText$("InvoiceNumTextBox")), _
+							   AmountPayment, _
+							   Trim(DlgText$("PayDescrTextBox")), _
+							   Trim(DlgText$("CheckNumTextBox")), _
+							   Trim(DlgText$("DatePayTextBox"))
+							  
+				'--- Flush everything
+
+				DlgText "PaymentFromTextBox", ""
+				DlgText "InvoiceNumTextBox", ""
+				DlgText "InvDescrVText", ""
+				DlgText "AmountInvoiceVText", ""
+				DlgText "AmountPaidVText", ""
+				DlgText "AmountBalanceVText", ""
+
+				DlgText "AmountPaymentTextBox", ""
+				DlgText "PayDescrTextBox", ""
+				DlgText "CheckNumTextBox", ""
+
+				'--- initialize the date
+				DlgText "DatePayTextBox", Format$(Date(), WindowShortDateWithFourDigitYear)
+			End If
+
+			NoPaymentMade:
+				ApplyPaymentDlgProc = 1
+		End Select	'---- Case ControlName
+
+	Case 3		
+		Select Case ControlName
+
+		Case "PaymentFromTextBox"
+
+			If Trim(DlgText$("PaymentFromTextBox")) <> "" Then
+				rs.Open "SELECT contact_id FROM contact" & _
+					   " WHERE contact_id='" & _
+					   Trim(DlgText$("PaymentFromTextBox")) & "'"
+				If rs.EOF Then 
+					MsgBox kInvalidPaymentFromMsg & " " & _
+					    Trim(DlgText$("PaymentFromTextBox")) & _
+					    kCrlf & kPleaseClearValMsg, _
+					    ebExclamation, kSelectPaymentFromMsg
+
+					'--- The following will make sure that
+					'--- we stay in the text box for invalid entries
+					DlgFocus "PaymentFromTextBox"
+					DlgText "PaymentFromTextBox", _
+						   DlgText$("PaymentFromTextBox")
+				Else
+					'--- flush values since we have a new invoice
+					DlgText "InvoiceNumTextBox", ""
+					DlgText "InvDescrVText", ""
+					DlgText "AmountInvoiceVText", ""
+					DlgText "AmountPaidVText", ""
+					DlgText "AmountBalanceVText", ""
+				End If
+				rs.Close
+			End If
+
+		Case "InvoiceNumTextBox"
+			If Trim(DlgText$("InvoiceNumTextBox")) = "" Then 
+				GoTo InvoiceNumBlank
+			End If
+			
+			If Not IsNumeric(Trim(DlgText$("InvoiceNumTextBox"))) Then
+				GoTo InvalidInvoice
+			End If
+
+			rs.Open "SELECT amount_tot_invoice,amount_closed," & _
+				   " description, contact_id_send_to" & _
+				   " FROM invoice WHERE invoice_id ='" & _
+				   Trim(DlgText$("InvoiceNumTextBox")) & "'"
+			If rs.EOF Then 
+				GoTo InvalidInvoice
+			Else
+			     DlgText "InvDescrVText", rs.Fields(2).Value
+				DlgText  "AmountInvoiceVText", PadString( Format$( rs.Fields(0).NumValue, kCurrencyFormat ), 0, TRUE )
+				DlgText  "AmountPaidVText", PadString( Format$( rs.Fields(1).NumValue, kCurrencyFormat ), 0, TRUE )
+				DlgText  "AmountBalanceVText", PadString( Format$( rs.Fields(0).NumValue - rs.Fields(1).NumValue, kCurrencyFormat ), 0, TRUE )
+				DlgText "PaymentFromTextBox", Trim(rs.Fields(3).Value)
+				DlgFocus "AmountPaymentTextBox"
+			End If
+			rs.Close
+
+			GoTo ValidInvoice
+
+			InvalidInvoice:
+				MsgBox kInvalidInvoiceNumMsg & " " & _
+				    Trim(DlgText$("InvoiceNumTextBox")) & _
+				    kCrlf & kPleaseClearValMsg, _
+				    ebExclamation, kSelectInvoiceNumMsg
+
+				DlgFocus "InvoiceNumTextBox"
+				DlgText "InvoiceNumTextBox", DlgText$("InvoiceNumTextBox")
+
+			InvoiceNumBlank:
+
+			ValidInvoice:
+
+		Case "DatePayTextBox"
+			sFixedDate=sup_AdjustShortDateCentury(Dlgtext$("DatePayTextBox"))
+			If sFixedDate = "BADDATE" Then 
+				DlgFocus "DatePayTextBox"
+			Else
+				DlgText "DatePayTextBox", sFixedDate
+			End If
+
+		Case "AmountPaymentTextBox"
+			If Trim(DlgText$("AmountPaymentTextBox")) <> "" Then
+				If IsNumeric(Trim(DlgText$("AmountPaymentTextBox"))) Then
+					If cDbl(Trim(DlgText$("AmountPaymentTextBox"))) = 0 Then
+						MsgBox kZeroWarningMsg,ebExclamation,kHeadMsg
+						DlgFocus "AmountPaymentTextBox"
+						DlgText "AmountPaymentTextBox", _
+							DlgText$("AmountPaymentTextBox")
+					End If
+				Else
+					DlgFocus "AmountPaymentTextBox"
+					MsgBox kInvalidNumberMsg,ebExclamation,kHeadMsg
+					DlgText "AmountPaymentTextBox", _
+						   DlgText$("AmountPaymentTextBox")
+				End If
+			End If
+		End Select
+	End Select	'---- Case Action
+End Function
+
+
+Function SetContactFilter() As String
+
+	SetContactFilter = " contact_id IN" & _
+				    " (SELECT DISTINCT contact_id_send_to" & _
+				    "  FROM invoice WHERE invoice.status = 'ISSUED')"
+End Function
+
+
+Function SetInvoiceFilter(contact As String) As String
+
+	Dim InvFilter As String
+
+	InvFilter = "invoice.status = 'ISSUED'"
+	If Trim(contact) <> "" Then	
+		InvFilter = InvFilter & " AND " & _
+				  "invoice.contact_id_send_to ='" & contact & "'"
+	End If
+
+	SetInvoiceFilter = InvFilter
+End Function
+
+
+/* This functions applies a payment To an invoice And handles the bulk
+   of the SQL code */
+
+Sub ApplyPayToInvoice (InvoiceNum As String, _
+                       AmountPayment As Double, _
+				   PaymentDescription As String, _
+				   CheckNumber As String, _
+				   DatePayment As String)
+
+	Dim ParsedPayment As String
+	Dim rs As New RecordSet
+	Dim ed As Editor
+
+	ParsedPayment= Sup_ReplaceDecimalSymbolWithDotForDouble( AmountPayment )
+
+	ProjDb.ExecuteSql "INSERT INTO invoice_payment" & _
+		 " (invoice_id,amount_income,description,check_number,date_paid)" & _
+					" VALUES('" & InvoiceNum & "'" & _
+					",'" & ParsedPayment & "'" & _
+				"," & sup_MakeLiteralOrNull(PaymentDescription) & _
+				"," & sup_MakeLiteralOrNull(CheckNumber) & _
+					"," & ProjDb.ISOToNativeDate _
+						(sup_ISO_Date(DatePayment)) & ")"
+
+	ProjDb.ExecuteSql "UPDATE invoice" & _
+			        " SET amount_closed = " & _
+				   "(SELECT sum(amount_income) FROM invoice_payment" & _
+				   " WHERE invoice_payment.invoice_id = '" & _
+				   InvoiceNum & "')" & _
+				   " WHERE invoice.invoice_id = '" & _
+				   InvoiceNum & "'"
+
+	'--- Check if the amount_tot_invoice = amount_closed
+	'--- If yes set all costs associated with that invoice as 'Received'
+	'--- and set the invoice.status field to 'CLOSED'
+
+	rs.Open "SELECT amount_tot_invoice,amount_closed" & _
+		   " FROM invoice WHERE invoice.invoice_id = '" & InvoiceNum & "'"
+
+	If CDbl(rs.Fields(0).Value) = CDbl(rs.Fields(1).Value) Then
+		ProjDb.ExecuteSql "UPDATE invoice SET status = 'CLOSED'" & _
+			" WHERE invoice.invoice_id = '" & InvoiceNum & "'"
+		ProjDb.ExecuteSql "UPDATE cost_tran SET status = 'RECEIVED'" & _
+					",date_paid = " & ProjDb.ISOToNativeDate _
+						(sup_ISO_Date(DatePayment))  & _
+			" WHERE cost_tran.invoice_id = '" & InvoiceNum & "'"
+		MsgBox kInvoiceClosedMsg,ebInformation,kHeadMsg
+	Else
+		MsgBox kAppliedPaymentMsg,ebInformation,kHeadMsg	
+	End If
+
+	Set ed = Avw.GetEditor ( "invoice" )
+	If ed Is Not Nothing Then
+		Avw.SetTblChanged "invoice", AVW_TBLCHANGE_UPDATE
+		Avw.SetTblChanged "invoice", AVW_TBLCHANGE_INSERT
+		Avw.Requery
+	End If
+
+	rs.Close
+End Sub
+
+
+/* 
+   This Function gets the current key from the table in the form:
+   (key_id = 'JOHN') and gets the value 'JOHN' and returns it.
+   Also works For (key_id=9)
+*/
+
+Function GetIdFromKey (KeyString As String) As String
+
+	'start with after the = sign
+	KeyString = Trim(Mid(KeyString,InStr(KeyString,"=") + 1))
+
+	'eliminate the last character which is a ) right parenthesis
+	KeyString = Mid(KeyString,1,Len(KeyString) - 1)
+
+	'if the string has ' single quotes in the beginning and end we remove them
+	If Mid(KeyString,1,1) = "'" Then
+		KeyString = Mid(KeyString,2)
+		KeyString = Mid(KeyString,1, Len(KeyString) - 1)
+	End If
+
+	GetIdFromKey = KeyString
+End Function
+
+
+'------------------------------------------------------------------------------
+'---- Pad a string with spaces to a certain size
+Function PadString( sStrToMakeASize As String, iSize As Integer, _
+		bPadLeft As Boolean ) As String
+
+	Dim sTemp As String
+	Dim iStringSize As Integer
+
+	If iSize = 0 Then 
+		iStringSize = kCurrencyWidth
+	Else 
+		iStringSize = iSize
+	End If
+	
+	sTemp = Space$( iStringSize )
+	If bPadLeft Then
+		RSet sTemp = sStrToMakeASize
+	Else		   '---- Pad with spaces to the right of the string (left align)
+		LSet sTemp = sStrToMakeASize
+	End If
+
+	PadString = sTemp
+
+End Function
+'------------------------------------------------------------------------------

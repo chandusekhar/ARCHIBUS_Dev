@@ -1,0 +1,162 @@
+/*****************************************************************************
+EMUP.ABS
+EM - Employee
+UP - Update Calculations
+
+01.22.95
+
+11.28.97 - JH - Localization. Added blank line at end of file.
+
+*****************************************************************************/
+
+Option Explicit
+
+'---- External Functions
+Declare Function SqlFunc_SQLIsNull() As String
+Declare Function SqlFunc_Replace0WithHuge( sFieldName As String ) As String
+
+'------------------------------------------------------------------------------
+'----                                    TRANSLATE
+Const kPleaseWaitMsg$              = "Please wait ... "
+Const kUpdatingEmpStatsMsg$        = "Updating Employee Statistics"
+'------------------------------------------------------------------------------
+
+Sub emup()
+
+     MsgOpen kUpdatingEmpStatsMsg & BASIC.EOLN$ & _
+             kPleaseWaitMsg, 0, FALSE, TRUE
+
+     Dim ff As New FieldFormula
+     Dim fo As New FieldOperation
+
+     '--- COUNT number of EMPLOYEES in each RM
+
+     fo.Owner    = "rm"
+     fo.Assigned = "em"
+     fo.Calculate "rm.count_em", "COUNT", "em.em_id"
+     fo.Clear 
+
+     MsgSetThermometer 5
+
+     '--- Equal Division of room area among employees
+
+     ff.Owner = "rm"
+     ff.Assigned = "em"
+     ff.OutFilter = "em.pct_rm = 0 AND em.rm_id IS NOT NULL"
+     ff.Calculate "em.area_rm","rm.area / " & _
+							SqlFunc_Replace0WithHuge( "rm.count_em" )
+     ff.Clear
+
+     MsgSetThermometer 10
+
+     '--- COUNT number of EMPLOYEES on each FL
+
+     fo.Owner    = "fl"
+     fo.Assigned = "em"
+     fo.Calculate "fl.count_em", "COUNT", "em.em_id"
+     fo.Clear 
+
+     MsgSetThermometer 20
+
+     '--- SUM number of EMPLOYEES from FL to BL
+
+     fo.Owner    = "bl"
+     fo.Assigned = "fl"
+     fo.Calculate "bl.count_em", "SUM", "fl.count_em"
+     fo.Clear 
+
+     MsgSetThermometer 30
+
+     '--- SUM number of EMPLOYEES from BL to SITE
+
+     fo.Owner    = "site"
+     fo.Assigned = "bl"
+     fo.Calculate "site.count_em", "SUM", "bl.count_em"
+     fo.Clear 
+
+     MsgSetThermometer 40
+
+     '--- COUNT number of EMPLOYEES on each DP
+
+     fo.Owner    = "dp"
+     fo.Assigned = "em"
+     fo.Calculate "dp.count_em", "COUNT", "em.em_id"
+     fo.Clear 
+
+     MsgSetThermometer 50
+
+     '--- COUNT number of EMPLOYEES in each DV
+
+     fo.Owner    = "dv"
+     fo.Assigned = "em"
+     fo.Calculate "dv.count_em", "COUNT", "em.em_id"
+     fo.Clear 
+
+     MsgSetThermometer 60
+
+     '--- SUM number of EMPLOYEES from DV to BU
+
+     fo.Owner    = "bu"
+     fo.Assigned = "dv"
+     fo.Calculate "bu.count_em", "SUM", "dv.count_em"
+     fo.Clear 
+
+     MsgSetThermometer 70
+
+     '--- SUM number of EMPLOYEES from RM to RMTYPE
+
+     fo.Owner    = "rmtype"
+     fo.Assigned = "rm"
+     fo.Calculate "rmtype.count_em", "SUM", "rm.count_em"
+     fo.Clear 
+
+     MsgSetThermometer 80
+
+     '--- SUM number of EMPLOYEES from RMTYPE to RMCAT
+
+     fo.Owner    = "rmcat"
+     fo.Assigned = "rm"
+     fo.Calculate "rmcat.count_em", "SUM", "rm.count_em"
+     fo.Clear 
+
+     MsgSetThermometer 90
+
+     '--- SUM number of EMPLOYEES from RM to RMSTD
+
+     fo.Owner    = "rmstd"
+     fo.Assigned = "rm"
+     fo.Calculate "rmstd.count_em", "SUM", "rm.count_em"
+     fo.Clear 
+
+     MsgSetThermometer 95
+
+     '--- COUNT number of EMPLOYEES for each EMSTD
+
+     fo.Owner    = "emstd"
+     fo.Assigned = "em"
+     fo.Calculate "emstd.count_em", "COUNT", "em.em_id"
+     fo.Clear 
+
+     MsgSetThermometer 100
+
+     Avw.SetTblChanged "site", AVW_TBLCHANGE_UPDATE
+     Avw.SetTblChanged "bl", AVW_TBLCHANGE_UPDATE
+     Avw.SetTblChanged "fl", AVW_TBLCHANGE_UPDATE
+     Avw.SetTblChanged "rm", AVW_TBLCHANGE_UPDATE
+     Avw.SetTblChanged "bu", AVW_TBLCHANGE_UPDATE
+     Avw.SetTblChanged "dv", AVW_TBLCHANGE_UPDATE
+     Avw.SetTblChanged "dp", AVW_TBLCHANGE_UPDATE
+     Avw.SetTblChanged "rmstd", AVW_TBLCHANGE_UPDATE
+     Avw.SetTblChanged "rmtype", AVW_TBLCHANGE_UPDATE
+     Avw.SetTblChanged "rmcat", AVW_TBLCHANGE_UPDATE
+     Avw.ReQuery
+   
+     MsgClose
+
+End Sub
+
+'---- Testing purposes only
+Sub Main()
+	emup
+End Sub
+

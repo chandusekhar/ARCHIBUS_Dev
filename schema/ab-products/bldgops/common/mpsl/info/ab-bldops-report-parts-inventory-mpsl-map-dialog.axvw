@@ -1,0 +1,77 @@
+<view version="2.0">
+    <!-- leaflet js library -->
+    <css url="//cdn.jsdelivr.net/leaflet/0.7.3/leaflet.css" />
+    <js  url="//cdn.jsdelivr.net/leaflet/0.7.3/leaflet.js" />
+    <!-- leaflet clusters -->
+    <js  file="leaflet-markercluster.js"/> 
+    <css file="leaflet-MarkerCluster.Default.css" />
+    <css file="leaflet-MarkerCluster.css" />
+    <!-- esri leaflet -->
+    <js url="//cdn.jsdelivr.net/leaflet.esri/1.0.0-rc.8/esri-leaflet.js" />
+    <!-- ab leaflet map -->
+    <js  file="ab-leaflet-map.js"/>
+    <css file="ab-leaflet-map.css"/>
+
+    <js file="colorbrewer.js"/>
+
+    <js file="ab-bldops-report-parts-inventory-mpsl-map-dialog.js"/>
+    <message name="requisitionLinkTitle" translatable="true">Requisition</message>
+    <message name="purchaseLinkTitle" translatable="true">Purchase</message>
+    <message name="purchaseLinkTitle" translatable="true">Purchase</message>
+    <message name="mapRedLabel" translatable="true">Out of Stock</message>
+    <message name="mapYellowLabel" translatable="true">Understocked</message>
+    <message name="mapGreenLabel" translatable="true">In Stock</message>
+    <!-- Warehouse Map DataSource -->
+    <!-- Warehouse Map DataSource -->
+    <dataSource id="ptStoreLocMapDS">
+        <table name="pt_store_loc_pt" role="main"/>
+        <table name="pt_store_loc" role="standard"/>
+        <table name="bl" role="standard"/>
+        <table name="pt" role="standard"/>
+        <field table="pt_store_loc_pt" name="pt_store_loc_id"/>
+        <field table="pt_store_loc_pt" name="part_id"/>
+        <field table="pt_store_loc" name="pt_store_loc_name"/>
+        <field table="pt_store_loc" name="site_id"/>
+        <field table="pt_store_loc" name="bl_id"/>
+        <field table="pt_store_loc_pt" name="qty_on_hand"/>
+        <field table="pt_store_loc_pt" name="qty_to_order"/>
+        
+        <!-- case:1: The green marker represents buildings where all the storage locations have quantity available greater than 0, and quantity understocked = 0. -->
+        <!-- case:2: The red marker represents buildings if contain one or more storage locations have quantity available <= 0 of the selected part. -->
+        <!-- case:3: The yellow marker represents if one of part in storage location match Quantity Available > 0 and Quantity on Reserved >0-->
+        <field name="locationType" dataType="number" decimals='0'>
+            <sql dialect="generic">
+                case 
+                when (exists (select 1 from pt_store_loc_pt where (select bl_id from pt_store_loc where pt_store_loc.pt_store_loc_id=pt_store_loc_pt.pt_store_loc_id)=pt_store_loc.bl_id and (select bl.lat from bl where bl.bl_id=(select bl_id from pt_store_loc where pt_store_loc.pt_store_loc_id=pt_store_loc_pt.pt_store_loc_id)) is not null and (select bl.lon from bl where bl.bl_id=(select bl_id from pt_store_loc where pt_store_loc.pt_store_loc_id=pt_store_loc_pt.pt_store_loc_id)) is not null and ${parameters['partRes']} and qty_on_hand &lt;= 0))
+                then 2
+                when (exists (select 1 from pt_store_loc_pt where (select bl_id from pt_store_loc where pt_store_loc.pt_store_loc_id=pt_store_loc_pt.pt_store_loc_id)=pt_store_loc.bl_id and (select bl.lat from bl where bl.bl_id=(select bl_id from pt_store_loc where pt_store_loc.pt_store_loc_id=pt_store_loc_pt.pt_store_loc_id)) is not null and (select bl.lon from bl where bl.bl_id=(select bl_id from pt_store_loc where pt_store_loc.pt_store_loc_id=pt_store_loc_pt.pt_store_loc_id)) is not null and ${parameters['partRes']} and qty_on_hand &gt; 0 and qty_to_order &gt; 0))
+                then 3
+                else 1
+                end
+            </sql>
+        </field>
+        
+        
+        <field name="lon" dataType="number" size="24" decimals="16">
+            <sql dialect="generic">
+                (select bl.lon from bl where bl.bl_id=pt_store_loc.bl_id)
+            </sql>
+        </field>
+        <field name="lat" dataType="number" size="24" decimals="16">
+            <sql dialect="generic">
+                (select bl.lat from bl where bl.bl_id=pt_store_loc.bl_id)
+            </sql>
+        </field>
+        <field table="pt" name="class"/>
+        <field table="pt" name="description"/>
+        <parameter name="partRes" dataType="verbatim" value="1=1"/>
+        <restriction type="sql" sql="(select bl.lon from bl where bl.bl_id=pt_store_loc.bl_id) is not null and (select bl.lat from bl where bl.bl_id=pt_store_loc.bl_id) is not null and ${parameters['partRes']}"/>
+    </dataSource>
+
+    <panel type="html" id="mapPanel">
+          <title translatable="true">Map</title>
+          <html>
+               <div id="mapDiv"></div>
+          </html>
+    </panel>    
+</view>

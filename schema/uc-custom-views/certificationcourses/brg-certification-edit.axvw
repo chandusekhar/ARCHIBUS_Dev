@@ -1,0 +1,189 @@
+<view version="2.0">
+   	
+	<layout type="borderLayout" id="mainLayout">
+       <west id="parentWest" initialSize="35%" split="true"/>
+       <center id="parentCenter" autoScroll="true"/>
+    </layout>
+	<layout type="borderLayout" id="nestedLayout" containingLayout="mainLayout" region="west">
+      <north id="childNorth" initialSize="280" split="true"/>
+      <center id="childCenter"  initialSize="200" autoScroll="true"/>
+    </layout>
+    <title translatable="true">Certification Course Listing</title>
+    <js file="brg-certification-edit.js"/>
+    
+	<dataSource id="certificationsDs" distinct="true">
+        <table name="UC_certifications" role="main"/>
+		<table name="UC_courses" role="standard"/>
+		 <field table="UC_certifications" name="em_id"/>
+        <field table="UC_certifications" name="cert_name"/>
+        <field table="UC_certifications" name="course_id"/>
+		<field table="UC_certifications" name="course_name"/>
+		<field table="UC_courses" name="category_id"/>
+		<field table="UC_courses" name="course_name"/>
+		<field table="UC_certifications" name="start_date"/>
+		<field table="UC_certifications" name="expiry_date"/>
+		<field table="UC_certifications" name="date_renew"/>
+		<field table="UC_certifications" name="doc"/>
+		<restriction type="sql" sql="UC_certifications.em_id = '${user.employee.id}'" />
+    </dataSource>
+	
+
+    <panel type="grid" id="treePanelActive" showOnLoad="true" dataSource="certificationsDs" selectionEnabled="true" layoutRegion="childNorth">
+        <title translatable="true">Active Certifications</title>
+
+        <action id="addNew">
+            <title translatable="true">Add New</title>
+			 <command type="callFunction" functionName="theController.showDetailFields()" />
+			 <command type="clearPanel" panelId="detailsPanel" />
+             <command type="showPanel" panelId="detailsPanel" newRecord="true"/>
+		</action>
+    
+	    <sortField name="expiry_date" table="UC_certifications" ascending="false" />
+		<sortField name="start_date" table="UC_certifications" ascending="false" />
+	  
+		<field name="course_name" table="courses" controlType="link">
+            <command type="showPanel" panelId="detailsPanel"/>
+			<command type="callFunction" functionName="theController.showRenew()" />
+        </field>		
+		
+		<field name="course_id" table="UC_certifications" controlType="link">
+            <command type="showPanel" panelId="detailsPanel"/>
+			<command type="callFunction" functionName="theController.showRenew()" />
+        </field>		
+	
+	    <field table="UC_certifications" name="start_date" controlType="link">
+            <command type="showPanel" panelId="detailsPanel"/>
+			<command type="callFunction" functionName="theController.showRenew()" />
+        </field>
+		
+		<field name="expiry_date" table="UC_certifications" controlType="link">
+            <command type="showPanel" panelId="detailsPanel"/>
+			<command type="callFunction" functionName="theController.showRenew()" />
+        </field>		
+		
+		<field name="category_id" table="UC_courses" controlType="link">
+            <command type="showPanel" panelId="detailsPanel"/>
+			<command type="callFunction" functionName="theController.showRenew()" />
+        </field>		
+		
+		<field name="em_id" table="UC_certifications" hidden="true"/>
+		
+   </panel>
+	
+	<dataSource id="certificationsExpiredDs">
+	    <!-- display only the newest record based ont he expiry date for the expired certifications section-->
+		<sql dialect="generic">
+		        select course_id, course_name, start_date, expiry_date,  em_id, category_id from
+				(
+				 SELECT   
+			     UC_certifications.course_id,UC_certifications.course_name, start_date, expiry_date, cert_name, em_id,category_id,
+				 ROW_NUMBER() OVER(PARTITION BY UC_certifications.course_id ORDER BY expiry_date DESC) AS RowNumber     
+				 FROM    
+				 UC_certifications    left join UC_courses on UC_certifications.course_id = UC_courses.course_id
+				 ) a 
+				 where 
+				 a.Rownumber =1  and
+				 expiry_date &lt; getdate() and course_id not in (select course_id from UC_certifications where UC_certifications.expiry_date is null or UC_certifications.expiry_date &gt;= getdate())
+		         and em_id = '${user.name}'
+		</sql>
+
+        <table name="UC_certifications" role="main"/>
+    	<field table="UC_certifications" name="em_id"/>
+        <field table="UC_certifications" name="course_name"/>
+        <field table="UC_certifications" name="course_id"/>
+		<field table="UC_certifications" name="start_date"/>
+		<field table="UC_certifications" name="expiry_date"/>
+		<field table="UC_certifications" name="category_id" dataType="text"/>
+		
+    </dataSource>
+	
+	<panel type="grid" id="treePanelExpired" showOnLoad="true" dataSource="certificationsExpiredDs" selectionEnabled="true" layoutRegion="childCenter">
+        <title translatable="true">Expired Certifications</title>
+
+	    <field name="course_name" table="UC_certifications" controlType="link">
+		     <title>Course Name</title>
+            <command type="showPanel" panelId="detailsPanel"/>
+			<command type="callFunction" functionName="theController.showRenew()" />
+        </field>		
+		
+		<field name="course_id" table="UC_certifications" controlType="link">
+             <command type="showPanel" panelId="detailsPanel"/>
+			 <command type="callFunction" functionName="theController.showRenew()" />
+        </field>		
+	
+	    <field name="start_date" table="UC_certifications" controlType="link">
+             <command type="showPanel" panelId="detailsPanel"/>
+			 <command type="callFunction" functionName="theController.showRenew()" />
+        </field>	
+		
+		 <field name="expiry_date" table="UC_certifications" controlType="link">
+             <command type="showPanel" panelId="detailsPanel"/>
+			 <command type="callFunction" functionName="theController.showRenew()" />
+        </field>	
+				
+		<field table="UC_certifications" name="category_id" dataType="text" controlType="link">
+		  <title>Category</title>
+		  <command type="showPanel" panelId="detailsPanel"/>
+	      <command type="callFunction" functionName="theController.showRenew()" />
+		</field>
+		<field name="em_id" table="UC_certifications" hidden="true"/>
+    </panel>
+    
+    <dataSource id="abProbtypeEdit_ds_11">
+        <table name="UC_certifications" role="main"/>
+		<table name="UC_courses" role="standard"/>
+        <field table="UC_certifications" name="cert_name"/>
+        <field table="UC_certifications" name="course_id">
+		</field>
+		<field table="UC_courses" name="course_name"/>
+		<field table="UC_certifications" name="course_name"/>
+		<field table="UC_courses" name="category_id"/>
+		<field table="UC_courses" name="type"/>
+		<field table="UC_certifications" name="start_date"/>
+		<field table="UC_certifications" name="expiry_date"/>
+		<field table="UC_certifications" name="date_renew"/>
+		<field table="UC_certifications" name="description"/>
+		<field table="UC_certifications" name="cert_number"/>
+		<field table="UC_certifications" name="doc"/>
+		<field table="UC_certifications" name="em_id"/>
+    </dataSource>
+    
+    <panel type="form" id="detailsPanel" dataSource="abProbtypeEdit_ds_11" showOnLoad="false" labelsPosition="left" columns="2" layoutRegion="parentCenter">
+	    <title translatable="true">Add or Edit Certification</title>  
+        <action id="renew">
+            <title translatable="true">Renew</title>
+        </action>	
+        <action id="history">
+            <title translatable="true">History</title>
+        </action>				
+        <action id="abProbtypeEdit_save">
+            <title translatable="true">Save</title>
+            <command type="saveForm"/>
+            <command type="showPanel" panelId="treePanelActive" applyParentRestriction="false"/>
+			<command type="showPanel" panelId="treePanelExpired" applyParentRestriction="false"/>
+        </action>
+
+        <action id="abProbtypeEdit_cancel">
+            <title translatable="true">Cancel</title>
+            <command type="showPanel" panelId="detailsPanel" show="false"/>
+        </action>    
+        <field table="UC_courses" name="category_id" readOnly="false" onchange="theController.onChangeCategory()"/>
+		<field table="UC_certifications" name="start_date"/>
+		<field table="UC_courses" name="type" readOnly="false" onchange="theController.onChangeCategory()"/>
+		<field table="UC_certifications" name="expiry_date"/>
+		<field table="UC_certifications" name="course_id" onchange = "theController.onChangeCourseId()">
+		    <action>
+				<title>...</title>
+				<command type="callFunction" functionName="theController.selectCourses(this)"/>
+			</action>
+		</field>
+		<field table="UC_certifications" name="date_renew"/>
+		<field table="UC_courses" name="course_name" readOnly="false" hidden="true"/>
+		<field table="UC_certifications" name="course_name" required="true" onchange="theController.onChangeCourseName()"/>  <!-- Q from F: Why do we need the course name in both tables? -->
+		<field table="UC_certifications" name="cert_number"/>
+		<field table="UC_certifications" name="doc"/>
+		<field/>
+        <field table="UC_certifications" name="description" colspan="2"/>
+        <field table="UC_certifications" name="em_id" hidden="true" required="false" value="${user.employee.id}"/>
+    </panel>
+</view>

@@ -1,0 +1,208 @@
+<view version="2.0">
+    <title translatable="true">Footprint Summary Chart</title>
+    <js file="ab-gb-rpt-fp-chart.js"/>
+    <js file="ab-gb-rpt-fp-common.js"/>
+    <message name="err_value_not_set" translatable="true">Please select {0}.</message>
+    <message name="err_values_not_set" translatable="true">Please select {0} or {1}.</message>
+
+    <!--  Layout -->
+    <layout type="borderLayout" id="mainLayout">
+        <north id="filterPos" initialSize="150" split="true"/>
+        <center id="chartPos"/>
+        <south id="reportPos" initialSize="200"/>
+    </layout>
+    
+    <!-- Filter -->
+    <dataSource id="abGbRptFpChart_filter_ds">
+        <table name="gb_fp_totals" role="main"/>
+        <table name="bl" role="standard"/>
+        <field table="gb_fp_totals" name="vf_calc_year" dataType="text"/>
+        <field table="bl" name="site_id"/>
+        <field table="gb_fp_totals" name="bl_id"/>
+        <field table="gb_fp_totals" name="scenario_id"/>
+    </dataSource>
+    <panel type="console" id="abGbRptFpChart_filter" dataSource="abGbRptFpChart_filter_ds" columns="2" layoutRegion="filterPos">
+        <title translatable="true">Filter</title>
+        <instructions translatable="true">Please select Site Code and/or Building Code</instructions>
+		<action id="show">
+            <title translatable="true">Show</title>
+        </action>
+        <action id="clear">
+            <title translatable="true">Clear</title>
+            <command type="clearPanel" panelId="abGbRptFpChart_filter"/>
+        </action>
+        <field table="bl" name="site_id" dataType="text">
+            <title translatable="true">Site Code</title>
+            <action>
+                <title translatable="false">...</title>
+                <tooltip translatable="true">Select Value</tooltip>
+                <command type="callFunction" functionName="showSelectValue_Site"/>
+            </action>
+        </field>
+        <field table="gb_fp_totals" name="vf_calc_year" size="200" dataType="text" required="true">
+            <title translatable="true">Calculation Year</title>
+            <action>
+                <title translatable="false">...</title>
+                <tooltip translatable="true">Select Value</tooltip>
+                <command type="callFunction" functionName="showSelectValue_Year(this, 'gb_fp_totals.vf_calc_year', 'grid')"/>
+            </action>
+        </field>
+        <field table="gb_fp_totals" name="bl_id">
+            <action>
+                <title translatable="false">...</title>
+                <tooltip translatable="true">Select Value</tooltip>
+                <command type="callFunction" functionName="showSelectValue_Bl"/>
+            </action>
+        </field>
+        <field table="gb_fp_totals" name="scenario_id" required="true">
+            <action>
+                <title translatable="false">...</title>
+                <tooltip translatable="true">Select Value</tooltip>
+                <command type="callFunction" functionName="showSelectValue_Scenario"/>
+            </action>
+        </field>
+    </panel>
+    
+    <!--  Chart control -->
+    <dataSource id="abGbRptFpChart_chart_ds" type="grouping">
+        <table name="gb_fp_totals" role="main"/>
+        <table name="bl" role="standard"/>
+        <!-- field table="gb_fp_totals" name="scenario_id" groupBy="true" hidden="true"/-->
+        <field table="bl" name="site_id" groupBy="true" hidden="true"/>
+        <field table="gb_fp_totals" name="calc_year" groupBy="true" hidden="true"/>
+        <field table="gb_fp_totals" name="vf_scope_1" dataType="number" decimals="1">
+            <title translatable="true">Scope 1 Emissions</title>
+            <sql dialect="generic">
+               (SUM(gb_fp_totals.s1_co_airc) + SUM(gb_fp_totals.s1_co_road) + SUM(gb_fp_totals.s1_fuel_comb) + SUM(gb_fp_totals.s1_refrig_airc))
+            </sql>
+        </field>
+        <field table="gb_fp_totals" name="vf_scope_2" dataType="number" decimals="1">
+            <title translatable="true">Scope 2 Emissions</title>
+            <sql dialect="generic">
+               (SUM(gb_fp_totals.s2_purch_e))
+            </sql>
+        </field>
+        <field table="gb_fp_totals" name="vf_scope_other" dataType="number" decimals="1">
+            <title translatable="true">Other Emissions</title>
+            <sql dialect="generic">
+               (SUM(gb_fp_totals.s_other))
+            </sql>
+        </field>
+        <field table="gb_fp_totals" name="vf_scope_3" dataType="number" decimals="1">
+            <title translatable="true">Scope 3 Emissions</title>
+            <sql dialect="generic">
+               (SUM(gb_fp_totals.s3_cont) + SUM(gb_fp_totals.s3_em_air) + SUM(gb_fp_totals.s3_em_rail) + SUM(gb_fp_totals.s3_em_road) + SUM(gb_fp_totals.s3_mat) + SUM(gb_fp_totals.s3_outs) + SUM(gb_fp_totals.s3_serv) + SUM(gb_fp_totals.s3_waste_liq) + SUM(gb_fp_totals.s3_waste_sol))
+            </sql>
+        </field>
+        <field table="gb_fp_totals" name="vf_grouping" dataType="text">
+            <title translatable="true">Emission Scope</title>
+            <sql dialect="generic">
+                MAX(gb_fp_totals.scenario_id)
+            </sql>
+        </field>
+         <field table="gb_fp_totals" name="vf_values" dataType="number" decimals="1">
+            <title translatable="true">Emission Values</title>
+            <sql dialect="generic">
+                SUM(gb_fp_totals.total)
+            </sql>
+        </field>
+     </dataSource>
+
+    <panel type="chart" id="abGbRptFpChart_chart"  showOnLoad="false"
+            controlType="pieChart" 
+            dataSource="abGbRptFpChart_chart_ds"
+            showLegendOnLoad="true"
+            showLegendAsPopUp="false" 
+            legendLocation="right"
+            showDataTips="true" refreshWorkflowRuleId="AbRiskGreenBuilding-FootprintService-getPieChartData" layoutRegion="chartPos">
+        <title translatable="true">Footprint Chart</title>
+        <instructions>&#160;</instructions>
+        <event type="onClickItem"> 
+            <command type="callFunction" functionName="displayChartDetails" /> 
+        </event>
+
+        <action id="exportDOCX">
+            <title translatable="true">DOC</title>
+            <command type="exportPanel" outputType="docx" panelId="abGbRptFpChart_chart" printRestriction="true"/>
+        </action>
+
+        <groupingAxis dataSource="abGbRptFpChart_chart_ds" table="gb_fp_totals" field="vf_grouping" labelRotation="45">
+            <title translatable="true">Emission Scope</title>
+        </groupingAxis>
+        <dataAxis dataSource="abGbRptFpChart_chart_ds" table="gb_fp_totals" field="vf_values" labelPosition="callout">
+            <title translatable="true">Emission Values</title>
+        </dataAxis>
+    </panel> 
+    
+    <dataSource id="abGbRptFpChart_site_data_ds">
+        <table name="gb_fp_totals" role="main"/>
+        <table name="bl" role="standard"/>
+        <field table="gb_fp_totals" name="calc_year"/>
+        <field table="bl" name="site_id"/>
+        <field table="gb_fp_totals" name="site_name" dataType="text">
+            <title translatable="true">Site Name</title>
+            <sql dialect="generic">
+                (SELECT name FROM site WHERE site.site_id = bl.site_id)
+            </sql>
+        </field>
+        <field table="gb_fp_totals" name="bl_id"/>
+        <field table="gb_fp_totals" name="scenario_id"/>
+        <field table="gb_fp_totals" name="total" showTotals="true"/>
+        <field table="gb_fp_totals" name="vf_scope_1" dataType="number" decimals="1" showTotals="true">
+            <title translatable="true">Scope 1 Emissions</title>
+            <sql dialect="generic">
+               (gb_fp_totals.s1_co_airc + gb_fp_totals.s1_co_road + gb_fp_totals.s1_fuel_comb + gb_fp_totals.s1_refrig_airc)
+            </sql>
+        </field>
+        <field table="gb_fp_totals" name="vf_scope_2" dataType="number" decimals="1" showTotals="true">
+            <title translatable="true">Scope 2 Emissions</title>
+            <sql dialect="generic">
+               (gb_fp_totals.s2_purch_e)
+            </sql>
+        </field>
+        <field table="gb_fp_totals" name="vf_scope_3" dataType="number" decimals="1" showTotals="true">
+            <title translatable="true">Scope 3 Emissions</title>
+            <sql dialect="generic">
+               (gb_fp_totals.s3_cont + gb_fp_totals.s3_em_air + gb_fp_totals.s3_em_rail + gb_fp_totals.s3_em_road + gb_fp_totals.s3_mat + gb_fp_totals.s3_outs + gb_fp_totals.s3_serv + gb_fp_totals.s3_waste_liq + gb_fp_totals.s3_waste_sol)
+            </sql>
+        </field>
+        <field table="gb_fp_totals" name="vf_scope_other" dataType="number" decimals="1" showTotals="true">
+            <title translatable="true">Other Emissions</title>
+            <sql dialect="generic">
+               (gb_fp_totals.s_other)
+            </sql>
+        </field>
+    </dataSource>
+    <panel type="grid" id="abGbRptFpChart_site_data" dataSource="abGbRptFpChart_site_data_ds" showOnLoad="false" layoutRegion="reportPos">
+        <sortField table="gb_fp_totals" name="calc_year" ascending="true"/>
+        <sortField table="bl" name="site_id" ascending="true"/>
+        <title translatable="true">Footprint Data</title>
+                <action id="exportXls">
+                    <title translatable="true">XLS</title>
+                    <command type="exportPanel" outputType="xls" panelId="abGbRptFpChart_site_data" viewName="ab-gb-rpt-fp-chart.axvw"/>
+                </action>
+        <field table="gb_fp_totals" name="calc_year"/>
+        <field table="bl" name="site_id"/>
+        <field table="gb_fp_totals" name="site_name" dataType="text">
+            <title translatable="true">Site Name</title>
+        </field>
+        <field table="gb_fp_totals" name="bl_id"/>
+        <field table="gb_fp_totals" name="scenario_id"/>
+        <field table="gb_fp_totals" name="total" showTotals="true"/>
+        <field table="gb_fp_totals" name="vf_scope_1" dataType="number" decimals="1" showTotals="true">
+            <title translatable="true">Scope 1 Emissions</title>
+        </field>
+        <field table="gb_fp_totals" name="vf_scope_2" dataType="number" decimals="1" showTotals="true">
+            <title translatable="true">Scope 2 Emissions</title>
+        </field>
+        <field table="gb_fp_totals" name="vf_scope_other" dataType="number" decimals="1" showTotals="true">
+            <title translatable="true">Other Emissions</title>
+        </field>
+        <field table="gb_fp_totals" name="vf_scope_3" dataType="number" decimals="1" showTotals="true">
+            <title translatable="true">Scope 3 Emissions</title>
+        </field>
+    </panel>
+    
+    
+    <panel type="view" id="filterCommon" file="ab-gb-rpt-fp-filter-common.axvw"/>
+</view>

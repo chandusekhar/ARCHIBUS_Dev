@@ -1,0 +1,273 @@
+<view version="2.0">
+    <designInfo type="paginated" pattern="ab-viewdef-paginated-parent-parent-child" isAlterable="true"/>
+    <title translatable="true">View Detailed Chargeback Analysis</title>
+    <report orientation="landscape"/>
+    
+    <dataSource id="ds_ab-sp-vw-rmpct-chrgbk-anal_prnt_grid_bl">
+        <sql dialect="generic">
+            SELECT bl_id,area_ocup_dp,area_bl_comn_ocup,area_bl_comn_nocup,cost_sqft,
+            SUM(bl.blcomocup) ${sql.as} vf_bl_comn_ocup_chk, SUM(bl.blcomnocup) ${sql.as} vf_bl_comn_nocup_chk
+            FROM
+            (SELECT bl.bl_id ${sql.as} bl_id,
+            bl.area_ocup_dp ${sql.as} area_ocup_dp,
+            bl.area_bl_comn_ocup ${sql.as} area_bl_comn_ocup,
+            CASE WHEN bl.area_ocup_dp =0 THEN 0 ELSE (rmpct.area_rm * bl.area_bl_comn_ocup) /bl.area_ocup_dp END ${sql.as} blcomocup,
+            bl.area_bl_comn_nocup ${sql.as} area_bl_comn_nocup,
+            CASE WHEN bl.area_ocup_dp =0 THEN 0 ELSE (rmpct.area_rm * bl.area_bl_comn_nocup) /bl.area_ocup_dp END ${sql.as} blcomnocup,
+            bl.cost_sqft ${sql.as} cost_sqft
+            FROM rmpct,rmcat,bl WHERE rmpct.dp_id IS NOT NULL AND rmcat.occupiable = 1 AND rmpct.rm_cat = rmcat.rm_cat AND rmpct.bl_id = bl.bl_id
+            AND rmcat.used_in_calcs IN ('all_totals', 'dp_comn_ocup_totals')
+            ) ${sql.as} bl
+            GROUP BY bl_id,area_ocup_dp,area_bl_comn_ocup,area_bl_comn_nocup,cost_sqft
+        </sql>
+        <table name="bl" role="main"/>
+        <field name="bl_id"/>
+        <field name="cost_sqft" dataType="number" decimals="2"/>
+        <field name="area_ocup_dp" dataType="number" decimals="2"/>
+        <field name="area_bl_comn_ocup" dataType="number" decimals="2"/>
+        <field name="area_bl_comn_nocup" dataType="number" decimals="2"/>
+        <field name="vf_bl_comn_ocup_chk" dataType="number" decimals="2"/>
+        <field name="vf_bl_comn_nocup_chk" dataType="number" decimals="2"/>
+        <sortField table="bl" name="bl_id" ascending="true"/>
+    </dataSource>
+    
+    <dataSource id="ds_ab-sp-vw-rmpct-chrgbk-anal_prnt_grid_fl">
+        <sql dialect="generic">
+            SELECT bl_id ${sql.as} bl_id,
+            fl_id ${sql.as} fl_id,
+            area_ocup_dp ${sql.as} area_ocup_dp,
+            area_fl_comn_ocup ${sql.as} area_fl_comn_ocup,
+            area_fl_comn_nocup ${sql.as} area_fl_comn_nocup,
+            area_remain ${sql.as} area_remain,
+            prorate_remain ${sql.as} prorate_remain,
+            cost_sqft ${sql.as} cost_sqft,
+            SUM(fl.flcomocup) ${sql.as} vf_fl_comn_ocup_chk,
+            SUM(fl.flcomnocup) ${sql.as} vf_fl_comn_nocup_chk
+            FROM
+            (SELECT fl.bl_id ${sql.as} bl_id,
+            fl.fl_id ${sql.as} fl_id,
+            fl.area_ocup_dp ${sql.as} area_ocup_dp,
+            fl.area_fl_comn_ocup ${sql.as} area_fl_comn_ocup,
+            CASE WHEN fl.area_ocup_dp =0 THEN 0 ELSE (rmpct.area_rm * fl.area_fl_comn_ocup) /fl.area_ocup_dp END ${sql.as} flcomocup,
+            fl.area_fl_comn_nocup ${sql.as} area_fl_comn_nocup,
+            CASE WHEN fl.area_ocup_dp =0 THEN 0 ELSE (rmpct.area_rm * fl.area_fl_comn_nocup) /fl.area_ocup_dp END ${sql.as} flcomnocup,
+            fl.area_remain ${sql.as} area_remain,
+            fl.prorate_remain ${sql.as} prorate_remain,
+            fl.cost_sqft ${sql.as} cost_sqft
+            FROM rmpct,rmcat,fl WHERE rmpct.dp_id IS NOT NULL AND rmcat.occupiable = 1 AND rmpct.rm_cat = rmcat.rm_cat AND rmpct.bl_id = fl.bl_id AND rmpct.fl_id = fl.fl_id
+            AND rmcat.used_in_calcs IN ('all_totals', 'dp_comn_ocup_totals')
+            )${sql.as} fl
+            GROUP BY bl_id,fl_id,area_ocup_dp,area_fl_comn_ocup,area_fl_comn_nocup,area_remain,prorate_remain,cost_sqft
+        </sql>
+        <table name="fl" role="main"/>
+        <field name="bl_id"/>
+        <field name="fl_id"/>
+        <field name="cost_sqft" dataType="number" decimals="2"/>
+        <field name="area_remain" dataType="number" decimals="2"/>
+        <field name="prorate_remain" dataType="text"/>
+        <field name="area_ocup_dp" dataType="number" decimals="2"/>
+        <field name="area_fl_comn_ocup" dataType="number" decimals="2"/>
+        <field name="area_fl_comn_nocup" dataType="number" decimals="2"/>
+        <field name="vf_fl_comn_ocup_chk" dataType="number" decimals="2"/>
+        <field name="vf_fl_comn_nocup_chk" dataType="number" decimals="2"/>
+        
+        <sortField table="fl" name="bl_id" ascending="true"/>
+        <sortField table="fl" name="fl_id" ascending="true"/>
+        
+        <parameter name="blBlId" dataType="verbatim" value=""/>
+        <restriction type="parsed">
+            <clause relop="AND" op="=" table="fl" name="bl_id" value="${parameters['blBlId']}"/>
+        </restriction>
+    </dataSource>
+    
+    <dataSource id="ds_ab-sp-vw-rmpct-chrgbk-anal_prnt_grid_rmpct">
+        <sql dialect="sybase">
+            SELECT rmpct.bl_id ${sql.as} bl_id,
+            rmpct.fl_id ${sql.as} fl_id,
+            rmpct.rm_id ${sql.as} rm_id,
+            rmpct.dv_id ${sql.as} dv_id,
+            rmpct.dp_id ${sql.as} dp_id,
+            rmpct.prorate ${sql.as} prorate,
+            rmpct.rm_cat ${sql.as} rm_cat,
+            rmpct.rm_type ${sql.as} rm_type,
+            rmpct.area_chargable ${sql.as} area_chargable,
+            rmpct.area_rm ${sql.as} area_rm,
+            rmpct.area_comn ${sql.as} area_comn,
+            rmpct.area_comn_ocup ${sql.as} area_comn_ocup,
+            rmpct.area_comn_nocup ${sql.as} area_comn_nocup,
+            CASE WHEN fl.area_ocup_dp =0 THEN 0 ELSE (rmpct.area_rm * fl.area_fl_comn_ocup) /fl.area_ocup_dp END ${sql.as} flcomocup,
+            CASE WHEN bl.area_ocup_dp =0 THEN 0 ELSE (rmpct.area_rm * bl.area_bl_comn_ocup) /bl.area_ocup_dp END ${sql.as} blcomocup,
+            CASE WHEN site.area_ocup_dp =0 THEN 0 ELSE (rmpct.area_rm * site.area_st_comn_ocup) /site.area_ocup_dp END ${sql.as} stcomocup,
+            CASE WHEN fl.area_ocup_dp =0 THEN 0 ELSE (rmpct.area_rm * fl.area_fl_comn_nocup) /fl.area_ocup_dp END ${sql.as} flcomnocup,
+            CASE WHEN bl.area_ocup_dp =0 THEN 0 ELSE (rmpct.area_rm * bl.area_bl_comn_nocup) /bl.area_ocup_dp END ${sql.as} blcomnocup,
+            CASE WHEN site.area_ocup_dp =0 THEN 0 ELSE (rmpct.area_rm * site.area_st_comn_nocup) /site.area_ocup_dp END ${sql.as} stcomnocup
+            FROM rmpct,rmcat,fl,bl KEY LEFT OUTER JOIN site
+            WHERE rmpct.dp_id IS NOT NULL AND rmcat.occupiable = 1 AND rmpct.rm_cat = rmcat.rm_cat
+            AND rmcat.used_in_calcs IN ('all_totals', 'dp_comn_ocup_totals')
+            AND rmpct.fl_id = fl.fl_id AND rmpct.bl_id = fl.bl_id AND rmpct.bl_id = bl.bl_id AND fl.bl_id = bl.bl_id
+        </sql>
+        <sql dialect="generic">
+            SELECT rmpct.bl_id ${sql.as} bl_id,
+            rmpct.fl_id ${sql.as} fl_id,
+            rmpct.rm_id ${sql.as} rm_id,
+            rmpct.dv_id ${sql.as} dv_id,
+            rmpct.dp_id ${sql.as} dp_id,
+            rmpct.prorate ${sql.as} prorate,
+            rmpct.rm_cat ${sql.as} rm_cat,
+            rmpct.rm_type ${sql.as} rm_type,
+            rmpct.area_chargable ${sql.as} area_chargable,
+            rmpct.area_rm ${sql.as} area_rm,
+            rmpct.area_comn ${sql.as} area_comn,
+            rmpct.area_comn_ocup ${sql.as} area_comn_ocup,
+            rmpct.area_comn_nocup ${sql.as} area_comn_nocup,
+            CASE WHEN fl.area_ocup_dp =0 THEN 0 ELSE (rmpct.area_rm * fl.area_fl_comn_ocup) /fl.area_ocup_dp END ${sql.as} flcomocup,
+            CASE WHEN bl.area_ocup_dp =0 THEN 0 ELSE (rmpct.area_rm * bl.area_bl_comn_ocup) /bl.area_ocup_dp END ${sql.as} blcomocup,
+            CASE WHEN site.area_ocup_dp =0 THEN 0 ELSE (rmpct.area_rm * site.area_st_comn_ocup) /site.area_ocup_dp END ${sql.as} stcomocup,
+            CASE WHEN fl.area_ocup_dp =0 THEN 0 ELSE (rmpct.area_rm * fl.area_fl_comn_nocup) /fl.area_ocup_dp END ${sql.as} flcomnocup,
+            CASE WHEN bl.area_ocup_dp =0 THEN 0 ELSE (rmpct.area_rm * bl.area_bl_comn_nocup) /bl.area_ocup_dp END ${sql.as} blcomnocup,
+            CASE WHEN site.area_ocup_dp =0 THEN 0 ELSE (rmpct.area_rm * site.area_st_comn_nocup) /site.area_ocup_dp END ${sql.as} stcomnocup
+            FROM rmpct,rmcat,fl,bl LEFT OUTER JOIN site ON site.site_id = bl.site_id
+            WHERE rmpct.dp_id IS NOT NULL AND rmcat.occupiable = 1 AND rmpct.rm_cat = rmcat.rm_cat
+            AND rmcat.used_in_calcs IN ('all_totals', 'dp_comn_ocup_totals')
+            AND rmpct.fl_id = fl.fl_id AND rmpct.bl_id = fl.bl_id AND rmpct.bl_id = bl.bl_id AND fl.bl_id = bl.bl_id
+        </sql>
+        <sql dialect="oracle">
+            SELECT rmpct.bl_id ${sql.as} bl_id,
+            rmpct.fl_id ${sql.as} fl_id,
+            rmpct.rm_id ${sql.as} rm_id,
+            rmpct.dv_id ${sql.as} dv_id,
+            rmpct.dp_id ${sql.as} dp_id,
+            rmpct.prorate ${sql.as} prorate,
+            rmpct.rm_cat ${sql.as} rm_cat,
+            rmpct.rm_type ${sql.as} rm_type,
+            rmpct.area_chargable ${sql.as} area_chargable,
+            rmpct.area_rm ${sql.as} area_rm,
+            rmpct.area_comn ${sql.as} area_comn,
+            rmpct.area_comn_ocup ${sql.as} area_comn_ocup,
+            rmpct.area_comn_nocup ${sql.as} area_comn_nocup,
+            CASE WHEN fl.area_ocup_dp =0 THEN 0 ELSE (rmpct.area_rm * fl.area_fl_comn_ocup) /fl.area_ocup_dp END ${sql.as} flcomocup,
+            CASE WHEN bl.area_ocup_dp =0 THEN 0 ELSE (rmpct.area_rm * bl.area_bl_comn_ocup) /bl.area_ocup_dp END ${sql.as} blcomocup,
+            CASE WHEN site.area_ocup_dp =0 THEN 0 ELSE (rmpct.area_rm * site.area_st_comn_ocup) /site.area_ocup_dp END ${sql.as} stcomocup,
+            CASE WHEN fl.area_ocup_dp =0 THEN 0 ELSE (rmpct.area_rm * fl.area_fl_comn_nocup) /fl.area_ocup_dp END ${sql.as} flcomnocup,
+            CASE WHEN bl.area_ocup_dp =0 THEN 0 ELSE (rmpct.area_rm * bl.area_bl_comn_nocup) /bl.area_ocup_dp END ${sql.as} blcomnocup,
+            CASE WHEN site.area_ocup_dp =0 THEN 0 ELSE (rmpct.area_rm * site.area_st_comn_nocup) /site.area_ocup_dp END ${sql.as} stcomnocup
+            FROM rmpct,rmcat,fl,bl,site
+            WHERE rmpct.dp_id IS NOT NULL AND rmcat.occupiable = 1 AND rmpct.rm_cat = rmcat.rm_cat
+            AND rmcat.used_in_calcs IN ('all_totals', 'dp_comn_ocup_totals')
+            AND rmpct.fl_id = fl.fl_id AND rmpct.bl_id = fl.bl_id AND rmpct.bl_id = bl.bl_id AND fl.bl_id = bl.bl_id
+            AND site.site_id (+) = bl.site_id
+        </sql>
+        <table name="rmpct" role="main"/>
+        <field name="bl_id" dataType="text">
+            <title translatable="true">Building Code</title>
+        </field>
+        <field name="fl_id" dataType="text">
+            <title translatable="true">Floor Code</title>
+        </field>
+        <field name="rm_id" dataType="text">
+            <title translatable="true">Room Code</title>
+        </field>
+        <field name="dv_id" dataType="text">
+            <title translatable="true">Division Code</title>
+        </field>
+        <field name="dp_id" dataType="text">
+            <title translatable="true">Department Code</title>
+        </field>
+        <field name="prorate" dataType="text">
+            <title translatable="true">Prorate</title>
+        </field>
+        <field name="rm_cat" dataType="text">
+            <title translatable="true">Room Category</title>
+        </field>
+        <field name="rm_type" dataType="text">
+            <title translatable="true">Room Type</title>
+        </field>
+        <field name="area_chargable" dataType="number" decimals="2">
+            <title translatable="true">Chargeable Area</title>
+        </field>
+        <field name="area_rm" dataType="number" decimals="2">
+            <title translatable="true">Allocated Room Area</title>
+        </field>
+        <field name="area_comn" dataType="number" decimals="2">
+            <title translatable="true">Total Common Area</title>
+        </field>
+        <field name="area_comn_ocup" dataType="number" decimals="2">
+            <title translatable="true">Occupiable Common Area</title>
+        </field>
+        <field name="area_comn_nocup" dataType="number" decimals="2">
+            <title translatable="true">Non-Occupiable Common Area</title>
+        </field>
+        <field name="flcomocup" dataType="number" decimals="2">
+            <title translatable="true">Occupiable Floor Common Area</title>
+        </field>
+        <field name="blcomocup" dataType="number" decimals="2">
+            <title translatable="true">Occupiable Bldg. Common Area</title>
+        </field>
+        <field name="stcomocup" dataType="number" decimals="2">
+            <title translatable="true">Occupiable Site Common Area</title>
+        </field>
+        <field name="flcomnocup" dataType="number" decimals="2">
+            <title translatable="true">Non-Occupiable Floor Common Area</title>
+        </field>
+        <field name="blcomnocup" dataType="number" decimals="2">
+            <title translatable="true">Non-Occupiable Bldg. Common Area</title>
+        </field>
+        <field name="stcomnocup" dataType="number" decimals="2">
+            <title translatable="true">Non-Occupiable Site Common Area</title>
+        </field>
+        
+        <sortField table="rmpct" name="bl_id" ascending="true"/>
+        <sortField table="rmpct" name="fl_id" ascending="true"/>
+        <sortField table="rmpct" name="rm_id" ascending="true"/>
+        
+        <parameter name="flBlId" dataType="verbatim" value=""/>
+        <parameter name="flFlId" dataType="verbatim" value=""/>
+        <restriction type="parsed">
+            <clause relop="AND" op="=" table="rmpct" name="bl_id" value="${parameters['flBlId']}"/>
+            <clause relop="AND" op="=" table="rmpct" name="fl_id" value="${parameters['flFlId']}"/>
+        </restriction>
+    </dataSource>
+    
+    <panel id="buildingsGrid" dataSource="ds_ab-sp-vw-rmpct-chrgbk-anal_prnt_grid_bl" type="paginatedReport" format="table" role="parent">
+        <title translatable="true">Select Building</title>
+        <field name="bl_id" restrictionParameterName="blBlId"/>
+        <field name="area_ocup_dp">
+            <title translatable="true">Total Occup. Dept. Area</title>
+        </field>
+        <field name="area_bl_comn_ocup">
+            <title translatable="true">Occupiable Bldg. Comn. Area</title>
+        </field>
+        <field name="area_bl_comn_nocup">
+            <title translatable="true">Non-Occup. Bldg. Comn. Area</title>
+        </field>
+        <field name="cost_sqft">
+            <title translatable="true">Cost per. Area</title>
+        </field>
+    </panel>
+    <panel id="floorsGrid" dataSource="ds_ab-sp-vw-rmpct-chrgbk-anal_prnt_grid_fl" type="paginatedReport" format="table" role="parent">
+        <title translatable="true">Select Floor</title>
+        <field name="bl_id"  restrictionParameterName="flBlId"/>
+        <field name="fl_id" restrictionParameterName="flFlId"/>
+        <field name="area_ocup_dp">
+            <title translatable="true">Total Occup. Dept. Area</title>
+        </field>
+        <field name="area_fl_comn_ocup">
+            <title translatable="true">Occupiable Floor Comn. Area</title>
+        </field>
+        <field name="area_fl_comn_nocup">
+            <title translatable="true">Non-Occup. Floor Comn. Area</title>
+        </field>
+        <field name="area_remain">
+            <title translatable="true">Remaining Area</title>
+        </field>
+        <field name="prorate_remain">
+            <title translatable="true">Remaining Area Prorate</title>
+        </field>
+        <field name="cost_sqft">
+            <title translatable="true">Cost per Area</title>
+        </field>
+    </panel>
+    <panel id="roomsGrid" dataSource="ds_ab-sp-vw-rmpct-chrgbk-anal_prnt_grid_rmpct" type="paginatedReport" format="table" role="data">
+        <title translatable="true">Room Percentages</title>
+    </panel>
+</view>

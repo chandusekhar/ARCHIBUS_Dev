@@ -1,0 +1,373 @@
+'CICBBBOMA.ABS
+'Composite Inventory
+'Chargeback
+'Boma and Enhanced Boma Methods
+'10.26.95
+'03.19.97 - JH - Added entry point to call externally
+'09.16.99 - JH - MSSQL - Added case for MSSQL
+'09.23.99 - 09.28.99 - YQ - Added BOMA 96 Chargeback Calculation.
+'08.30.02 - JH - Changed calcs for gp.area_comn to use area_rentable/area_usable instead of 
+'			  ratio_ru since MSSQL does not seem to carry enough significant digits for ratio_ru
+
+Option Explicit
+
+'---- External Functions
+Declare Function SqlFunc_SQLIsNull() As String
+
+'---- Internal Functions
+Declare Sub cicbboma_CompInvGPBomaChargeback()
+Declare Sub cicbboma_CompInvGPEnhancedBomaChargeback()
+Declare Sub cicbboma_CompInvGPBoma96Chargeback()
+Declare Sub use_boma()
+Declare Sub use_eboma()
+Declare Sub use_boma96()
+Declare Sub boma(choice As Integer)
+
+
+'---- Declare view
+Declare Sub cicbboma
+
+'------------------------------------------------------------------------------
+'----                                    TRANSLATE
+Const kPleaseWaitMsg$              = "Please wait ... "
+Const kPerformingBomaCbMsg$        = "Performing BOMA Chargeback"
+Const kPerformingEnhBomaCbMsg$     = "Performing Enhanced BOMA Chargeback"
+Const kPerformingBoma96CbMsg$		= "Performing BOMA 96 Chargeback"
+
+'------------------------------------------------------------------------------
+
+Private bCalledFromLeaseView As Boolean
+
+Sub cicbboma_CompInvGPBomaChargeback()
+	bCalledFromLeaseView = TRUE
+	use_boma
+End Sub
+
+Sub cicbboma_CompInvGPEnhancedBomaChargeback()
+	bCalledFromLeaseView = TRUE
+	use_eboma
+End Sub
+
+Sub cicbboma_CompInvGPBoma96Chargeback()
+	bCalledFromLeaseView = TRUE
+	use_boma96
+End Sub
+
+'------------------------------------------------------------------------------
+'------ Run The Boma Chargeback (prorate by floor R/U ratio) ------------------
+'------------------------------------------------------------------------------
+Sub use_boma()
+
+	MsgOpen kPerformingBomaCbMsg & BASIC.EOLN$ & _
+             kPleaseWaitMsg, 0, FALSE, TRUE
+
+     boma 0
+
+End Sub
+
+'------------------------------------------------------------------------------
+'------ Run the Enhanced Boma Chargeback (prorate by bldg. R/U ratio) ---------
+'------------------------------------------------------------------------------
+Sub use_eboma()
+
+     MsgOpen kPerformingEnhBomaCbMsg & BASIC.EOLN$ & _
+             kPleaseWaitMsg, 0, FALSE, TRUE
+
+     boma 1
+
+End Sub
+
+'------------------------------------------------------------------------------
+'------ Run the Boma 96 Chargeback (building common area considered 
+'------ as floor usable area, and prorate by floor. R/U ratio) ---------
+'------------------------------------------------------------------------------
+Sub use_boma96()
+
+     MsgOpen kPerformingBoma96CbMsg & BASIC.EOLN$ & _
+             kPleaseWaitMsg, 0, FALSE, TRUE
+
+     boma 2
+
+End Sub
+
+'------------------------------------------------------------------------------
+Sub boma(choice As Integer)
+
+     Dim ff As New FieldFormula
+     Dim fo As New FieldOperation
+     Dim sSqlStatement As String
+
+     '--- Initialize certain group fields to 0
+
+     ff.Assigned =  "gp"
+     ff.AddFormula  "gp.cost","0.0"
+     ff.AddFormula  "gp.area_chargable","0.0"
+     ff.AddFormula  "gp.area_comn","0.0"
+     ff.Calculate
+     ff.Clear
+
+     '--- Sum VERT. PEN. area from VERT to FL
+
+     fo.Owner    = "fl"
+     fo.Assigned = "vert"
+     fo.Calculate "fl.area_vert_pen", "SUM", "vert.area"
+     fo.Clear
+
+     MsgSetThermometer 5
+
+     '--- Calculate RENTABLE area in FL
+
+     ff.Assigned = "fl"
+     ff.Calculate "fl.area_rentable", "fl.area_gross_int - fl.area_vert_pen"
+     ff.Clear
+
+     MsgSetThermometer 10
+
+     '--- Sum USABLE area from GP to FL 
+	'--- for BOMA 96, here is the steps to calculate the floor usable area:
+	'	1. calculate the sum of group area for the floor: FL_GP_AREA
+	'	2. calculate building common area: BL_COMN_AREA
+	'	3. calculate Total Group Area for the building: BL_GP_AREA
+	'	4. calculate sum of all floors usable area, which equals the sum of
+	'	   the buildings group area plus the sum of the building common area:
+	'			BL_COMN_AREA+BL_GP_AREA
+
+	'	From BOMA 96 Spec, you have the following formula,
+	'	    Fl_Usable = Sum of gp.area on floor +
+	'							  Fl_Usable
+	'					Bl_Comm * -------------------- 			
+	'							 Sum of Fl_Usable
+	'										Fl_Usable
+	'	=>  Fl_Usable = FL_GP_AREA + BL_COMN_AREA * -----------------------
+	'									 BL_COMN_AREA+BL_GP_AREA
+	
+	'	=>  Fl_Usable = (BL_COMN_AREA+BL_GP_AREA)*FL_GP_AREA/BL_GP_AREA	
+	'	=>  Fl_Usable = (BL_COMN_AREA/BL_GP_AREA + 1) * FL_GP_AREA
+
+	'---- Used by all BOMA methods
+	'---- Step 1 for BOMA 96: calculate the sum of group area for the floor:
+	'----	    FL_GP_AREA
+     fo.Owner    = "fl"
+     fo.Assigned = "gp"
+     fo.Calculate "fl.area_usable", "SUM", "gp.area"
+     fo.Clear 
+
+	'---- Calculations For BOMA 96
+	If Choice = 2 Then  
+
+		'---- Step 2: calculate building common area: BL_COMN_AREA
+		fo.Owner = "bl"
+		fo.Assigned = "serv"
+		fo.InpFilter = "serv.prorate = 'BUILDING'"
+		fo.Calculate "bl.area_bl_comn_serv", "SUM", "serv.area"
+		fo.Clear
+		
+		'---- Step 3: calculate Total Group Area for the building: BL_GP_AREA
+		fo.Owner    = "bl"
+		fo.Assigned = "fl"
+		fo.Calculate "bl.area_usable", "SUM", "fl.area_usable"
+		fo.Clear 
+
+		'---- Step 4: Fl_Usable = (BL_COMN_AREA + BL_GP_AREA) * _
+		'----			FL_GP_AREA / BL_GP_AREA
+		'----			    = (BL_COMN_AREA/ BL_GP_AREA + 1) * FL_GP_AREA
+
+		If ProjDb.ServerType <> "Sybase" Then
+			sSqlStatement = "UPDATE fl SET fl.area_usable = " & _
+						"	(SELECT " & SqlFunc_SQLIsNull() &_
+						"	(((bl.area_bl_comn_serv/bl.area_usable + 1)* fl.area_usable), 0)" & _
+						"	FROM bl " & _
+						"	WHERE fl.bl_id = bl.bl_id " &_
+						"	AND bl.area_usable <> 0 ) " & _
+						" WHERE fl.area_usable <> 0"
+			ProjDb.ExecuteSQL sSQlStatement
+		Else
+			ff.Assigned = "fl"
+			ff.Standard = "bl"
+			ff.Calculate "fl.area_usable", _ 
+				"IF bl.area_usable = 0 THEN 0 ELSE " & _ 
+				"(bl.area_bl_comn_serv/bl.area_usable+1)* fl.area_usable ENDIF"
+			ff.Clear
+		End If
+	End If
+
+     MsgSetThermometer 15
+
+     '--- Sum RENTABLE, USABLE, and VERT. PEN. area from FL to BL
+
+     fo.Owner    = "bl"
+     fo.Assigned = "fl"
+     fo.AddOperation "bl.area_rentable", "SUM", "fl.area_rentable"
+     fo.AddOperation "bl.area_usable", "SUM", "fl.area_usable"
+     fo.AddOperation "bl.area_vert_pen", "SUM", "fl.area_vert_pen"
+     fo.Calculate
+     fo.Clear
+    
+     MsgSetThermometer 20
+
+     '--- Sum RENTABLE, USABLE, and VERT. PEN. area from BL to SITE
+  
+     fo.Owner    = "site"
+     fo.Assigned = "bl"
+     fo.AddOperation "site.area_rentable", "SUM", "bl.area_rentable"
+     fo.AddOperation "site.area_usable", "SUM", "bl.area_usable"
+     fo.AddOperation "site.area_vert_pen", "SUM", "bl.area_vert_pen"
+     fo.Calculate
+     fo.Clear
+
+     MsgSetThermometer 25
+
+     '--- Calculate FL R/U ratio, and U/R ratio
+
+     ff.Assigned = "fl"
+     ff.OutFilter = "fl.area_usable <> 0"
+     ff.Calculate "fl.ratio_ru", "fl.area_rentable/fl.area_usable"
+     ff.OutFilter = "fl.area_usable = 0"
+     ff.Calculate "fl.ratio_ru", "0"
+     ff.OutFilter = "fl.area_rentable <> 0"
+     ff.Calculate "fl.ratio_ur", "fl.area_usable/fl.area_rentable*100"
+     ff.OutFilter = "fl.area_rentable = 0"
+     ff.Calculate "fl.ratio_ur", "0"
+     ff.Clear
+
+     MsgSetThermometer 30
+
+     '--- Calculate BL R/U ratio, and U/R ratio
+
+     ff.Assigned = "bl"
+     ff.OutFilter = "bl.area_usable <> 0"
+     ff.Calculate "bl.ratio_ru", "bl.area_rentable/bl.area_usable"
+     ff.OutFilter = "bl.area_usable = 0"
+     ff.Calculate "bl.ratio_ru", "0"
+     ff.OutFilter = "bl.area_rentable <> 0"
+     ff.Calculate "bl.ratio_ur", "bl.area_usable/bl.area_rentable*100"
+     ff.OutFilter = "bl.area_rentable = 0"
+     ff.Calculate "bl.ratio_ur", "0"
+     ff.Clear
+
+     MsgSetThermometer 35
+
+     '--- Calculate SITE R/U ratio, and U/R ratio
+
+     ff.Assigned = "site"
+     ff.OutFilter = "site.area_usable <> 0"
+     ff.Calculate "site.ratio_ru", "site.area_rentable/site.area_usable"
+     ff.OutFilter = "site.area_usable = 0"
+     ff.Calculate "site.ratio_ru", "0"
+     ff.OutFilter = "site.area_rentable <> 0"
+     ff.Calculate "site.ratio_ur", "site.area_usable/site.area_rentable*100"
+     ff.OutFilter = "site.area_rentable = 0"
+     ff.Calculate "site.ratio_ur", "0"
+     ff.Clear
+
+     MsgSetThermometer 40
+
+     '--- Calculate COMMON AREA using floor R/U ratio (choice=0,2), or
+     '--- building R/U ratio (choice=1)
+
+     ff.Owner    = "bl"
+     ff.Assigned = "gp"
+     ff.Standard = "fl"
+     IF choice = 0 Or Choice = 2 THEN
+          ff.Calculate "gp.area_comn", "(gp.area * (fl.area_rentable/fl.area_usable)) - gp.area" 
+     ELSEIF choice = 1 THEN
+          ff.Calculate "gp.area_comn", "(gp.area * (bl.area_rentable/bl.area_usable)) - gp.area" 
+     END IF
+     ff.Clear 
+
+     MsgSetThermometer 45
+
+     '--- Calculate CHARGABLE AREA
+
+     ff.Assigned = "gp"
+     ff.Calculate "gp.area_chargable","gp.area + gp.area_comn"
+     ff.Clear
+
+     MsgSetThermometer 50
+
+     '--- Calculate COST
+     '--- Oracle has to be calc'd differently due to its limitations
+
+     If ProjDb.ServerType <> "Sybase" Then
+
+          sSqlStatement = "UPDATE gp SET gp.cost =" & _
+                              " (SELECT " & SqlFunc_SQLIsNull() & _
+                                   " (gp.area_chargable * fl.cost_sqft,0)" & _
+                              " FROM fl" & _
+                              " WHERE gp.bl_id = fl.bl_id" & _
+                              " AND gp.fl_id = fl.fl_id)" & _
+                         " WHERE gp.dp_id IS NOT NULL"
+          ProjDb.ExecuteSQL sSqlStatement
+
+          sSqlStatement = "UPDATE gp SET gp.cost =" & _
+                              " (SELECT " & SqlFunc_SQLIsNull() & _
+                                   " (gp.area_chargable * bl.cost_sqft,0)" & _
+                              " FROM bl" & _
+                              " WHERE gp.bl_id = bl.bl_id)" & _
+                         " WHERE gp.dp_id IS NOT NULL" & _
+                         " AND gp.cost = 0"
+          ProjDb.ExecuteSQL sSqlStatement
+
+     Else      '---- Sybase
+
+          ff.Owner = "bl"
+          ff.Assigned = "gp"
+          ff.Standard = "fl"
+          ff.Calculate "gp.cost","IF fl.cost_sqft <> 0 THEN " + _
+                                 "gp.area_chargable * fl.cost_sqft ELSE " + _
+                                 "gp.area_chargable * bl.cost_sqft ENDIF"
+          ff.Clear
+
+     End If
+
+     MsgSetThermometer 55
+
+     '--- Sum COST, CHARGABLE area, COMMON area, and GROUP area, from GP to DP
+     
+     fo.Owner    = "dp"
+     fo.Assigned = "gp"
+     fo.AddOperation "dp.cost", "SUM", "gp.cost"
+     fo.AddOperation "dp.area_chargable", "SUM", "gp.area_chargable"
+     fo.AddOperation "dp.area_comn", "SUM", "gp.area_comn"
+     fo.AddOperation "dp.area_gp", "SUM", "gp.area"
+     fo.Calculate
+     fo.Clear 
+
+     MsgSetThermometer 60
+
+     '--- Sum COST, CHARGABLE area, COMMON area, and GROUP area, from DP to DV
+
+     fo.Owner    = "dv"
+     fo.Assigned = "dp"
+     fo.AddOperation "dv.cost", "SUM", "dp.cost"
+     fo.AddOperation "dv.area_chargable", "SUM", "dp.area_chargable"
+     fo.AddOperation "dv.area_comn", "SUM", "dp.area_comn"
+     fo.AddOperation "dv.area_gp", "SUM", "dp.area_gp"
+     fo.Calculate
+     fo.Clear 
+
+     MsgSetThermometer 65
+
+     '--- Sum COST, CHARGABLE area, COMMON area, and GROUP area, from DV to BU
+
+     fo.Owner    = "bu"
+     fo.Assigned = "dv"
+     fo.AddOperation "bu.cost", "SUM", "dv.cost"
+     fo.AddOperation "bu.area_chargable", "SUM", "dv.area_chargable"
+     fo.AddOperation "bu.area_comn", "SUM", "dv.area_comn"
+     fo.AddOperation "bu.area_gp", "SUM", "dv.area_gp"
+     fo.Calculate
+     fo.Clear 
+
+     MsgSetThermometer 100
+
+     MsgClose
+
+	If Not bCalledFromLeaseView Then
+		' ---- call the BOMA chargeback view
+		call cicbboma
+		Avw.Display
+	End If
+  
+End Sub
+

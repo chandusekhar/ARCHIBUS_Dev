@@ -1,0 +1,303 @@
+<view version="2.0">
+	<layout type="borderLayout" id="mainLayout">
+		<west initialSize="450" split="true" />
+		<center autoScroll="false" />
+	</layout>
+	
+	<!-- 
+		@summary
+		Supervisor - Planning Board <br />
+		
+		This view allows the user to:
+		<ul>
+		<li>Plan tasks by assigning them to craftspersons</li>
+		</ul>	
+	-->
+	<title translatable="true">Planning Board</title>
+	 
+	<style type="text/css">
+		@import url("/archibus/schema/ab-system/javascript/yui/assets/container.css");
+		@import url("/archibus/schema/ab-system/javascript/yui/assets/menu.css");
+		@import url("/archibus/schema/ab-system/javascript/yui/assets/logger.css");
+		@import url("/archibus/schema/ab-products/bldgops/ondemandwork/supervisor/schedule/schedule.css");
+	</style>
+
+	<message name="taskTitle" translatable="true">Task for {0} for {1} hours, at {2}</message>
+	<message name="treeTitle" translatable="true">Task Tree</message>
+	
+	<message name="resourcenotexist" translatable="true">Craftsperson does not exist</message>
+	
+	<message name="validateErrors" translatable="true">Errors</message>
+	<message name="validateWarnings" translatable="true">Warnings</message>
+	
+	<message name="validateYes" translatable="true">Yes</message>
+	<message name="validateNo" translatable="true">No</message>
+	<message name="validateOk" translatable="true">Ok</message>
+	<message name="validateCancel" translatable="true">Cancel</message>
+	
+	<message name="validateWorkingDay" translatable="true">This day ({0}) is not a working day according the Service Window</message>
+	<message name="validateDuration" translatable="true">Duration must be greater than 0</message>
+	<message name="validateEntryExists" translatable="true">Entry already exists for this day</message>
+	<message name="validateServiceWindowHours" translatable="true">More hours to plan ({0}) than Service Window Hours ({1}) for a day</message>
+	<message name="validateServiceWindowStartEndTime" translatable="true">Start and end must be in Service Window (between {0} and {1} hour)</message>
+	
+	<message name="validateStandardHours" translatable="true">More hours {0} to plan than Standard Available Hours for this person, do you want to override?</message>
+	<message name="validateEscalation" translatable="true">Escalation Date violation {0}, do you want to override?</message>
+	<message name="validateHoliday" translatable="true">This is a holiday, do you want to override?</message>
+	
+	<message name="progressWindowWaiting" translatable="true">Loading data, please wait...</message>
+	<message name="errorsSaveRecord" translatable="true">Error saving record to database</message>
+	
+	<message name="treeNewTask" translatable="true">New Task</message>
+	
+	<message name="week" translatable="true">Week</message>
+	<message name="navigationNext" translatable="true">Next</message>
+	<message name="navigationPrevious" translatable="true">Prev</message>
+	
+	<message name="contextmenuShowInfo" translatable="true">Show Info</message>
+	<message name="contextmenuHighlightEntries" translatable="true">Highlight Entries</message>
+	<message name="contextmenuClearAllHighlights" translatable="true">Clear Highlights</message>
+	<message name="contextmenuAddHighlights" translatable="true">Add Highlights</message>
+	<message name="contextmenuRemoveHighlights" translatable="true">Remove Highlights</message>
+	
+	<message name="contextmenuEdit" translatable="true">Edit</message>
+	<message name="contextmenuRemove" translatable="true">Remove</message>
+	<message name="contextmenuSplit" translatable="true">Split</message>
+	
+	
+	<message name="buttonsMonth" translatable="true">Month</message>
+	<message name="buttonsWeek" translatable="true">Week</message>
+	<message name="buttonsWorkweek" translatable="true">Work week</message>
+	<message name="buttonsDay" translatable="true">Day</message>
+	
+	
+	<message name="sun" translatable="true">Sun</message>
+	<message name="mon" translatable="true">Mon</message>
+	<message name="tue" translatable="true">Tue</message>
+	<message name="wed" translatable="true">Wed</message>
+	<message name="thur" translatable="true">Thur</message>
+	<message name="fri" translatable="true">Fri</message>
+	<message name="sat" translatable="true">Sat</message>
+	
+	<message name="NoWorkRequestNodeSelected" translatable="true">No Work Request Node is selected.</message>
+	<message name="cfCodeFieldTitle" translatable="true">Craftsperson Code</message>
+	<!-- ===================== Left Region ================================= -->
+	
+	<!-- ====== Filter Panel Begin ====== -->
+	 
+	<dataSource id="wrDS">
+		<table name="wr" role="main" />
+		<field table="wr" name="site_id" />
+        <field table="wr" name="bl_id"/>
+		<field table="wr" name="prob_type" />
+        <field table="wr" name="requestor" />
+        <field table="wr" name="wr_id" />
+        <field table="wr" name="description" />
+		<field table="wr" name="wo_id" />
+		<field table="wr" name="date_escalation_completion" />
+        <field table="wr" name="work_team_id" />
+	</dataSource>
+
+	<panel type="console" columns="2" labelsPosition="top"
+		id="filterPanel" dataSource="wrDS" region="west">
+		<action id="filter">
+			<title translatable="true">Show</title>
+			<command type="callFunction" functionName="refreshTreeProbWrTask" />
+			<command type="callFunction" functionName="refreshScheduleView" />
+		</action>
+
+		<field table="wr" name="site_id"/>
+        <field table="wr" name="bl_id" selectValueType="multiple"/>
+        <field table="wr" name="prob_type" selectValueType="multiple"/>
+        <field table="wr" name="requestor"/>
+        <field table="wr" name="wr_id"/>
+		<field table="wr" name="date_escalation_completion"
+			alias="filter_date">
+			<title translatable="true">Date Completion By</title>
+		</field>
+        <field table="wr" name="work_team_id">
+           <action id="filterPanel_selWorkTeam">
+                <title>...</title>
+                <command type="selectValue"
+                            selectValueType="multiple"
+                            fieldNames="wr.work_team_id"
+                            selectFieldNames="cf_work_team.work_team_id"
+                            visibleFieldNames="cf_work_team.work_team_id"
+                            restriction="cf_work_team.cf_id IN (select cf.cf_id from cf where cf.email = ${sql.literal(user.email)})">
+                </command>         
+             </action>
+        </field>
+        <field/>
+        <field table="wr" name="description" colspan="2"/>
+	</panel>
+	
+	
+	<!-- ====== Filter Panel End ====== -->
+	
+	<!-- ====== Tree Panel Begin ====== -->
+
+ 	<dataSource id="treeProbDS" distinct="true">
+        <table name="wr" role="main"/>
+        <field table="wr" name="prob_type"/>
+        
+        <parameter name="scheduleRest" dataType="verbatim" value="em_id is null"/>
+        <parameter name="workteamRest" dataType="verbatim" value="work_team_id is null"/>
+        <parameter name="supervisorRest" dataType="verbatim" value="supervisor is null"/>
+        <parameter name="consoleRest" dataType="verbatim" value="1=1"/>
+        
+        <restriction type="sql" sql=" prob_type IS NOT NULL AND site_id IS NOT NULL AND status IN ('A','AA','I')  AND (${parameters['consoleRest']} )
+						 AND (${parameters['supervisorRest']} 
+                         OR ${parameters['workteamRest']} )
+						 OR (step_status IS NOT NULL AND step_status != 'none' AND wr_id IN (select wr_id from wr_step_waiting where step_type='scheduling' AND
+                          ${parameters['scheduleRest']}))" 
+						 />
+                         
+        <sortField table="wr" name="prob_type" ascending="true" />
+    </dataSource>
+    	
+  	<dataSource id="treeWrDS">
+        <table name="wr" role="main"/>
+        <field table="wr" name="prob_type" />
+        <field table="wr" name="description" />
+        <field table="wr" name="wr_id" />
+        
+        <parameter name="workteamRest" dataType="verbatim" value="work_team_id IS NULL"/>
+        <parameter name="supervisorRest" dataType="verbatim" value="supervisor IS NULL"/>
+        <parameter name="scheduleRest" dataType="verbatim" value="em_id IS NULL"/>
+        <parameter name="consoleRest" dataType="verbatim" value="1=1"/>
+        
+        <restriction type="sql" sql=" prob_type IS NOT NULL AND site_id IS NOT NULL AND status IN ('A','AA','I')  AND (${parameters['consoleRest']} )
+                         AND (${parameters['supervisorRest']} 
+                         OR ${parameters['workteamRest']} )
+                         OR (step_status IS NOT NULL AND step_status != 'none' AND wr_id IN (select wr_id from wr_step_waiting where step_type='scheduling' AND
+                          ${parameters['scheduleRest']}))"
+						 />
+                         
+	
+        <sortField table="wr" name="prob_type" ascending="true" />
+        <sortField table="wr" name="wr_id" ascending="true" />
+    </dataSource>
+	
+	<dataSource id="treeTaskDS" >
+        <table name="wrtr" role="main"/>
+        <field table="wrtr" name="tr_id" />
+        <field table="wrtr" name="hours_sched" />
+        <field table="wrtr" name="hours_est" />
+        <field table="wrtr" name="wr_id" />
+    </dataSource>
+    
+  	<panel type="tree" id="treeProbWrTask" dataSource="treeProbDS" region="west" showOnLoad="false">
+  		<title translatable="true">Task Tree</title>
+  		<action id="showMenu">
+            <title translatable="true">Show Menu</title>
+        </action>
+  		<panel type="tree" id="treeWr" dataSource="treeWrDS">
+  			<field table="wr" name="wr_id" />
+  		</panel>
+  		<field table="wr" name="prob_type" />
+  	</panel>
+  	
+  	<!-- ===================== Right Region ================================ -->
+  	<panel type="html" id="scheduleViewPanel" region="center"
+  		layout="mainLayout">
+  		<html>
+			<div id="scheduleView"><!-- place holder for schedule view -->
+
+  			</div>
+
+  			<!-- placeholder for the select dialog -->
+  			<div id="selectTradeDialog">
+  				<div class="hd">_</div>
+  				<div class="bd"></div>
+  			</div>
+  			<!-- placeholder for error dialog -->
+  			<div id="errorDialog">
+  				<div class="hd">_</div>
+  				<div class="bd"></div>
+  			</div>
+  			<!-- placeholder for confirm dialog -->
+  			<div id="confirmDialog">
+  				<div class="hd">_</div>
+  				<div class="bd"></div>
+  			</div>
+  			<div id="divContextMenu">
+  			
+  			</div>
+  		</html>
+  	</panel>
+
+  	<!-- ====================Hidden Panels Begin=========================== -->
+	<!-- form for entry update -->
+	<dataSource id="editWrcfDS">
+		<table name="wrcf" role="main" />
+
+		<field table="wrcf" name="wr_id" readOnly="true" />
+		<field table="wrcf" name="cf_id" />
+		<field table="wrcf" name="date_assigned" />
+		<field table="wrcf" name="time_assigned" />
+
+		<field table="wrcf" name="work_type" />
+		<field table="wrcf" name="hours_est" />
+
+		<field table="wrcf" name="comments" />
+
+		<field table="wrcf" name="scheduled_from_tr_id" readOnly="true" />
+	</dataSource>
+
+
+	<panel type="form" columns="2" id="editPanel" dataSource="editWrcfDS" 
+		hidden="true"  showOnLoad="false">
+		<title translatable="true">Schedule:</title>
+	
+		<!-- save action defined by listener in EntryRenderer -->
+		<action id="editFormSave">
+			<title translatable="true">Save</title>
+		</action>
+		<action onclick="onClose('editPanel')">
+			<title translatable="true">Close</title>
+		</action>
+
+		<field table="wrcf" name="wr_id" readOnly="true" />
+		<field table="wrcf" name="scheduled_from_tr_id" hidden="true"
+			readOnly="true" />
+
+		<field name="cf_id" table="wrcf">
+			<action>
+				<title>...</title>
+				<command type="callFunction" functionName="selectCf()" />
+			</action>
+		</field>
+
+		<field table="wrcf" name="date_assigned" />
+		<field table="wrcf" name="time_assigned" />
+
+		<field table="wrcf" name="work_type" />
+		<field table="wrcf" name="hours_est">
+			<title translatable="true">Scheduled Hours</title>
+		</field>
+
+		<field table="wrcf" colspan="2" name="comments" />
+	</panel>
+	<!-- ====================Hidden Panels Begin=========================== -->
+	
+	<js file="container2-9.js" /> 	
+ 	<js file="dragdrop2-9.js" />  	 
+	<js file="animation2-9.js" /> 
+	<js file="menu2-9.js" /> 
+    <js file="event2-9.js" />
+    <js file="treeview2-9.js"/>
+    <js file="dom2-9.js"/>
+
+	<js file="ab-ondemand-planningboard.js" />
+			
+  	<!-- planning board js files -->
+ 	<js file="planningboard-util.js" /> 
+	<js file="planningboard-scheduleview.js" />
+	<js file="planningboard-timeline.js" />
+	<js file="planningboard-layout.js" /> 
+	<js file="planningboard-container.js" /> 		
+    <js file="planningboard-data-entry.js" /> 
+	<js file="planningboard-schedule-entry.js" /> 
+	<js file="planningboard-treenode.js" /> 
+	<js file="planningboard-dragdrop.js" /> 
+ </view>

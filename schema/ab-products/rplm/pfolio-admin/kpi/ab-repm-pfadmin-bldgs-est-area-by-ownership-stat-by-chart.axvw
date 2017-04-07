@@ -1,0 +1,270 @@
+<view version="2.0">
+    <title translatable="false">&#160;</title>
+    <js file="ab-repm-pfadmin-bldgs-est-area-by-ownership-stat-by-chart.js"/>
+    
+    <!-- Messages -->
+    <message name="titleBldgAreaByOwnershipBy" translatable="true">Building Area Availability by {0}</message>
+
+    <dataSource id="abRepmBldgEstAreaByOwnershipByChartGroupingAxis_ds" type="grouping" applyVpaRestrictions="false">
+        <sql dialect="generic">
+            SELECT 
+                bl.ctry_id ${sql.as} ctry_id,
+                bl.regn_id ${sql.as} regn_id,
+                bl.state_id ${sql.as} state_id,
+                bl.city_id ${sql.as} city_id,
+                bl.site_id ${sql.as} site_id,
+                bl.pr_id ${sql.as} pr_id,
+                bl.bl_id ${sql.as} bl_id,
+                su.facility_type_id ${sql.as} facility_type_id,
+                su.ls_id ${sql.as} ls_id
+            FROM bl, su
+            WHERE su.bl_id = bl.bl_id
+        </sql>
+        <table name="bl" role="main"/>
+        <field name="group_by" dataType="text" groupBy="true">
+            <sql dialect="generic">
+                (${parameters['groupBy']})
+            </sql>
+        </field>
+        <parameter name="filter" dataType="verbatim" value="1 = 1"/>
+        <parameter name="groupBy" dataType="verbatim" value="bl.ctry_id"/>
+        <restriction type="sql" sql="${parameters['filter']}"/>
+        <sortField table="bl" name="group_by" ascending="true"/>
+    </dataSource>
+
+    <dataSource id="abRepmBldgEstAreaByOwnershipByChartDataAxis_ds" type="grouping" applyVpaRestrictions="false">
+        <sql dialect="generic">
+            SELECT 
+                bl.ctry_id ${sql.as} ctry_id,
+                bl.regn_id ${sql.as} regn_id,
+                bl.state_id ${sql.as} state_id,
+                bl.city_id ${sql.as} city_id,
+                bl.site_id ${sql.as} site_id,
+                bl.pr_id ${sql.as} pr_id,
+                bl.bl_id ${sql.as} bl_id,
+                su.facility_type_id ${sql.as} facility_type_id,
+                su.ls_id ${sql.as} ls_id,
+                (SELECT (CASE WHEN su_int.area_usable=0 THEN su_int.area_manual ELSE su_int.area_usable END) 
+                FROM su ${sql.as} su_int
+                WHERE su_int.bl_id = su.bl_id AND su_int.su_id = su.su_id AND su_int.fl_id = su.fl_id AND
+                    ( EXISTS(SELECT 1 FROM ot WHERE ot.bl_id = su_int.bl_id
+                             AND ot.status = 'Owned'
+                             AND (ot.date_purchase &lt;= ${sql.currentDate} OR ot.date_purchase IS NULL) 
+                             AND (ot.date_sold &gt;= ${sql.currentDate} OR ot.date_sold IS NULL)
+                             AND su_int.ls_id IS NULL)
+                      OR
+                      EXISTS(SELECT 1 FROM ls WHERE ls.use_as_template = 0 AND su_int.ls_id = ls.ls_id
+                            AND (ls.date_start &lt;= ${sql.currentDate} OR ls.date_start IS NULL)
+                            AND (ls.date_end &gt;= ${sql.currentDate} OR ls.date_end IS NULL)
+                            AND ls.landlord_tenant = 'TENANT'
+                            AND ls.signed = 1)
+                )) ${sql.as} available_area,
+                (SELECT (CASE WHEN su_int.area_usable=0 THEN su_int.area_manual ELSE su_int.area_usable END) 
+                FROM su ${sql.as} su_int
+                WHERE su_int.bl_id = su.bl_id AND su_int.su_id = su.su_id AND su_int.fl_id = su.fl_id AND 
+                    EXISTS(SELECT 1 FROM ls WHERE ls.use_as_template = 0 AND su_int.ls_id = ls.ls_id
+                            AND (ls.date_start &lt;= ${sql.currentDate} OR ls.date_start IS NULL)
+                            AND (ls.date_end &gt;= ${sql.currentDate} OR ls.date_end IS NULL)
+                            AND ls.landlord_tenant = 'LANDLORD'
+                            AND ls.signed = 1)
+                ) ${sql.as} area_used_by_others,
+                (SELECT (CASE WHEN su_int.area_usable=0 THEN su_int.area_manual ELSE su_int.area_usable END) 
+                FROM su ${sql.as} su_int
+                WHERE su_int.bl_id = su.bl_id AND su_int.su_id = su.su_id AND su_int.fl_id = su.fl_id AND 
+                    (EXISTS(SELECT 1 FROM ot WHERE ot.bl_id = su_int.bl_id
+                            AND ot.status = 'Pipeline'
+                            AND (ot.date_purchase &lt;= ${sql.currentDate} OR ot.date_purchase IS NULL) 
+                            AND (ot.date_sold &gt;= ${sql.currentDate} OR ot.date_sold IS NULL)
+                            AND su_int.ls_id IS NULL)
+                    OR
+                    EXISTS(SELECT 1 FROM ls WHERE ls.use_as_template = 0 AND su_int.ls_id = ls.ls_id
+                            AND (ls.date_start &lt;= ${sql.currentDate} OR ls.date_start IS NULL)
+                            AND (ls.date_end &gt;= ${sql.currentDate} OR ls.date_end IS NULL)
+                            AND ls.landlord_tenant = 'TENANT'
+                            AND ls.signed = 0)
+                 )) ${sql.as} pipeline_for_available,
+                 (SELECT (CASE WHEN su_int.area_usable=0 THEN su_int.area_manual ELSE su_int.area_usable END) 
+                    FROM su ${sql.as} su_int
+                 WHERE su_int.bl_id = su.bl_id AND su_int.su_id = su.su_id AND su_int.fl_id = su.fl_id AND 
+                    EXISTS(SELECT 1 FROM ls WHERE su_int.ls_id = ls.ls_id
+                            AND (ls.date_start &lt;= ${sql.currentDate} OR ls.date_start IS NULL)
+                            AND (ls.date_end &gt;= ${sql.currentDate} OR ls.date_end IS NULL)
+                            AND ls.signed = 0 
+                            AND landlord_tenant = 'LANDLORD')
+                 ) ${sql.as} pipeline_for_used_by_others
+            FROM bl, su
+            WHERE su.bl_id = bl.bl_id
+        </sql>
+        <table name="bl" role="main"/>
+        <field name="group_by" dataType="text" groupBy="true">
+            <sql dialect="generic">
+                (${parameters['groupBy']})
+            </sql>
+        </field>
+        <field name="vf_available_area" formula="sum" baseField="bl.available_area" dataType="number" size="20" decimals="1" numericFormat="area">
+            <title>Estimated Available Area ${(activityParameters['AbCommonResources-ConvertAreasLengthsToUserUnits'] == 1)?user.areaUnits.title:''}</title>
+        </field>
+        <field name="vf_area_used_by_others" formula="sum" baseField="bl.area_used_by_others" dataType="number" size="20" decimals="1" numericFormat="area">
+            <title>Estimated Leased Out Area ${(activityParameters['AbCommonResources-ConvertAreasLengthsToUserUnits'] == 1)?user.areaUnits.title:''}</title>
+        </field>
+        <field name="vf_pipeline_for_available" formula="sum" baseField="bl.pipeline_for_available" dataType="number" size="20" decimals="1" numericFormat="area">
+            <title>Pipeline: Available ${(activityParameters['AbCommonResources-ConvertAreasLengthsToUserUnits'] == 1)?user.areaUnits.title:''}</title>
+        </field>
+        <field name="vf_pipeline_for_used_by_others" formula="sum" baseField="bl.pipeline_for_used_by_others" dataType="number" size="20" decimals="1" numericFormat="area">
+            <title>Pipeline:Leased Out ${(activityParameters['AbCommonResources-ConvertAreasLengthsToUserUnits'] == 1)?user.areaUnits.title:''}</title>
+        </field>
+
+       <restriction type="sql" sql="${parameters['groupBy']} = ${parameters['summaryValueForThisGroup']} AND ${parameters['filter']} AND ${sql.vpaRestriction}"/>
+        
+        <parameter name="summaryValueForThisGroup" dataType="text" value=""/>  
+        <parameter name="filter" dataType="verbatim" value="1 = 1"/>
+        <parameter name="groupBy" dataType="verbatim" value="bl.ctry_id"/>
+        <sortField table="bl" name="group_by" ascending="true"/>
+    </dataSource>
+       
+
+    <panel id="abRepmBldgEstAreaByOwneshipChart" type="chart" showOnLoad="false" controlType="stackedBarChart" showLegendOnLoad="false" dataSource="abRepmBldgEstAreaByOwnershipByChartDataAxis_ds">
+        <title></title>
+        <event type="onClickItem">
+            <command type="callFunction" functionName="onDrillDown"/>                 
+        </event>
+        <action id="filter" imageName="/schema/ab-system/graphics/ab-filter-run.gif">
+            <tooltip>Filter</tooltip>
+        </action>
+        <action id="report" imageName="/schema/ab-system/graphics/ab-icon-report.gif">
+            <tooltip>Report</tooltip>      
+        </action>
+        <action id="export">
+            <title translatable="true">DOC </title>
+            <command type="exportPanel" outputType="docx" panelId="abRepmBldgEstAreaByOwneshipChart" orientation="landscape"/>
+        </action>
+        
+        <dataAxisTitle translatable="true">Area ${(activityParameters['AbCommonResources-ConvertAreasLengthsToUserUnits'] == 1)?user.areaUnits.title:''}</dataAxisTitle>
+        
+        <groupingAxis table="bl" field="group_by"  dataSource="abRepmBldgEstAreaByOwnershipByChartGroupingAxis_ds">
+            <title></title> 
+        </groupingAxis>
+        <dataAxis  table="bl" field="vf_available_area" dataSource="abRepmBldgEstAreaByOwnershipByChartDataAxis_ds">
+            <title>Estimated Available Area ${(activityParameters['AbCommonResources-ConvertAreasLengthsToUserUnits'] == 1)?user.areaUnits.title:''}</title>
+        </dataAxis>
+        <dataAxis  table="bl" field="vf_area_used_by_others" dataSource="abRepmBldgEstAreaByOwnershipByChartDataAxis_ds">
+            <title>Estimated Leased Out Area ${(activityParameters['AbCommonResources-ConvertAreasLengthsToUserUnits'] == 1)?user.areaUnits.title:''}</title>
+        </dataAxis>
+        <dataAxis  table="bl" field="vf_pipeline_for_available" dataSource="abRepmBldgEstAreaByOwnershipByChartDataAxis_ds">
+            <title>Pipeline: Available${(activityParameters['AbCommonResources-ConvertAreasLengthsToUserUnits'] == 1)?user.areaUnits.title:''}</title>
+        </dataAxis>
+        <dataAxis  table="bl" field="vf_pipeline_for_used_by_others" dataSource="abRepmBldgEstAreaByOwnershipByChartDataAxis_ds">
+            <title>Pipeline:Leased Out ${(activityParameters['AbCommonResources-ConvertAreasLengthsToUserUnits'] == 1)?user.areaUnits.title:''}</title>
+        </dataAxis>
+    </panel>
+    
+    <!-- Report -->
+    <dataSource id="abRepmBldgEstAreaByOwnershipByReport_ds" type="grouping" applyVpaRestrictions="false">
+        <sql dialect="generic">
+            SELECT 
+                bl.ctry_id ${sql.as} ctry_id,
+                bl.regn_id ${sql.as} regn_id,
+                bl.state_id ${sql.as} state_id,
+                bl.city_id ${sql.as} city_id,
+                bl.site_id ${sql.as} site_id,
+                bl.pr_id ${sql.as} pr_id,
+                bl.bl_id ${sql.as} bl_id,
+                su.facility_type_id ${sql.as} facility_type_id,
+                su.ls_id ${sql.as} ls_id,
+                (SELECT (CASE WHEN su_int.area_usable=0 THEN su_int.area_manual ELSE su_int.area_usable END) 
+                FROM su ${sql.as} su_int
+                WHERE su_int.bl_id = su.bl_id AND su_int.su_id = su.su_id AND su_int.fl_id = su.fl_id AND
+                    ( EXISTS(SELECT 1 FROM ot WHERE ot.bl_id = su_int.bl_id
+                             AND ot.status = 'Owned'
+                             AND (ot.date_purchase &lt;= ${sql.currentDate} OR ot.date_purchase IS NULL) 
+                             AND (ot.date_sold &gt;= ${sql.currentDate} OR ot.date_sold IS NULL)
+                             AND su_int.ls_id IS NULL)
+                      OR
+                      EXISTS(SELECT 1 FROM ls WHERE ls.use_as_template = 0 AND su_int.ls_id = ls.ls_id
+                            AND (ls.date_start &lt;= ${sql.currentDate} OR ls.date_start IS NULL)
+                            AND (ls.date_end &gt;= ${sql.currentDate} OR ls.date_end IS NULL)
+                            AND ls.landlord_tenant = 'TENANT'
+                            AND ls.signed = 1)
+                )) ${sql.as} available_area,
+                (SELECT (CASE WHEN su_int.area_usable=0 THEN su_int.area_manual ELSE su_int.area_usable END) 
+                FROM su ${sql.as} su_int
+                WHERE su_int.bl_id = su.bl_id AND su_int.su_id = su.su_id AND su_int.fl_id = su.fl_id AND 
+                    EXISTS(SELECT 1 FROM ls WHERE ls.use_as_template = 0 AND su_int.ls_id = ls.ls_id
+                            AND (ls.date_start &lt;= ${sql.currentDate} OR ls.date_start IS NULL)
+                            AND (ls.date_end &gt;= ${sql.currentDate} OR ls.date_end IS NULL)
+                            AND ls.landlord_tenant = 'LANDLORD'
+                            AND ls.signed = 1)
+                ) ${sql.as} area_used_by_others,
+                (SELECT (CASE WHEN su_int.area_usable=0 THEN su_int.area_manual ELSE su_int.area_usable END) 
+                FROM su ${sql.as} su_int
+                WHERE su_int.bl_id = su.bl_id AND su_int.su_id = su.su_id AND su_int.fl_id = su.fl_id AND 
+                    (EXISTS(SELECT 1 FROM ot WHERE ot.bl_id = su_int.bl_id
+                            AND ot.status = 'Pipeline'
+                            AND (ot.date_purchase &lt;= ${sql.currentDate} OR ot.date_purchase IS NULL) 
+                            AND (ot.date_sold &gt;= ${sql.currentDate} OR ot.date_sold IS NULL)
+                            AND su_int.ls_id IS NULL)
+                    OR
+                    EXISTS(SELECT 1 FROM ls WHERE ls.use_as_template = 0 AND su_int.ls_id = ls.ls_id
+                            AND (ls.date_start &lt;= ${sql.currentDate} OR ls.date_start IS NULL)
+                            AND (ls.date_end &gt;= ${sql.currentDate} OR ls.date_end IS NULL)
+                            AND ls.landlord_tenant = 'TENANT'
+                            AND ls.signed = 0)
+                 )) ${sql.as} pipeline_for_available,
+                 (SELECT (CASE WHEN su_int.area_usable=0 THEN su_int.area_manual ELSE su_int.area_usable END) 
+                    FROM su ${sql.as} su_int
+                 WHERE su_int.bl_id = su.bl_id AND su_int.su_id = su.su_id AND su_int.fl_id = su.fl_id AND 
+                    EXISTS(SELECT 1 FROM ls WHERE su_int.ls_id = ls.ls_id
+                            AND (ls.date_start &lt;= ${sql.currentDate} OR ls.date_start IS NULL)
+                            AND (ls.date_end &gt;= ${sql.currentDate} OR ls.date_end IS NULL)
+                            AND ls.signed = 0 
+                            AND landlord_tenant = 'LANDLORD')
+                 ) ${sql.as} pipeline_for_used_by_others
+            FROM bl, su
+            WHERE su.bl_id = bl.bl_id
+        </sql>
+        <table name="bl"/>
+        <field name="group_by" dataType="text" groupBy="true">
+            <sql dialect="generic">
+                (${parameters['groupBy']})
+            </sql>
+        </field>
+        <field name="vf_available_area" formula="sum" baseField="bl.available_area" dataType="number" size="20" decimals="1" numericFormat="area">
+            <title>Estimated Available Area ${(activityParameters['AbCommonResources-ConvertAreasLengthsToUserUnits'] == 1)?user.areaUnits.title:''}</title>
+        </field>
+        <field name="vf_area_used_by_others" formula="sum" baseField="bl.area_used_by_others" dataType="number" size="20" decimals="1" numericFormat="area">
+            <title>Estimated Leased Out Area ${(activityParameters['AbCommonResources-ConvertAreasLengthsToUserUnits'] == 1)?user.areaUnits.title:''}</title>
+        </field>
+        <field name="vf_pipeline_for_available" formula="sum" baseField="bl.pipeline_for_available" dataType="number" size="20" decimals="1" numericFormat="area">
+            <title>Pipeline: Available ${(activityParameters['AbCommonResources-ConvertAreasLengthsToUserUnits'] == 1)?user.areaUnits.title:''}</title>
+        </field>
+        <field name="vf_pipeline_for_used_by_others" formula="sum" baseField="bl.pipeline_for_used_by_others" dataType="number" size="20" decimals="1" numericFormat="area">
+            <title>Pipeline:Leased Out ${(activityParameters['AbCommonResources-ConvertAreasLengthsToUserUnits'] == 1)?user.areaUnits.title:''}</title>
+        </field>
+        <parameter name="filter" dataType="verbatim" value="1 = 1"/>
+        <parameter name="groupBy" dataType="verbatim" value="bl.ctry_id"/>
+        <restriction type="sql" sql="${parameters['filter']} AND ${sql.vpaRestriction}"/>
+    </dataSource>
+    
+    <panel type="grid" controlType="reportGrid" id="abRepmBldgEstAreaByOwnershipByReport" dataSource="abRepmBldgEstAreaByOwnershipByReport_ds" recordLimit="0" showOnLoad="false" hidden="true">
+        <sortField table="bl" name="group_by" ascending="true"/>
+        <action id="exportXlS">
+            <title translatable="true">XLS</title>
+            <command type="exportPanel" outputType="xls" panelId="abRepmBldgEstAreaByOwnershipByReport" viewName="ab-repm-pfadmin-bldgs-est-area-by-ownership-stat-by-chart.axvw"/>
+        </action>
+        <field name="group_by" dataType="text"/>
+        <field name="vf_available_area" dataType="number" size="20" decimals="1" numericFormat="area">
+            <title>Estimated Available Area ${(activityParameters['AbCommonResources-ConvertAreasLengthsToUserUnits'])?user.areaUnits.title:''}</title>
+        </field>
+        <field name="vf_area_used_by_others" dataType="number" size="20" decimals="1" numericFormat="area">
+            <title>Estimated Leased Out Area ${(activityParameters['AbCommonResources-ConvertAreasLengthsToUserUnits'] == 1)?user.areaUnits.title:''}</title>
+        </field>
+        <field name="vf_pipeline_for_available" dataType="number" size="20" decimals="1" numericFormat="area">
+            <title>Pipeline: Available ${(activityParameters['AbCommonResources-ConvertAreasLengthsToUserUnits'] == 1)?user.areaUnits.title:''}</title>
+        </field>
+        <field name="vf_pipeline_for_used_by_others" dataType="number" size="20" decimals="1" numericFormat="area">
+            <title>Pipeline:Leased Out ${(activityParameters['AbCommonResources-ConvertAreasLengthsToUserUnits'] == 1)?user.areaUnits.title:''}</title>
+        </field>
+    </panel>
+        
+    <panel type="view" id="abRepmBldgEstAreaByOwnershipBy_kpiCommon" file="ab-repm-kpi-common.axvw"/>
+</view>

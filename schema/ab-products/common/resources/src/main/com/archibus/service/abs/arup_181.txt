@@ -1,0 +1,642 @@
+/*****************************************************************************
+'ARUP.ABS
+'AR - all room inventory
+'UP - update area calculations
+
+11.19.97 - JH - Localization. Added translatable strings for Room Type IDs.
+12.28.98 - JH - Changed spelling of "Ocupiable" to "Occupiable"
+
+*****************************************************************************/
+
+
+Option Explicit
+
+'---- External Functions
+Declare Function SqlFunc_Replace0WithHuge( sFieldName As String ) As String
+
+'---- Internal Functions
+Declare Sub arup_calc_all()
+Declare Sub calc_all()
+
+'------------------------------------------------------------------------------
+'----                                    TRANSLATE
+Const kPleaseWaitMsg$              = "Please wait ... "
+Const kUpdatingGrossAreaTotalsMsg$ = "Updating Gross Area Totals"
+Const kUpdatingNonOccAreaTotalsMsg$= "Updating Non-Occupiable Area Totals"
+Const kUpdatingOccAreaTotalsMsg$   = "Updating Occupiable Area Totals"
+Const kCheckingNonOccMsg$       = "Checking For Non-Occupiable"
+Const kRoomCategoriesAndTypesMsg$   = "Room Categories and Types"
+Const kAddingVerticalPenMsg$        = "Adding Vertical Penetration"
+Const kFoundExistVertPenMsg$        = "Found Existing Vertical Penetration"
+Const kCategoryAlreadyExistsMsg$   = "Category Already Exists"
+Const kAddingServiceAreaMsg$        = "Adding Service Area"
+Const kFoundExistServAreasMsg$  = "Found Existing Service Areas"
+
+'---- NOTE: The following room types MUST be 10 characters or less!
+Const kVertRoomTypeMsg$         = "VERT"
+Const kElevRoomTypeMsg$         = "ELEV"
+Const kStairRoomTypeMsg$            = "STAIR"
+Const kShaftRoomTypeMsg$            = "SHAFT"
+Const kPipeRoomTypeMsg$         = "PIPE"
+Const kHallwayRoomTypeMsg$      = "HALLWAY"
+Const kCorridorRoomTypeMsg$     = "CORRIDOR"
+Const kTelecomRoomTypeMsg$      = "TELECOM"
+Const kJanitorRoomTypeMsg$      = "JANITOR"
+Const kLobbyRoomTypeMsg$            = "LOBBY"
+Const kMechRoomTypeMsg$         = "MECH"
+Const kMenRoomTypeMsg$          = "MEN"
+Const kPrimcircRoomTypeMsg$     = "PRIMCIRC"
+Const kServiceRoomTypeMsg$      = "SERVICE"
+Const kWomenRoomTypeMsg$            = "WOMEN"
+
+Const kVerticalPenetrationMsg$  = "Vertical Penetration"
+Const kElevatorMsg$             = "Elevator"
+Const kStairsMsg$               = "Stairs"
+Const kShaftDuctMsg$            = "Shaft, Duct"
+Const kPipesMsg$                = "Pipes"
+Const kServiceAreaRoomsMsg$     = "Service Area Rooms"
+Const kHallwayMsg$              = "Hallway"
+Const kCorridorMsg$             = "Corridor"
+Const kTelecomElectricalClosetMsg$ = "Telecom\Electrical Closet"
+Const kJanitorCustodialClosetMsg$  = "Janitor\Custodial Closet"
+Const kLobbyMsg$                = "Lobby"
+Const kMechanicalClosetRoomMsg$    = "Mechanical Closet\Room"
+Const kMensRestroomMsg$         = "Mens Restroom"
+Const kPrimaryCirculationMsg$       = "Primary Circulation"
+Const kServiceAreaMsg$          = "Service Area"
+Const kWomensRestroomMsg$       = "Womens Restroom"
+
+'------------------------------------------------------------------------------
+
+
+Sub arup_calc_all()
+    calc_all
+End Sub
+
+'----------------------------------------------------------------------------- 
+'------ GROSS AREA CALCULATIONS ----------------------------------------------
+'----------------------------------------------------------------------------- 
+
+Sub calc_gross()
+
+     MsgOpen kUpdatingGrossAreaTotalsMsg & BASIC.EOLN$ & _
+             kPleaseWaitMsg, 0, FALSE, TRUE
+
+    Dim ff As New FieldFormula
+     Dim fo As New FieldOperation
+   
+     '--- Sum EXTERNAL and INTERNAL gross areas from GROS to FL
+
+     fo.Owner    = "fl"
+     fo.Assigned = "gros"
+     fo.InpFilter = "gros.gros_type='EXT'"
+     fo.Calculate "fl.area_gross_ext", "SUM", "gros.area"
+     fo.InpFilter = "gros.gros_type='INT'"   
+     fo.Calculate "fl.area_gross_int", "SUM", "gros.area"
+     fo.Clear
+
+     MsgSetThermometer 25
+
+     '--- Calculate EXTERIOR WALL area in FL
+
+     ff.Assigned = "fl"
+     ff.OutFilter = "fl.area_gross_ext <> 0"
+     ff.Calculate "fl.area_ext_wall", "fl.area_gross_ext - fl.area_gross_int"
+     ff.OutFilter = "fl.area_gross_ext = 0"
+     ff.Calculate "fl.area_ext_wall", "0"
+     ff.Clear
+
+     MsgSetThermometer 50
+
+     '--- Sum EXTERNAL, INTERNAL, and EXT. WALL area from FL to BL
+      
+     fo.Owner    = "bl"
+     fo.Assigned = "fl"
+     fo.AddOperation "bl.area_gross_ext", "SUM", "fl.area_gross_ext"
+     fo.AddOperation "bl.area_gross_int", "SUM", "fl.area_gross_int"
+     fo.AddOperation "bl.area_ext_wall", "SUM", "fl.area_ext_wall"
+     fo.Calculate
+     fo.Clear
+    
+     MsgSetThermometer 75
+  
+     '--- Sum EXTERNAL, INTERNAL, and EXT. WALL area from BL to SITE
+
+     fo.Owner    = "site"
+     fo.Assigned = "bl"
+     fo.AddOperation "site.area_gross_ext", "SUM", "bl.area_gross_ext"
+     fo.AddOperation "site.area_gross_int", "SUM", "bl.area_gross_int"
+     fo.AddOperation "site.area_ext_wall", "SUM", "bl.area_ext_wall"
+     fo.Calculate
+     fo.Clear
+
+     Avw.SetTblChanged "site", AVW_TBLCHANGE_UPDATE
+     Avw.SetTblChanged "bl", AVW_TBLCHANGE_UPDATE
+     Avw.SetTblChanged "fl", AVW_TBLCHANGE_UPDATE
+     Avw.ReQuery
+
+     MsgSetThermometer 100
+     MsgClose
+
+End Sub
+
+'----------------------------------------------------------------------------- 
+'------ NON-OCCUPIABLE CALCULATIONS ------------------------------------------
+'----------------------------------------------------------------------------- 
+
+Sub calc_nocup()
+
+     MsgOpen kUpdatingNonOccAreaTotalsMsg & BASIC.EOLN$ & _
+             kPleaseWaitMsg, 0, FALSE, TRUE
+ 
+     Dim ff As New FieldFormula
+     Dim fo As New FieldOperation
+ 
+    '--- Sum NON-OCUP:TOTAL,COMN,DP,VERT_PEN and SERV area from RM to FL
+
+     MsgSetThermometer 5
+
+     fo.Owner    = "fl"
+     fo.Assigned = "rm"
+     fo.Standard = "rmcat"
+     fo.InpFilter = "rmcat.used_in_calcs IN ('all_totals', 'rm_totals')"
+     fo.Calculate "fl.area_rm", "SUM", "rm.area"
+     fo.Clear
+
+     fo.Owner    = "fl"
+     fo.Assigned = "rm"
+     fo.Standard = "rmcat"
+     fo.InpFilter = "rmcat.occupiable = 0 AND rmcat.used_in_calcs IN ('all_totals', 'dp_comn_ocup_totals')"
+     fo.Calculate "fl.area_nocup", "SUM", "rm.area"
+     fo.InpFilter = "rmcat.occupiable = 0 and rm.dp_id IS NOT NULL AND rmcat.used_in_calcs IN ('all_totals', 'dp_comn_ocup_totals')"
+     fo.Calculate "fl.area_nocup_dp", "SUM", "rm.area"
+     fo.InpFilter = "rmcat.occupiable = 0 and rm.prorate<>'NONE' AND rmcat.used_in_calcs IN ('all_totals', 'dp_comn_ocup_totals')"
+     fo.Calculate "fl.area_nocup_comn", "SUM", "rm.area"
+     fo.InpFilter = "rmcat.supercat = 'VERT'"
+     fo.Calculate "fl.area_vert_pen", "SUM", "rm.area"
+     fo.InpFilter = "rmcat.supercat = 'SERV'"
+     fo.Calculate "fl.area_serv", "SUM", "rm.area"
+     fo.Clear
+
+     MsgSetThermometer 10
+
+    '--- Calculate RENTABLE and USABLE area in FL
+
+     ff.Assigned = "fl"
+     ff.Calculate "fl.area_rentable", "fl.area_gross_int - fl.area_vert_pen"
+     ff.Calculate "fl.area_usable", "fl.area_rentable - fl.area_serv"
+     ff.Clear
+
+     MsgSetThermometer 15
+
+    '--- Sum NON-OCUP:TOTAL,VERT_PEN,SERV&TOTAL:RM,RENT,USE area from FL to BL
+
+     fo.Owner    = "bl"
+     fo.Assigned = "fl"
+     fo.AddOperation "bl.area_rm", "SUM", "fl.area_rm"
+     fo.AddOperation "bl.area_nocup", "SUM", "fl.area_nocup"
+     fo.AddOperation "bl.area_nocup_dp", "SUM", "fl.area_nocup_dp"
+     fo.AddOperation "bl.area_nocup_comn", "SUM", "fl.area_nocup_comn"
+     fo.AddOperation "bl.area_vert_pen", "SUM", "fl.area_vert_pen"
+     fo.AddOperation "bl.area_rentable", "SUM", "fl.area_rentable"
+     fo.AddOperation "bl.area_serv", "SUM", "fl.area_serv"
+     fo.AddOperation "bl.area_usable", "SUM", "fl.area_usable"
+     fo.Calculate
+     fo.Clear
+    
+     MsgSetThermometer 20
+
+    '- Sum NON-OCUP:TOTAL,VERT_PEN,SERV&TOTAL:RM,RENT,USE area from BL to SITE
+  
+     fo.Owner    = "site"
+     fo.Assigned = "bl"
+     fo.AddOperation "site.area_rm", "SUM", "bl.area_rm"
+     fo.AddOperation "site.area_nocup", "SUM", "bl.area_nocup"
+     fo.AddOperation "site.area_nocup_dp", "SUM", "bl.area_nocup_dp"
+     fo.AddOperation "site.area_nocup_comn", "SUM", "bl.area_nocup_comn"
+     fo.AddOperation "site.area_vert_pen", "SUM", "bl.area_vert_pen"
+     fo.AddOperation "site.area_rentable", "SUM", "bl.area_rentable"
+     fo.AddOperation "site.area_serv", "SUM", "bl.area_serv"
+     fo.AddOperation "site.area_usable", "SUM", "bl.area_usable"
+     fo.Calculate
+     fo.Clear
+
+     MsgSetThermometer 25
+
+    '--- Calculate FL R/U ratio, and U/R ratio
+
+     ff.Assigned = "fl"
+     ff.AddFormula "fl.ratio_ru", "fl.area_rentable / " & _
+                            SqlFunc_Replace0WithHuge( "fl.area_usable" )
+     ff.AddFormula "fl.ratio_ur", "100 * fl.area_usable / " & _
+                            SqlFunc_Replace0WithHuge("fl.area_rentable")
+     ff.Calculate
+     ff.Clear
+
+     MsgSetThermometer 30
+
+    '--- Calculate BL R/U ratio, and U/R ratio
+
+     ff.Assigned = "bl"
+     ff.AddFormula "bl.ratio_ru", "bl.area_rentable / " & _
+                            SqlFunc_Replace0WithHuge( "bl.area_usable" )
+     ff.AddFormula "bl.ratio_ur", "100 * bl.area_usable / " & _
+                            SqlFunc_Replace0WithHuge("bl.area_rentable")
+     ff.Calculate
+     ff.Clear
+
+     MsgSetThermometer 35
+
+    '--- Calculate SITE R/U ratio, and U/R ratio
+
+     ff.Assigned = "site"
+     ff.AddFormula "site.ratio_ru", "site.area_rentable / " & _ 
+                      SqlFunc_Replace0WithHuge( "site.area_usable" )
+     ff.AddFormula "site.ratio_ur", "100 * site.area_usable / " & _ 
+                      SqlFunc_Replace0WithHuge( "site.area_rentable" )
+     ff.Calculate
+     ff.Clear
+
+     MsgSetThermometer 40
+
+    '--- Sum NON-OCUP, RM AREA from RM to DP
+
+     fo.Owner = "dp"
+     fo.Assigned = "rm"
+     fo.Standard = "rmcat"
+     fo.InpFilter = "rmcat.used_in_calcs IN ('all_totals', 'dp_comn_ocup_totals')"     
+     fo.Calculate "dp.area_rm", "SUM", "rm.area"
+     fo.Clear
+
+     fo.Owner = "dp"
+     fo.Assigned = "rm"
+     fo.Standard = "rmcat"
+     fo.InpFilter = "rmcat.occupiable = 0 AND rmcat.used_in_calcs IN ('all_totals', 'dp_comn_ocup_totals')"
+     fo.Calculate "dp.area_nocup", "SUM", "rm.area"
+     fo.Clear
+
+     MsgSetThermometer 45
+
+    '--- Sum RM & NONOCUP AREA from DP to DV
+
+     fo.Owner = "dv"
+     fo.Assigned = "dp"
+     fo.AddOperation "dv.area_rm", "SUM", "dp.area_rm"
+     fo.AddOperation "dv.area_nocup", "SUM", "dp.area_nocup"
+     fo.Calculate
+     fo.Clear
+
+     MsgSetThermometer 50
+  
+    '--- Sum RM & NONOCUP AREA from DV to BU
+
+     fo.Owner = "bu"
+     fo.Assigned = "dv"
+     fo.AddOperation "bu.area_rm", "SUM", "dv.area_rm"
+     fo.AddOperation "bu.area_nocup", "SUM", "dv.area_nocup"
+     fo.Calculate
+     fo.Clear
+
+     MsgSetThermometer 55
+
+    '--- Calculate RMTYPE NON-OCUP AREA & COUNT
+
+     fo.Owner    = "rmtype"
+     fo.Assigned = "rm"
+     fo.AddOperation "rmtype.area", "SUM", "rm.area"
+     fo.AddOperation "rmtype.tot_count", "COUNT", "rm.area"
+     fo.Calculate
+     fo.Clear
+
+     MsgSetThermometer 60
+
+    '--- SUM AREA and COUNT from RMTYPE to RMCAT 
+
+     fo.Owner    = "rmcat"
+     fo.Assigned = "rm"
+     fo.AddOperation "rmcat.area", "SUM", "rm.area"
+     fo.AddOperation "rmcat.tot_count", "COUNT", "rm.area"
+     fo.Calculate
+     fo.Clear
+
+     MsgSetThermometer 65
+
+    '--- Calculate RMCAT AVG AREA
+
+     ff.Assigned = "rmcat"
+     ff.Calculate "rmcat.area_avg", "rmcat.area / " & _
+                             SqlFunc_Replace0WithHuge("rmcat.tot_count")
+     ff.Clear
+
+     MsgSetThermometer 70
+
+    '--- Calculate RMTYPE AVG AREA
+
+     ff.Assigned = "rmtype"
+     ff.Calculate "rmtype.area_avg", "rmtype.area / " & _
+                           SqlFunc_Replace0WithHuge( "rmtype.tot_count" )
+     ff.Clear
+
+     MsgSetThermometer 75
+
+     Avw.SetTblChanged "site", AVW_TBLCHANGE_UPDATE
+     Avw.SetTblChanged "bl", AVW_TBLCHANGE_UPDATE
+     Avw.SetTblChanged "fl", AVW_TBLCHANGE_UPDATE
+     Avw.SetTblChanged "dp", AVW_TBLCHANGE_UPDATE
+     Avw.SetTblChanged "dv", AVW_TBLCHANGE_UPDATE
+     Avw.SetTblChanged "bu", AVW_TBLCHANGE_UPDATE
+     Avw.SetTblChanged "rmcat", AVW_TBLCHANGE_UPDATE
+     Avw.SetTblChanged "rmtype", AVW_TBLCHANGE_UPDATE
+     Avw.ReQuery
+
+     MsgSetThermometer 100
+     MsgClose
+
+End Sub
+
+'----------------------------------------------------------------------------- 
+'------ OCCUPIABLE ROOM CALCULATIONS -----------------------------------------
+'----------------------------------------------------------------------------- 
+
+Sub calc_ocup()
+
+     MsgOpen kUpdatingOccAreaTotalsMsg & BASIC.EOLN$ & _
+             kPleaseWaitMsg, 0, FALSE, TRUE
+
+     Dim ff As New FieldFormula
+     Dim fo As New FieldOperation
+
+    '--- Sum OCUP: TOTAL,COMN,DP & TOTAL:RM,DEPT,COMN area from RM to FL
+
+     MsgSetThermometer 5
+
+     fo.Owner = "fl"
+     fo.Assigned = "rm"
+     fo.Standard = "rmcat"
+     fo.InpFilter = "rmcat.occupiable = 1 AND rmcat.used_in_calcs IN ('all_totals', 'dp_comn_ocup_totals')"
+     fo.Calculate "fl.area_ocup", "SUM", "rm.area" 
+     fo.InpFilter = "rmcat.occupiable = 1 and rm.dp_id IS NOT NULL AND rmcat.used_in_calcs IN ('all_totals', 'dp_comn_ocup_totals')"
+     fo.Calculate "fl.area_ocup_dp", "SUM", "rm.area"
+     fo.InpFilter = "rmcat.occupiable = 1 and rm.prorate <> 'NONE' AND rmcat.used_in_calcs IN ('all_totals', 'dp_comn_ocup_totals')"
+     fo.Calculate "fl.area_ocup_comn", "SUM", "rm.area"
+     fo.InpFilter = "rm.dp_id IS NOT NULL AND rmcat.used_in_calcs IN ('all_totals', 'dp_comn_ocup_totals')"
+     fo.Calculate "fl.area_rm_dp", "SUM", "rm.area"
+     fo.InpFilter = "rm.prorate <> 'NONE' AND rmcat.used_in_calcs IN ('all_totals', 'dp_comn_ocup_totals')"
+     fo.Calculate "fl.area_rm_comn", "SUM", "rm.area" 
+     fo.Clear
+
+     MsgSetThermometer 15
+
+    '- Sum REMAINING, OCUP:TOTAL,DP,COMN & TOTAL RM,DP,COMN area from FL to BL
+
+     fo.Owner = "bl"
+     fo.Assigned = "fl"
+     fo.AddOperation "bl.area_rm", "SUM", "fl.area_rm"
+     fo.AddOperation "bl.area_ocup", "SUM", "fl.area_ocup"
+     fo.AddOperation "bl.area_ocup_dp", "SUM", "fl.area_ocup_dp"
+     fo.AddOperation "bl.area_ocup_comn", "SUM", "fl.area_ocup_comn"
+     fo.AddOperation "bl.area_rm_dp", "SUM", "fl.area_rm_dp"
+     fo.AddOperation "bl.area_rm_comn", "SUM", "fl.area_rm_comn"
+     fo.AddOperation "bl.area_remain", "SUM", "fl.area_remain"
+     fo.Calculate
+     fo.Clear
+
+     MsgSetThermometer 20
+
+    'Sum REMAINING, OCUP:TOTAL,DP,COMN & TOTAL RM,DP,COMN area from BL to SITE
+
+     fo.Owner = "site"
+     fo.Assigned = "bl"
+     fo.AddOperation "site.area_rm", "SUM", "bl.area_rm"
+     fo.AddOperation "site.area_ocup", "SUM", "bl.area_ocup"
+     fo.AddOperation "site.area_ocup_dp", "SUM", "bl.area_ocup_dp"
+     fo.AddOperation "site.area_ocup_comn", "SUM", "bl.area_ocup_comn"
+     fo.AddOperation "site.area_rm_dp", "SUM", "bl.area_rm_dp"
+     fo.AddOperation "site.area_rm_comn", "SUM", "bl.area_rm_comn"
+     fo.Calculate
+     fo.Clear
+
+     MsgSetThermometer 25
+
+    '--- Sum OCUP, RM AREA from RM to DP
+
+     fo.Owner = "dp"
+     fo.Assigned = "rm"
+     fo.Standard = "rmcat"
+     fo.InpFilter = "rmcat.occupiable = 1 AND rmcat.used_in_calcs IN ('all_totals', 'dp_comn_ocup_totals')"
+     fo.Calculate "dp.area_ocup", "SUM", "rm.area"
+     fo.Clear
+
+     MsgSetThermometer 35
+
+    '--- Sum RM & OCUP AREA from DP to DV
+
+     fo.Owner = "dv"
+     fo.Assigned = "dp"
+     fo.AddOperation "dv.area_ocup", "SUM", "dp.area_ocup"
+     fo.Calculate
+     fo.Clear
+
+     MsgSetThermometer 40
+  
+    '--- Sum RM AREA from DV to BU
+
+     fo.Owner = "bu"
+     fo.Assigned = "dv"
+     fo.AddOperation "bu.area_ocup", "SUM", "dv.area_ocup"
+     fo.Calculate
+     fo.Clear
+
+     MsgSetThermometer 45
+
+    '--- Calculate RMSTD AREA and COUNT
+
+     fo.Owner    = "rmstd"
+     fo.Assigned = "rm"
+     fo.AddOperation "rmstd.area", "SUM", "rm.area"
+     fo.AddOperation "rmstd.tot_count", "COUNT", "rm.area"
+     fo.Calculate
+     fo.Clear
+
+     MsgSetThermometer 50
+
+    '--- Calculate RMSTD AVERAGE AREA
+
+     ff.Assigned = "rmstd"
+     ff.Calculate "rmstd.area_avg","rmstd.area / " & _
+                            SqlFunc_Replace0WithHuge( "rmstd.tot_count" )
+     ff.Clear
+
+     MsgSetThermometer 65
+
+     Avw.SetTblChanged "site", AVW_TBLCHANGE_UPDATE
+     Avw.SetTblChanged "bl", AVW_TBLCHANGE_UPDATE
+     Avw.SetTblChanged "fl", AVW_TBLCHANGE_UPDATE
+     Avw.SetTblChanged "bu", AVW_TBLCHANGE_UPDATE
+     Avw.SetTblChanged "dv", AVW_TBLCHANGE_UPDATE
+     Avw.SetTblChanged "dp", AVW_TBLCHANGE_UPDATE
+     Avw.SetTblChanged "rmstd", AVW_TBLCHANGE_UPDATE
+     Avw.SetTblChanged "rmtype", AVW_TBLCHANGE_UPDATE
+     Avw.SetTblChanged "rmcat", AVW_TBLCHANGE_UPDATE
+     Avw.ReQuery
+
+     MsgSetThermometer 100
+     MsgClose
+
+End Sub
+
+'----------------------------------------------------------------------------- 
+'------ All ROOM CALCULATIONS ------------------------------------------------
+'----------------------------------------------------------------------------- 
+Sub calc_all()
+    calc_gross
+    calc_nocup
+    calc_ocup
+End Sub
+
+'------------------------------------------------------------------------------
+'--- Add Non-Occupiable Room Categories and Types
+'------------------------------------------------------------------------------
+Sub add_nocup()
+
+     MsgOpen kCheckingNonOccMsg & BASIC.EOLN$ & _
+           kRoomCategoriesAndTypesMsg & BASIC.EOLN$ & _
+             kPleaseWaitMsg, 0, FALSE, TRUE
+
+      Dim rs As New Recordset
+
+      rs.Open "SELECT * FROM rmcat WHERE rm_cat = 'VERT'"
+
+      If rs.EOF Then
+
+        MsgSetText kAddingVerticalPenMsg & BASIC.EOLN$ & _
+                 kRoomCategoriesAndTypesMsg
+
+        rs.AddNew
+        rs.Fields( "rm_cat" ).Value = "VERT"
+        rs.Fields( "description" ).Value = kVerticalPenetrationMsg
+        rs.Fields( "occupiable" ).Value = 0   
+        rs.Update
+        rs.Close
+
+        rs.Open "SELECT * FROM rmtype"
+        rs.AddNew
+        rs.Fields( "rm_cat" ).Value = "VERT"
+        rs.Fields( "rm_type" ).Value = kVertRoomTypeMsg
+        rs.Fields( "description" ).Value = kVerticalPenetrationMsg
+        rs.Update
+        rs.AddNew
+        rs.Fields( "rm_cat" ).Value = "VERT"
+        rs.Fields( "rm_type" ).Value = kElevRoomTypeMsg
+        rs.Fields( "description" ).Value = kElevatorMsg
+        rs.Update
+        rs.AddNew
+        rs.Fields( "rm_cat" ).Value = "VERT"
+        rs.Fields( "rm_type" ).Value = kStairRoomTypeMsg
+        rs.Fields( "description" ).Value = kStairsMsg
+        rs.Update
+        rs.AddNew
+        rs.Fields( "rm_cat" ).Value = "VERT"
+        rs.Fields( "rm_type" ).Value = kShaftRoomTypeMsg
+        rs.Fields( "description" ).Value = kShaftDuctMsg
+        rs.Update
+        rs.AddNew
+        rs.Fields( "rm_cat" ).Value = "VERT"
+        rs.Fields( "rm_type" ).Value = kPipeRoomTypeMsg
+        rs.Fields( "description" ).Value = kPipesMsg
+        rs.Update
+        rs.Close
+
+    Else
+
+        MsgBox kFoundExistVertPenMsg & BASIC.EOLN$ & _
+              kRoomCategoriesAndTypesMsg, ebExclamation, _
+              kCategoryAlreadyExistsMsg
+        rs.Close
+
+    End If  
+
+    rs.Open "SELECT * FROM rmcat WHERE rm_cat = 'SERV'"
+
+     If rs.EOF Then
+
+        MsgSetText kAddingServiceAreaMsg & BASIC.EOLN$ & _
+                 kRoomCategoriesAndTypesMsg
+
+        rs.AddNew
+        rs.Fields( "rm_cat" ).Value = "SERV"
+        rs.Fields( "description" ).Value = kServiceAreaRoomsMsg
+        rs.Fields( "occupiable" ).Value = 0   
+        rs.Update
+        rs.Close
+
+        rs.Open "SELECT * FROM rmtype"
+        rs.AddNew
+        rs.Fields( "rm_cat" ).Value = "SERV"
+        rs.Fields( "rm_type" ).Value = kHallwayRoomTypeMsg
+        rs.Fields( "description" ).Value = kHallwayMsg
+        rs.Update
+        rs.AddNew
+        rs.Fields( "rm_cat" ).Value = "SERV"
+        rs.Fields( "rm_type" ).Value = kCorridorRoomTypeMsg
+        rs.Fields( "description" ).Value = kCorridorMsg
+        rs.Update
+        rs.AddNew
+        rs.Fields( "rm_cat" ).Value = "SERV"
+        rs.Fields( "rm_type" ).Value = kTelecomRoomTypeMsg
+        rs.Fields( "description" ).Value = kTelecomElectricalClosetMsg
+        rs.Update
+        rs.AddNew
+        rs.Fields( "rm_cat" ).Value = "SERV"
+        rs.Fields( "rm_type" ).Value = kJanitorRoomTypeMsg
+        rs.Fields( "description" ).Value = kJanitorCustodialClosetMsg
+        rs.Update
+        rs.AddNew
+        rs.Fields( "rm_cat" ).Value = "SERV"
+        rs.Fields( "rm_type" ).Value = kLobbyRoomTypeMsg
+        rs.Fields( "description" ).Value = kLobbyMsg
+        rs.Update
+        rs.AddNew
+        rs.Fields( "rm_cat" ).Value = "SERV"
+        rs.Fields( "rm_type" ).Value = kMechRoomTypeMsg
+        rs.Fields( "description" ).Value = kMechanicalClosetRoomMsg
+        rs.Update
+        rs.AddNew
+        rs.Fields( "rm_cat" ).Value = "SERV"
+        rs.Fields( "rm_type" ).Value = kMenRoomTypeMsg
+        rs.Fields( "description" ).Value = kMensRestroomMsg
+        rs.Update
+        rs.AddNew
+        rs.Fields( "rm_cat" ).Value = "SERV"
+        rs.Fields( "rm_type" ).Value = kPrimcircRoomTypeMsg
+        rs.Fields( "description" ).Value = kPrimaryCirculationMsg
+        rs.Update
+        rs.AddNew
+        rs.Fields( "rm_cat" ).Value = "SERV"
+        rs.Fields( "rm_type" ).Value = kServiceRoomTypeMsg
+        rs.Fields( "description" ).Value = kServiceAreaMsg
+        rs.Update
+        rs.AddNew
+        rs.Fields( "rm_cat" ).Value = "SERV"
+        rs.Fields( "rm_type" ).Value = kWomenRoomTypeMsg
+        rs.Fields( "description" ).Value = kWomensRestroomMsg
+        rs.Update
+        rs.Close
+
+    Else
+
+        MsgBox kFoundExistServAreasMsg & BASIC.EOLN$ & _
+              kRoomCategoriesAndTypesMsg, ebExclamation, _
+              kCategoryAlreadyExistsMsg
+         rs.Close
+
+    End If  
+
+     Avw.SetTblChanged "rmcat", AVW_TBLCHANGE_INSERT
+     Avw.SetTblChanged "rmtype", AVW_TBLCHANGE_INSERT
+     Avw.ReQuery
+
+     MsgClose
+End Sub
+
+

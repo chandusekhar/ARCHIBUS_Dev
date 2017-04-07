@@ -1,0 +1,183 @@
+<view version="2.0">
+    <js file="ab-proj-fcpm-cps-rpt.js"/>
+    <js file="ab-proj-fcpm-cps-common.js"/>
+    
+    <dataSource id="projFcpmCpsRpt_ds0" applyVpaRestrictions="false">
+        <table name="work_pkgs" role="main"/>
+        <field name="work_pkg_id" table="work_pkgs" dataType="text" />
+        <field name="status" table="work_pkgs" showTotals="false" dataType="text">
+        		<title>Status</title> 
+        </field>
+        <field name="tot_est_costs" dataType="number" decimals="0" size="20" showTotals="true"> 
+            <title>Action Costs</title>  
+        </field>
+        <field name="cost_contract" dataType="number" decimals="0" size="20" showTotals="true"> 
+            <title>Contract</title> 
+        </field>  
+        <field name="req_cost_change_orders" dataType="number" decimals="0" size="20" showTotals="true">
+            <title>Requested Change Orders</title> 
+        </field>
+        <field name="apprv_cost_change_orders" dataType="number" decimals="0" size="20" showTotals="true"> 
+            <title>Approved Change Orders</title> 
+        </field>  
+        <field name="revised_cost" dataType="number" decimals="0" size="20" showTotals="true">  
+            <title>Revised Contract</title> 
+        </field> 
+        <field name="amount_invoice_iss"  dataType="number" decimals="0" size="20" showTotals="true">
+            <title>Issued Invoices</title>
+        </field> 
+        <field name="amount_invoice_apprv"  dataType="number" decimals="0" size="20" showTotals="true">
+            <title>Approved Invoices</title>
+        </field>       
+        <field name="amount_invoice_tot"  dataType="number" decimals="0" size="20" showTotals="true">
+            <title>Invoice Total</title>
+        </field>
+        <field name="pct_claims" dataType="number" decimals="0" size="6" showTotals="false">
+            <title>% Invoiced</title>
+        </field>
+        <field name="pct_complete_by_cost" dataType="number" decimals="0" size="6" showTotals="false">
+            <title>% Complete</title>
+        </field>
+        <field name="cost_to_complete" dataType="number" decimals="0" size="20" showTotals="true">
+            <title>Commitment Remaining</title>
+        </field> 
+        <field name="pct_to_complete" dataType="number" decimals="0" size="6" showTotals="false">
+            <title>% Cost to Complete</title>
+        </field>
+        <sql dialect="generic">
+        SELECT 
+            work_pkgs.work_pkg_id, work_pkgs.project_id,work_pkgs.status,work_pkgs.wbs_id ${sql.concat} work_pkgs.work_pkg_id ${sql.as} wbs_pkg_id,
+            ${sql.isNull('cost_total',0)} ${sql.as} tot_est_costs,
+            ${sql.isNull('cost_contract',0)} ${sql.as} cost_contract,
+            ${sql.isNull('apprv_cost_change_orders',0)} ${sql.as} apprv_cost_change_orders,
+            ${sql.isNull('req_cost_change_orders',0)} ${sql.as} req_cost_change_orders,
+            (${sql.isNull('cost_contract',0)}+${sql.isNull('apprv_cost_change_orders',0)}) ${sql.as} revised_cost,
+            ${sql.isNull('iss_invoice.amount_tot_invoice',0)} ${sql.as} amount_invoice_iss,
+            ${sql.isNull('apprv_invoice.amount_tot_invoice',0)} ${sql.as} amount_invoice_apprv,
+            ${sql.isNull('tot_invoice.amount_tot_invoice',0)} ${sql.as} amount_invoice_tot,
+            CASE WHEN (${sql.isNull('cost_contract',0)}+${sql.isNull('apprv_cost_change_orders',0)}) = 0 THEN NULL 
+            ELSE (${sql.isNull('tot_invoice.amount_tot_invoice',0)}*100/(${sql.isNull('cost_contract',0)}+${sql.isNull('apprv_cost_change_orders',0)})) END ${sql.as} pct_claims,
+            ${sql.isNull('cost_complete',0)} ${sql.as} earned_value,
+            (CASE WHEN (${sql.isNull('cost_contract',0)}+${sql.isNull('apprv_cost_change_orders',0)}) = 0 THEN NULL WHEN (100-(${sql.isNull('tot_invoice.amount_tot_invoice',0)}*100/(${sql.isNull('cost_contract',0)}+${sql.isNull('apprv_cost_change_orders',0)}))) &lt; 0 THEN 0 
+            ELSE 100-(${sql.isNull('tot_invoice.amount_tot_invoice',0)}*100/(${sql.isNull('cost_contract',0)}+${sql.isNull('apprv_cost_change_orders',0)})) END) ${sql.as} pct_to_complete,
+            CASE WHEN ((${sql.isNull('cost_contract',0)}+${sql.isNull('apprv_cost_change_orders',0)}) &lt; (${sql.isNull('iss_invoice.amount_tot_invoice',0)} + ${sql.isNull('apprv_invoice.amount_tot_invoice',0)})) THEN 0 ELSE (${sql.isNull('cost_contract',0)}+${sql.isNull('apprv_cost_change_orders',0)}-(${sql.isNull('iss_invoice.amount_tot_invoice',0)} + ${sql.isNull('apprv_invoice.amount_tot_invoice',0)})) END ${sql.as} cost_to_complete,
+            CASE WHEN ${sql.isNull('cost_total',0)} = 0 THEN NULL WHEN ${sql.isNull('cost_complete',0)} = 0 THEN 0 
+            ELSE (100*cost_complete/cost_total) END ${sql.as} pct_complete_by_cost,
+            CASE WHEN ${sql.isNull('dur_total',0)} = 0 THEN NULL WHEN ${sql.isNull('dur_complete',0)} = 0 THEN 0 
+            ELSE (100*dur_complete/dur_total) END ${sql.as} pct_complete_by_dur
+            
+        FROM work_pkgs 
+        LEFT OUTER JOIN 
+            (SELECT work_pkg_bids.work_pkg_id, work_pkg_bids.project_id, work_pkg_bids.cost_contract FROM work_pkg_bids WHERE work_pkg_bids.status IN ( 'Contract Signed', 'In Process', 'In Process-On Hold', 'Completed', 'Completed and Verified', 'Paid in Full')) 
+            ${sql.as} contract_amount
+        ON (work_pkgs.project_id = contract_amount.project_id AND work_pkgs.work_pkg_id = contract_amount.work_pkg_id ) 
+        LEFT OUTER JOIN
+            (SELECT activity_log.work_pkg_id, activity_log.project_id, SUM(cost_est_design_cap + cost_est_design_exp) ${sql.as} apprv_cost_change_orders FROM activity_log 
+            WHERE activity_log.activity_type LIKE 'PROJECT - CHANGE ORDER' AND activity_log.status NOT IN('CREATED','REQUESTED','REJECTED','CANCELLED') GROUP BY activity_log.project_id, activity_log.work_pkg_id ) ${sql.as} apprv_change_orders 
+        ON (work_pkgs.project_id = apprv_change_orders.project_id AND work_pkgs.work_pkg_id = apprv_change_orders.work_pkg_id)
+        LEFT OUTER JOIN
+            (SELECT activity_log.work_pkg_id, activity_log.project_id, SUM(cost_est_cap + cost_estimated) ${sql.as} req_cost_change_orders FROM activity_log 
+            WHERE activity_log.activity_type LIKE 'PROJECT - CHANGE ORDER' AND activity_log.status IN('REQUESTED') GROUP BY activity_log.project_id, activity_log.work_pkg_id ) ${sql.as} req_change_orders 
+        ON (work_pkgs.project_id = req_change_orders.project_id AND work_pkgs.work_pkg_id = req_change_orders.work_pkg_id)
+        LEFT OUTER JOIN
+            (SELECT invoice.work_pkg_id, invoice.project_id, SUM(invoice.amount_tot_invoice) ${sql.as} amount_tot_invoice
+            FROM invoice WHERE status IN ('ISSUED') GROUP BY invoice.project_id, invoice.work_pkg_id ) ${sql.as} iss_invoice 
+        ON (work_pkgs.project_id = iss_invoice.project_id AND work_pkgs.work_pkg_id = iss_invoice.work_pkg_id)
+        LEFT OUTER JOIN
+            (SELECT invoice.work_pkg_id, invoice.project_id, SUM(invoice.amount_tot_invoice) ${sql.as} amount_tot_invoice
+            FROM invoice WHERE status IN ('SENT','CLOSED') GROUP BY invoice.project_id, invoice.work_pkg_id ) ${sql.as} apprv_invoice 
+        ON (work_pkgs.project_id = apprv_invoice.project_id AND work_pkgs.work_pkg_id = apprv_invoice.work_pkg_id)
+        LEFT OUTER JOIN
+            (SELECT invoice.work_pkg_id, invoice.project_id, SUM(invoice.amount_tot_invoice) ${sql.as} amount_tot_invoice
+            FROM invoice WHERE status IN ('ISSUED','SENT','CLOSED') GROUP BY invoice.project_id, invoice.work_pkg_id ) ${sql.as} tot_invoice 
+        ON (work_pkgs.project_id = tot_invoice.project_id AND work_pkgs.work_pkg_id = tot_invoice.work_pkg_id)
+        LEFT OUTER JOIN
+            (SELECT activity_log.work_pkg_id, activity_log.project_id, 
+            SUM((CASE WHEN status IN ('COMPLETED','COMPLETED-V','CLOSED') THEN 100 ELSE activity_log.pct_complete END) * (activity_log.cost_est_design_exp + activity_log.cost_est_design_cap)/100.000) ${sql.as} cost_complete, 
+            SUM(activity_log.cost_est_design_exp + activity_log.cost_est_design_cap) ${sql.as} cost_total,
+            SUM(activity_log.pct_complete * activity_log.duration/100.000) ${sql.as} dur_complete, 
+            SUM(activity_log.duration) ${sql.as} dur_total
+            FROM activity_log WHERE activity_log.status NOT IN ('REJECTED','CANCELLED') GROUP BY activity_log.project_id, activity_log.work_pkg_id) ${sql.as} pct_complete_pkg
+        ON (work_pkgs.project_id = pct_complete_pkg.project_id AND work_pkgs.work_pkg_id = pct_complete_pkg.work_pkg_id)
+        WHERE ${sql.getVpaRestrictionForTable('work_pkgs')}
+        </sql>
+        <sortField table="work_pkgs" name="wbs_pkg_id" ascending="true"/>
+    </dataSource>
+               
+    <panel id="projFcpmCpsRpt_cps" type="grid" dataSource="projFcpmCpsRpt_ds0" showOnLoad="false">
+        <title translatable="true">Commitment Progress Status Report</title>
+        <sortField table="work_pkgs" name="wbs_pkg_id" ascending="true"/>
+        <action id="details">
+        		<title>Project Profile</title>
+        		<command type="openDialog" viewName="ab-proj-fcpm-cps-rpt-dtl.axvw"/>
+        </action>
+        <action type="menu" id="projFcpmCpsRpt_cps_toolsMenu" imageName="/schema/ab-core/graphics/icons/view/export.png">
+            <tooltip>Tools</tooltip>
+            <action id="exportDOCX">
+                <title>Export to DOCX</title>
+                <command type="exportPanel" outputType="docx" orientation="landscape" panelId="projFcpmCpsRpt_cps"/>
+            </action>
+            <action id="exportXLS">
+                <title>Export to XLS</title>
+                <command type="exportPanel" outputType="xls" panelId="projFcpmCpsRpt_cps"/>
+            </action>
+        </action>
+        <action imageName="/schema/ab-system/graphics/ab-icon-helpview.gif" id="projFcpmCpsRpt_help">
+            <tooltip>Help</tooltip>
+            <command type="openDialog" viewName="ab-proj-fcpm-cps-rpt-info.axvw" height="275" width="500"/>
+        </action>
+        <field id="status_tick" controlType="image" imageName="/schema/ab-core/graphics/icons/tick.png">
+            <title></title>
+        </field>
+        <field name="work_pkg_id" table="work_pkgs" dataType="text" controlType="link">
+        		<command type="callFunction" functionName="showWorkpkg(this)"/>
+        </field>
+        <field name="cost_contract" dataType="number" decimals="0" size="20" showTotals="true" controlType="link"> 
+            <title>Contract Amount</title> 
+            <command type="callFunction" functionName="showWorkpkg(this)"/>
+        </field>  
+        <field name="req_cost_change_orders" dataType="number" decimals="0" size="20" showTotals="true" controlType="link">
+            <title>Requested Change Orders</title>
+            <command type="callFunction" functionName="showChgOrds(this)"/> 
+        </field>
+        <field name="apprv_cost_change_orders" dataType="number" decimals="0" size="20" showTotals="true" controlType="link"> 
+            <title>Approved Change Orders</title> 
+            <command type="callFunction" functionName="showChgOrds(this)"/>
+        </field>  
+        <field name="revised_cost" dataType="number" decimals="0" size="20" showTotals="true" controlType="link">  
+            <title>Revised Contract</title> 
+            <command type="callFunction" functionName="showWorkpkg(this)"/>
+        </field> 
+        <field name="amount_invoice_iss"  dataType="number" decimals="0" size="20" showTotals="true" controlType="link">
+            <title>Issued Invoices</title>
+            <command type="callFunction" functionName="showInvs(this)"/>
+        </field> 
+        <field name="amount_invoice_apprv"  dataType="number" decimals="0" size="20" showTotals="true" controlType="link">
+            <title>Approved Invoices</title>
+            <command type="callFunction" functionName="showInvs(this)"/>
+        </field>       
+        <field name="amount_invoice_tot"  dataType="number" decimals="0" size="20" showTotals="true" controlType="link">
+            <title>Invoice Total</title>
+            <command type="callFunction" functionName="showInvs(this)"/>
+        </field>
+        <field name="pct_claims" dataType="number" decimals="0" size="6" showTotals="false" controlType="link">
+            <title>% Invoiced</title>
+            <command type="callFunction" functionName="showInvs(this)"/>
+        </field>
+        <field name="cost_to_complete" dataType="number" decimals="0" size="20" showTotals="true" controlType="link">
+            <title>Commitment Remaining</title>
+            <command type="callFunction" functionName="showWorkpkg(this)"/>
+        </field> 
+        <field name="pct_to_complete" dataType="number" decimals="0" size="6" showTotals="false" controlType="link">
+            <title>% Cost to Complete</title>
+            <command type="callFunction" functionName="showWorkpkg(this)"/>
+        </field>
+        <field name="status" table="work_pkgs" dataType="text" hidden="true"/>
+    </panel>
+
+</view>
+    
+ 
+ 
+ 
+ 

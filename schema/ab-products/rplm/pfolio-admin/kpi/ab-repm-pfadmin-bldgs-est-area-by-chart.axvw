@@ -1,0 +1,122 @@
+<view version="2.0">
+    <title translatable="false">&#160;</title>
+    <js file="ab-repm-pfadmin-bldgs-est-area-by-chart.js"/>
+    
+    <!-- Messages -->
+    <message name="titleBldgAreaBy" translatable="true">Building Area by {0}</message>
+
+    <dataSource id="abRepmBldgEstAreaByChartDataAxis_ds" type="grouping" applyVpaRestrictions="false">
+        <sql dialect="generic">
+            SELECT 
+                bl.ctry_id ${sql.as} ctry_id,
+                bl.regn_id ${sql.as} regn_id,
+                bl.state_id ${sql.as} state_id,
+                bl.city_id ${sql.as} city_id,
+                bl.site_id ${sql.as} site_id,
+                bl.pr_id ${sql.as} pr_id,
+                bl.bl_id ${sql.as} bl_id,
+                su.facility_type_id ${sql.as} facility_type_id, 
+                su.ls_id ${sql.as} ls_id,
+                (CASE WHEN su.area_usable = 0 THEN  su.area_manual ELSE su.area_usable END) ${sql.as} estimated_area
+            FROM su
+                LEFT OUTER JOIN bl ON su.bl_id = bl.bl_id
+        </sql>
+        <table name="bl" role="main"/>
+        <field name="group_by" dataType="text" groupBy="true">
+            <sql dialect="generic">
+                (${parameters['groupBy']})
+            </sql>
+        </field>
+        <field name="vf_sum_estimated_area" formula="sum" baseField="bl.estimated_area" dataType="number" size="20" decimals="1" numericFormat="area">
+            <title>Estimated Area ${(activityParameters['AbCommonResources-ConvertAreasLengthsToUserUnits'] == 1)?user.areaUnits.title:''}</title>
+        </field>
+        <restriction type="sql" sql="(EXISTS(SELECT ot.ot_id FROM ot WHERE ot.bl_id = bl.bl_id AND ${sql.yearMonthOf('ot.date_purchase')} &lt;= ${parameters['summaryValueForThisGroup']} AND (${sql.yearMonthOf('ot.date_sold')} &gt;= ${parameters['summaryValueForThisGroup']} OR ot.date_sold IS NULL)) OR EXISTS(SELECT ls.ls_id FROM ls WHERE ls.use_as_template = 0 AND ${sql.yearMonthOf('ls.date_start')} &lt;= ${parameters['summaryValueForThisGroup']} AND (${sql.yearMonthOf('ls.date_end')} &gt;= ${parameters['summaryValueForThisGroup']} OR ls.automatic_renewal = 1) AND ls.ls_id = bl.ls_id)) AND ${parameters['filter']} AND ${sql.vpaRestriction}"/>
+        
+        <parameter name="summaryValueForThisGroup" dataType="text" value=""/>  
+        <parameter name="filter" dataType="verbatim" value="1 = 1"/>
+        <parameter name="groupBy" dataType="verbatim" value="bl.ctry_id"/>
+        <sortField table="bl" name="group_by" ascending="true"/>
+    </dataSource>
+       
+
+    <panel id="abRepmBldgEstAreaChart" type="chart" showOnLoad="false" controlType="lineChart" showLegendOnLoad="false" dataSource="abRepmBldgEstAreaByChartDataAxis_ds">
+        <title></title>
+        <event type="onClickItem">
+            <command type="callFunction" functionName="onDrillDown"/>                 
+        </event>
+        <action id="filter" imageName="/schema/ab-system/graphics/ab-filter-run.gif">
+            <tooltip>Filter</tooltip>
+        </action>
+        <action id="report" imageName="/schema/ab-system/graphics/ab-icon-report.gif">
+            <tooltip>Report</tooltip>      
+        </action>
+        <action id="export">
+            <title translatable="true">DOC </title>
+            <command type="exportPanel" outputType="docx" panelId="abRepmBldgEstAreaChart" orientation="landscape"/>
+        </action>
+        <groupingAxis table="afm_cal_dates" field="month"  dataSource="abRepmKpiMonths_ds" labelRotation="45">
+            <title>Date</title> 
+        </groupingAxis>
+        
+        <secondaryGroupingAxis table="bl" field="group_by" dataSource="abRepmBldgEstAreaByChartDataAxis_ds"/>
+        
+        <dataAxis  table="bl" field="vf_sum_estimated_area" dataSource="abRepmBldgEstAreaByChartDataAxis_ds">
+            <title>Estimated Area ${(activityParameters['AbCommonResources-ConvertAreasLengthsToUserUnits'] == 1)?user.areaUnits.title:''}</title>
+        </dataAxis>
+    </panel>
+    
+    <!-- Report -->
+    <dataSource id="abRepmBldgEstAreaReport_ds" type="grouping" applyVpaRestrictions="false">
+        <sql dialect="generic">
+            SELECT 
+                tmp_cal_dates.month ${sql.as} month,
+                (CASE WHEN su.area_usable = 0 THEN  su.area_manual ELSE su.area_usable END) ${sql.as} estimated_area,
+                bl.ctry_id ${sql.as} ctry_id,
+                bl.regn_id ${sql.as} regn_id,
+                bl.state_id ${sql.as} state_id,
+                bl.city_id ${sql.as} city_id,
+                bl.site_id ${sql.as} site_id,
+                bl.pr_id ${sql.as} pr_id,
+                bl.bl_id ${sql.as} bl_id,
+                su.facility_type_id ${sql.as} facility_type_id, 
+                su.ls_id ${sql.as} ls_id
+            FROM 
+                (SELECT DISTINCT ${sql.yearMonthOf('afm_cal_dates.cal_date')} ${sql.as} month FROM afm_cal_dates) ${sql.as} tmp_cal_dates,
+                su, bl
+            WHERE su.bl_id = bl.bl_id
+        </sql>
+        <table name="bl"/>
+        <field name="month" dataType="text" groupBy="true"/>
+        <field name="group_by" dataType="text" groupBy="true">
+            <sql dialect="generic">
+                (${parameters['groupBy']})
+            </sql>
+        </field>
+        <field name="vf_sum_estimated_area" formula="sum" baseField="bl.estimated_area" dataType="number" size="20" decimals="1" numericFormat="area">
+            <title>Estimated Area ${(activityParameters['AbCommonResources-ConvertAreasLengthsToUserUnits'] == 1)?user.areaUnits.title:''}</title>
+        </field>
+        <parameter name="filter" dataType="verbatim" value="1 = 1"/>
+        <parameter name="groupBy" dataType="verbatim" value="bl.ctry_id"/>
+        <parameter name="dateFrom" dataType="text" value=""/>
+        <parameter name="dateTo" dataType="text" value=""/>
+        <restriction type="sql" sql="(EXISTS(SELECT ot.ot_id FROM ot WHERE ot.bl_id = bl.bl_id AND ${sql.yearMonthOf('ot.date_purchase')} &lt;= bl.month AND (${sql.yearMonthOf('ot.date_sold')} &gt;= bl.month OR ot.date_sold IS NULL)) OR EXISTS(SELECT ls.ls_id FROM ls WHERE ls.use_as_template = 0 AND ${sql.yearMonthOf('ls.date_start')} &lt;= bl.month AND (${sql.yearMonthOf('ls.date_end')} &gt;= bl.month OR ls.automatic_renewal = 1) AND ls.ls_id = bl.ls_id)) AND bl.month &lt;= ${(parameters['dateTo'])} AND bl.month &gt;= ${(parameters['dateFrom'])} AND ${parameters['filter']} AND ${sql.vpaRestriction}"/>
+    </dataSource>
+    
+    <panel type="grid" controlType="reportGrid" id="abRepmBldgEstAreaReport" dataSource="abRepmBldgEstAreaReport_ds" recordLimit="0" showOnLoad="false" hidden="true">
+        <sortField table="bl" name="month" ascending="true"/>
+        <sortField table="bl" name="group_by" ascending="true"/>
+        <action id="exportXlS">
+            <title translatable="true">XLS</title>
+            <command type="exportPanel" outputType="xls" panelId="abRepmBldgEstAreaReport" viewName="ab-repm-pfadmin-bldgs-est-area-by-chart.axvw"/>
+        </action>
+        <field name="month" dataType="text">
+            <title translatable="true">Date</title>
+        </field>
+        <field name="group_by" dataType="text"/>
+        <field name="vf_sum_estimated_area" dataType="number" size="20" decimals="1" numericFormat="area">
+            <title>Estimated Area ${(activityParameters['AbCommonResources-ConvertAreasLengthsToUserUnits'] == 1)?user.areaUnits.title:''}</title>
+        </field>
+    </panel>
+
+    <panel type="view" id="abRepmBldgEstArea_kpiCommon" file="ab-repm-kpi-common.axvw"/>
+</view>

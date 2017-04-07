@@ -1,0 +1,304 @@
+/*****************************************************************************
+lsarea.abs
+03.19.97
+Lease Area Calculations
+
+08.26.98 - JH - Updated calc for area_comn for su table in 
+             Sub RunSuiteAreaChargeback() to allow the calcs to run 
+             even for buildings without site ids.
+09.16.99 - JH - MSSQL - Added case for MSSQL
+09.28.99 - JH - Added entry points for BOMA 96 chargeback method
+
+Calculates the measured lease areas (ls.area_usable and
+ls.area_rentable).
+
+Calculations are based on the Lease Area method specified in the
+Schema Preferences table (afm_scmpref). Lease Area Methods are:
+Suite, Group, Room - Composite, and Room - All Room.  If measured
+areas are being used then one and only one of the above methods must
+be used to assign physical floor areas to particular leases. Lease
+Negotiated areas can always be used to manually enter negotiated
+lease area.
+
+ls.area_usable is calculated by summing the areas for those Suite,
+Groups, or rooms (depending on the Lease Area method) assigned to a
+lease.  
+
+To obtain the ls.area_rentable we automatically run the Space Module
+chargeback (proration) calculations to prorate the common areas to
+Suites, Groups, or Rooms prior to summing the chargeable areas to
+lease rentable. The chargeback calculation used also depend on the
+Lease Area method. There are six chargeback methods:
+    Suite
+    Group - Group
+    Group - Boma
+    Group - Enhanced Boma
+    Room - Composite
+    Room - All Room
+
+If you are using the Group Lease Area Method then the chargeback
+calculations executed will depend on the value entered in the Schema
+Preferences Table for: Group Area Prorate Method.
+
+The Suite chargeback method sums Suite usable areas to Floors, Buildings,
+  and Sites and then prorates Service common areas to suites.
+The Group chargeback methods prorate Service and Group common areas
+  to Groups. (see Space On-line Help for details and differences 
+  between the Group, BOMA, and Enhanced BOMA methods.)
+The Room - Composite chargeback method prorates Service and common
+  area Rooms to Rooms. (see Space On-line Help for details.)
+The Room - All Room chargeback method prorates common area Rooms to 
+  Rooms which have an occupiable room category.
+  (see Space On-line Help for details.)
+
+Once the chargeble areas are determined for Suites, Groups, or Rooms 
+they are then summed up to the Lease rentable area.
+
+*****************************************************************************/
+
+Option Explicit
+
+'---- External Functions
+Declare Function SqlFunc_SQLIsNull() As String
+Declare Function SqlFunc_Replace0WithHuge( sFieldName As String ) As String
+Declare Sub ciup_calc_GrossVertServ()
+Declare Sub ciup_calc_all_gp()
+Declare Sub ciup_calc_all_rm()
+Declare Sub arup_calc_all()
+Declare Sub cicbgp_CompInvGPChargeback
+Declare Sub cicbboma_CompInvGPBomaChargeback()
+Declare Sub cicbboma_CompInvGPEnhancedBomaChargeback()
+Declare Sub cicbboma_CompInvGPBoma96Chargeback()
+Declare Sub cicbrm_CompInvRMChargeback()
+Declare Sub arcb_AllRoomRMChargeback()
+
+'---- Internal Functions
+Declare Sub lsarea_UpdateLeaseAreas()
+Declare Sub UpdateLeaseAreas()
+Declare Sub RunSuiteAreaChargeback()
+Declare Sub CalculateLeaseAreas( sLeaseAreaMethod As String )
+
+
+'------------------------------------------------------------------------------
+'----                                    TRANSLATE
+Const kPleaseWaitMsg$              = "Please wait ... "
+Const kUpdatingLeaseAreaTotalsMsg$  = "Updating Lease Area Totals"
+Const kSummarizingSuiteAreaTotalsMsg$="Summarizing Suite Area Totals"
+'------------------------------------------------------------------------------
+
+Sub lsarea_UpdateLeaseAreas()
+    UpdateLeaseAreas
+End Sub
+
+'------------------------------------------------------------------------------
+'---- 1) Update Space Areas (Sites, Bldgs, Floors)
+'---- 2) Chargeback common areas to Suites, Groups, or Rooms
+'---- 3) Calculate ls.area_usable and ls.area_rentable
+Sub UpdateLeaseAreas()
+
+    Dim rs As New RecordSet
+    Dim sLeaseAreaMethod As String
+    Dim sLeaseProMethod As String
+
+    rs.Open "SELECT lease_area_type, lease_proration_method FROM afm_scmpref"
+    sLeaseAreaMethod = rs.Fields( 0 ).Value     '---- su, gp, cr, or ar
+    sLeaseProMethod = rs.Fields( 1 ).Value      '---- G, B, E, or 9
+    rs.Close
+
+'   ---- Run the appropriate routines to update Bldgs, Floors, and chargeback
+'   ---- common areas to the Lease Areas (Suites, Groups, or Rooms)
+    Select Case sLeaseAreaMethod
+    Case "su"
+        ciup_calc_GrossVertServ
+        RunSuiteAreaChargeback
+    Case "gp"
+        ciup_calc_all_gp
+        Select Case sLeaseProMethod
+        Case "G"
+            cicbgp_CompInvGPChargeback
+        Case "B"
+            cicbboma_CompInvGPBomaChargeback
+        Case "E"
+            cicbboma_CompInvGPEnhancedBomaChargeback
+        Case "9"
+            cicbboma_CompInvGPBoma96Chargeback
+        End Select
+    Case "cr"
+        ciup_calc_all_rm
+        cicbrm_CompInvRMChargeback
+    Case "ar"
+        arup_calc_all
+        arcb_AllRoomRMChargeback
+    End Select
+
+    CalculateLeaseAreas sLeaseAreaMethod
+
+End Sub
+'------------------------------------------------------------------------------
+
+'------------------------------------------------------------------------------
+'---- Calculate ls.area_usable, ls.area_rentable, ls.qty_suite_occupancy once
+'---- Area rollup and chargeback has been run
+Sub CalculateLeaseAreas( sLeaseAreaMethod As String )
+
+     MsgOpen kUpdatingLeaseAreaTotalsMsg & BASIC.EOLN$ & BASIC.EOLN$ & _
+             kPleaseWaitMsg, 0, FALSE, TRUE
+
+     Dim fo As New FieldOperation
+    Dim sAreaTable As String
+    Dim sAreaUsableField As String
+    Dim sAreaRentableField As String
+
+    Select Case sLeaseAreaMethod
+    Case "su"
+        sAreaTable = "su"
+        sAreaUsableField = "area_usable"
+        sAreaRentableField = "area_rentable"
+    Case "gp"
+        sAreaTable = "gp"
+        sAreaUsableField = "area"
+        sAreaRentableField = "area_chargable"
+    Case "cr", "ar"
+        sAreaTable = "rm"
+        sAreaUsableField = "area"
+        sAreaRentableField = "area_chargable"
+    End Select
+
+    MsgSetThermometer 5
+
+     fo.Owner    = "ls"
+     fo.Assigned = sAreaTable  
+    fo.AddOperation "ls.area_usable", "SUM", _
+                            sAreaTable & "." & sAreaUsableField
+    fo.AddOperation "ls.area_rentable", "SUM", _
+                            sAreaTable & "." & sAreaRentableField
+    fo.AddOperation "ls.area_common", "SUM", sAreaTable & ".area_comn"
+    fo.Calculate
+     fo.Clear
+
+    MsgSetThermometer 70
+
+     fo.Owner    = "ls"
+     fo.Assigned = "su"
+    fo.Calculate "ls.qty_suite_occupancy", "SUM", "su.occupancy"
+     fo.Clear
+    
+    MsgSetThermometer 100
+    Sleep 300
+     MsgClose
+
+End Sub
+'------------------------------------------------------------------------------
+
+'------------------------------------------------------------------------------
+'---- 1) Calculate Floor, Bldg, and Site Common Areas from Service Areas
+'---- 2) Calculate Floor, Bldg, and Site Suite Areas from Suites
+'---- 3) Calculate Suite Common Areas from proration of Floor, Bldg, and Site
+'----   common areas
+Sub RunSuiteAreaChargeback()
+
+     MsgOpen kSummarizingSuiteAreaTotalsMsg & BASIC.EOLN$ & BASIC.EOLN$ & _
+             kPleaseWaitMsg, 0, FALSE, TRUE
+    
+    Dim fo As New FieldOperation
+    Dim sSqlStatement As String
+
+
+// **NOTE** -- the next 3 calcs are EXACTLY the same as 3 calcs in GroupChargeback.java:
+
+        // Sum SERVICE FLOOR COMMON area from SERV to FL 
+
+        new FieldOperation("fl", "rm", "rmcat")
+            .setAssignedRestriction("rmcat.supercat = 'SERV' AND rm.prorate = 'FLOOR'")
+            .calculate("fl.area_fl_comn_serv", "SUM", "rm.area");
+
+
+        // Sum SERVICE BLDG. COMMON area from SERV to BL
+
+        new FieldOperation("bl", "rm", "rmcat")
+            .setAssignedRestriction("rmcat.supercat = 'SERV' AND rm.prorate = 'BUILDING'")
+            .calculate("bl.area_bl_comn_serv", "SUM", "rm.area");
+
+
+        // Sum SERVICE SITE COMMON area from SERV to SITE 
+
+        String sql = "UPDATE site SET area_st_comn_serv = (SELECT ${sql.isNull('SUM(rm.area)', 0.0)}"
+                +
+                       " FROM bl, rm, rmcat" +
+                       " WHERE site.site_id = bl.site_id" +
+                       " AND bl.bl_id = rm.bl_id" +
+                       " AND rmcat.rm_cat = rm.rm_cat" +
+                       " AND rmcat.supercat = 'SERV'" + 
+                       " AND rm.prorate = 'SITE')";
+        SqlUtils.executeUpdate("site", sql);
+
+
+
+     MsgSetThermometer 30
+
+     fo.Owner    = "fl"
+     fo.Assigned = "su"
+     fo.Calculate "fl.area_su", "SUM", "su.area_usable"
+     fo.Clear 
+
+     MsgSetThermometer 40
+
+     fo.Owner    = "bl"
+     fo.Assigned = "fl"
+     fo.Calculate "bl.area_su", "SUM", "fl.area_su"
+     fo.Clear 
+
+     MsgSetThermometer 50
+
+     fo.Owner    = "site"
+     fo.Assigned = "bl"
+     fo.Calculate "site.area_su", "SUM", "bl.area_su"
+     fo.Clear 
+
+     MsgSetThermometer 60
+
+    sSqlStatement = "UPDATE su SET area_comn =" & _
+        " ( SELECT " & SqlFunc_SQLIsNull() & _
+            "( fl.area_fl_comn_serv * su.area_usable / (" & _
+                SqlFunc_Replace0WithHuge( "fl.area_su" ) & "), 0.0)" & _
+        " + " & SqlFunc_SQLIsNull() & _
+            "( bl.area_bl_comn_serv * su.area_usable / (" & _
+                SqlFunc_Replace0WithHuge( "bl.area_su" ) & "), 0.0)" & _
+        " + " & SqlFunc_SQLIsNull() & _
+            "( site.area_st_comn_serv * su.area_usable / (" & _
+                SqlFunc_Replace0WithHuge( "site.area_su" ) & "),0.0)"
+
+    Select Case ProjDb.ServerType
+    Case "Oracle"
+        sSqlStatement=sSqlStatement & " FROM fl, bl, site"
+    Case "Sybase"
+        sSqlStatement=sSqlStatement & " FROM fl, bl KEY LEFT OUTER JOIN site"
+    Case "MSSQL"
+        sSqlStatement=sSqlStatement & " FROM fl, bl LEFT OUTER JOIN site" & _
+                                       " ON site.site_id = bl.site_id"
+    End Select
+
+    sSqlStatement = sSqlStatement & _
+        " WHERE fl.bl_id = su.bl_id" & _
+        " AND fl.fl_id =su.fl_id" & _
+        " AND bl.bl_id = su.bl_id"
+
+     If ProjDb.ServerType = "Oracle" Then
+        sSqlStatement = sSqlStatement & " AND site.site_id (+) = bl.site_id)"
+    Else
+        sSqlStatement = sSqlStatement & ")"
+    End If
+
+    ProjDb.ExecuteSql sSqlStatement
+
+     MsgSetThermometer 90
+    
+    ProjDb.ExecuteSql "UPDATE su SET area_rentable = " &  _
+                    SqlFunc_SQLIsNull() & "(area_usable + area_comn, 0.0)"
+
+    MsgSetThermometer 100
+    MsgClose
+
+End Sub
+'------------------------------------------------------------------------------
+

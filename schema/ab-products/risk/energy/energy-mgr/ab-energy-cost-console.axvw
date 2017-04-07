@@ -1,0 +1,229 @@
+<view version="2.0">
+
+    <js file="ab-energy-cost-console.js"/>
+
+    <message name="world" translatable="true">WORLD</message>
+    <message name="msg_no_ctry_id" translatable="true">No Country</message>
+    <message name="msg_no_city_id" translatable="true">No City</message>
+    <message name="msg_no_site_id" translatable="true">No Site</message>
+    <message name="msg_no_pr_id" translatable="true">No Property</message>
+    <message name="msg_no_bl_id" translatable="true">No Building</message> 
+    <message name="byCity">by City</message>
+    <message name="bySite">by Site</message>
+    <message name="byBuilding">by Building</message>
+
+    <message name="enterYear">Please enter a year with format YYYY</message>
+    <message name="enterBl">Please select a building code</message>
+    <message name="selectRequiredBillType">Please select a bill type</message>    
+    <message name="selectRequiredPeriodTo">Please select a billing period to</message>
+   
+    <message name="unitTitleImperial">ft&#178;</message>
+    <message name="unitTitleMetric">m&#178;</message>
+    
+    <!-- Console datasource -->    
+    <dataSource id="ds_energyConsole">
+        <table name="bill_archive" role="main"/>
+        <table name="bl" role="standard"/>
+        <table name="bill_line" role="standard"/>
+        <field table="bill_archive" name="time_period"/>
+        <field table="bill_archive" name="bill_type_id"/>
+        <field table="bill_archive" name="vn_id"/>
+        <field table="bill_archive" name="bl_id"/>
+        <field table="bl" name="count_fl"/>
+        <field table="bl" name="use1"/>
+        <field table="bl" name="construction_type"/>
+        <field table="bl" name="count_occup"/> 
+        <field table="bill_line" name="bill_line_id"/> 
+    </dataSource>
+    
+    <panel type="view" id="commonView" file="ab-energy-bill-common.axvw"/>
+    
+    <!-- Console panel -->    
+    <panel type="console" columns="3" id="energyConsole" showOnLoad="true" dataSource="ds_energyConsole" layoutRegion="console">
+        <title translatable="true">Filter</title>
+        <action id="show">
+            <title translatable="true">Show</title>
+        </action>
+        <action id="clear">
+            <title translatable="true">Clear</title>
+        </action>
+
+        <!-- row 1 fields to be used in annual reports -->
+        <field id="energyConsole_period">
+             <title translatable="true">Period</title>
+                  <html>
+                       <select id="energyConsole_periodSelect" class="inputField_box">
+                            <option id="energyConsole_periodSelect_calendarYear" value="calendarYear">
+                                 <span translatable="true">Calendar Year</span>
+                            </option>
+                            <option id="energyConsole_periodSelect_fiscalYear" value="fiscalYear">
+                                 <span translatable="true">Fiscal Year</span>
+                            </option>
+                       </select>
+                  </html>
+         </field>
+        <field table="bill_line" name="bill_line_id" alias="bill_archive.year" required="true" size="4" decimals="0" dataType="number" showSelectValueAction="false" >
+             <title translatable="true">Year</title>
+         </field>
+        <field table="bill_archive" name="bl_id" required="true" >
+            <action id="selectBl">
+                <title>...</title>
+                <tooltip>Select Value</tooltip>
+                    <command type="selectValue" 
+                        fieldNames="bill_archive.bl_id"
+                        selectFieldNames="bl.bl_id"
+                        visibleFieldNames="bl.ctry_id, bl.city_id, bl.site_id, bl.bl_id" 
+                        restriction=" exists (select 1 from bill_archive where bill_archive.bl_id = bl.bl_id) "
+                        showIndex="false"> 
+                    </command>
+            </action>            
+        </field>
+
+        <!-- row 2  -->
+        <field table="bill_archive" name="time_period" alias="bill_archive.time_period.from" showSelectValueAction="true">
+        <title translatable="true">Billing Period From</title>
+        <action>
+            <title>...</title>
+            <tooltip>Select Value</tooltip>
+                <command type="selectValue" applyFilter="false" isDistinct="true"
+                fieldNames="bill_archive.time_period.from"
+                selectFieldNames="bill_archive.time_period"
+                visibleFieldNames="bill_archive.time_period"
+                sortFieldNames="bill_archive.time_period"
+                showIndex="false">
+                    <title translatable="true">Billing Period From</title>
+                </command>
+        </action>       
+        </field>
+        <field table="bill_archive" name="time_period" alias="bill_archive.time_period.to" showSelectValueAction="true">
+            <title translatable="true">Billing Period To</title>
+	        <action>
+	            <title>...</title>
+	            <tooltip>Select Value</tooltip>
+	                <command type="selectValue" applyFilter="false" isDistinct="true" 
+	                fieldNames="bill_archive.time_period.to"
+	                selectFieldNames="bill_archive.time_period"
+	                visibleFieldNames="bill_archive.time_period"
+	                sortFieldNames="bill_archive.time_period"
+	                showIndex="false">
+	                    <title translatable="true">Billing Period To</title>
+	                </command>
+	        </action>            
+        </field>
+        <field table="bill_archive" name="vn_id" >
+            <action id="selectVendor">
+            </action>
+        </field>
+       
+        <!-- row 3 -->
+        <field table="bl" name="use1" onchange="changeBlValue();" />     
+        <field table="bl" name="construction_type" onchange="changeBlValue();" />      
+        <field table="bl" name="count_fl" alias="bl.age" onchange="changeBlValue();">
+            <title translatable="true">Building Age</title>
+        </field>
+
+        <!-- row 4 -->
+        <field table="bl" name="count_occup" alias="bl.count_occup.from" showSelectValueAction="true" value="" onchange="changeBlValue();" >
+            <title translatable="true">Min. Occupancy</title>
+            <action>
+            <title>...</title>
+            <tooltip>Select Value</tooltip>
+                <command type="selectValue"
+                fieldNames="bl.count_occup.from"
+                selectFieldNames="bl.count_occup"
+                visibleFieldNames="bl.count_occup"
+                sortFieldNames="bl.count_occup"
+                showIndex="true">
+                    <title translatable="true">Min. Occupancy</title>
+                </command>
+            </action>            
+        </field>
+        <field table="bl" name="count_occup" alias="bl.count_occup.to" showSelectValueAction="true" onchange="changeBlValue();" >
+            <title translatable="true">Max. Occupancy</title>
+            <action>
+            <title>...</title>
+            <tooltip>Select Value</tooltip>
+                <command type="selectValue"
+                fieldNames="bl.count_occup.to"
+                selectFieldNames="bl.count_occup"
+                visibleFieldNames="bl.count_occup"
+                sortFieldNames="bl.count_occup"
+                showIndex="true">
+                    <title translatable="true">Max. Occupancy</title>
+                </command>
+            </action>            
+        </field>
+        <field id="energyCostLoc_locDtl">
+             <title translatable="true">Location Detail</title>
+                  <html>
+                       <select id="energyCostLoc_locDtlSelect" class="inputField_box">
+                            <option id="energyCostLoc_locDtlSelect_city" value="byCity">
+                                 <span translatable="true">City</span>
+                            </option>
+                            <option id="energyCostLoc_locDtlSelect_site" value="bySite">
+                                 <span translatable="true">Site</span>
+                            </option>
+                            <option id="energyCostLoc_locDtlSelect_bl" value="byBuilding" selected="1">
+                                 <span translatable="true">Building</span>
+                            </option>
+                       </select>
+                  </html>
+         </field>
+
+        <!-- row 5 -->        
+         
+        <field table="bill_archive" name="bill_type_id" alias="bill_archive.bill_type_ids" selectValueType="multiple">
+            <action id="selectMultipleTypes">
+                <title>...</title>
+                <tooltip>Select Value</tooltip>
+                    <command type="selectValue" selectValueType="multiple"
+                        fieldNames="bill_archive.bill_type_ids"
+                        selectFieldNames="bill_unit.bill_type_id"
+                        visibleFieldNames="bill_unit.bill_type_id" 
+                        restriction=" bill_unit.rollup_type != 'None' AND exists (select 1 from bill_archive where bill_archive.bill_type_id = bill_unit.bill_type_id) "
+                        showIndex="false"> 
+                    </command>
+            </action>            
+        </field>
+        <field table="bill_archive" name="bill_type_id" alias="bill_archive.bill_type_id" onchange="onChangeBillType()" required="true" value="">
+            <action id="selectSingleType">
+                <!-- title>...</title>
+                <tooltip>Select Value</tooltip>
+                    <command type="selectValue"
+	                    fieldNames="bill_archive.bill_type_id"
+	                    selectFieldNames="bill_unit.bill_type_id"
+	                    visibleFieldNames="bill_unit.bill_type_id" 
+	                    restriction=" bill_unit.rollup_type != 'None' AND exists (select 1 from bill_archive where bill_archive.bill_type_id = bill_unit.bill_type_id) "                    
+	                    actionListener="onChangeBillType"
+	                    showIndex="false"> 
+                    </command-->
+            </action>         
+        </field>        
+         <field id="vf_bill_units">
+                <title translatable="true">Consumption Units</title>
+                <html>
+                    <select class="inputField_box" name="select_bill_units" id="select_bill_units">
+                        <option id="select_bill_units_0" value="MMBTU" selected="true">MMBTU</option>
+                    </select>
+                </html>
+        </field>  
+        
+        <!-- row 6 -->        
+        
+         <field id="energyCostLoc_normArea">
+              <title translatable="true">Normalize by Area</title>
+                 <html>
+                       <input id="energyCostLoc_normAreaCheck" type="checkbox" value="" checked="true" name="energyCostLoc_normAreaCheck"/>
+                 </html>
+          </field>  
+         <field id="vf_bill_units_gas">
+                <title translatable="true">Gas Consumption Units</title>
+                <html>
+                    <select class="inputField_box" name="select_bill_units_gas" id="select_bill_units_gas">
+                        <option id="select_bill_units_gas_0" value="CCF" selected="true">CCF</option>
+                    </select>
+                </html>
+        </field>  
+        
+    </panel>
+</view>

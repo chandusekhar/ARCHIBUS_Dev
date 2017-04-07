@@ -1,0 +1,208 @@
+<view version="2.0">
+	<title translatable="true">Building Sustainability Summary</title>
+	<js file="ab-es-bl-ca-sum.js"/>
+	<js file="ab-ca-common.js"/>
+
+	<message name="noProjectSelected" translatable="true">You must select at least one project before pressing the 'Show' action button</message>
+	<message name="noProjectSelectedForDetails" translatable="true">You must select at least one project before pressing the 'Details' button</message>
+	<message name="noProjectSelectedForReport" translatable="true">You must select at least one project before pressing the 'Paginated Report' button</message>
+	<message name="noProjectSelectedForXLS" translatable="true">You must select at least one project before pressing the 'XLS' action button</message>
+	<message name="siteCodeMandatToCreateServReq" translatable="true">You must enter a site code before creating a service request for this deficiency</message>
+	<message name="selectedProjects" translatable="true">Selected Projects</message>
+	<message name="siteId" translatable="true">Site Code</message>
+	<message name="blId" translatable="true">Building Code</message>
+	<message name="flId" translatable="true">Floor Code</message>
+	<message name="csiId" translatable="true">Classification Code</message>
+	
+    <layout type="borderLayout" id="mainLayout">
+        <west autoScroll="true" split="true" initialSize="20%"/>
+        <center autoScroll="true"/>
+    </layout>
+    <layout type="borderLayout" id="centerLayout" containingLayout="mainLayout" region="center">
+        <north split="true" initialSize="100"/>
+        <center autoScroll="true"/>
+    </layout>
+
+    <dataSource id="dsProjects">
+        <table name="project"/>
+        <field name="project_id"/>
+		<restriction type="parsed">
+		    <clause table="project" name="project_type" op="=" value="ASSESSMENT - ENVIRONMENTAL"/>
+		</restriction>
+		<restriction type="sql" sql="EXISTS(SELECT activity_log.project_id FROM activity_log WHERE activity_log.project_id = project.project_id AND activity_log.sust_priority &lt;&gt; 0)"/>
+    </dataSource>  
+	
+	<panel type="grid" id="listProjects" dataSource="dsProjects" multipleSelectionEnabled="true" layout="mainLayout" region="west">
+		<title translatable="true">Project</title>
+        <action id="projDetails">
+            <title translatable="true">Details</title>
+        </action>
+		<sortField name="project_id" ascending="true"/>
+		<field name="project_id"/>
+	</panel>
+
+	<dataSource id="dsEsFilter">
+		<table name="activity_log" role="main"/>
+		<field table="activity_log" name="site_id"/>
+		<field table="activity_log" name="bl_id"/>
+		<field table="activity_log" name="fl_id"/>
+		<field table="activity_log" name="csi_id"/>
+	</dataSource>
+	
+	<panel type="console" id="esFilterPanel" dataSource="dsEsFilter" columns="3" layout="centerLayout" region="north">
+		<title translatable="true">Filter</title>
+        <action id="paginatedReport">
+            <title translatable="true">Paginated Report</title>
+        </action>
+        <action id="exportXLS">
+            <title>XLS</title>
+			<command type="callFunction" functionName="setRestrictionToXLS"/>
+			<command type="exportPanel" outputType="xls" panelId="repEsSumBldgCondDetails" viewName="ab-es-bl-ca-sum.axvw"/>
+        </action>
+        <action id="show">
+            <title translatable="true">Show</title>
+        </action>
+        <action id="clear">
+            <title translatable="true">Clear</title>
+            <command type="clearPanel" panelId="esFilterPanel"/>
+        </action>
+		<field table="activity_log" name="site_id" style="width: 100px;"/>
+		<field table="activity_log" name="bl_id" style="width: 100px;"/>
+		<field table="activity_log" name="fl_id" style="width: 100px;"/>
+		<field table="activity_log" name="csi_id" style="width: 100px;"/>
+	</panel>
+	
+	<tabs id="tabsEsSumBldgCond" workflow="free" tabRefreshPolicy="refreshOnLoad" layout="centerLayout" region="center" cssClass="wizard">
+		<tab name="tabReport" selected="true">
+			<title translatable="true">Summary Report</title>
+			<dataSource id="dsEsSumBldgCondRep" type="grouping">
+				<sql dialect="generic">
+					SELECT * from
+							(SELECT 
+		    					activity_log.bl_id,
+		    					(activity_log.cond_value * activity_log.sust_priority) ${sql.as} cond_rating,
+		    					(SELECT	AVG(${sql.getFormulaForTable('AbCapitalPlanningCA-FacilityConditionIndex', 'activity_log', 'act_inner')}) from activity_log ${sql.as} act_inner where  act_inner.cost_to_replace > 0 and act_inner.activity_log_id = activity_log.activity_log_id and act_inner.activity_type = 'ASSESSMENT') ${sql.as} facility_index,
+		    					activity_log.cost_estimated,
+		    					activity_log.cost_est_cap,
+		    					(activity_log.cost_estimated + activity_log.cost_est_cap) ${sql.as} cost_est_total,
+		    					activity_log.cost_to_replace
+							FROM activity_log 
+							WHERE ${parameters['consoleRestriction']}) ${sql.as} inner_query
+				</sql>	
+				<table name="activity_log" role="main"/>
+				<field table="activity_log" name="bl_id" groupBy="true"/>
+				
+				<field table="activity_log" name="vf_num_itm" dataType="number" size="12" decimals="0">
+					<title translatable="true">Count</title>
+					<sql dialect="generic">COUNT(activity_log.bl_id)</sql>
+				</field>
+				<field table="activity_log" name="avg_cond_rating" dataType="number" size="12" decimals="1">
+					<title translatable="true">Sustainability Rating - Avg</title>
+					<sql dialect="generic">AVG(cond_rating)</sql>
+				</field>
+				<field table="activity_log" name="avg_facility_index" dataType="number" size="12" decimals="1">
+					<title translatable="true">Facility Index - Avg</title>
+					<sql dialect="generic">AVG(facility_index)</sql>
+				</field>
+				<field name="sum_cost_estimated" formula="sum" baseField="activity_log.cost_estimated" table="activity_log" dataType="number" size="12" decimals="2"/>
+				<field name="sum_cost_est_cap" formula="sum" baseField="activity_log.cost_est_cap" table="activity_log" dataType="number" size="12" decimals="2"/>
+				<field name="sum_cost_est_total" table="activity_log" dataType="number" size="12" decimals="2">
+					<title translatable="true">Cost - Estimated Total</title>
+					<sql dialect="generic">SUM(cost_est_total)</sql>
+				</field>
+				<field name="sum_cost_to_replace" formula="sum" baseField="activity_log.cost_to_replace" table="activity_log" dataType="number" size="12" decimals="2"/>
+				<parameter name="consoleRestriction" dataType="verbatim" value="1=1"/>
+				<sortField table="activity_log" name="bl_id" ascending="true"/>
+			</dataSource>
+			
+			<panel type="crossTable" id="repEsSumBldgCond" dataSource="dsEsSumBldgCondRep" showOnLoad="false" multipleSelectionEnabled="false">
+				<title translatable="true">Building Sustainability Summary</title>
+		        <event type="onClickItem">
+		            <command type="callFunction" functionName="repEsSumBldgCond_onClickItem"/>
+		        </event>
+			</panel>
+		</tab>
+		<tab name="tabDetails" enabled="false">
+			<title translatable="true">Assessment Items</title>
+		    <dataSource id="dsEsSumBldgCondDetails">
+		        <table name="activity_log" role="main"/>
+				<table name="csi" role="standard"/>
+				<table name="bl" role="standard"/>
+				<field table="activity_log" name="project_id"/>
+				<field table="activity_log" name="bl_id"/>
+				<field table="bl" name="name"/>
+				<field table="activity_log" name="activity_log_id"/>
+				<field table="activity_log" name="csi_id"/>
+				<field table="csi" name="description"/>
+				<field table="activity_log" name="status"/>
+				<field table="activity_log" name="rec_action"/>
+				<field table="activity_log" name="eq_id"/>
+				<field table="activity_log" name="pbLocation" dataType="text">
+					<sql dialect="generic">(activity_log.site_id
+						${sql.concat}(CASE WHEN activity_log.bl_id IS NOT NULL THEN '-' ELSE '' END)${sql.concat}activity_log.bl_id
+						${sql.concat}(CASE WHEN activity_log.fl_id IS NOT NULL THEN '-' ELSE '' END)${sql.concat}activity_log.fl_id
+						${sql.concat}(CASE WHEN activity_log.rm_id IS NOT NULL THEN '-' ELSE '' END)${sql.concat}activity_log.rm_id
+						${sql.concat}(CASE WHEN activity_log.location IS NOT NULL THEN '-' ELSE '' END)${sql.concat}activity_log.location
+						)
+				</sql>
+				</field>
+				<field table="activity_log" name="sust_priority"/>
+				<field table="activity_log" name="cond_value"/>
+				<field table="activity_log" name="cost_estimated"/>
+				<field table="activity_log" name="cost_est_cap"/>
+				<field table="activity_log" name="cost_actual"/>
+				<field table="activity_log" name="cost_act_cap"/>
+				<field table="activity_log" name="cost_to_replace"/>
+				<field table="activity_log" name="facility_index" dataType="number" size="12" decimals="0">
+					<sql dialect="generic">
+						(${sql.getFormula('AbCapitalPlanningCA-FacilityConditionIndex')})
+					</sql>
+				</field>
+				<field table="activity_log" name="description"/>
+		        <field table="activity_log" name="fl_id"/>
+		        <field table="activity_log" name="rm_id"/>
+				<field table="activity_log" name="location"/>
+				<field table="activity_log" name="approved_by"/>
+				<field table="activity_log" name="requestor"/>
+				<field table="activity_log" name="phone_requestor"/>
+				<field table="activity_log" name="date_scheduled"/>
+				<field table="activity_log" name="activity_type"/>
+				<field table="activity_log" name="site_id"/>
+				<restriction type="sql" sql="activity_log.activity_type = 'ASSESSMENT' AND activity_log.sust_priority &lt;&gt; 0 AND activity_log.bl_id IS NOT NULL"/>
+		    </dataSource>
+		    <panel type="grid" id="repEsSumBldgCondDetails" dataSource="dsEsSumBldgCondDetails" hidden="true" showOnLoad="false">
+		    	<title translatable="true">Building Sustainability Summary</title>
+				<field id="edit" controlType="button">
+					<title translatable="true">Edit</title>
+					<tooltip translatable="true">Edit</tooltip>
+				</field>
+				<field id="createWorkReq" controlType="image" imageName="ab-create-service-request.gif">
+					<tooltip translatable="true">Create Service Request for Deficiency with status of `In Progress` or `Scheduled`</tooltip>
+				</field>
+				<field table="activity_log" name="project_id"/>
+				<field table="activity_log" name="bl_id"/>
+				<field table="bl" name="name"/>
+				<field table="activity_log" name="activity_log_id"/>
+				<field table="activity_log" name="csi_id"/>
+				<field table="csi" name="description"/>
+				<field table="activity_log" name="status"/>
+				<field table="activity_log" name="rec_action"/>
+				<field table="activity_log" name="eq_id"/>
+				<field table="activity_log" name="pbLocation">
+					<title translatable="true">Problem Location</title>
+				</field>
+				<field table="activity_log" name="sust_priority"/>
+				<field table="activity_log" name="cond_value"/>
+				<field table="activity_log" name="cost_estimated"/>
+				<field table="activity_log" name="cost_est_cap"/>
+				<field table="activity_log" name="cost_actual"/>
+				<field table="activity_log" name="cost_act_cap"/>
+				<field table="activity_log" name="cost_to_replace"/>
+				<field table="activity_log" name="facility_index">
+					<title translatable="true">Facility Index</title>
+				</field>
+				<field table="activity_log" name="description"/>
+			</panel>
+		</tab>
+	</tabs>
+</view>

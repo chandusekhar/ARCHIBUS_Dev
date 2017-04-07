@@ -1,0 +1,272 @@
+<!-- TODO: replace areaUnitsConversionFactor by core feature when available -->
+<view version="2.0">
+	<title translatable="true">Lease Benchmarks Details</title>
+	
+	<report orientation="landscape"/>
+	
+	<dataSource id="abRepmLsadminLsBenchmarkDetailsLsRpt_ds_lsDescr">
+		<table name="ls" role="main"/>
+		<field table="ls" name="ls_id"/>
+		<field table="ls" name="ac_id"/>
+		<field table="ls" name="date_start"/>
+		<field table="ls" name="ld_name"/>
+		<field table="ls" name="landlord_tenant"/>
+		<field table="ls" name="date_move"/>
+		<field table="ls" name="ld_contact"/>
+		<field table="ls" name="ls_parent_id"/>
+		<field table="ls" name="date_end"/>
+		<field table="ls" name="tn_name"/>
+		<field table="ls" name="signed"/>
+		<field table="ls" name="lease_sublease"/>
+		<field table="ls" name="tn_contact"/>
+		<field table="ls" name="space_use"/>
+		<field table="ls" name="amount_security"/>
+		<field table="ls" name="lease_type"/>
+		<field table="ls" name="qty_occupancy"/>
+		<field table="ls" name="description"/>
+		<field table="ls" name="floors"/>
+		<field table="ls" name="qty_suite_occupancy"/>
+		<field table="ls" name="comments"/>
+		
+		<restriction type="parsed">
+			<clause table="ls" name="ls_id" op="=" value="${(parameters['lsId'])}"/>
+			<clause op="=" table="ls" name="use_as_template" value="0"/>
+		</restriction>
+		
+		<parameter name="lsId" dataType="text" value=""/>
+	</dataSource>
+
+	<panel id="abRepmLsadminLsBenchmarkDetailsLsRpt_lsDescrPanel" dataSource="abRepmLsadminLsBenchmarkDetailsLsRpt_ds_lsDescr" type="paginatedReport" format="column" columns="3" role="data"/>
+
+	<dataSource id="abRepmLsadminLsBenchmarkDetailsLsRpt_ds_lsAreas">
+		<table name="ls" role="main"/>
+		<field table="ls" name="ls_id"/>
+		<field table="ls" name="area_usable"/>
+		<field table="ls" name="area_rentable"/>
+		<field table="ls" name="area_common"/>
+		<field table="ls" name="area_negotiated"/>
+		
+		<restriction type="parsed">
+			<clause table="ls" name="ls_id" op="=" value="${(parameters['lsId'])}"/>
+			<clause op="=" table="ls" name="use_as_template" value="0"/>
+		</restriction>
+		
+		<parameter name="lsId" dataType="text" value=""/>
+	</dataSource>
+
+	<panel id="abRepmLsadminLsBenchmarkDetailsLsRpt_lsAreasPanel" dataSource="abRepmLsadminLsBenchmarkDetailsLsRpt_ds_lsAreas" type="paginatedReport" format="column" columns="2" role="data">
+		<field table="ls" name="area_usable"/>
+		<field table="ls" name="area_rentable"/>
+		<field table="ls" name="area_common"/>
+		<field table="ls" name="area_negotiated"/>
+	</panel>
+
+	<dataSource id="abRepmLsadminLsBenchmarkDetailsLsRpt_ds_lsCosts">
+        <sql dialect="generic">
+            SELECT
+                ls.ls_id, ls.bl_id, ls.pr_id, ls.use_as_template, '' ${sql.as} dummy_field,
+                ${sql.isNull('ccost_sum.amount_base_rent', 0)} ${sql.as} amount_base_rent,
+                (${sql.isNull('ccost_sum.amount_base_rent', 0)} * (30.4375 / (ls.date_cost_anal_end - ls.date_cost_anal_start + 1))) ${sql.as} avg_amount_base_rent,
+                (((${sql.isNull('ccost_sum.amount_base_rent + ccost_sum.amount_operating + ccost_sum.amount_taxes + ccost_sum.amount_other + ccost_sum.amount_pct_rent', 0)}) / (${sql.replaceZero('ls.area_negotiated')} * ${parameters['areaUnitsConversionFactor']})) * (365.25 / (ls.date_cost_anal_end - ls.date_cost_anal_start + 1))) ${sql.as} yearly_net_income,
+                ${sql.isNull('ccost_sum.amount_pct_rent', 0)} ${sql.as} amount_pct_rent,
+                (${sql.isNull('ccost_sum.amount_pct_rent', 0)} * (30.4375 / (ls.date_cost_anal_end - ls.date_cost_anal_start + 1))) ${sql.as} avg_amount_pct_rent,
+                ls.date_cost_anal_start,
+                ${sql.isNull('ccost_sum.amount_operating', 0)} ${sql.as} amount_operating,
+                (${sql.isNull('ccost_sum.amount_operating', 0)} * (30.4375 / (ls.date_cost_anal_end - ls.date_cost_anal_start + 1))) ${sql.as} avg_amount_operating,
+                ls.date_cost_anal_end,
+                ${sql.isNull('ccost_sum.amount_taxes', 0)} ${sql.as} amount_taxes,
+                (${sql.isNull('ccost_sum.amount_taxes', 0)} * (30.4375 / (ls.date_cost_anal_end - ls.date_cost_anal_start + 1))) ${sql.as} avg_amount_taxes,
+                ls.date_costs_last_calcd,
+                ${sql.isNull('ccost_sum.amount_other', 0)} ${sql.as} amount_other,
+                (${sql.isNull('ccost_sum.amount_other', 0)} * (30.4375 / (ls.date_cost_anal_end - ls.date_cost_anal_start + 1))) ${sql.as} avg_amount_other,
+                (${sql.isNull('ccost_sum.amount_base_rent + ccost_sum.amount_pct_rent + ccost_sum.amount_operating + ccost_sum.amount_taxes + ccost_sum.amount_other', 0)}) ${sql.as} net_income,
+                ((${sql.isNull('ccost_sum.amount_base_rent + ccost_sum.amount_pct_rent + ccost_sum.amount_operating + ccost_sum.amount_taxes + ccost_sum.amount_other', 0)}) * (30.4375 / (ls.date_cost_anal_end - ls.date_cost_anal_start + 1))) ${sql.as} avg_net_income
+            FROM ls
+                LEFT OUTER JOIN ccost_sum ON ccost_sum.ls_id = ls.ls_id AND ccost_sum.report_name = 'ls' AND ccost_sum.user_name = ${parameters['user_name']} 
+        </sql>
+        <sql dialect="sqlserver">
+            SELECT
+                ls.ls_id, ls.bl_id, ls.pr_id, ls.use_as_template, '' ${sql.as} dummy_field,
+                ${sql.isNull('ccost_sum.amount_pct_rent', 0)} ${sql.as} amount_base_rent,
+                (${sql.isNull('ccost_sum.amount_base_rent', 0)} * (30.4375 / (CONVERT(INT,ls.date_cost_anal_end) - CONVERT(INT,ls.date_cost_anal_start) + 1))) ${sql.as} avg_amount_base_rent,
+                (((${sql.isNull('ccost_sum.amount_base_rent + ccost_sum.amount_operating + ccost_sum.amount_taxes + ccost_sum.amount_other + ccost_sum.amount_pct_rent', 0)}) / (${sql.replaceZero('ls.area_negotiated')} * ${parameters['areaUnitsConversionFactor']})) * (365.25 / (CONVERT(INT,ls.date_cost_anal_end) - CONVERT(INT,ls.date_cost_anal_start) + 1))) ${sql.as} yearly_net_income,
+                ${sql.isNull('ccost_sum.amount_pct_rent', 0)} ${sql.as} amount_pct_rent,
+                (${sql.isNull('ccost_sum.amount_pct_rent', 0)} * (30.4375 / (CONVERT(INT,ls.date_cost_anal_end) - CONVERT(INT,ls.date_cost_anal_start) + 1))) ${sql.as} avg_amount_pct_rent,
+                ls.date_cost_anal_start,
+                ${sql.isNull('ccost_sum.amount_operating', 0)} ${sql.as} amount_operating,
+                (${sql.isNull('ccost_sum.amount_operating', 0)} * (30.4375 / (CONVERT(INT,ls.date_cost_anal_end) - CONVERT(INT,ls.date_cost_anal_start) + 1))) ${sql.as} avg_amount_operating,
+                ls.date_cost_anal_end,
+                ${sql.isNull('ccost_sum.amount_taxes', 0)} ${sql.as} amount_taxes,
+                (${sql.isNull('ccost_sum.amount_taxes', 0)} * (30.4375 / (CONVERT(INT,ls.date_cost_anal_end) - CONVERT(INT,ls.date_cost_anal_start) + 1))) ${sql.as} avg_amount_taxes,
+                ls.date_costs_last_calcd,
+                ${sql.isNull('ccost_sum.amount_other', 0)} ${sql.as} amount_other,
+                (${sql.isNull('ccost_sum.amount_other', 0)} * (30.4375 / (CONVERT(INT,ls.date_cost_anal_end) - CONVERT(INT,ls.date_cost_anal_start) + 1))) ${sql.as} avg_amount_other,
+                (${sql.isNull('ccost_sum.amount_base_rent + ccost_sum.amount_pct_rent + ccost_sum.amount_operating + ccost_sum.amount_taxes + ccost_sum.amount_other', 0)}) ${sql.as} net_income,
+                ((${sql.isNull('ccost_sum.amount_base_rent + ccost_sum.amount_pct_rent + ccost_sum.amount_operating + ccost_sum.amount_taxes + ccost_sum.amount_other', 0)}) * (30.4375 / (CONVERT(INT,ls.date_cost_anal_end) - CONVERT(INT,ls.date_cost_anal_start) + 1))) ${sql.as} avg_net_income
+            FROM ls
+                LEFT OUTER JOIN ccost_sum ON ccost_sum.ls_id = ls.ls_id AND ccost_sum.report_name = 'ls' AND ccost_sum.user_name = ${parameters['user_name']} 
+        </sql>
+		<table name="ls" role="main"/>
+		<field table="ls" name="ls_id"/>
+        <field table="ls" name="bl_id"/>
+        <field table="ls" name="pr_id"/>
+		
+		<field table="ls" name="amount_base_rent" dataType="number" decimals="2" currency="${project.budgetCurrency.code}"/>
+		<field name="avg_amount_base_rent" dataType="number" decimals="2" currency="${project.budgetCurrency.code}"/>
+		<field name="yearly_net_income" dataType="number" decimals="2" currency="${project.budgetCurrency.code}"/>
+		
+		<field table="ls" name="amount_pct_rent" dataType="number" decimals="2" currency="${project.budgetCurrency.code}"/>
+		<field name="avg_amount_pct_rent" dataType="number" decimals="2" currency="${project.budgetCurrency.code}"/>
+		<field table="ls" name="date_cost_anal_start" dataType="date"/>
+
+		<field table="ls" name="amount_operating" dataType="number" decimals="2" currency="${project.budgetCurrency.code}"/>
+		<field name="avg_amount_operating" dataType="number" decimals="2" currency="${project.budgetCurrency.code}"/>
+		<field table="ls" name="date_cost_anal_end" dataType="date"/>
+
+		<field table="ls" name="amount_taxes" dataType="number" decimals="2" currency="${project.budgetCurrency.code}"/>
+		<field name="avg_amount_taxes" dataType="number" decimals="2" currency="${project.budgetCurrency.code}"/>
+		<field table="ls" name="date_costs_last_calcd" dataType="date"/>
+
+		<field table="ls" name="amount_other" dataType="number" decimals="2" currency="${project.budgetCurrency.code}"/>
+		<field name="avg_amount_other" dataType="number" decimals="2" currency="${project.budgetCurrency.code}"/>
+
+		<field name="net_income" dataType="number" decimals="2" currency="${project.budgetCurrency.code}"/>
+		<field name="avg_net_income" dataType="number" decimals="2" currency="${project.budgetCurrency.code}"/>
+		<field name="dummy_field" dataType="text">
+            <sql dialect="generic">''</sql>
+        </field>
+		
+		<restriction type="parsed">
+			<clause table="ls" name="ls_id" op="=" value="${(parameters['lsId'])}"/>
+			<clause op="=" table="ls" name="use_as_template" value="0"/>
+		</restriction>
+		
+		<parameter name="lsId" dataType="text" value=""/>
+        <parameter name="areaUnitsConversionFactor" dataType="verbatim" value="1"/>
+        <parameter name="user_name" dataType="text" value="${user.name}"/>
+	</dataSource>
+	
+	<panel id="abRepmLsadminLsBenchmarkDetailsLsRpt_lsCostsPanel" dataSource="abRepmLsadminLsBenchmarkDetailsLsRpt_ds_lsCosts" type="paginatedReport" format="column" columns="3" role="data">
+		<field table="ls" name="amount_base_rent">
+            <title translatable="true">Amount - Base Rent</title>
+        </field>
+		<field name="avg_amount_base_rent">
+			<title translatable="true">Avg. Monthly Base Rent</title>
+		</field>
+		<field name="yearly_net_income">
+			<title translatable="true">Yearly Total Cost per Neg. Rentable Area</title>
+		</field>
+		
+		<field table="ls" name="amount_pct_rent">
+            <title translatable="true">Amount - Pct. Rent</title>
+        </field>
+		<field name="avg_amount_pct_rent">
+			<title translatable="true">Avg. Monthly Pct. Rent</title>
+		</field>
+		<field table="ls" name="date_cost_anal_start">
+            <title translatable="true">Date Costs Start</title>
+        </field>
+		
+		<field table="ls" name="amount_operating">
+            <title translatable="true">Amount - Operating</title>
+        </field>
+		<field name="avg_amount_operating">
+			<title translatable="true">Avg. Monthly Op. Costs</title>
+		</field>
+		<field table="ls" name="date_cost_anal_end">
+            <title translatable="true">Date Costs End</title>
+        </field>
+		
+		<field table="ls" name="amount_taxes">
+            <title translatable="true">Amount - Taxes</title>
+        </field>
+		<field name="avg_amount_taxes">
+			<title translatable="true">Avg. Monthly Taxes</title>
+		</field>
+		<field table="ls" name="date_costs_last_calcd">
+            <title translatable="true">Date Costs Calculated</title>
+        </field>
+		
+		<field table="ls" name="amount_other">
+            <title translatable="true">Amount - Other Costs</title>
+        </field>
+		<field name="avg_amount_other">
+			<title translatable="true">Avg. Monthly Other Costs</title>
+		</field>
+		<field name="dummy_field"/>
+		
+		<field name="net_income">
+			<title translatable="true">Net Income</title>
+		</field>
+		<field name="avg_net_income">
+			<title translatable="true">Avg. Monthly Net Income</title>
+		</field>
+		<field name="dummy_field"/>
+	</panel>
+
+	<dataSource id="abRepmLsadminLsBenchmarkDetailsLsRpt_ds_lsOptions">
+		<table name="op" role="main"/>
+		<table name="ls" role="standard"/>
+		<field table="ls" name="ls_id"/>
+		<field table="op" name="op_id"/>
+		<field table="op" name="op_type"/>
+		<field table="op" name="description"/>
+		<field table="op" name="date_start"/>
+		<field table="op" name="date_option"/>
+		<field table="op" name="who_can_exercise"/>
+		<field table="op" name="comments"/>
+		
+		<restriction type="parsed">
+			<clause table="ls" name="ls_id" op="=" value="${(parameters['lsId'])}"/>
+			<clause op="=" table="ls" name="use_as_template" value="0"/>
+		</restriction>
+		
+		<parameter name="lsId" dataType="text" value=""/>
+	</dataSource>
+
+	<panel id="abRepmLsadminLsBenchmarkDetailsLsRpt_lsOptionsPanel" dataSource="abRepmLsadminLsBenchmarkDetailsLsRpt_ds_lsOptions" type="paginatedReport" format="table" role="data">
+		<field table="op" name="op_id"/>
+		<field table="op" name="op_type"/>
+		<field table="op" name="description"/>
+		<field table="op" name="date_start"/>
+		<field table="op" name="date_option"/>
+		<field table="op" name="who_can_exercise"/>
+		<field table="op" name="comments"/>
+		
+		<sortField table="op" name="op_id" ascending="true"/>
+	</panel>
+
+	<dataSource id="abRepmLsadminLsBenchmarkDetailsLsRpt_ds_lsContacts">
+		<table name="contact" role="main"/>
+		<table name="ls" role="standard"/>
+		<field table="ls" name="ls_id"/>
+		<field table="contact" name="contact_id"/>
+		<field table="contact" name="contact_type"/>
+		<field table="contact" name="name_last"/>
+		<field table="contact" name="name_first"/>
+		<field table="contact" name="company"/>
+		<field table="contact" name="email"/>
+		<field table="contact" name="phone"/>
+		
+		<restriction type="parsed">
+			<clause table="ls" name="ls_id" op="=" value="${(parameters['lsId'])}"/>
+			<clause op="=" table="ls" name="use_as_template" value="0"/>
+		</restriction>
+		
+		<parameter name="lsId" dataType="text" value=""/>
+	</dataSource>
+	
+	<panel id="abRepmLsadminLsBenchmarkDetailsLsRpt_lsContactsPanel" dataSource="abRepmLsadminLsBenchmarkDetailsLsRpt_ds_lsContacts" type="paginatedReport" format="table" role="data">
+		<title translatable="true">Lease Contacts</title>
+		<field table="contact" name="contact_id"/>
+		<field table="contact" name="contact_type"/>
+		<field table="contact" name="name_last"/>
+		<field table="contact" name="name_first"/>
+		<field table="contact" name="company"/>
+		<field table="contact" name="email"/>
+		<field table="contact" name="phone"/>
+		
+		<sortField table="contact" name="contact_id" ascending="true"/>
+	</panel>
+
+</view>

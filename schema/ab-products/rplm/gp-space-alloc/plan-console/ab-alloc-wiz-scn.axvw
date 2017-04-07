@@ -1,0 +1,147 @@
+<view version="2.0">
+	<js file="ab-alloc-wiz-scn.js"/>	
+	<js file="ab-alloc-common.js"/>	
+	<js file="ab-alloc-wiz-common.js"/>	
+	<message name="viewTitle">Space &amp; Portfolio Planning Console</message>
+	<message name="scenario">Scenario</message>
+    <message name="addNewPortofolioScenario">Add Portfolio Scenario</message>
+    <message name="copyScenarioTitle">Copy Scenario</message>
+    <message name="editPrimaryPortfolioScenarioId">WARNING: this Portfolio Scenario is linked with a Project or Space Requirements. Changing the Portfolio Name will break this link. Do you wish to continue?</message>
+    <message name="editPortfolioScenarioStartDate">WARNING: this new Start Date will not affect the Start Dates of any existing allocation groups.  Do you wish to continue?</message>
+    <message name="errorDeleteBaselineScenario">Cannot delete the Baseline Scenario.</message>
+	<message name="confirmDeleteExistingScenario">Please confirm to delete portfolio scenario:</message>
+    <message name="error_invalid_scenario">The selected scenario does not exist.</message>
+    <message name="error_no_dates">Please enter both the Start and End Dates.</message>
+    <message name="errorDateEnd">The end date must be greater than the start date.</message>
+    <message name="confirmOverwriteTargetScenarioData">Please confirm to overwrite groups in the target scenario with groups from inventory.</message>
+    
+    <dataSource id="allocWizScn_ds">
+        <sql dialect="generic">
+            SELECT DISTINCT portfolio_scenario.scn_name ${sql.as} scn_name,portfolio_scenario.date_start ${sql.as} date_start,portfolio_scenario.description ${sql.as} description,
+            portfolio_scenario.scn_level ${sql.as} scn_level,portfolio_scenario.status ${sql.as} status,portfolio_scenario.comments ${sql.as} comments,
+            portfolio_scenario.portfolio_scenario_id ${sql.as} portfolio_scenario_id
+            FROM portfolio_scenario 
+            LEFT OUTER JOIN gp ON gp.portfolio_scenario_id=portfolio_scenario.portfolio_scenario_id
+            WHERE (SELECT COUNT(gp.gp_id) FROM gp WHERE gp.portfolio_scenario_id = portfolio_scenario.portfolio_scenario_id) = (SELECT COUNT(gp_id) FROM gp WHERE gp.portfolio_scenario_id = portfolio_scenario.portfolio_scenario_id AND ${sql.getVpaRestrictionForTable('gp')})
+            AND gp.bl_id IN (SELECT gp.bl_id FROM gp LEFT OUTER JOIN bl ON gp.bl_id=bl.bl_id WHERE ${parameters['site_id']} AND ${parameters['bl_id']})
+			AND ${parameters['planning_bu_id']} AND ${parameters['dv_id']} AND ${parameters['dp_id']} AND ${parameters['gp_function']} 
+        </sql>
+        <table name="portfolio_scenario" role="main"/>
+        <field name="portfolio_scenario_id" table="portfolio_scenario"/>
+        <field name="scn_name" table="portfolio_scenario"/>
+        <field name="date_start" table="portfolio_scenario"/>
+        <field name="description" table="portfolio_scenario"/>
+        <field name="scn_level" table="portfolio_scenario"/>
+        <field name="status" table="portfolio_scenario"/>
+        <field name="comments" table="portfolio_scenario"/>
+        <parameter name="site_id" dataType="verbatim" value="1=1"/>
+        <parameter name="bl_id" dataType="verbatim" value="1=1"/>
+        <parameter name="planning_bu_id" dataType="verbatim" value="1=1"/>
+        <parameter name="dv_id" dataType="verbatim" value="1=1"/>
+        <parameter name="dp_id" dataType="verbatim" value="1=1"/>
+        <parameter name="gp_function" dataType="verbatim" value="1=1"/>
+    </dataSource>
+    
+    <dataSource id="sbCheckDataSource">
+        <table name="sb" role="main"/>
+        <field name="sb_name"/>
+        <field name="level"/>
+        <field name="type"/>
+        <field name="sb_desc"/>
+    </dataSource>
+    
+    <dataSource id="projectCheckDataSource">
+        <table name="project" role="main"/>
+        <field name="project_id"/>
+    </dataSource>
+    
+    <dataSource id="groupSpaceDataSource">
+        <table name="gp" role="main"/>
+        <field name="bl_id"/>
+        <field name="portfolio_scenario_id"/>
+        <field name="date_start"/>
+        <field name="gp_id"/>
+    </dataSource>
+
+    <panel maxCellContentWidth="150" type="grid" id="allocWizScn_grid" dataSource="allocWizScn_ds" showOnLoad="true">
+    		<title translatable="true">Portfolio Scenarios</title>
+        <sortField name="portfolio_scenario_id" table="portfolio_scenario" ascending="true"/>
+        <action id="addNew" imageName="/schema/ab-core/graphics/add.gif">
+            <title translatable="true">Add</title>
+			<command type="callFunction" functionName="allocWizScnController.openNewPortofolioWindow()"/>
+        </action>
+        <action id="copyScenario">
+            <title>Copy Scenario</title>
+        </action>
+        <action id="copyGroup">
+            <title>Copy From Group Inventory</title>
+        </action>
+       	<field id="selectScenario" controlType="button">
+       			<title>Select</title>
+       			<command type="callFunction" functionName="allocWizScnController.allocWizScn_grid_onSelectScn(this)"/>
+       </field>
+       <field id="addNew" controlType="image" imageName="/schema/ab-core/graphics/icons/view/edit.png">
+       		<tooltip>Edit</tooltip>
+			<command type="openDialog" panelId="allocWizScn_form">
+                <title>Edit Portfolio Scenario</title>
+            </command>
+	   </field>
+        <field id="deleteScenario" controlType="image" imageName="/schema/ab-core/graphics/icons/view/delete.png">
+        </field>
+       <field name="portfolio_scenario_id" controlType="link">
+       		<command type="openDialog" panelId="allocWizScn_form">
+                <title>Edit Portfolio Scenario</title>
+            </command>
+       </field>
+       <field name="scn_name"/>
+        <field name="status"/>
+       <field name="description" style="width:500"/>
+    </panel>
+    
+    <panel id="allocWizScn_form" type="form" hidden="true" showOnLoad="false" dataSource="allocWizScn_ds">
+		<action id="saveWizScn">
+			<title>Save</title>
+			<!-- <command type="saveForm"/>
+			<command type="showPanel" panelId="allocWizScn_grid" applyParentRestriction="false"/>
+			<command type="closeDialog"/> -->
+		</action>
+		<action id="deleteWizScn">
+			<title>Delete</title>
+			<!-- <command type="deleteRecord"/>
+			<command type="showPanel" panelId="allocWizScn_grid" applyParentRestriction="false"/>
+			<command type="closeDialog"/> -->
+		</action>
+        <field name="portfolio_scenario_id"/>
+        <field name="scn_name"/>
+        <field name="date_start"/>
+        <field name="scn_level" readOnly="true"/>
+        <field name="status"/>
+        <field name="description"/>
+        <field name="comments"/>
+    </panel>
+    
+    <panel type="view" id="allocWizScn_commonView" file="ab-alloc-wiz-common.axvw" showOnLoad="false"/>  
+	
+    <dataSource id="formGp_ds">
+        <table name="gp"/>
+        <field name="gp_id"/>
+        <field name="date_start"/>
+        <field name="date_end"/>
+        <field name="portfolio_scenario_id"/>
+        <restriction type="sql" sql="gp.gp_id IS NULL"/>
+    </dataSource>
+	<panel type="form" id="copyGroupInventoryForm" columns="2" dataSource="formGp_ds" hidden="true" showOnLoad="false">
+		<title translatable="true">Copy From Group Inventory</title>
+		<action id="save">
+			<title translatable="true">Save</title>
+		</action>
+
+		<field name="date_start"/>
+		<field name="date_end"/>
+		<field name="portfolio_scenario_id">
+			<title translatable="true">To Portfolio Scenario</title>
+		</field>
+		<field></field>
+	</panel>
+
+</view>

@@ -1,0 +1,203 @@
+<?xml version="1.0" encoding="utf-8"?>
+<afmXmlView>
+	<preferences>
+		<viewTitleBar show="false"/>
+	</preferences>
+	<title translatable="true">View Project Schedules</title>
+	<afmTableGroup type="report" format="table" defaultActions="false">
+		<afmAction name="test" type="render" response="true" state="">
+			<title translatable="false">Work Packges</title>
+		</afmAction>
+		<dataSource>
+			<database>
+				<tables>
+					<table name="project" role="main"/>
+					<table name="activitytype" role="standard"/>
+					<table name="activitytype" role="standard"/>
+					<table name="work_pkgs" role="standard"/>
+				</tables>
+				<fields>
+					<field name="project_id" table="project" required="false"/>
+					<field name="date_accepted" table="project" required="false"/>
+					<field name="date_approved" table="project" required="false"/>
+					<field name="activity_type" table="activitytype" required="false"/>
+					<field name="work_pkg_id" table="work_pkgs" required="false"/>
+				</fields>
+			</database>
+			<mdx>
+				<preferences dimensions="1" format="Table">
+					<query>
+						<queryParameters>
+							<queryParameter name="projectid" value="NA" type="java.lang.String"/>
+							<queryParameter name="workpkgid" value="NA" type="java.lang.String"/>
+							<queryParameter name="activitytype" value="NA" type="java.lang.String"/>
+							<queryParameter name="datescheduled" value="2990-01-01" type="java.lang.String"/>
+							<queryParameter name="datescheduledend" value="1990-01-01" type="java.lang.String"/>
+							<queryParameter name="username" value="#Attribute%//@em_em_id%" type="java.lang.String"/>
+						</queryParameters>
+						<sql dialect="generic">
+							SELECT  work_pkgs.work_pkg_id,  #SqlParameter%username% as proj_mgr, 0 as is_template,
+                            (SELECT MAX(activity_log.date_planned_end)
+							 FROM activity_log
+							WHERE activity_log.project_id = work_pkgs.project_id AND activity_log.work_pkg_id=work_pkgs.work_pkg_id
+					        AND activity_log.date_planned_for IS NOT NULL
+					        AND activity_log.date_planned_end IS NOT NULL
+					        AND ( ( activity_log.date_planned_for &gt;= #SqlParameter%datescheduled% AND activity_log.date_planned_for &lt;= #SqlParameter%datescheduledend% )   
+									OR   ( activity_log.date_planned_end &gt;= #SqlParameter%datescheduled% AND activity_log.date_planned_end&lt;= #SqlParameter%datescheduledend% )    
+									OR   ( activity_log.date_planned_for &lt;= #SqlParameter%datescheduled% AND activity_log.date_planned_end &gt;= #SqlParameter%datescheduledend% ))
+							AND activity_log.activity_type like #SqlParameter%activitytype%	 ) AS date_work_pkg_end,
+                            (SELECT MIN(activity_log.date_planned_for)
+							 FROM activity_log
+							WHERE activity_log.project_id = work_pkgs.project_id AND activity_log.work_pkg_id=work_pkgs.work_pkg_id
+					        AND activity_log.date_planned_for IS NOT NULL
+					        AND activity_log.date_planned_end IS NOT NULL
+					        AND ( ( activity_log.date_planned_for &gt;= #SqlParameter%datescheduled% AND activity_log.date_planned_for &lt;= #SqlParameter%datescheduledend% )   
+									OR   ( activity_log.date_planned_end &gt;= #SqlParameter%datescheduled% AND activity_log.date_planned_end&lt;= #SqlParameter%datescheduledend% )    
+									OR   ( activity_log.date_planned_for &lt;= #SqlParameter%datescheduled% AND activity_log.date_planned_end &gt;= #SqlParameter%datescheduledend% ))
+							AND activity_log.activity_type like #SqlParameter%activitytype%	 
+							) AS date_work_pkg_start,
+                           (SELECT  MIN(activity_log.date_planned_for)
+							 FROM activity_log
+					        WHERE activity_log.date_planned_for IS NOT NULL
+					        AND activity_log.date_planned_end IS NOT NULL
+					        AND ( ( activity_log.date_planned_for &gt;= #SqlParameter%datescheduled% AND activity_log.date_planned_for &lt;= #SqlParameter%datescheduledend% )   
+									OR   ( activity_log.date_planned_end &gt;= #SqlParameter%datescheduled% AND activity_log.date_planned_end&lt;= #SqlParameter%datescheduledend% )    
+									OR   ( activity_log.date_planned_for &lt;= #SqlParameter%datescheduled% AND activity_log.date_planned_end &gt;= #SqlParameter%datescheduledend% ))
+						AND activity_log.activity_type like #SqlParameter%activitytype%	 
+							 ) AS date_overall_start,
+                            (SELECT MAX(activity_log.date_planned_end)
+							 FROM activity_log
+					        WHERE activity_log.date_planned_for IS NOT NULL
+					        AND activity_log.date_planned_end IS NOT NULL
+					        AND ( ( activity_log.date_planned_for &gt;= #SqlParameter%datescheduled% AND activity_log.date_planned_for &lt;= #SqlParameter%datescheduledend% )   
+									OR   ( activity_log.date_planned_end &gt;= #SqlParameter%datescheduled% AND activity_log.date_planned_end&lt;= #SqlParameter%datescheduledend% )    
+									OR   ( activity_log.date_planned_for &lt;= #SqlParameter%datescheduled% AND activity_log.date_planned_end &gt;= #SqlParameter%datescheduledend% ))
+							AND activity_log.activity_type like #SqlParameter%activitytype%	 
+					         ) AS date_overall_end,
+									work_pkgs.days_per_week, 
+									CAST(activity_log.activity_log_id AS VARCHAR) AS activity_log_id, 
+									activity_log.project_id, 
+									activity_log.action_title, 
+									activity_log.status, 
+									activity_log.activity_type, 
+									activity_log.date_planned_for AS date_scheduled, 
+									activity_log.date_planned_end AS date_scheduled_end, 
+									activity_log.duration_est_baseline as duration
+					FROM activity_log,work_pkgs
+                    WHERE activity_log.project_id = work_pkgs.project_id AND activity_log.work_pkg_id=work_pkgs.work_pkg_id
+					AND activity_log.date_planned_for IS NOT NULL
+					AND work_pkgs.project_id like #SqlParameter%projectid%
+					AND  work_pkgs.work_pkg_id like #SqlParameter%workpkgid%
+					AND  activity_log.activity_type like #SqlParameter%activitytype%
+					AND ( ( activity_log.date_planned_for &gt;= #SqlParameter%datescheduled% AND activity_log.date_planned_for &lt;= #SqlParameter%datescheduledend% )   
+									OR   ( activity_log.date_planned_end &gt;= #SqlParameter%datescheduled% AND activity_log.date_planned_end&lt;= #SqlParameter%datescheduledend% )    
+									OR   ( activity_log.date_planned_for &lt;= #SqlParameter%datescheduled% AND activity_log.date_planned_end &gt;= #SqlParameter%datescheduledend% ))
+</sql>
+					<sql dialect="oracle">
+							SELECT  work_pkgs.work_pkg_id, 
+                            (SELECT MAX(activity_log.date_planned_end) 
+							 FROM activity_log
+							WHERE activity_log.project_id = work_pkgs.project_id AND activity_log.work_pkg_id=work_pkgs.work_pkg_id
+					        AND activity_log.date_planned_for IS NOT NULL
+					        AND activity_log.date_planned_end IS NOT NULL
+							AND ( ( TO_DATE(TO_CHAR(activity_log.date_planned_for,'YYYY-MM-DD'),'YYYY-MM-DD') &gt;= TO_DATE(#SqlParameter%datescheduled%,'YYYY-MM-DD') 
+									AND TO_DATE(TO_CHAR(activity_log.date_planned_for,'YYYY-MM-DD'),'YYYY-MM-DD') &lt;= TO_DATE(#SqlParameter%datescheduledend%,'YYYY-MM-DD') )   
+									OR   ( TO_DATE(TO_CHAR(activity_log.date_planned_end,'YYYY-MM-DD'),'YYYY-MM-DD') &gt;= TO_DATE(#SqlParameter%datescheduled%,'YYYY-MM-DD') 
+									AND TO_DATE(TO_CHAR(activity_log.date_planned_end,'YYYY-MM-DD'),'YYYY-MM-DD') &lt;= TO_DATE(#SqlParameter%datescheduledend%,'YYYY-MM-DD') )    
+									OR   ( TO_DATE(TO_CHAR(activity_log.date_planned_for,'YYYY-MM-DD'),'YYYY-MM-DD') &lt;= TO_DATE(#SqlParameter%datescheduled%,'YYYY-MM-DD') 
+									AND TO_DATE(TO_CHAR(activity_log.date_planned_end,'YYYY-MM-DD'),'YYYY-MM-DD') &gt;= TO_DATE(#SqlParameter%datescheduledend%,'YYYY-MM-DD') )) 					      			        
+							AND activity_log.activity_type like #SqlParameter%activitytype%	 ) AS date_work_pkg_end,
+                            (SELECT MIN(activity_log.date_planned_for) 
+							 FROM activity_log
+							WHERE activity_log.project_id = work_pkgs.project_id AND activity_log.work_pkg_id=work_pkgs.work_pkg_id
+					        AND activity_log.date_planned_for IS NOT NULL
+					        AND activity_log.date_planned_end IS NOT NULL
+							AND ( ( TO_DATE(TO_CHAR(activity_log.date_planned_for,'YYYY-MM-DD'),'YYYY-MM-DD') &gt;= TO_DATE(#SqlParameter%datescheduled%,'YYYY-MM-DD') 
+									AND TO_DATE(TO_CHAR(activity_log.date_planned_for,'YYYY-MM-DD'),'YYYY-MM-DD') &lt;= TO_DATE(#SqlParameter%datescheduledend%,'YYYY-MM-DD') )   
+									OR   ( TO_DATE(TO_CHAR(activity_log.date_planned_end,'YYYY-MM-DD'),'YYYY-MM-DD') &gt;= TO_DATE(#SqlParameter%datescheduled%,'YYYY-MM-DD') 
+									AND TO_DATE(TO_CHAR(activity_log.date_planned_end,'YYYY-MM-DD'),'YYYY-MM-DD') &lt;= TO_DATE(#SqlParameter%datescheduledend%,'YYYY-MM-DD') )    
+									OR   ( TO_DATE(TO_CHAR(activity_log.date_planned_for,'YYYY-MM-DD'),'YYYY-MM-DD') &lt;= TO_DATE(#SqlParameter%datescheduled%,'YYYY-MM-DD') 
+					        AND TO_DATE(TO_CHAR(activity_log.date_planned_end,'YYYY-MM-DD'),'YYYY-MM-DD') &gt;= TO_DATE(#SqlParameter%datescheduledend%,'YYYY-MM-DD')))      				        
+							AND activity_log.activity_type like #SqlParameter%activitytype%	 
+							) AS date_work_pkg_start,
+                            (SELECT MIN(activity_log.date_planned_for)
+							 FROM activity_log
+					        WHERE activity_log.date_planned_for IS NOT NULL
+					        AND activity_log.date_planned_end IS NOT NULL
+							AND ( ( TO_DATE(TO_CHAR(activity_log.date_planned_for,'YYYY-MM-DD'),'YYYY-MM-DD') &gt;= TO_DATE(#SqlParameter%datescheduled%,'YYYY-MM-DD') 
+									AND TO_DATE(TO_CHAR(activity_log.date_planned_for,'YYYY-MM-DD'),'YYYY-MM-DD') &lt;= TO_DATE(#SqlParameter%datescheduledend%,'YYYY-MM-DD') )   
+									OR   ( TO_DATE(TO_CHAR(activity_log.date_planned_end,'YYYY-MM-DD'),'YYYY-MM-DD') &gt;= TO_DATE(#SqlParameter%datescheduled%,'YYYY-MM-DD') 
+									AND TO_DATE(TO_CHAR(activity_log.date_planned_end,'YYYY-MM-DD'),'YYYY-MM-DD') &lt;= TO_DATE(#SqlParameter%datescheduledend%,'YYYY-MM-DD') )    
+									OR   ( TO_DATE(TO_CHAR(activity_log.date_planned_for,'YYYY-MM-DD'),'YYYY-MM-DD') &lt;= TO_DATE(#SqlParameter%datescheduled%,'YYYY-MM-DD') 
+					        AND TO_DATE(TO_CHAR(activity_log.date_planned_end,'YYYY-MM-DD'),'YYYY-MM-DD') &gt;= TO_DATE(#SqlParameter%datescheduledend%,'YYYY-MM-DD')))      				        
+							AND activity_log.activity_type like #SqlParameter%activitytype%	 
+							) AS date_overall_start,
+                           (SELECT MAX(activity_log.date_planned_end)
+							 FROM activity_log
+					        WHERE activity_log.date_planned_for IS NOT NULL
+					        AND activity_log.date_planned_end IS NOT NULL
+							AND ( ( TO_DATE(TO_CHAR(activity_log.date_planned_for,'YYYY-MM-DD'),'YYYY-MM-DD') &gt;= TO_DATE(#SqlParameter%datescheduled%,'YYYY-MM-DD') 
+									AND TO_DATE(TO_CHAR(activity_log.date_planned_for,'YYYY-MM-DD'),'YYYY-MM-DD') &lt;= TO_DATE(#SqlParameter%datescheduledend%,'YYYY-MM-DD') )   
+									OR   ( TO_DATE(TO_CHAR(activity_log.date_planned_end,'YYYY-MM-DD'),'YYYY-MM-DD') &gt;= TO_DATE(#SqlParameter%datescheduled%,'YYYY-MM-DD') 
+									AND TO_DATE(TO_CHAR(activity_log.date_planned_end,'YYYY-MM-DD'),'YYYY-MM-DD') &lt;= TO_DATE(#SqlParameter%datescheduledend%,'YYYY-MM-DD') )    
+									OR   ( TO_DATE(TO_CHAR(activity_log.date_planned_for,'YYYY-MM-DD'),'YYYY-MM-DD') &lt;= TO_DATE(#SqlParameter%datescheduled%,'YYYY-MM-DD') 
+									AND TO_DATE(TO_CHAR(activity_log.date_planned_end,'YYYY-MM-DD'),'YYYY-MM-DD') &gt;= TO_DATE(#SqlParameter%datescheduledend%,'YYYY-MM-DD') ))			        
+							AND activity_log.activity_type like #SqlParameter%activitytype%	 
+					         ) AS date_overall_end,
+									work_pkgs.days_per_week, 
+									TO_CHAR(activity_log.activity_log_id) AS activity_log_id, 
+									activity_log.project_id, 
+									activity_log.action_title, 
+									activity_log.status, 
+									activity_log.activity_type, 
+									activity_log.date_planned_for AS date_scheduled, 
+									activity_log.date_planned_end AS date_scheduled_end, 
+									activity_log.duration_est_baseline as duration 
+					FROM activity_log,work_pkgs
+                    WHERE activity_log.project_id = work_pkgs.project_id AND activity_log.work_pkg_id=work_pkgs.work_pkg_id
+					AND activity_log.date_planned_for IS NOT NULL
+					AND work_pkgs.project_id like #SqlParameter%projectid%
+					AND  work_pkgs.work_pkg_id like #SqlParameter%workpkgid%
+					AND  activity_log.activity_type like #SqlParameter%activitytype%
+					AND ( ( TO_DATE(TO_CHAR(activity_log.date_planned_for,'YYYY-MM-DD'),'YYYY-MM-DD') &gt;= TO_DATE(#SqlParameter%datescheduled%,'YYYY-MM-DD') 
+									AND TO_DATE(TO_CHAR(activity_log.date_planned_for,'YYYY-MM-DD'),'YYYY-MM-DD') &lt;= TO_DATE(#SqlParameter%datescheduledend%,'YYYY-MM-DD') )   
+									OR   ( TO_DATE(TO_CHAR(activity_log.date_planned_end,'YYYY-MM-DD'),'YYYY-MM-DD') &gt;= TO_DATE(#SqlParameter%datescheduled%,'YYYY-MM-DD') 
+									AND TO_DATE(TO_CHAR(activity_log.date_planned_end,'YYYY-MM-DD'),'YYYY-MM-DD') &lt;= TO_DATE(#SqlParameter%datescheduledend%,'YYYY-MM-DD') )    
+									OR   ( TO_DATE(TO_CHAR(activity_log.date_planned_for,'YYYY-MM-DD'),'YYYY-MM-DD') &lt;= TO_DATE(#SqlParameter%datescheduled%,'YYYY-MM-DD') 
+									AND TO_DATE(TO_CHAR(activity_log.date_planned_end,'YYYY-MM-DD'),'YYYY-MM-DD') &gt;= TO_DATE(#SqlParameter%datescheduledend%,'YYYY-MM-DD') ))			
+					ORDER BY work_pkgs.work_pkg_id, activity_log.date_planned_for
+					</sql>
+					</query>
+					<dimensions>
+						<dimension name="activity_log_id" column="activity_log_id" hasAll="true"/>
+					</dimensions>
+					<measures>
+						<measure name="date_work_pkg_start" aggregator="max" column="date_work_pkg_start" type="calculated" datatype="date"/>
+						<measure name="date_work_pkg_end" aggregator="max" column="date_work_pkg_end" type="calculated" datatype="date"/>
+						<measure name="date_scheduled" aggregator="max" column="date_scheduled" type="calculated" datatype="date"/>
+						<measure name="date_scheduled_end" aggregator="max" column="date_scheduled_end" type="calculated" datatype="date"/>
+						<measure name="date_overall_end" aggregator="max" column="date_overall_end" type="calculated" datatype="date"/>
+						<measure name="date_overall_start" aggregator="max" column="date_overall_start" type="calculated" datatype="date"/>
+						<measure name="days_per_week" aggregator="max" column="days_per_week" type="calculated" decimals="0"/>
+						<measure name="project_id" aggregator="max" column="project_id" type="calculated"  datatype="string" />
+						<measure name="work_pkg_id" aggregator="max" column="work_pkg_id" type="calculated" datatype="string" />
+						<measure name="action_title" aggregator="max" column="action_title" type="calculated" datatype="string" />
+						<measure name="status" aggregator="max" column="status" type="calculated" datatype="string" />
+						<measure name="activity_type" aggregator="max" column="activity_type" type="calculated" datatype="string" />
+						<measure name="duration" aggregator="max" column="duration" type="calculated" decimals="0"/>
+						<measure name="activity_log_id" aggregator="max" column="activity_log_id" type="calculated" datatype="string"/>								
+					</measures>
+				</preferences>
+			</mdx>
+		</dataSource>
+	</afmTableGroup>
+	<layer name="showActions" on="1"/>
+	<layer name="showWorkPkgs" on="1"/>
+	<layer name="showWeeks" on="0"/>
+	<formatting>
+		<xsl file="ab-proj-projects-gantt.xsl"/>
+	</formatting>
+	<message name="viewtype" translatable="false">Week</message>
+	<message name="viewscope" translatable="false">workpkgs</message>	
+	<message name="source" translatable="false">1</message>	
+</afmXmlView>

@@ -1,0 +1,147 @@
+<view version="2.0">
+   <js file="ab-ehs-track-work-restrictions.js"/>
+    
+    <layout id="main" type="borderLayout">
+        <north id="filterPosition" initialSize="65" split="true"/>
+        <center autoScroll="true"/>
+    </layout>
+    
+    <layout id="nested_center" containingLayout="main" type="borderLayout" region="center">
+        <west id="gridWorkRestrictionsPosition" initialSize="45%" split="true"/>
+        <center id="editWorkRestrictionsPosition"/>
+    </layout>
+
+    <message translatable="true" name="confirmDelete">Are you sure you want to delete this work restriction?</message>
+    <message translatable="true" name="errDateStartEnd">Date End cannot be smaller than Date Start</message>
+    
+    <title translatable="true">Track Work Restrictions</title>
+
+    <dataSource id="abEhsTrackWorkRestrictions_ds">
+        <table name="ehs_restrictions" role="main"/>
+        <field name="em_id"/>
+        <field name="restriction_category_id"/>
+        <field name="restriction_type_id"/>
+        <field name="restriction_class"/>
+        <field name="date_start"/>
+        <field name="date_end"/>
+        <field name="restriction_id"/>
+        <field name="medical_monitoring_id"/>
+        <field name="date_actual"/>
+        <field name="incident_id"/>
+        <field name="lost_work_days"/>
+        <field name="lost_work_days_auto" dataType="text">
+            <sql dialect="generic">
+            (CASE lost_work_days
+                WHEN 0 THEN
+                    (SELECT COUNT(cal_date) FROM afm_cal_dates WHERE 
+                        day_type = 'Workday' AND 
+                        date_start &lt;= cal_date AND 
+                        cal_date &lt;= CASE WHEN date_end IS NULL THEN ${sql.currentDate} ELSE date_end END) 
+                ELSE NULL
+            END)
+            </sql>
+        </field>
+        <field name="description"/>
+        <field name="doc"/>
+
+        <sortField name="restriction_category_id" ascending="true"/>
+        <sortField name="restriction_type_id" ascending="true"/>
+        <sortField name="date_start" ascending="true"/>
+    </dataSource>
+
+    <panel type="console" id="abEhsTrackWorkRestrictions_filter" dataSource="abEhsTrackWorkRestrictions_ds" layoutRegion="filterPosition">
+        
+        <title translatable="true">Filter</title>
+        
+        <action id="filter">
+            <title translatable="true">Show</title>
+        </action>
+        <action id="clear">
+            <title translatable="true">Clear</title>
+            <command type="clearForm"/>
+        </action>
+        <field name="em_id" required="true">
+            <action>
+                <title translatable="false">...</title>
+                <tooltip translatable="true">Select Value</tooltip>
+                <command type="selectValue"
+                    fieldNames="ehs_restrictions.em_id"
+                    selectFieldNames="em.em_id"
+                    visibleFieldNames="em.em_id,em.em_std"/>
+            </action>
+        </field>
+    </panel>
+    
+    <panel type="grid" id="abEhsTrackWorkRestrictions_grid" dataSource="abEhsTrackWorkRestrictions_ds" layoutRegion="gridWorkRestrictionsPosition" showOnLoad="false">
+
+        <title translatable="true">Work Restrictions</title>
+        
+        <action id="add">
+            <title translatable="true">Add New</title>
+            <command type="showPanel" panelId="abEhsTrackWorkRestrictions_edit" newRecord="true"/>
+        </action>
+
+        <field name="restriction_id" hidden="true"/>
+        <field name="restriction_category_id" controlType="link">
+            <command type="showPanel" panelId="abEhsTrackWorkRestrictions_edit" applyParentRestriction="false"/>
+        </field>
+        <field name="restriction_type_id" controlType="link">
+            <command type="showPanel" panelId="abEhsTrackWorkRestrictions_edit" applyParentRestriction="false"/>
+        </field>
+        <field name="date_start" controlType="link">
+            <command type="showPanel" panelId="abEhsTrackWorkRestrictions_edit" applyParentRestriction="false"/>
+        </field>
+    </panel>
+
+    <panel type="form" id="abEhsTrackWorkRestrictions_edit" dataSource="abEhsTrackWorkRestrictions_ds" layoutRegion="editWorkRestrictionsPosition" showOnLoad="false">
+
+        <title translatable="true">Work Restriction Details</title>
+
+        <action id="save">
+            <title translatable="true">Save</title>
+            <command type="callFunction" functionName="validateWorkRestrictionForm('abEhsTrackWorkRestrictions_edit')"/>
+            <command type="saveForm"/>
+            <command type="showPanel" panelId="abEhsTrackWorkRestrictions_grid" applyParentRestriction="false"/>
+            <command type="showPanel" panelId="abEhsTrackWorkRestrictions_edit" applyParentRestriction="true"/>
+        </action>
+        <action id="delete" enabled="${!panel.newRecord}">
+            <title translatable="true">Delete</title>
+            <command type="callFunction" functionName="onDelete"/>
+        </action>
+        <action id="cancel">
+            <title translatable="true">Cancel</title>
+            <command type="showPanel" panelId="abEhsTrackWorkRestrictions_edit" show="false"/>
+        </action>
+        <field name="restriction_id" readOnly="true"/>
+        <field name="em_id" readOnly="true"/>
+        <field name="restriction_category_id"/>
+        <field name="restriction_type_id" onchange="enableDisableRestrictionDateEnd('abEhsTrackWorkRestrictions_edit')"/>
+        <field name="restriction_class"/>
+        <field name="date_start"/>
+        <field name="date_end"/>
+        <field name="lost_work_days_auto" readOnly="true">
+            <title>Duration (Days), Auto-Calculated</title>
+        </field>
+        <field name="lost_work_days"/>
+        <field name="medical_monitoring_id" onchange="abEhsTrackWorkRestrictionsCtrl.clearDateActual()">
+            <action>
+                <title translatable="false">...</title>
+                <tooltip translatable="true">Select Value</tooltip>
+                <command type="callFunction" functionName="selectMedMonIdForWorkRestriction('abEhsTrackWorkRestrictions_edit')"/>
+            </action>
+        </field>
+        <field name="date_actual"/>
+        <field name="incident_id">
+            <action>
+                <title translatable="false">...</title>
+                <tooltip translatable="true">Select Value</tooltip>
+                <command type="callFunction" functionName="selectIncidentId('abEhsTrackWorkRestrictions_edit', 'ehs_restrictions', true)"/>
+            </action>
+        </field>
+        <field name="description"/>
+        <field name="doc"/>
+
+    </panel>
+
+    <panel type="view" id="abEhsCommonView" file="ab-ehs-common.axvw"/>
+</view>

@@ -1,0 +1,149 @@
+<view version="2.0">
+    <layout file="ab-proj-console-details.axvw"/>
+    <title>Review Payments</title>
+    <js file="brg-proj-review-payments.js"/>
+
+    <panel type="view" id="projReviewPaymentsConsole" file="brg-proj-view-restriction-console-parameter.axvw" layout="mainLayout" region="north"/>
+
+    <dataSource id="projReviewPaymentsDs0" type="grouping" applyVpaRestrictions="false">
+        <table name="brg_project_view" role="main"/>
+        <field name="project_id" table="brg_project_view" groupBy="true"/>
+        <field name="amount_tot_invoice" formula="sum" baseField="brg_project_view.amount_tot_invoice" dataType="number" decimals="2">
+            <title>Total Invoiced</title>
+        </field>
+        <!--field name="amount_closed" formula="sum" baseField="brg_project_view.amount_closed" dataType="number" decimals="2">
+            <title>Total Closed</title>
+        </field-->
+        <field name="amount_paid" formula="sum" baseField="brg_project_view.amount_paid" dataType="number" decimals="2">
+            <title>Total Paid</title>
+        </field>
+        <parameter name="projRestriction" dataType="verbatim" value="1=1"/>
+        <sql dialect="generic">
+            SELECT amount_tot_invoice, brg_project_view.project_id, brg_project_view.int_num,
+            (SELECT SUM(amount_expense) FROM invoice_payment WHERE invoice_payment.invoice_id = invoice.invoice_id) ${sql.as} amount_paid,
+            amount_closed
+            FROM invoice,brg_project_view
+            WHERE invoice.project_id IS NOT NULL AND invoice.project_id=brg_project_view.project_id
+            AND ${parameters['projRestriction']} AND ${sql.vpaRestriction}
+        </sql>
+        <sortField name="project_id" table="brg_project_view" ascending="true"/>
+    </dataSource>
+
+    <panel type="crossTable" id="selectProjectReport" dataSource="projReviewPaymentsDs0" layout="mainlayout" region="center">
+        <title>Review Payments</title>
+        <event type="onClickItem">
+            <command type="openDialog" panelId="projReviewPaymentsGrid"/>
+        </event>
+    </panel>
+
+    <dataSource id="projReviewPaymentsDs1">
+        <table name="invoice" role="main" />
+            <field name="invoice_id" table="invoice" />
+            <field name="project_id" table="invoice" />
+            <field name="work_pkg_id" table="invoice" />
+            <field name="qty_received" table="invoice" />
+            <field name="amount_tot_invoice" table="invoice" />
+            <field name="total_payments" dataType="number" decimals="2">
+                <title>Total Payments</title>
+                <sql dialect="generic">
+                    (SELECT SUM(invoice_payment.amount_expense)
+                    FROM invoice_payment
+                    WHERE invoice_payment.invoice_id = invoice.invoice_id)
+                </sql>
+            </field>
+            <field name="date_sent" table="invoice" />
+            <field name="status" table="invoice" />
+
+            <field name="vn_id" table="invoice" />
+            <field name="contact_id_remit_to" table="invoice" />
+            <field name="qty_invoiced" table="invoice" />
+            <field name="qty_accepted" table="invoice" />
+            <field name="amount_closed" table="invoice" />
+            <field name="date_expected_rec" table="invoice" />
+            <field name="terms" table="invoice" />
+            <field name="doc" table="invoice"/>
+            <field name="description" table="invoice"/>
+
+            <field name="int_num" table="invoice" />
+            <field name="po" table="invoice" />
+            <field name="vn_invoicenum" table="invoice"/>
+    </dataSource>
+
+    <panel type="grid" id="projReviewPaymentsGrid" dataSource="projReviewPaymentsDs1" showOnLoad="false">
+        <title>Invoices and Payments</title>
+        <sortField name="invoice_id" table="invoice" ascending="true"/>
+        <field name="invoice_id" table="invoice" controlType="link">
+            <command type="openDialog" panelId="projReviewPaymentsColumnReport"/>
+        </field>
+        <field name="amount_tot_invoice" table="invoice" />
+        <!--field name="amount_closed" table="invoice" >
+            <title>Amount Closed</title>
+        </field-->
+        <field name="total_payments" dataType="number" decimals="2" controlType="link">
+            <title>Total Payments</title>
+            <command type="openDialog" panelId="projReviewPaymentsGridPayments"/>
+        </field>
+        <field name="status" table="invoice" />
+        <field name="project_id" table="invoice" />
+        <field name="int_num" table="invoice" />
+        <field name="work_pkg_id" table="invoice" />
+        <field name="po" table="invoice" />
+        <field name="vn_invoicenum" table="invoice"/>
+    </panel>
+
+    <panel type="form" id="projReviewPaymentsColumnReport" dataSource="projReviewPaymentsDs1" columns="2" showOnLoad="false">
+        <title>Invoice Details</title>
+        <field name="invoice_id" table="invoice" readOnly="true"/>
+        <field name="vn_id" table="invoice" readOnly="true" />
+
+        <field name="po" table="invoice" readOnly="true"/>
+        <field name="vn_invoicenum" table="invoice" readOnly="true"/>
+
+        <field name="project_id" table="invoice" readOnly="true" />
+        <field name="work_pkg_id" table="invoice" readOnly="true" />
+
+        <field name="int_num" table="invoice" readOnly="true"/>
+        <field/>
+
+        <field name="amount_tot_invoice" table="invoice" readOnly="true" />
+        <field name="total_payments" dataType="number" readOnly="true">
+            <title>Total Payments</title>
+        </field>
+        <field name="amount_closed" table="invoice" readOnly="true" >
+            <title>Amount Closed</title>
+        </field>
+        <field name="status" table="invoice" readOnly="true" />
+        <field name="date_expected_rec" table="invoice" readOnly="true" />
+        <field name="date_sent" table="invoice" readOnly="true" />
+        <field name="contact_id_remit_to" table="invoice" readOnly="true" />
+        <field name="qty_invoiced" table="invoice" readOnly="true" />
+        <field name="qty_received" table="invoice" readOnly="true" />
+        <field name="qty_accepted" table="invoice" readOnly="true" />
+        <field name="doc" table="invoice" readOnly="true"/>
+        <field/>
+        <field name="terms" table="invoice" colspan="2" readOnly="true"/>
+        <field name="description" table="invoice" colspan="2" readOnly="true"/>
+    </panel>
+
+    <dataSource id="projReviewPaymentsDs2">
+        <table name="invoice_payment" role="main" />
+        <field name="invoice_id" table="invoice_payment"/>
+        <field name="payment_id" table="invoice_payment" />
+        <field name="check_number" table="invoice_payment" />
+        <field name="date_paid" table="invoice_payment" />
+        <field name="amount_expense" table="invoice_payment" />
+        <field name="date_trans_created" table="invoice_payment" />
+        <field name="description" table="invoice_payment" />
+        <field name="program_code" table="invoice_payment"/>
+    </dataSource>
+
+    <panel type="grid" id="projReviewPaymentsGridPayments" dataSource="projReviewPaymentsDs2" showOnLoad="false">
+        <title>Invoice Payments</title>
+        <sortField name="payment_id" table="invoice_payment" ascending="true"/>
+    </panel>
+</view>
+
+
+
+
+

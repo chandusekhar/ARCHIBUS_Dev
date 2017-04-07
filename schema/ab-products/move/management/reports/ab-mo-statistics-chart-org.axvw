@@ -1,0 +1,334 @@
+<view version="2.0">
+	<js file="ab-mo-statistics-org.js"/>
+    <js file="ab-mo-vpa-utils.js"/>
+    
+	<title translatable="true">Move Statistics Chart by Organization</title>
+
+	<layout type="borderLayout" id="mainLayout">
+		<north id="consolePosition" split="true" initialSize="180"/>
+		<center id="chartPosition" autoScroll="true"/>
+	</layout>
+	
+	<message name="selectFromDate" translatable="true">Please select a date for From Date</message>
+	<message name="errorToDate" translatable="true">To Date must be greater than From Date</message>
+	<message name="errorDateRange" translatable="true">The From and To Date selected period must be greater than the Chart selected period</message>
+	
+	<dataSource id="ds_abMoveStatisticsOrg_console">
+		<table name="mo" role="main"/>
+		<table name="dv" role="standard"/>
+		<field name="bu_id" table="dv"/>
+		<field name="dv_id" table="mo"/>
+		<field name="dp_id" table="mo"/>
+		<field name="date_to_perform" table="mo"/>
+	</dataSource>
+	
+	<panel type="console" id="panel_abMoveStatisticsOrg_console" dataSource="ds_abMoveStatisticsOrg_console" columns="3" layoutRegion="consolePosition">
+		<title translatable="true">Filter</title>
+        <action id="showChart">
+            <title translatable="true">Show</title>
+        </action>
+        <action id="clear">
+            <title translatable="true">Clear</title>
+        </action>
+		
+		<field name="bu_id" table="dv" required="false" onchange="onChangeOrgField('dv.bu_id')">
+			<action id="selectBu">
+				<title translatable="false">...</title>
+				<tooltip translatable="true">Select Value</tooltip>
+        		<command 
+					type="selectValue" 
+					fieldNames="dv.bu_id" 
+					selectFieldNames="bu.bu_id" 
+					visibleFieldNames="bu.bu_id,bu.name"
+					actionListener="afterSelectOrg">
+					<title>Business Unit</title>
+				</command>
+			</action>	
+		</field>
+		<field rowspan="2">
+			<title translatable="true">Report Results by</title>
+			<html>
+				<input type="radio" id="radioGroupBy" name="radioGroupBy" value="Bu"><span translatable="true">Business Unit</span></input><br/>
+				<input type="radio" id="radioGroupBy" name="radioGroupBy" value="Dv"><span translatable="true">Division Code</span></input><br/>
+				<input type="radio" id="radioGroupBy" name="radioGroupBy" value="Dp" checked="true"><span translatable="true">Department</span></input><br/>
+			</html>
+		</field>
+		<field>
+			<title translatable="true">Chart Results by</title>
+			<html>
+				<input type="radio" id="radioChartGroupBy" name="radioChartGroupBy" value="Month" checked="true"><span translatable="true">Month</span></input><br/>
+				<input type="radio" id="radioChartGroupBy" name="radioChartGroupBy" value="Quarter"><span translatable="true">Quarter</span></input><br/>
+				<input type="radio" id="radioChartGroupBy" name="radioChartGroupBy" value="Year"><span translatable="true">Year</span></input><br/>
+			</html>
+		</field>
+		<field name="dv_id" table="mo" onchange="onChangeOrgField('mo.dv_id')">
+			<action id="selectDv">
+				<title translatable="false">...</title>
+				<tooltip translatable="true">Select Value</tooltip>
+        		<command 
+					type="selectValue" 
+					fieldNames="dv.bu_id,mo.dv_id" 
+					selectFieldNames="dv.bu_id,dv.dv_id" 
+					visibleFieldNames="dv.bu_id,dv.dv_id,dv.name"
+					actionListener="afterSelectOrg">
+					<title>Division Code</title>
+				</command>
+			</action>	
+		</field>
+		<field>
+			<title translatable="true">Chart Statistic</title>
+			<html>
+				<input type="radio" id="radioChart" name="radioChart" value="Count" checked="true"><span translatable="true">Number of Moves</span></input><br/>
+				<input type="radio" id="radioChart" name="radioChart" value="Cost"><span translatable="true">Cost of Moves</span></input><br/>
+				<input type="radio" id="radioChart" name="radioChart" value="Churn"><span translatable="true">Churn Rate</span></input><br/>
+			</html>
+		</field>
+		<field name="dp_id" table="mo" onchange="onChangeOrgField('mo.dp_id')">
+			<action id="selectDp">
+				<title translatable="false">...</title>
+				<tooltip translatable="true">Select Value</tooltip>
+        		<command 
+					type="selectValue"  
+					fieldNames="dv.bu_id,mo.dv_id,mo.dp_id" 
+					selectFieldNames="dv.bu_id,dp.dv_id,dp.dp_id" 
+					visibleFieldNames="dv.bu_id,dp.dv_id,dp.dp_id,dp.name"
+					actionListener="afterSelectOrg">
+					<title>Department Code</title>
+				</command>
+			</action>	
+		</field>
+		<field name="date_to_perform" table="mo" alias="from_date" op="&gt;=">
+			<title translatable="true">From Date</title>
+		</field>
+		<field name="date_to_perform" table="mo" alias="to_date" op="&lt;=">
+			<title translatable="true">To Date</title>
+		</field>
+	</panel>
+
+	<dataSource id="ds_abMoveStatisticsOrg_dateGroupingAxis" type="grouping">
+		<table name="afm_cal_dates"/> 
+		<field name="month" groupBy="true" dataType="text">
+            <title translatable="true">Date</title>
+			<sql dialect="generic">
+				${(parameters['resultsByGp'])}
+			</sql>
+        </field>
+		<parameter name="resultsByGp" dataType="verbatim" value=""/>
+		<parameter name="monthStart" dataType="date" value=""/>
+        <parameter name="monthEnd" dataType="date" value=""/>
+		<restriction type="sql" sql=" afm_cal_dates.cal_date &gt;= ${parameters['monthStart']} AND afm_cal_dates.cal_date &lt;= ${parameters['monthEnd']} "/>
+        <sortField table="afm_cal_dates" name="month" ascending="true"/>
+	</dataSource>
+
+	<dataSource id="ds_abMoveStatisticsOrg_listDp" applyVpaRestrictions="false">
+		<sql dialect="generic">
+			SELECT
+				mo.calc_org_id ${sql.as} calc_org_id,
+			    (CASE 					
+			        WHEN ${parameters['chartData']} = 'Count' THEN mo.mo_count
+			        WHEN ${parameters['chartData']} = 'Cost' THEN mo.mo_cost
+			        ELSE (CASE WHEN hist_em_count.count_em > 0 AND mo.mo_count > 0 THEN (mo.mo_count*100.0/hist_em_count.count_em) ELSE 0.0 END)
+			    END)  ${sql.as}  calc_org_data
+			FROM
+			(
+				SELECT
+					${parameters['calcOrgIdField']} ${sql.as} calc_org_id,
+				    SUM(mo.mo_count) ${sql.as} mo_count,
+					SUM(mo.mo_cost) ${sql.as} mo_cost
+				FROM
+				(
+				    SELECT 
+				        dv.bu_id  ${sql.as}  bu_id,
+						mo.from_dv_id ${sql.as} dv_id,
+						mo.from_dp_id ${sql.as} dp_id,
+				        (CASE WHEN ${(parameters['resultsBy'])} = ${parameters['summaryValueForThisGroup']}
+				                THEN ${(parameters['resultsBy'])}
+				            ELSE '-'
+				        END) ${sql.as} year_month,
+				        (CASE WHEN ${(parameters['resultsBy'])} = ${parameters['summaryValueForThisGroup']}
+				                THEN COUNT(mo_id)
+				            ELSE 0
+				        END) ${sql.as} mo_count,
+				        (CASE WHEN ${(parameters['resultsBy'])} = ${parameters['summaryValueForThisGroup']}
+				                THEN SUM(cost_actual)
+				            ELSE 0.0
+				        END) ${sql.as} mo_cost
+				    FROM mo
+				        LEFT OUTER JOIN dp ON dp.dv_id = mo.from_dv_id AND dp.dp_id = mo.from_dp_id
+				        LEFT OUTER JOIN dv ON dv.dv_id = mo.from_dv_id
+				    WHERE
+				        mo.mo_type = 'Employee' AND mo.status = 'Closed' AND
+						(mo.from_dv_id IS NOT NULL OR mo.from_dp_id IS NOT NULL)
+							AND ${parameters["consoleRestriction"]}
+							AND ${parameters["dateRestriction"]}
+                            AND ${parameters["vpaRestrictionMo"]}
+				    GROUP BY dv.bu_id,mo.from_dv_id,mo.from_dp_id,${(parameters['resultsBy'])}
+				) ${sql.as} mo
+				GROUP BY ${parameters['groupByFields']}
+			) ${sql.as} mo
+			
+			LEFT OUTER JOIN
+			(
+				SELECT
+					calc_org_id,
+					MAX(count_em) ${sql.as} count_em
+				FROM
+				(
+					SELECT
+						calc_org_id,
+						(CASE WHEN ${(parameters['resultsByHist'])} = ${parameters['summaryValueForThisGroup']}
+				                THEN ${(parameters['resultsByHist'])}
+				            ELSE '-'
+				        END) ${sql.as} year_month,
+						(CASE WHEN ${(parameters['resultsByHist'])} = ${parameters['summaryValueForThisGroup']}
+				                THEN AVG(CAST(count_em ${sql.as} float))
+				            ELSE 0
+				        END) ${sql.as} count_em
+					FROM
+					(
+					    SELECT
+							${parameters['calcOrgIdFieldHist']} ${sql.as} calc_org_id,
+					        hist_em_count.year ${sql.as} year,
+					        hist_em_count.month ${sql.as} month,
+							CAST(hist_em_count.year AS char(4))${sql.concat}'-'${sql.concat}(CASE WHEN hist_em_count.month/10 &lt; 1 THEN '0' ELSE '' END)${sql.concat}CAST(hist_em_count.month AS char(2))${sql.concat}'-'${sql.concat}'01' ${sql.as} year_month_day,
+					        SUM(hist_em_count.count_em) ${sql.as} count_em
+					    FROM hist_em_count
+					        LEFT OUTER JOIN dv ON dv.dv_id = hist_em_count.dv_id
+					        LEFT OUTER JOIN dp ON dp.dv_id = hist_em_count.dv_id AND dp.dp_id = hist_em_count.dp_id
+					    WHERE hist_em_count.count_em > 0
+								AND ${parameters["consoleRestriction"]}
+								AND ${parameters["dateRestrictionHist"]}
+                                AND ${parameters["vpaRestrictionHistEmCount"]}
+						GROUP BY ${parameters['groupByFieldsHist']},year,month
+					) ${sql.as} hist_em_count
+					GROUP BY calc_org_id, ${(parameters['resultsByHist'])}
+				) ${sql.as} hist_em_count
+				GROUP BY calc_org_id
+			) ${sql.as} hist_em_count
+			ON mo.calc_org_id = hist_em_count.calc_org_id
+		</sql>
+		<sql dialect="oracle">
+			SELECT
+				mo.calc_org_id ${sql.as} calc_org_id,
+			    (CASE 					
+			        WHEN ${parameters['chartData']} = 'Count' THEN mo.mo_count
+			        WHEN ${parameters['chartData']} = 'Cost' THEN mo.mo_cost
+			        ELSE (CASE WHEN hist_em_count.count_em > 0 AND mo.mo_count > 0 THEN (mo.mo_count*100.0/hist_em_count.count_em) ELSE 0.0 END)
+			    END)  ${sql.as}  calc_org_data
+			FROM
+			(
+				SELECT
+					${parameters['calcOrgIdField']} ${sql.as} calc_org_id,
+				    SUM(mo.mo_count) ${sql.as} mo_count,
+					SUM(mo.mo_cost) ${sql.as} mo_cost
+				FROM
+				(
+				    SELECT 
+				        dv.bu_id  ${sql.as}  bu_id,
+						mo.from_dv_id ${sql.as} dv_id,
+						mo.from_dp_id ${sql.as} dp_id,
+				        (CASE WHEN ${(parameters['resultsBy'])} = ${parameters['summaryValueForThisGroup']}
+				                THEN ${(parameters['resultsBy'])}
+				            ELSE '-'
+				        END) ${sql.as} year_month,
+				        (CASE WHEN ${(parameters['resultsBy'])} = ${parameters['summaryValueForThisGroup']}
+				                THEN COUNT(mo_id)
+				            ELSE 0
+				        END) ${sql.as} mo_count,
+				        (CASE WHEN ${(parameters['resultsBy'])} = ${parameters['summaryValueForThisGroup']}
+				                THEN SUM(cost_actual)
+				            ELSE 0.0
+				        END) ${sql.as} mo_cost
+				    FROM mo
+				        LEFT OUTER JOIN dp ON dp.dv_id = mo.from_dv_id AND dp.dp_id = mo.from_dp_id
+				        LEFT OUTER JOIN dv ON dv.dv_id = mo.from_dv_id
+				    WHERE
+				        mo.mo_type = 'Employee' AND mo.status = 'Closed' AND
+						(mo.from_dv_id IS NOT NULL OR mo.from_dp_id IS NOT NULL)
+							AND ${parameters["consoleRestriction"]}
+							AND ${parameters["dateRestriction"]}
+                            AND ${parameters["vpaRestrictionMo"]}
+				    GROUP BY dv.bu_id,mo.from_dv_id,mo.from_dp_id,${(parameters['resultsBy'])}
+				) ${sql.as} mo
+				GROUP BY ${parameters['groupByFields']}
+			) ${sql.as} mo
+			
+			LEFT OUTER JOIN
+			(
+				SELECT
+					calc_org_id,
+					MAX(count_em) ${sql.as} count_em
+				FROM
+				(
+					SELECT
+						calc_org_id,
+						(CASE WHEN ${(parameters['resultsByHist'])} = ${parameters['summaryValueForThisGroup']}
+				                THEN ${(parameters['resultsByHist'])}
+				            ELSE '-'
+				        END) ${sql.as} year_month,
+						(CASE WHEN ${(parameters['resultsByHist'])} = ${parameters['summaryValueForThisGroup']}
+				                THEN AVG(count_em)
+				            ELSE 0
+				        END) ${sql.as} count_em
+					FROM
+					(
+					    SELECT
+							${parameters['calcOrgIdFieldHist']} ${sql.as} calc_org_id,
+					        hist_em_count.year ${sql.as} year,
+					        hist_em_count.month ${sql.as} month,
+							TO_DATE(hist_em_count.year ${sql.concat}'-'${sql.concat}(CASE WHEN hist_em_count.month/10 &lt; 1 THEN '0' ELSE '' END)${sql.concat} hist_em_count.month ${sql.concat} '-' ${sql.concat} '01', 'YYYY-MM-DD') ${sql.as} year_month_day,
+					        SUM(hist_em_count.count_em) ${sql.as} count_em
+					    FROM hist_em_count
+					        LEFT OUTER JOIN dv ON dv.dv_id = hist_em_count.dv_id
+					        LEFT OUTER JOIN dp ON dp.dv_id = hist_em_count.dv_id AND dp.dp_id = hist_em_count.dp_id
+					    WHERE hist_em_count.count_em > 0
+								AND ${parameters["consoleRestriction"]}
+								AND ${parameters["dateRestrictionHistOracle"]}
+                                AND ${parameters["vpaRestrictionHistEmCount"]}
+						GROUP BY ${parameters['groupByFieldsHist']},year,month
+					) ${sql.as} hist_em_count
+					GROUP BY calc_org_id, ${(parameters['resultsByHist'])}
+				) ${sql.as} hist_em_count
+				GROUP BY calc_org_id
+			) ${sql.as} hist_em_count
+			ON mo.calc_org_id = hist_em_count.calc_org_id
+		</sql>
+		
+		<parameter name="summaryValueForThisGroup" dataType="text" value=""/>
+		<parameter name="resultsBy" dataType="verbatim" value=""/>
+		<parameter name="resultsByHist" dataType="verbatim" value=""/>
+		
+		<parameter name="dateRestriction" dataType="verbatim" value=""/>
+		<parameter name="dateRestrictionHist" dataType="verbatim" value=""/>
+		<parameter name="dateRestrictionHistOracle" dataType="verbatim" value=""/>
+		
+		<parameter name="chartData" dataType="text" value="Count"/>
+		<parameter name="groupByFields" dataType="verbatim" value="mo.bu_id,mo.dv_id,mo.dp_id"/>
+		<parameter name="groupByFieldsHist" dataType="verbatim" value="hist_em_count.bu_id,hist_em_count.dv_id,hist_em_count.dp_id"/>
+		<parameter name="calcOrgIdField" dataType="verbatim" value=""/>
+		<parameter name="calcOrgIdFieldHist" dataType="verbatim" value=""/>
+		<parameter name="consoleRestriction" dataType="verbatim" value="1=1"/>
+        <parameter name="vpaRestrictionMo" dataType="verbatim" value="1=1"/>
+        <parameter name="vpaRestrictionHistEmCount" dataType="verbatim" value="1=1"/>
+		<table name="mo" role="main"/>
+		<field name="calc_org_id" dataType="text"/>
+		<field name="calc_org_data" dataType="number" size="12" decimals="2"/>
+	</dataSource>
+
+    <panel 	id="panel_abMoveStatisticsOrg_listDp" 
+    		type="chart" 
+    		controlType="lineChart" 
+    		dataSource="ds_abMoveStatisticsOrg_listDp"
+			showOnLoad="false" layoutRegion="chartPosition">
+        <title translatable="true">Move Statistics by Department</title>
+        <event type="onClickItem">
+            <command type="callFunction" functionName="showChartDetails"/>
+        </event> 
+        <groupingAxis dataSource="ds_abMoveStatisticsOrg_dateGroupingAxis" table="afm_cal_dates" field="month">
+            <title translatable="true">Date</title> 
+        </groupingAxis>
+        <secondaryGroupingAxis dataSource="ds_abMoveStatisticsOrg_listDp" table="mo" field="calc_org_id"/>
+        <dataAxis dataSource="ds_abMoveStatisticsOrg_listDp" table="mo" field="calc_org_data"/>
+	</panel>
+
+</view>

@@ -1,0 +1,115 @@
+<view version="2.0">
+    <title>View Budget by Program</title>
+    <layout file="ab-proj-console-short-details.axvw"/>
+    <js file="ab-budget-by-program.js"/>
+    <message name="emptyRequiredFields">Missing required field</message>
+    
+    <dataSource id="budgetByProgramDs0">
+        <table name="budget" role="main"/>
+        <field name="budget_id" table="budget"/>
+    </dataSource>
+    
+    <panel type="console" id="budgetByProgramConsole" columns="1" dataSource="budgetByProgramDs0" region="north">
+        <title>Select Budget</title>
+        <action id="show">
+            <title>Show</title>
+        </action>
+        <action id="clear">
+            <title>Clear</title>
+        </action>
+        <field table="budget" name="budget_id" required="true">
+            <action>
+                <title>...</title>
+                <tooltip>Select Budget Code</tooltip>
+                <command type="selectValue"
+                        fieldNames="budget.budget_id"
+                        selectFieldNames="budget.budget_id,budget.description"
+                        visibleFieldNames="budget.budget_id,budget.description"
+                        restriction="EXISTS(SELECT 1 FROM prog_budget_items WHERE prog_budget_items.budget_id=budget.budget_id)">
+                        <title>Budget Code</title>
+                 </command>
+            </action>
+        </field>
+        <field>
+              <title>Display Options</title>
+              <html>
+                  <input type="radio" id="display_type_grid" name="display_type" value="Grid" checked="true"/>
+                  <span translatable="true">Grid</span>
+                  <input type="radio" id="display_type_chart" name="display_type" value="Chart"/>
+                  <span translatable="true">Chart</span>
+              </html>
+          </field>
+    </panel> 
+      
+    <dataSource id="budgetByProgramDs1" type="grouping">
+          <table name="prog_budget_items" role="main"/>
+          <field name="program_id" table="prog_budget_items" groupBy="true"/>
+          <field name="fiscal_year" table="prog_budget_items" groupBy="true"/>
+          <field name="capital_total" baseField="prog_budget_items.cost_budget_cap" formula="sum" dataType="number" decimals="0">
+              <title>Capital Total</title>
+          </field>
+          <field name="expense_total" baseField="prog_budget_items.cost_budget_exp" formula="sum" dataType="number" decimals="0">
+              <title>Expense Total</title>
+          </field>
+          <sortField name="program_id"/>
+          <sortField name="fiscal_year"/>
+    </dataSource>
+    <panel type="crossTable" id="budgetByProgramTable" showOnLoad="false" region="center" dataSource="budgetByProgramDs1">
+        <title>Budget by Program</title>
+        <action id="export:XLS">
+            <title>XLS</title>
+            <command type="exportPanel" outputType="xls" panelId="budgetByProgramTable"/>
+         </action>
+        <event type="onClickItem">
+            <command type="callFunction" functionName="budgetByProgram_onClick"/>
+        </event>
+    </panel>
+    
+    <dataSource id="budgetByProgramChartDs_groupingAxis" type="grouping">
+        <table name="prog_budget_items" role="main"/>
+        <field name="fiscal_year" table="prog_budget_items" groupBy="true"/>
+        <sortField name="fiscal_year" table="prog_budget_items" ascending="true"/>
+    </dataSource>
+    
+    <dataSource id="budgetByProgramChartDs_dataAxis" type="grouping">
+        <table name="prog_budget_items" role="main"/>
+        <field name="program_id" table="prog_budget_items" groupBy="true"/>
+        <field name="capital_total" baseField="prog_budget_items.cost_budget_cap" formula="sum" dataType="number" decimals="0">
+              <title>Capital Total</title>
+        </field>
+        <parameter name="summaryValueForThisGroup" dataType="text" value=""/> 
+        <parameter name="budgetId" dataType="text" value=""/>  
+        <restriction type="sql" sql="prog_budget_items.fiscal_year = ${parameters['summaryValueForThisGroup']}"/>
+        <restriction type="sql" sql="prog_budget_items.budget_id = ${parameters['budgetId']}"/>
+        <sortField name="program_id" table="prog_budget_items" ascending="true"/>
+    </dataSource>
+    
+    <panel  id="budgetByProgramChart" 
+        type="chart" 
+        controlType="stackedBarChart"  
+        dataSource="budgetByProgramChartDs_dataAxis" 
+        showLegendOnLoad="true" 
+        showLegendAsPopUp="false" 
+        legendLocation="right" 
+        showDataTips="true" 
+        backgroundColor="0xc6e2ff" 
+        fillType="linearGradient"
+        percentGradientChange="0.5"
+        percentTransparency = "1.0"
+        showOnLoad="false"
+        region="center">
+        <title>Capital Expense Totals by Program and Year</title>
+        <event type="onClickItem">
+            <command type="callFunction" functionName="budgetByProgram_onClick"/>
+        </event>
+        <groupingAxis table="prog_budget_items" field="fiscal_year" dataSource="budgetByProgramChartDs_groupingAxis">
+            <title>Fiscal Year</title>
+        </groupingAxis>
+        <secondaryGroupingAxis table="prog_budget_items" field="program_id" dataSource="budgetByProgramChartDs_dataAxis">
+            <title>Program Name</title>
+        </secondaryGroupingAxis>
+        <dataAxis table="prog_budget_items" field="capital_total" labelPosition="inside" dataSource="budgetByProgramChartDs_dataAxis">
+            <title>Capital Total</title>
+        </dataAxis>
+    </panel>
+</view>

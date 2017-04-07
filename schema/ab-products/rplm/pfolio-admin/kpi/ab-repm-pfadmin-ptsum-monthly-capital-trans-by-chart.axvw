@@ -1,0 +1,149 @@
+<view version="2.0">
+    <title translatable="false">&#160;</title>
+    <js file="ab-repm-pfadmin-ptsum-monthly-capital-trans-by-chart.js"/>
+    
+    <!-- Messages -->
+    <message name="titlePtsumMonthlyCapTransBy" translatable="true">Portfolio Net Capital Cash Flow by {0}</message>
+
+    <dataSource id="abRepmPtsumMonthlyCapTransChartDataAxis_ds" type="grouping" applyVpaRestrictions="false">
+        <sql dialect="generic">
+            SELECT 
+                (CASE WHEN ot.bl_id IS NOT NULL THEN bl.ctry_id WHEN ot.pr_id IS NOT NULL THEN property.ctry_id ELSE NULL END) ${sql.as} ctry_id,                
+                (CASE WHEN ot.bl_id IS NOT NULL THEN bl.regn_id WHEN ot.pr_id IS NOT NULL THEN property.regn_id ELSE NULL END) ${sql.as} regn_id,                
+                (CASE WHEN ot.bl_id IS NOT NULL THEN bl.state_id WHEN ot.pr_id IS NOT NULL THEN property.state_id ELSE NULL END) ${sql.as} state_id,                
+                (CASE WHEN ot.bl_id IS NOT NULL THEN bl.city_id WHEN ot.pr_id IS NOT NULL THEN property.city_id ELSE NULL END) ${sql.as} city_id,                
+                (CASE WHEN ot.bl_id IS NOT NULL THEN bl.site_id WHEN ot.pr_id IS NOT NULL THEN property.site_id ELSE NULL END) ${sql.as} site_id,                
+                (CASE WHEN ot.bl_id IS NOT NULL THEN bl.pr_id WHEN ot.pr_id IS NOT NULL THEN ot.pr_id ELSE NULL END) ${sql.as} pr_id,                
+                (CASE WHEN ot.bl_id IS NOT NULL THEN ot.bl_id ELSE NULL END) ${sql.as} bl_id,                
+                ot.status ${sql.as} status,
+                (CASE 
+                        WHEN ${sql.yearMonthOf('ot.date_purchase')} = ${parameters['summaryValueForThisGroup']} 
+                                AND (${sql.yearMonthOf('ot.date_sold')} &lt;&gt; ${parameters['summaryValueForThisGroup']} OR ot.date_sold IS NULL)
+                            THEN (-ot.cost_purchase * ${sql.exchangeRateFromBudgetToUserForDate('Budget', 'ot.date_purchase')})
+                        WHEN (${sql.yearMonthOf('ot.date_purchase')} &lt;&gt; ${parameters['summaryValueForThisGroup']})
+                                AND ${sql.yearMonthOf('ot.date_sold')} = ${parameters['summaryValueForThisGroup']}
+                            THEN (ot.cost_selling * ${sql.exchangeRateFromBudgetToUserForDate('Budget', 'ot.date_sold')})
+                        WHEN ${sql.yearMonthOf('ot.date_purchase')} = ${parameters['summaryValueForThisGroup']} 
+                                AND ${sql.yearMonthOf('ot.date_sold')} = ${parameters['summaryValueForThisGroup']}
+                            THEN (ot.cost_selling * ${sql.exchangeRateFromBudgetToUserForDate('Budget', 'ot.date_sold')} - ot.cost_purchase * ${sql.exchangeRateFromBudgetToUserForDate('Budget', 'ot.date_purchase')}) 
+                        ELSE 0 
+                    END) ${sql.as} purchasing_minus_selling
+            FROM ot
+                LEFT OUTER JOIN bl on ot.bl_id = bl.bl_id AND ${sql.getVpaRestrictionForTable('bl')}   
+                LEFT OUTER JOIN property on ot.pr_id = property.pr_id AND ${sql.getVpaRestrictionForTable('bl')}   
+            WHERE (ot.bl_id IS NOT NULL OR ot.pr_id IS NOT NULL)            
+        </sql>
+        <table name="ot" role="main"/>    
+        <table name="bl" role="standard"/>
+        <table name="property" role="standard"/>
+        <field name="group_by" dataType="text" groupBy="true">
+            <sql dialect="generic">
+                (${parameters['groupBy']})
+            </sql>
+        </field>
+        <field name="vf_purchase_minus_sell" formula="sum" baseField="ot.purchasing_minus_selling" dataType="number" size="20" decimals="2" currency="${user.userCurrency.code}">
+            <title>Purchasing Cost Minus Selling Cost</title>
+        </field>
+        <restriction type="sql" sql="${parameters['filter']} AND ${sql.vpaRestriction}"/>
+        
+        <parameter name="summaryValueForThisGroup" dataType="text" value=""/>  
+        <parameter name="filter" dataType="verbatim" value="1 = 1"/>
+        <parameter name="groupBy" dataType="verbatim" value="ot.ctry_id"/>
+        <sortField table="ot" name="group_by" ascending="true"/>
+    </dataSource>
+       
+
+    <panel id="abRepmPtsumMonthlyCapTransChart" type="chart" showOnLoad="false" controlType="lineChart" showLegendOnLoad="false" dataSource="abRepmPtsumMonthlyCapTransChartDataAxis_ds">
+        <title></title>
+        <event type="onClickItem">
+            <command type="callFunction" functionName="onDrillDown"/>                 
+        </event>
+        <action id="filter" imageName="/schema/ab-system/graphics/ab-filter-run.gif">
+            <tooltip>Filter</tooltip>
+        </action>
+        <action id="report" imageName="/schema/ab-system/graphics/ab-icon-report.gif">
+            <tooltip>Report</tooltip>      
+        </action>
+        <action id="export">
+            <title translatable="true">DOC </title>
+            <command type="exportPanel" outputType="docx" panelId="abRepmPtsumMonthlyCapTransChart" orientation="landscape"/>
+        </action>
+        <groupingAxis table="afm_cal_dates" field="month"  dataSource="abRepmKpiMonths_ds" labelRotation="45">
+            <title>Date</title> 
+        </groupingAxis>
+        
+        <secondaryGroupingAxis table="ot" field="group_by" dataSource="abRepmPtsumMonthlyCapTransChartDataAxis_ds"/>
+        
+        <dataAxis  table="ot" field="vf_purchase_minus_sell" dataSource="abRepmPtsumMonthlyCapTransChartDataAxis_ds">
+            <title>Purchasing Cost Minus Selling Cost</title>
+        </dataAxis>
+    </panel>
+    
+    <!-- Report -->
+    <dataSource id="abRepmPtsumMonthlyCapTransReport_ds" type="grouping" applyVpaRestrictions="false">
+        <sql dialect="generic">
+            SELECT 
+                tmp_cal_dates.month ${sql.as} month,
+                (CASE WHEN ot.bl_id IS NOT NULL THEN bl.ctry_id WHEN ot.pr_id IS NOT NULL THEN property.ctry_id ELSE NULL END) ${sql.as} ctry_id,                
+                (CASE WHEN ot.bl_id IS NOT NULL THEN bl.regn_id WHEN ot.pr_id IS NOT NULL THEN property.regn_id ELSE NULL END) ${sql.as} regn_id,                
+                (CASE WHEN ot.bl_id IS NOT NULL THEN bl.state_id WHEN ot.pr_id IS NOT NULL THEN property.state_id ELSE NULL END) ${sql.as} state_id,                
+                (CASE WHEN ot.bl_id IS NOT NULL THEN bl.city_id WHEN ot.pr_id IS NOT NULL THEN property.city_id ELSE NULL END) ${sql.as} city_id,                
+                (CASE WHEN ot.bl_id IS NOT NULL THEN bl.site_id WHEN ot.pr_id IS NOT NULL THEN property.site_id ELSE NULL END) ${sql.as} site_id,                
+                (CASE WHEN ot.bl_id IS NOT NULL THEN bl.pr_id WHEN ot.pr_id IS NOT NULL THEN ot.pr_id ELSE NULL END) ${sql.as} pr_id,                
+                (CASE WHEN ot.bl_id IS NOT NULL THEN ot.bl_id ELSE NULL END) ${sql.as} bl_id,                
+                ot.status ${sql.as} status,
+                (CASE 
+                        WHEN ${sql.yearMonthOf('ot.date_purchase')} = tmp_cal_dates.month
+                                AND (${sql.yearMonthOf('ot.date_sold')} &lt;&gt; tmp_cal_dates.month OR ot.date_sold IS NULL)
+                            THEN (-ot.cost_purchase * ${sql.exchangeRateFromBudgetToUserForDate('Budget', 'ot.date_purchase')})
+                        WHEN (${sql.yearMonthOf('ot.date_purchase')} &lt;&gt; tmp_cal_dates.month)
+                                AND ${sql.yearMonthOf('ot.date_sold')} = tmp_cal_dates.month
+                            THEN (ot.cost_selling * ${sql.exchangeRateFromBudgetToUserForDate('Budget', 'ot.date_sold')})
+                        WHEN ${sql.yearMonthOf('ot.date_purchase')} = tmp_cal_dates.month 
+                                AND ${sql.yearMonthOf('ot.date_sold')} = tmp_cal_dates.month
+                            THEN (ot.cost_selling * ${sql.exchangeRateFromBudgetToUserForDate('Budget', 'ot.date_sold')} - ot.cost_purchase * ${sql.exchangeRateFromBudgetToUserForDate('Budget', 'ot.date_purchase')}) 
+                        ELSE 0 
+                    END) ${sql.as} purchasing_minus_selling
+            FROM 
+                (SELECT DISTINCT ${sql.yearMonthOf('afm_cal_dates.cal_date')} ${sql.as} month FROM afm_cal_dates) ${sql.as} tmp_cal_dates
+                LEFT OUTER JOIN ot ON (${sql.yearMonthOf('ot.date_purchase')} =  tmp_cal_dates.month OR ( ${sql.yearMonthOf('ot.date_sold')} =  tmp_cal_dates.month OR ot.date_sold IS NULL))
+                LEFT OUTER JOIN bl on ot.bl_id = bl.bl_id AND ${sql.getVpaRestrictionForTable('bl')}              
+                LEFT OUTER JOIN property on ot.pr_id = property.pr_id AND ${sql.getVpaRestrictionForTable('bl')} 
+            WHERE  (ot.bl_id IS NOT NULL OR ot.pr_id IS NOT NULL)   
+        </sql>
+        <table name="ot" role="main"/>
+        <table name="bl" role="standard"/>
+        <table name="property" role="standard"/>
+        <field name="month" dataType="text" groupBy="true"/>
+        <field name="group_by" dataType="text" groupBy="true">
+            <sql dialect="generic">
+                (${parameters['groupBy']})
+            </sql>
+        </field>
+        <field name="vf_purchase_minus_sell" formula="sum" baseField="ot.purchasing_minus_selling" dataType="number" size="20" decimals="2" currency="${user.userCurrency.code}">
+            <title>Purchasing Cost Minus Selling Cost</title>
+        </field>
+        <parameter name="filter" dataType="verbatim" value="1 = 1"/>
+        <parameter name="groupBy" dataType="verbatim" value="ot.ctry_id"/>
+        <parameter name="dateFrom" dataType="text" value=""/>
+        <parameter name="dateTo" dataType="text" value=""/>
+        <restriction type="sql" sql="ot.month &lt;= ${(parameters['dateTo'])} AND ot.month &gt;= ${(parameters['dateFrom'])} AND ${parameters['filter']} AND ${sql.vpaRestriction}"/>
+    </dataSource>
+    
+    <panel type="grid" controlType="reportGrid" id="abRepmPtsumMonthlyCapTransReport" dataSource="abRepmPtsumMonthlyCapTransReport_ds" recordLimit="0" showOnLoad="false" hidden="true">
+        <sortField table="ot" name="month" ascending="true"/>
+        <action id="exportXlS">
+            <title translatable="true">XLS</title>
+            <command type="exportPanel" outputType="xls" panelId="abRepmPtsumMonthlyCapTransReport" viewName="ab-repm-pfadmin-ptsum-monthly-capital-trans-by-chart.axvw"/>
+        </action>
+        <field name="month" dataType="text">
+            <title translatable="true">Date</title>
+        </field>
+        <field name="group_by" dataType="text"/>
+        <field name="vf_purchase_minus_sell" dataType="number" size="20" decimals="2" currency="${user.userCurrency.code}">
+            <title>Purchasing Cost Minus Selling Cost</title>
+        </field>
+    </panel>
+        
+    <panel type="view" id="abRepmPtsumMonthlyCapTrans_kpiCommon" file="ab-repm-kpi-common.axvw"/>
+</view>

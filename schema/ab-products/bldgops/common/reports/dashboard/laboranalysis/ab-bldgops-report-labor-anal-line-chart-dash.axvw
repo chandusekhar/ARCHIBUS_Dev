@@ -1,0 +1,142 @@
+
+<view version="2.0">
+    
+	<js file="ab-bldgops-report-common.js"/>
+    <js file="ab-bldgops-report-labor-anal-line-chart-dash.js"/>
+    
+    <dataSource type="grouping" id="abBldgopsReportLaborAnalLineChartDashGroupDS">
+        <table name="hwrcf" role="main"/>
+        <table name="hwr" role="standard"/>
+        
+        <field name="x_month" groupBy="true" dataType="text" formula="month" baseField="hwr.date_completed"/>
+        
+        <sortField name="x_month"/>
+        
+        <restriction type="sql" sql="hwr.status NOT IN ('Rej','Can') 
+		AND hwr.work_team_id IS NOT NULL AND EXISTS(SELECT 1 FROM cf WHERE cf.work_team_id = hwr.work_team_id) 
+		AND ${sql.yearMonthDayOf('hwr.date_completed')} &gt;= ${parameters['dateStart']} 
+		AND ${sql.yearMonthDayOf('hwr.date_completed')} &lt;= ${parameters['dateEnd']} 
+		AND hwr.date_completed &lt;=${sql.currentDate}
+		AND ${parameters['treeRes']}">
+		</restriction>
+        
+        <parameter name="treeRes" dataType="verbatim" value=" 1=1 "/>
+	<parameter name="dateStart" dataType="verbatim" value="2010-01-01"/>
+	<parameter name="dateEnd" dataType="verbatim" value="2010-12-31"/>
+    </dataSource>
+    
+    <dataSource type="grouping" id="abBldgopsReportLaborAnalLineChartDashSecondGroupDS">
+        <sql dialect="generic">
+            SELECT
+            hwr.work_team_id ${sql.as} work_team_id,
+            hwr.date_completed ${sql.as} date_completed,
+            hwrcf.hours_total/(SELECT COUNT(cf_id) from cf WHERE cf.work_team_id = hwr.work_team_id) ${sql.as} hours_total
+            FROM hwrcf LEFT OUTER JOIN hwr ON hwrcf.wr_id = hwr.wr_id
+            WHERE hwr.work_team_id IS NOT NULL AND EXISTS(SELECT 1 FROM cf WHERE cf.work_team_id = hwr.work_team_id)
+            AND hwr.status NOT IN ('Rej','Can')	
+		AND ${sql.yearMonthDayOf('hwr.date_completed')} &gt;= ${parameters['dateStart']} 
+		AND ${sql.yearMonthDayOf('hwr.date_completed')} &lt;= ${parameters['dateEnd']} 
+		AND hwr.date_completed &lt;=${sql.currentDate}
+		AND ${parameters['treeRes']}
+        </sql>
+        
+        <table name="hwrcf" role="main"/>
+        
+        <field name="work_team_id" table="hwrcf" groupBy="true"/>
+        <field name="x_month" groupBy="true" dataType="text" formula="month" baseField="hwrcf.date_completed"/>
+        <field name="hours_total" dataType="number" decimals="2">
+            <sql dialect="generic">SUM(hwrcf.hours_total)</sql>
+        </field>
+        
+        <sortField name="work_team_id" table="hwrcf"/>
+        <sortField name="x_month"/>
+        
+        <parameter name="summaryValueForThisGroup" dataType="text" value=""/>
+        
+        <restriction type="sql"
+         sql=" ${sql.yearMonthOf('hwrcf.date_completed')}=${parameters['summaryValueForThisGroup']} "></restriction>
+        
+        <parameter name="treeRes" dataType="verbatim" value=" 1=1 "/>
+	<parameter name="dateStart" dataType="verbatim" value="2010-01-01"/>
+	<parameter name="dateEnd" dataType="verbatim" value="2010-12-31"/>
+    </dataSource>
+    
+    <panel id="abBldgopsReportLaborAnalLineChartDash" type="chart" controlType="lineChart" showDataTips="true"
+     showOnLoad="false"
+     dataSource="abBldgopsReportLaborAnalLineChartDashSecondGroupDS"
+     showLegendOnLoad="false"
+     showLegendAsPopUp="false"
+     legendLocation="right"
+     backgroundColor="0xffffff"
+     fillColor="0xff0000"
+     fillType="solid">
+        <title translatable="true">Work Team per Craftsperson Hours</title>
+        
+        <action imageName="/schema/ab-system/graphics/ab-icon-report.gif">
+        	<tooltip translatable="true">Report</tooltip>
+            <command type="openDialog" panelId="abBldgopsReportLaborAnalLineChartDashCrossTable"/>
+        </action>
+        
+        <action>
+            <title translatable="true">DOC</title>
+            <command type="exportPanel" outputType="docx" panelId="abBldgopsReportLaborAnalLineChartDash"/>
+        </action>
+        
+        <action id="createServiceRequest">
+            <title translatable="true">Create Service Request</title>
+            <command type="openDialog" viewName="ab-helpdesk-request-create.axvw"/>
+        </action>
+        
+        <event type="onClickItem">
+            <command type="callFunction" functionName="abBldopsReportLaborAnalLineChartDashController.showDetails(context)"/>
+        </event>
+        
+        <groupingAxis dataSource="abBldgopsReportLaborAnalLineChartDashGroupDS" table="hwrcf" field="x_month" showLabel="true" labelRotation="45">
+            <title translatable="true">Month</title>
+        </groupingAxis>
+        
+        <secondaryGroupingAxis dataSource="abBldgopsReportLaborAnalLineChartDashSecondGroupDS" table="hwrcf" field="work_team_id"></secondaryGroupingAxis>
+        
+        <dataAxis dataSource="abBldgopsReportLaborAnalLineChartDashSecondGroupDS" table="hwrcf" field="hours_total" showLabel="true"></dataAxis>
+    </panel>
+    
+    <dataSource type="grouping" id="abBldgopsReportLaborAnalLineChartDashCrossTableDS">
+        <sql dialect="generic">
+            SELECT
+            hwr.work_team_id ${sql.as} work_team_id,
+            hwr.date_completed ${sql.as} date_completed,
+            hwrcf.hours_total/(SELECT COUNT(cf_id) from cf WHERE cf.work_team_id = hwr.work_team_id) ${sql.as} hours_total
+            FROM hwrcf LEFT OUTER JOIN hwr ON hwrcf.wr_id = hwr.wr_id
+            WHERE hwr.work_team_id IS NOT NULL AND EXISTS(SELECT 1 FROM cf WHERE cf.work_team_id = hwr.work_team_id)
+            AND hwr.status NOT IN ('Rej','Can')	
+		AND ${sql.yearMonthDayOf('hwr.date_completed')} &gt;= ${parameters['dateStart']} 
+		AND ${sql.yearMonthDayOf('hwr.date_completed')} &lt;= ${parameters['dateEnd']} 
+		AND hwr.date_completed &lt;=${sql.currentDate}
+		AND ${parameters['treeRes']}
+        </sql>
+        
+        <table name="hwrcf" role="main"/>
+        
+        <field name="work_team_id" table="hwrcf" groupBy="true">
+        	<title translatable="true">Work Team Code</title>
+        </field>
+        <field name="x_month" groupBy="true" dataType="text" formula="month" baseField="hwrcf.date_completed"/>
+        <field name="hours_total" dataType="number" decimals="2">
+            <sql dialect="generic">SUM(hwrcf.hours_total)</sql>
+        </field>
+        
+        <sortField name="work_team_id" table="hwrcf"/>
+        <sortField name="x_month"/>
+        
+        <parameter name="treeRes" dataType="verbatim" value=" 1=1 "/>
+	<parameter name="dateStart" dataType="verbatim" value="2010-01-01"/>
+	<parameter name="dateEnd" dataType="verbatim" value="2010-12-31"/>
+    </dataSource>
+    
+    <panel id="abBldgopsReportLaborAnalLineChartDashCrossTable" type="crossTable" showOnLoad="false" dataSource="abBldgopsReportLaborAnalLineChartDashCrossTableDS" hidden="true">
+        <action id="exportDOCX">
+            <title translatable="true">XLS</title>
+            <command type="exportPanel" outputType="xls" panelId="abBldgopsReportLaborAnalLineChartDashCrossTable"/>
+        </action>
+    </panel>
+</view>

@@ -1,0 +1,704 @@
+<view version="2.0">
+    <message name="validateMessage" translatable="true">Please select a valid</message>
+    <message name="messageConfirmDelete" translatable="true">Are you sure you want to delete this Waste?: '{0}' ?</message>
+    <message name="errorDelete" translatable="true">Could not delete this waste.</message>
+    <message name="fieldNoNull" translatable="true">Units Type and Units cannot be empty.</message>
+    <message name="blIdMsg" translatable="true">Building Code</message>
+    <message name="dpIdMsg" translatable="true">Department Code</message>
+    <message name="dvIdMsg" translatable="true">Division Code</message>
+    <message name="eqIdMsg" translatable="true">Equipment Code</message>
+    <message name="flIdMsg" translatable="true">Floor Code</message>
+    <message name="saveSuccess" translatable="true">Record was successfully saved</message>
+    <message name="prIdMsg" translatable="true">Property Code</message>
+    <message name="rmIdMsg" translatable="true">Room Code</message>
+    <message name="siteIdMsg" translatable="true">Site Code</message>
+    <message name="emIdMsg" translatable="true">Employee Name</message>
+    <message name="contactIdMsg" translatable="true">Contact Code</message>
+    <message name="areaSite" translatable="true">The selected area should belong to the selected Site Code.</message>
+    <message name="quantityError" translatable="true">The quantity entered to move to storage cannot be greater than the initial quantity.</message>
+    <message name="quantityMsg" translatable="true">Quantity</message>
+    <message name="numContainerMsg" translatable="true">Number of Containers</message>
+    <message name="minusNotAllowed" translatable="true">cannot be minus.</message>
+    <message name="and" translatable="true">and</message>
+    <message name="quantityEquals" translatable="true">You have requested a change in waste quantity. The difference in quantity will not be accounted for elsewhere in the system. Continue?</message>
+    <message name="areaTypeST" translatable="true">Stored waste must be placed in a Storage or Tank area, not in a Satellite Accumulation area. Please choose a matching area type.</message>
+    <message name="checkQuantity" translatable="true">The entered quantity must be greater than zero.</message>
+    <layout id="main">
+        <west id="treePositon" initialSize="226" split="true"/>
+        <center/>
+    </layout>
+    
+    <layout id="nested_west" containingLayout="main" region="center">
+        <north id="centertop" initialSize="40%" split="true"/>
+        <center id="centerbellow" initialSize="60%" />
+    </layout>
+    <title translatable="true">Track Waste Storage</title>
+   
+    <dataSource id="abWasteTrackStorage_TreeLevel1DS">
+      <sql dialect="generic">
+            SELECT
+            site_id ${sql.as} site_id
+            FROM waste_areas 
+            GROUP BY site_id
+        </sql>
+        <table name="site" role="main"/>
+        <field name="site_id"/>
+        <sortField table="site" name="site_id" ascending="true"/>
+    </dataSource>
+    <dataSource id="abWasteTrackGenWasteAreaDS">
+        <table name="waste_areas"/>
+        <field name="storage_location"/>
+        <field name="area_type"/>
+    </dataSource>
+    <dataSource id="abWasteTrackWasteAreaDS">
+        <table name="waste_areas"/>
+        <field name="storage_location"/>
+        <field name="area_type"/>
+        <field name="site_id"/>
+    </dataSource>
+	<dataSource id="abWasteTrackStorage_TreeLevel2DS">
+        <sql dialect="generic">
+            SELECT
+            site_id ${sql.as} site_id,
+            area_type ${sql.as} area_type
+            FROM waste_areas 
+            GROUP BY site_id,area_type
+        </sql>
+        <table name="waste_areas" role="main"/>
+        <field name="site_id" hidden="true"/>
+        <field name="area_type"/>
+        <sortField table="waste_areas" name="area_type" ascending="true"/>
+    </dataSource>
+    
+    <dataSource id="abWasteTrackStorage_TreeLevel3DS">
+        <sql dialect="generic">
+            SELECT
+            site_id ${sql.as} site_id,
+            area_type ${sql.as} area_type,
+            storage_location  ${sql.as} storage_location
+            FROM waste_areas 
+            GROUP BY site_id,area_type,storage_location
+        </sql>
+        <table name="waste_areas" role="main"/>
+        <field name="site_id" hidden="true"/>
+        <field name="area_type" hidden="true"/>
+        <field name="storage_location"/>
+        <sortField table="waste_areas" name="storage_location" ascending="true"/>
+    </dataSource>
+   
+   <panel type="tree" id="abWasteTrackStorage_Tree" dataSource="abWasteTrackStorage_TreeLevel1DS" layoutRegion="treePositon">
+        <title translatable="true">Satellite Accumulation,Storage and Tank Areas</title>
+        <panel type="tree" id="abWasteTrackStorage_TreeLevel2" dataSource="abWasteTrackStorage_TreeLevel2DS">
+            <field table="waste_areas" name="site_id" hidden="true"/>
+            <field table="waste_areas" name="area_type"/>
+        </panel>
+        <panel type="tree" id="abWasteTrackStorage_TreeLevel3" dataSource="abWasteTrackStorage_TreeLevel3DS">
+            <event type="onClickNode">
+                <command type="callFunction" functionName="onStoragelocationClick(true)"/>
+            </event>
+            <field name="site_id" hidden="true"/>
+            <field name="area_type" hidden="true"/>
+            <field table="waste_areas" name="storage_location"/>
+        </panel>
+        <field name="site_id"/>
+    </panel>
+    
+    <dataSource id="abWasteTrackStorage_WasteStorageDS">
+        <table name="waste_out" role="main"/>
+        <field table="waste_out" name="waste_id"/>
+        <field table="waste_out" name="container_cat" />
+        <field table="waste_out" name="number_containers"/>
+        <field table="waste_out" name="quantity" />
+        <field table="waste_out" name="units" />
+        <field table="waste_out" name="waste_profile"/>
+        <field table="waste_out" name="date_start"/>
+        <field table="waste_out" name="date_end"/>
+        <field table="waste_out" name="status"/>
+        <restriction type="sql" sql="waste_out.status ='S'"/>
+    </dataSource>
+    
+    <panel type="grid" id="abWasteTrackStorage_WasteStorageGrid"  dataSource="abWasteTrackStorage_WasteStorageDS" layoutRegion="centertop" showOnLoad="false">
+        <title translatable="true">Waste Storage Information</title>
+        <sortField table="waste_out" name="status" ascending="true"/>
+        <action id="addNew">
+            <title translatable="true">Add New</title>
+        </action>
+        <field table="waste_out" name="waste_id" controlType="link" >
+            <command type="callFunction" functionName="editStorage()"/>
+        </field>
+        <field table="waste_out" name="waste_profile" controlType="link" >
+            <command type="callFunction" functionName="editStorage()"/>
+        </field>
+        <field table="waste_out" name="date_start" controlType="link" >
+            <command type="callFunction" functionName="editStorage()"/>
+        </field>
+        <field table="waste_out" name="date_end" controlType="link" >
+            <command type="callFunction" functionName="editStorage()"/>
+        </field>
+        <field table="waste_out" name="quantity" controlType="link" >
+            <command type="callFunction" functionName="editStorage()"/>
+        </field>
+        <field table="waste_out" name="units" controlType="link" >
+            <command type="callFunction" functionName="editStorage()"/>
+        </field>
+        <field table="waste_out" name="container_cat"  controlType="link" >
+            <title translatable="true">Container Category</title>
+            <command type="callFunction" functionName="editStorage()"/>
+        </field>
+        <field table="waste_out" name="number_containers"  controlType="link" >
+            <command type="callFunction" functionName="editStorage()"/>
+        </field>
+        <field table="waste_out" name="status"  controlType="link" >
+            <command type="callFunction" functionName="editStorage()"/>
+        </field>
+    </panel>
+    
+    
+    <dataSource id="abWasteTrackStorage_WasteTankDS">
+        <table name="waste_out" role="main"/>
+        <field table="waste_out" name="waste_id"/>
+        <field table="waste_out" name="quantity" />
+        <field table="waste_out" name="units" />
+        <field table="waste_out" name="waste_profile"/>
+        <field table="waste_out" name="date_start"/>
+        <field table="waste_out" name="date_end"/>
+        <field table="waste_out" name="status"/>
+        <restriction type="sql" sql="waste_out.status ='S'"/>
+    </dataSource>
+    
+    <dataSource id="abWasteTrackStorage_WasteAccumDS">
+        <table name="waste_out" role="main"/>
+        <field table="waste_out" name="waste_id"/>
+        <field table="waste_out" name="quantity" />
+        <field table="waste_out" name="units" />
+        <field table="waste_out" name="waste_profile"/>
+        <field table="waste_out" name="date_start"/>
+        <field table="waste_out" name="date_end"/>
+        <field table="waste_out" name="status"/>
+        <restriction type="sql" sql="waste_out.status in ('S','A')"/>
+    </dataSource>
+    <panel type="grid" id="abWasteTrackStorage_WasteTankGrid"  dataSource="abWasteTrackStorage_WasteTankDS" layoutRegion="centertop" showOnLoad="false">
+        <title translatable="true">Waste Tank Information</title>
+        <sortField table="waste_out" name="status" ascending="true"/>
+        <action id="addNew">
+            <title translatable="true">Add New</title>
+        </action>
+        <field table="waste_out" name="waste_id" controlType="link" >
+            <command type="callFunction" functionName="editTank()"/>
+        </field>
+        <field table="waste_out" name="waste_profile" controlType="link" >
+            <command type="callFunction" functionName="editTank()"/>
+        </field>
+        <field table="waste_out" name="date_start" controlType="link" >
+            <command type="callFunction" functionName="editTank()"/>
+        </field>
+        <field table="waste_out" name="date_end" controlType="link" >
+            <command type="callFunction" functionName="editTank()"/>
+        </field>
+        <field table="waste_out" name="quantity"  controlType="link" >
+            <command type="callFunction" functionName="editTank()"/>
+        </field>
+        <field table="waste_out" name="units"  controlType="link" >
+            <command type="callFunction" functionName="editTank()"/>
+        </field>
+        <field table="waste_out" name="status"  controlType="link" >
+            <command type="callFunction" functionName="editTank()"/>
+        </field>
+    </panel>
+    <panel type="grid" id="abWasteTrackStorage_WasteAccumGrid"  dataSource="abWasteTrackStorage_WasteAccumDS" layoutRegion="centertop" showOnLoad="false">
+        <title translatable="true">Waste Satellite Accumulation Information</title>
+        <sortField table="waste_out" name="status" ascending="true"/>
+        <action id="addNew">
+            <title translatable="true">Add New</title>
+        </action>
+        <field table="waste_out" name="waste_id" controlType="link" >
+            <command type="callFunction" functionName="editAccum()"/>
+        </field>
+        <field table="waste_out" name="waste_profile" controlType="link" >
+            <command type="callFunction" functionName="editAccum()"/>
+        </field>
+        <field table="waste_out" name="date_start" controlType="link" >
+            <command type="callFunction" functionName="editAccum()"/>
+        </field>
+        <field table="waste_out" name="date_end" controlType="link" >
+            <command type="callFunction" functionName="editAccum()"/>
+        </field>
+        <field table="waste_out" name="quantity"  controlType="link" >
+            <command type="callFunction" functionName="editAccum()"/>
+        </field>
+        <field table="waste_out" name="units"  controlType="link" >
+            <command type="callFunction" functionName="editAccum()"/>
+        </field>
+        <field table="waste_out" name="status"  controlType="link" >
+            <command type="callFunction" functionName="editAccum()"/>
+        </field>            
+    </panel>
+   
+    <dataSource id="abWasteTrackStorage_WasteTankFormDS">
+        <table name="waste_out" role="main"/>
+        <table name="waste_dispositions" role="standard"/>
+        
+        <field table="waste_dispositions" name="disposition_type"/>
+        <field table="waste_dispositions" name="waste_disposition"/>
+        
+        <field table="waste_out" name="waste_id"/>
+        <field table="waste_out" name="site_id"/>
+        <field table="waste_out" name="container_id"/>
+        <field table="waste_out" name="pr_id"/>
+        <field table="waste_out" name="container_cat"/>
+        
+        <field table="waste_out" name="bl_id"/>
+        <field table="waste_out" name="number_containers"/>
+        <field table="waste_out" name="fl_id"/>
+        <field table="waste_out" name="quantity"/>
+        <field table="waste_out" name="rm_id"/>
+        <field table="waste_out" name="units_type"/>
+        
+        <field table="waste_out" name="eq_id"/>
+        <field table="waste_out" name="units"/>
+        <field table="waste_out" name="em_id"/>
+        <field table="waste_out" name="date_start"/>
+        <field table="waste_out" name="date_end"/>
+        <field table="waste_out" name="contact_id"/>
+        
+        <field table="waste_out" name="waste_profile"/>
+        <field table="waste_out" name="dv_id"/>
+        <field table="waste_out" name="waste_disposition"/>
+        <field table="waste_out" name="generator_id"/>
+        
+        <field table="waste_out" name="dp_id"/>
+        <field table="waste_out" name="storage_location"/>
+        <field table="waste_out" name="notes"/>
+        <field table="waste_out" name="status" />
+    </dataSource>
+    
+    <panel type="form" id="abWasteTrackStorageWasteTankForm" columns="2" dataSource="abWasteTrackStorage_WasteTankFormDS" layoutRegion="centerbellow" showOnLoad="false">
+        <title translatable="true">Edit Tank Information</title>
+        <action id="save">
+            <title translatable="true">Save</title>
+        </action>
+        <action id="deleteEdit" enabled="${!panel.newRecord}">
+            <title translatable="true">Delete</title>
+            <command type="deleteRecord" />
+            <command type="callFunction" functionName="onStoragelocationClick(true)"/>
+            <command type="showPanel" panelId="abWasteTrackStorageWasteTankForm" show="false" />
+        </action>
+        <action id="cancel">
+            <title translatable="true">Cancel</title>
+            <command type="showPanel" panelId="abWasteTrackStorageWasteTankForm" show="false"/>
+        </action>
+        <field table="waste_out" name="waste_id"/>
+        <field table="waste_out" name="site_id"/>
+        <field table="waste_out" name="waste_profile" >
+        <action>
+                <title>...</title>
+                <command 
+                         type="selectValue"
+                         fieldNames="waste_out.waste_profile,waste_out.units_type"
+                         selectFieldNames="waste_profiles.waste_profile,waste_profiles.units_type"
+                         visibleFieldNames="waste_profiles.waste_profile,waste_profiles.waste_name,waste_profiles.units_type" 
+                         actionListener="afterSelectProfile"
+                         restriction="waste_profiles.status='A'" 
+                         applyFilter="false">
+                </command>
+            </action>
+        </field>
+        <field table="waste_out" name="pr_id"/>
+        <field table="waste_out" name="status" value="S" hidden="true"/> 
+        <field table="waste_out" name="date_start" required="true"/>
+        <field table="waste_out" name="bl_id">
+            <action>
+               <title>...</title>
+               <tooltip translatable="true">Select Value</tooltip>
+               <command type="selectValue" 
+                        applyFilter="true"
+                        fieldNames="waste_out.bl_id,waste_out.pr_id"
+                        selectFieldNames="bl.bl_id,bl.pr_id"
+                        visibleFieldNames="bl.bl_id,bl.name" 
+                        >
+                        <title translatable="true">Building Code</title>
+               </command>        
+            </action>
+        </field>
+        <field table="waste_out" name="date_end"/>
+        <field table="waste_out" name="fl_id"/>
+        
+        <field table="waste_out" name="quantity"  required="true"/>
+        <field table="waste_out" name="rm_id"/>
+        <field required="true">
+        <title translatable="true">Units Type</title>
+            <html>
+                <select  name="unitsType" id="unitsType" onchange="fillUnit()">
+                </select>
+            </html>
+        </field>
+        <field table="waste_out" name="units_type" hidden="true" />
+        
+        <field table="waste_out" name="eq_id"/>
+        <field table="waste_out" name="units" hidden="true"/>
+        <field required="true">
+        <title translatable="true">Units</title>
+            <html>
+                <select  name="units" id="units">
+                </select>
+            </html>
+        </field>
+        <field table="waste_out" name="em_id"/>
+        <field table="waste_out" name="container_cat">
+            <title translatable="true">Container Category</title>
+            <action>
+                <title>...</title>
+                <tooltip translatable="true">Select Value</tooltip>
+                <command type="selectValue" 
+                fieldNames="waste_out.container_cat"
+                selectFieldNames="hazard_container_cat.container_cat"
+                visibleFieldNames="hazard_container_cat.container_cat,hazard_container_cat.description"
+                restriction="hazard_container_cat.activity_id = 'AbRiskWasteMgmt'"
+                >
+                <title translatable="true">Container Category</title>
+                </command>
+            </action>
+        </field>
+        <field table="waste_out" name="contact_id"/>
+        <field table="waste_out" name="container_id"/>
+        <field table="waste_out" name="dv_id"/>
+        <field table="waste_out" name="number_containers"/>
+        <field table="waste_out" name="dp_id"/>
+        <field table="waste_out" name="storage_location" required="true">
+           <action>
+                <title>...</title>
+                <command type="selectValue" 
+                    fieldNames="waste_out.storage_location,waste_out.site_id" 
+                    selectFieldNames="waste_areas.storage_location,waste_areas.site_id" 
+                    visibleFieldNames="waste_areas.storage_location,waste_areas.area_type,waste_areas.site_id" >
+                </command>
+            </action>
+        </field>
+        <field table="waste_out" name="generator_id"/>
+        <field table="waste_out" name="waste_disposition">
+            <action>
+                <title></title>
+                <command type="selectValue" 
+                    applyFilter="false"
+                    fieldNames="waste_out.waste_disposition,waste_dispositions.disposition_type" 
+                    selectFieldNames="waste_dispositions.waste_disposition,waste_dispositions.disposition_type" 
+                    visibleFieldNames="waste_dispositions.waste_disposition,waste_dispositions.disposition_type,waste_dispositions.description" 
+                    >
+                    <title translatable="true">Waste Disposition</title>
+                </command>
+            </action>
+        </field>
+        <field />
+        <field table="waste_out" name="notes" colspan="2"/>
+        <field table="waste_dispositions" name="disposition_type"  hidden="true"/>
+    </panel>
+    <panel type="form" id="abWasteTrackStorageWasteAccumForm" columns="2" dataSource="abWasteTrackStorage_WasteTankFormDS" layoutRegion="centerbellow" showOnLoad="false">
+        <title translatable="true">Edit Satellite Accumulation Information</title>
+        <action id="save">
+            <title translatable="true">Save</title>
+        </action>
+        <action id="deleteEdit" enabled="${!panel.newRecord}">
+            <title translatable="true">Delete</title>
+            <command type="deleteRecord" />
+            <command type="callFunction" functionName="onStoragelocationClick(true)"/>
+            <command type="showPanel" panelId="abWasteTrackStorageWasteAccumForm" show="false" />
+        </action>
+        <action id="cancel">
+            <title translatable="true">Cancel</title>
+            <command type="showPanel" panelId="abWasteTrackStorageWasteAccumForm" show="false"/>
+        </action>
+        <field table="waste_out" name="waste_id"/>
+        <field table="waste_out" name="site_id"/>
+        <field table="waste_out" name="waste_profile" >
+        <action>
+                <title>...</title>
+                <command 
+                         type="selectValue"
+                         fieldNames="waste_out.waste_profile,waste_out.units_type"
+                         selectFieldNames="waste_profiles.waste_profile,waste_profiles.units_type"
+                         visibleFieldNames="waste_profiles.waste_profile,waste_profiles.waste_name,waste_profiles.units_type" 
+                         actionListener="afterSelectProfile"
+                         restriction="waste_profiles.status='A'" 
+                         applyFilter="false">
+                </command>
+            </action>
+        </field>
+        <field table="waste_out" name="pr_id"/>
+        <field table="waste_out" name="status" value="A" hidden="true"/> 
+        <field table="waste_out" name="date_start" required="true"/>
+        <field table="waste_out" name="bl_id">
+            <action>
+               <title>...</title>
+               <tooltip translatable="true">Select Value</tooltip>
+               <command type="selectValue" 
+                        applyFilter="true"
+                        fieldNames="waste_out.bl_id,waste_out.pr_id"
+                        selectFieldNames="bl.bl_id,bl.pr_id"
+                        visibleFieldNames="bl.bl_id,bl.name" 
+                        >
+                        <title translatable="true">Building Code</title>
+               </command>        
+            </action>
+        </field>
+        
+        <field table="waste_out" name="date_end"/>
+        <field table="waste_out" name="fl_id"/>
+        <field table="waste_out" name="quantity"  required="true"/>
+        <field table="waste_out" name="rm_id"/>
+        <field required="true">
+        <title translatable="true">Units Type</title>
+            <html>
+                <select  name="unitsType2" id="unitsType2" onchange="fillUnit()">
+                </select>
+            </html>
+        </field>
+        <field table="waste_out" name="units_type" hidden="true" />
+        
+        <field table="waste_out" name="eq_id"/>
+        <field table="waste_out" name="units" hidden="true"/>
+        <field required="true">
+        <title translatable="true">Units</title>
+            <html>
+                <select  name="units2" id="units2">
+                </select>
+            </html>
+        </field>
+        <field table="waste_out" name="em_id"/>
+        <field table="waste_out" name="container_cat">
+            <title translatable="true">Container Category</title>
+            <action>
+                <title>...</title>
+                <tooltip translatable="true">Select Value</tooltip>
+                <command type="selectValue" 
+                fieldNames="waste_out.container_cat"
+                selectFieldNames="hazard_container_cat.container_cat"
+                visibleFieldNames="hazard_container_cat.container_cat,hazard_container_cat.description"
+                restriction="hazard_container_cat.activity_id = 'AbRiskWasteMgmt'" 
+                >
+                <title translatable="true">Container Category</title>
+                </command>
+            </action>
+        </field>
+        <field table="waste_out" name="contact_id"/>
+        <field table="waste_out" name="container_id"/>
+        <field table="waste_out" name="dv_id"/>
+        <field table="waste_out" name="number_containers"/>
+        <field table="waste_out" name="dp_id"/>
+        <field table="waste_out" name="storage_location" required="true">
+           <action>
+                <title>...</title>
+                <command type="selectValue" 
+                    fieldNames="waste_out.storage_location,waste_out.site_id" 
+                    selectFieldNames="waste_areas.storage_location,waste_areas.site_id" 
+                    visibleFieldNames="waste_areas.storage_location,waste_areas.area_type,waste_areas.site_id" >
+                </command>
+            </action>
+        </field>
+        <field table="waste_out" name="generator_id"/>
+        <field table="waste_out" name="waste_disposition">
+            <action>
+                <title></title>
+                <command type="selectValue" 
+                    applyFilter="false"
+                    fieldNames="waste_out.waste_disposition,waste_dispositions.disposition_type" 
+                    selectFieldNames="waste_dispositions.waste_disposition,waste_dispositions.disposition_type" 
+                    visibleFieldNames="waste_dispositions.waste_disposition,waste_dispositions.disposition_type,waste_dispositions.description" 
+                    >
+                    <title translatable="true">Waste Disposition</title>
+                </command>
+            </action>
+        </field>
+        <field />
+        <field table="waste_out" name="notes" colspan="2"/>
+        <field table="waste_dispositions" name="disposition_type"  hidden="true"/>
+    </panel>
+    <dataSource id="abWasteTrackStorage_WasteStorageFormDS">
+        <table name="waste_out" role="main"/>
+        <table name="waste_dispositions" role="standard"/>
+        
+        <field table="waste_dispositions" name="disposition_type"/>
+        <field table="waste_dispositions" name="waste_disposition"/>
+        <field table="waste_out" name="waste_id"/>
+        <field table="waste_out" name="site_id"/>
+        <field table="waste_out" name="container_id"/>
+        <field table="waste_out" name="pr_id"/>
+        <field table="waste_out" name="container_cat"/>
+        
+        <field table="waste_out" name="bl_id"/>
+        <field table="waste_out" name="number_containers"/>
+        <field table="waste_out" name="fl_id"/>
+        <field table="waste_out" name="quantity"/>
+        <field table="waste_out" name="rm_id"/>
+        <field table="waste_out" name="units_type"/>
+        <field table="waste_out" name="date_end"/>
+        <field table="waste_out" name="eq_id"/>
+        <field table="waste_out" name="units"/>
+        <field table="waste_out" name="em_id"/>
+        <field table="waste_out" name="date_start"/>
+        <field table="waste_out" name="contact_id"/>
+        
+        <field table="waste_out" name="waste_profile" />
+        <field table="waste_out" name="dv_id"/>
+        
+        <field table="waste_out" name="waste_disposition"/>
+       
+        <field table="waste_out" name="dp_id"/>
+        <field table="waste_out" name="storage_location"/>
+        <field table="waste_out" name="generator_id"/>
+        <field table="waste_out" name="notes"/>
+        <field table="waste_out" name="status" />
+   </dataSource>
+    
+    <panel type="form" id="abWasteTrackStorageWasteStorageForm" columns="2" dataSource="abWasteTrackStorage_WasteStorageFormDS" layoutRegion="centerbellow" showOnLoad="false">
+        <title translatable="true">Edit Storage Information</title>
+        <action id="save">
+            <title translatable="true">Save</title>
+        </action>
+        <action id="deleteEdit" enabled="${!panel.newRecord}">
+            <title translatable="true">Delete</title>
+            <command type="deleteRecord" />
+            <command type="callFunction" functionName="onStoragelocationClick(true)"/>
+            <command type="showPanel" panelId="abWasteTrackStorageWasteStorageForm" show="false" />
+        </action>
+        <action id="cancel">
+            <title translatable="true">Cancel</title>
+            <command type="showPanel" panelId="abWasteTrackStorageWasteStorageForm" show="false"/>
+        </action>
+        
+        <field table="waste_out" name="waste_id"/>
+        <field table="waste_out" name="site_id"/>
+        <field table="waste_out" name="waste_profile" >
+            <action>
+                <title>...</title>
+                <command 
+                         type="selectValue"
+                         fieldNames="waste_out.waste_profile,waste_out.units_type"
+                         selectFieldNames="waste_profiles.waste_profile,waste_profiles.units_type"
+                         visibleFieldNames="waste_profiles.waste_profile,waste_profiles.waste_name,waste_profiles.units_type" 
+                         actionListener="afterSelectProfile"
+                         restriction="waste_profiles.status='A'" 
+                         applyFilter="false">
+                </command>
+            </action>
+        </field>
+        <field table="waste_out" name="pr_id"/>
+        <field table="waste_out" name="status" value="S" hidden="true"/> 
+        <field table="waste_out" name="date_start" required="true"/>
+        <field table="waste_out" name="bl_id">
+            <action>
+               <title>...</title>
+               <tooltip translatable="true">Select Value</tooltip>
+               <command type="selectValue" 
+                        applyFilter="true"
+                        fieldNames="waste_out.bl_id,waste_out.pr_id"
+                        selectFieldNames="bl.bl_id,bl.pr_id"
+                        visibleFieldNames="bl.bl_id,bl.name" 
+                        >
+                        <title translatable="true">Building Code</title>
+               </command>        
+            </action>
+        </field>
+        <field table="waste_out" name="date_end"/>
+        <field table="waste_out" name="fl_id"/>
+        <field table="waste_out" name="quantity" required="true"/>
+        <field table="waste_out" name="rm_id"/>
+        <field required="true">
+        <title translatable="true">Units Type</title>
+            <html>
+                <select  name="unitsType" id="unitsType1" onchange="fillUnit()">
+                </select>
+            </html>
+        </field>
+        <field table="waste_out" name="units_type" hidden="true"/>
+        <field table="waste_out" name="units" hidden="true"/>
+        <field table="waste_out" name="eq_id"/>
+        <field required="true">
+        <title translatable="true">Units</title>
+            <html>
+                <select  name="units1" id="units1">
+                </select>
+            </html>
+        </field>
+        <field table="waste_out" name="em_id"/>
+        <field table="waste_out" name="container_cat">
+            <title translatable="true">Container Category</title>
+            <action>
+                <title>...</title>
+                <tooltip translatable="true">Select Value</tooltip>
+                <command type="selectValue" 
+                fieldNames="waste_out.container_cat"
+                selectFieldNames="hazard_container_cat.container_cat"
+                visibleFieldNames="hazard_container_cat.container_cat,hazard_container_cat.description"
+                restriction="hazard_container_cat.activity_id = 'AbRiskWasteMgmt'" 
+                >
+                <title translatable="true">Container Category</title>
+                </command>
+            </action>
+        </field>
+        <field table="waste_out" name="contact_id"/>
+        <field table="waste_out" name="container_id"/>
+        <field table="waste_out" name="dv_id"/>
+        <field table="waste_out" name="number_containers"/>
+        <field table="waste_out" name="dp_id"/>
+        <field table="waste_out" name="storage_location" required="true">
+            <action>
+                <title>...</title>
+                <command type="selectValue" 
+                    fieldNames="waste_out.storage_location,waste_out.site_id" 
+                    selectFieldNames="waste_areas.storage_location,waste_areas.site_id" 
+                    visibleFieldNames="waste_areas.storage_location,waste_areas.area_type,waste_areas.site_id" >
+                </command>
+            </action>
+        </field>
+        <field table="waste_out" name="generator_id"/> 
+        <field table="waste_out" name="waste_disposition">
+            <action>
+                <title></title>
+                <command type="selectValue" 
+                    applyFilter="false"
+                    fieldNames="waste_out.waste_disposition,waste_dispositions.disposition_type" 
+                    selectFieldNames="waste_dispositions.waste_disposition,waste_dispositions.disposition_type" 
+                    visibleFieldNames="waste_dispositions.waste_disposition,waste_dispositions.disposition_type,waste_dispositions.description" 
+                    >
+                    <title translatable="true">Waste Disposition</title>
+                </command>
+            </action>
+        </field>
+        <field /> 
+        <field table="waste_out" name="notes" colspan="2"/>
+        <field table="waste_dispositions" name="disposition_type" hidden="true"/>
+    </panel>
+    
+    <dataSource id="abWasteDefMainfestsType">
+        <table name="bill_type" />
+        <field table="bill_type" name="bill_type_id"/>
+        <field table="bill_type" name="activity_id"/>
+        <restriction type="sql" sql="activity_id='AbRiskWasteMgmt' and bill_type_id not like 'REPORTS%'" />
+    </dataSource>
+    
+    <dataSource id="abWasteDefMainfestsUnit">
+        <table name="bill_unit" />
+        <field table="bill_unit" name="bill_unit_id"/>
+        <field table="bill_unit" name="bill_type_id"/>
+        <field table="bill_unit" name="is_dflt"/>
+        <sortField table="bill_unit" name="is_dflt" ascending="false"/>
+        <sortField table="bill_unit" name="bill_unit_id" ascending="true"/>
+    </dataSource>
+    
+    <dataSource id="afmFieldsDS">
+        <table name="afm_flds" />
+        <field table="afm_flds" name="table_name"/>
+        <field table="afm_flds" name="field_name"/>
+        <field table="afm_flds" name="validate_data"/>
+    </dataSource>
+
+        <dataSource id="abWasteTrackStorageAreaDS">
+		<table name="waste_areas" role="main"/>
+		<field name="bl_id" />
+		<field name="fl_id"/>
+		<field name="rm_id"/>
+    </dataSource>
+
+    <js file="ab-waste-track-storage.js"/>
+    <js file="ab-waste-common.js"/>
+</view>

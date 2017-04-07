@@ -1,0 +1,295 @@
+<view version="2.0">
+<!-- Change Log -->
+<!-- 2016/03/21 - MSHUSSAI - Added the ability to search by Building Zones -->
+
+	<layout id="main">
+        <north id="console" initialSize="135" split="true" />
+        <west id="row1col1" initialSize="70%" split="true" />
+        <center/>
+    </layout>
+    <layout id="nested_center" containingLayout="main" region="center">
+        <north id="row1col2" initialSize="40%" split="true"/>
+        <center id="row2col2" />
+    </layout>
+
+	<title>Project Dashboard</title>
+
+	<js file="uc-proj-quick-dash6.js"/>
+	<js file="uc-common-functions-data.js"/>
+
+	<dataSource id="console_ds5">
+		<table name="project" role="main"/>
+		<table name="em" role="standard"/>
+		<table name="bl" role="standard"/>		
+		<field table="project" name="project_id"/>
+		<field table="project" name="int_num"/>
+		<field table="project" name="proj_mgr"/>
+		<field table="project" name="proj_phase"/>
+		<field table="project" name="program_id"/>
+		<field table="project" name="project_cat_id"/>
+		<field table="project" name="bl_id"/>
+		<field table="em" name="company"/>
+		<field table="bl" name="zone_id"/>
+	</dataSource>
+
+	<panel type="console" id="consolePanel" dataSource="console_ds5" showOnLoad="true"  columns="3" layoutRegion="console">
+		<title translatable="true">Filter</title>
+
+		<action id="show">
+			<title translatable="true">Show</title>
+		</action>
+
+		<action id="clear">
+			<title translatable="true">Clear</title>
+		</action>
+
+
+		<field table="project" name="int_num">
+		</field>
+
+		<field table="project" name="project_id" selectValueType="grid">
+			<action>
+				<title>...</title>
+					<tooltip>Select Project</tooltip>
+					<command type="selectValue"
+						fieldNames="project.project_id"
+						selectFieldNames="project.project_id"
+						visibleFieldNames="project.project_id, project.proj_phase, project.int_num"
+						restriction="project.status NOT IN ('Requested-Rejected','Approved-Cancelled','Completed-Verified') "
+						 />
+			</action>
+		</field>
+
+		<field table="project" name="proj_mgr" value="${user.name}">
+			<action>
+            <title>...</title>
+                <tooltip>Select Project Manager</tooltip>
+                    <command type="selectValue"
+                    fieldNames="project.proj_mgr"
+                    selectFieldNames="em.em_id"
+                    visibleFieldNames="em.em_std, em.em_id, em.name_first, em.name_last, em.company"
+                    restriction="em.em_std='PROJECT-MGR'"/>
+			</action>
+		</field>
+
+		<field table="project" name="proj_phase" selectValueType="multiple"/>
+		<field table="project" name="program_id" selectValueType="multiple"/>
+		<field table="project" name="project_cat_id" selectValueType="multiple"/>
+		<field table="project" name="bl_id" selectValueType="multiple"/>
+		<field table="em" name="company"/>
+		<field table="bl" name="zone_id"/>
+		
+		<field>
+			<title>Show Archived</title>
+			<html>
+				<input type="checkbox" name="showArchived" id="showArchived" />
+			</html>
+			
+		</field>
+		
+	</panel>
+
+
+	<dataSource id="projlist_ds10">
+
+			<sql dialect = "generic">
+				SELECT p.project_id, p.proj_mgr, p.int_num, int_key, p.status, p.cost_budget, p.proj_phase, p.date_target_end, p.program_id, p.alert_level, p.pct_const_comp, p.project_cat_id, p.bl_id,
+					   isnull(abs(p.adw_afe_value),0) ${sql.as} adw_afe_value,
+						isnull(p.adw_committed_value, 0) ${sql.as} adw_committed_value,
+						isnull(p.adw_actuals_paid, 0) ${sql.as} adw_actuals_paid,
+						isnull(p.adw_journal_value, 0) ${sql.as} adw_journal_value,
+						isnull(p.adw_actuals_unposted, 0) ${sql.as} adw_actuals_unposted,
+					    (isnull(abs(p.adw_afe_value),0) - isnull(p.adw_committed_value,0)-isnull(p.adw_journal_value,0)) ${sql.as} balance
+				FROM project p	
+				WHERE 	 
+						${parameters['consoleRest']}
+						AND p.project_type NOT IN ('ASSESSMENT - HAZMAT')
+			</sql>
+
+
+
+			<table name="project" role="main"/>
+
+			<field table="project" name="project_id"/>
+			<field table="project" name="program_id"/>
+			<field table="project" name="proj_mgr"/>
+			<field table="project" name="int_num"/>
+			<field table="project" name="int_key"/>
+			<field table="project" name="status"/>
+			<field table="project" name="cost_budget"/>
+			<field table="project" name="proj_phase"/>
+			<field table="project" name="date_target_end"/>
+			<field table="project" name="alert_level"/>
+			<field table="project" name="pct_const_comp"/>
+			<field table="project" name="adw_afe_value"/>
+			<field table="project" name="adw_committed_value"/>
+			<field table="project" name="adw_actuals_paid"/>
+			<field table="project" name="adw_journal_value"/>
+			<field table="project" name="adw_actuals_unposted"/>
+			<field table="project" name="project_cat_id"/>
+			<field table="project" name="bl_id"/>
+			
+			<parameter name="consoleRest" dataType="verbatim" value="1=1"/>
+
+	</dataSource>
+
+
+
+	<panel type="grid" id="projListPanel" dataSource="projlist_ds10" showOnLoad="false" layoutRegion="row1col1"  >
+		<title>Projects (All Values w/ RGST)</title>
+		<action id="exportXLS">
+            <title>XLS</title>
+            <command type="exportPanel" outputType="xls" panelId="projListPanel"/>
+        </action>
+
+		<field controlType="button">
+			<command type="openDialog" viewName="uc-proj-quick-details2.axvw"/>
+			<title>Details</title>
+		</field>
+		<field table="project" name="int_num"/>
+		<field table="project" name="project_id"/>
+		<field table="project" name="proj_phase"/>
+		<field table="project" name="program_id"/>
+		<field table="project" name="project_cat_id"/>
+		<field table="project" name="proj_mgr"/>
+		
+		<field table="project" name="status" hidden="true"><title>Status/Alerts</title></field>
+		<field table="project" name="pct_const_comp"><title>Percent Constr. Complete</title></field>
+		<field table="project" name="alert_level" hidden="true"/>
+		<field table="project" name="date_target_end"><title>Date - Target Substantial Completion</title></field>
+		<field table="project" name="cost_budget" hidden="true"/>
+		<field table="project" name="adw_afe_value"><title>Total AFE/Budget Value (A)</title></field>
+		<!--field table="project" name="cost_afe" dataType="number" decimals="2"><title>Total AFE/Budget Value</title></field-->
+
+		<field table="project" name="adw_committed_value"><title>Total PO/Commitment Value (B)</title></field>
+		<!--field table="project" name="PO_Val" dataType="number" size="26" decimals="2">
+			<title translatable="true">Total PO/Commitment Value</title>
+		</field-->
+
+		<field table="project" name="adw_actuals_paid"><title>Actuals Invoices Paid (C)</title></field>
+		<field table="project" name="adw_actuals_unposted" ><title>Invoices Not Yet Paid</title></field>
+		<field table="project" name="adw_journal_value"><title>Journal Entry Charges (D)</title></field>
+		<!--field table="project" name="Actual" dataType="number" size="26" decimals="2">
+			<title translatable="true">Actuals Paid</title>
+		</field-->
+
+		<field table="project" name="balance" dataType="number" size="26" decimals="2">
+			<title translatable="true">Uncommitted Value (A-B-D)</title>
+		</field>
+		<field table="project" name="bl_id"/>
+
+		<sortField name="int_num" table="project" ascending="true"/>
+		
+		
+	</panel>
+
+
+
+	<!-- Second Panel -->
+
+	<dataSource id="projSummary_ds3">
+			<sql dialect = "generic">
+				SELECT p.proj_phase, count(p.project_id) ${sql.as} num_proj, sum(abs(p.adw_afe_value)) ${sql.as} sumAFE, sum(p.adw_committed_value) ${sql.as} sumCosts
+				FROM project p
+				WHERE p.status NOT IN ('Requested-Rejected', 'Approved-Cancelled', 'Completed-Verified') 
+				AND ${parameters['summaryRest']}
+				GROUP BY p.proj_phase
+			</sql>
+
+			<table name="project" role="main"/>
+
+			<field table="project" name="project_id"/>
+			<field table="project" name="status"/>
+			<field table="project" name="proj_mgr"/>
+			<field table="project" name="proj_phase"/>
+			<field table="project" name="int_num"/>
+			<field table="project" name="program_id"/>
+			<field table="project" name="bl_id"/>
+			
+
+			<field table="project" name="num_proj" dataType="number" decimals="0" />
+			<field table="project" name="sumAFE" dataType="number" decimals="2" />
+			<field table="project" name="sumCosts" dataType="number" decimals="2" />
+
+
+			<parameter name="summaryRest" dataType="verbatim" value="1=1"/>
+
+	</dataSource>
+
+
+
+	<panel id="bottomMid" type="grid" layoutRegion="row1col2" dataSource="projSummary_ds3" showOnLoad="false" useParentRestriction="false">
+		<title>Outlook (All Values with RGST)</title>
+		<field table="project" name="proj_phase"/>
+		<field table="project" name="num_proj" dataType="number" decimals="0" ><title>Number of Projects</title></field>
+		<field table="project" name="sumAFE" dataType="number" decimals="2" ><title>Total AFE/Budget Value</title></field>
+		<field table="project" name="sumCosts" dataType="number" decimals="2" ><title>Total PO/Committed Value</title></field>
+
+	</panel>
+
+
+	<!-- Chart Panel -->
+	<dataSource type="grouping" id="abViewdefSummaryChart_ds_3">
+        <table name="project" role="main"/>
+        <field table="project" name="proj_phase" groupBy="true"/>
+        <field name="ct_project_id" formula="count" baseField="project.project_id" dataType="number" decimals="0">
+            <title translatable="true">ProjectName - Count</title>
+        </field>
+
+		<restriction type="sql" sql="status NOT IN ('Requested-Rejected', 'Approved-Cancelled', 'Completed-Verified') "/>
+
+        <sortField table="project" name="proj_phase" ascending="true"/>
+    </dataSource>
+
+    <panel type="chart" id="bottomright" dataSource="abViewdefSummaryChart_ds_3" layoutRegion="row2col2" controlType="pieChart" showOnLoad="false">
+        <title translatable="true">Projects by Phase</title>
+
+
+        <event type="onClickItem">
+            <command type="openDialog" panelId="panel_abViewdefSummaryChart_popup" width="600" height="400"/>
+
+        </event>
+        <groupingAxis table="project" field="proj_phase" showLabel="true">
+            <title translatable="true">Project Phase</title>
+        </groupingAxis>
+        <dataAxis table="project" field="ct_project_id" showLabel="true" labelPosition="none" labelRotation="0" autoCalculateTickSizeInterval="true">
+            <title translatable="true">ProjectName (Count)</title>
+        </dataAxis>
+    </panel>
+
+
+    <!--ViewDef-Chart-Popup-Begin-->
+    <dataSource id="abViewdefSummaryChart_ds_popupDetails">
+        <table name="project" role="main" />
+        <field table="project" name="project_id"/>
+        <field table="project" name="proj_phase"/>
+        <field table="project" name="int_num"/>
+        <field table="project" name="proj_mgr"/>
+        <restriction type="sql" sql="status NOT IN ('Requested-Rejected', 'Approved-Cancelled', 'Completed-Verified') AND ${parameters['consoleRest']}" />
+        <parameter name="consoleRest" dataType="verbatim" value="1=1"/>
+    </dataSource>
+
+    <panel type="grid" id="panel_abViewdefSummaryChart_popup" dataSource="abViewdefSummaryChart_ds_popupDetails" hidden="true" showOnLoad="false">
+        <action id="abViewdefSummaryChart_refresh">
+            <title translatable="true">Refresh</title>
+            <command type="showPanel" panelId="panel_abViewdefSummaryChart_popup"/>
+        </action>
+        <action id="abViewdefSummaryChart_exportDOCX">
+            <title>DOCX</title>
+            <command type="exportPanel" outputType="docx" panelId="panel_abViewdefSummaryChart_popup"/>
+        </action>
+        <action id="abViewdefSummaryChart_exportXLS">
+            <title>XLS</title>
+            <command type="exportPanel" outputType="xls" panelId="panel_abViewdefSummaryChart_popup"/>
+        </action>
+        <action id="abViewdefSummaryChart_exportTXFR">
+            <title>DATA</title>
+            <command type="exportPanel" outputType="txfr" panelId="panel_abViewdefSummaryChart_popup"/>
+        </action>
+    </panel>
+
+
+
+
+
+</view>

@@ -1,0 +1,109 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<afmXmlView>
+	<preferences>
+		<viewTitleBar show="false"/>
+	</preferences>
+	<title translatable="false" />
+	<afmTableGroup type="report" format="table" defaultActions="false">
+		<title translatable="true">Actions Schedule Variances</title>
+		<dataSource>
+			<database>
+				<tables>
+					<table name="project" role="main"/>
+					<table name="activity_log" role="standard"/>
+					<table name="work_pkgs" role="standard"/>
+				</tables>
+				<fields>
+					<field name="project_id" table="work_pkgs"/>
+					<field name="work_pkg_id" table="work_pkgs"/>
+					<field name="apprv_mgr1" table="work_pkgs"/>
+					<field name="apprv_mgr1_status" table="work_pkgs"/>
+					<field name="date_act_end" table="work_pkgs"/>
+					<field name="date_act_start" table="work_pkgs"/>
+					<field name="date_app_mgr1" table="work_pkgs"/>
+					<field name="date_est_end" table="work_pkgs"/>
+					<field name="date_est_start" table="work_pkgs"/>
+					<field name="days_per_week" table="work_pkgs"/>
+					<field name="description" table="work_pkgs"/>
+					<field name="doc_acts_xfer" table="work_pkgs"/>
+					<field name="proj_phase" table="work_pkgs"/>
+					<field name="status" table="work_pkgs"/>
+					<field name="summary" table="work_pkgs"/>
+				</fields>
+			</database>
+			<mdx>
+				<afmAction type="render" response="true" newWindow="true" name="ab-proj-review-actions-schedule-variances-drill-down.axvw"></afmAction>
+				<!--afmAction type="render" newWindow="true" response="true" name="ab-proj-work-pkgs.axvw"></afmAction-->
+				<preferences dimensions="1" format="table">
+					<query>
+						<sql dialect="generic">
+						SELECT bl.city_id, bl.state_id, project.site_id, project.bl_id, project.dv_id, project.dp_id, project.is_template, 'NA' AS status,
+											program.program_type, program.program_id, project.project_type, project.project_id,
+											project.proj_mgr, project.status,
+											work_pkg_id, design_estimated_duration, baseline_duration, actual_duration, design_to_baseline, design_to_actual 
+						FROM (SELECT activity_log.project_id,
+										activity_log.work_pkg_id, 
+										sum(activity_log.duration) as design_estimated_duration,
+										sum(activity_log.duration_est_baseline) as baseline_duration,
+										sum(activity_log.duration_act) as actual_duration,
+										sum(activity_log.duration - activity_log.duration_est_baseline ) AS design_to_baseline,
+										sum(activity_log.duration - activity_log.duration_act ) AS design_to_actual
+						FROM activity_log
+						WHERE activity_log.work_pkg_id IS NOT NULL
+						AND activity_log.status like 'COMPLETED%'
+						GROUP BY activity_log.project_id, activity_log.work_pkg_id) activity_aggs
+							JOIN project ON activity_aggs.project_id = project.project_id
+							LEFT OUTER JOIN program ON program.program_id = project.program_id
+							LEFT OUTER JOIN bl ON project.bl_id = bl.bl_id
+						</sql>
+						
+						<sql dialect="oracle">
+						SELECT bl.city_id, bl.state_id, project.site_id, project.bl_id, project.dv_id, project.dp_id, project.is_template, 'NA' AS status,
+											program.program_type, program.program_id, project.project_type, project.project_id,
+											project.proj_mgr, project.status,
+											work_pkg_id, design_estimated_duration, baseline_duration, actual_duration, design_to_baseline, design_to_actual 
+						FROM (SELECT activity_log.project_id,
+										activity_log.work_pkg_id, 
+										sum(activity_log.duration) as design_estimated_duration,
+										sum(activity_log.duration_est_baseline) as baseline_duration,
+										sum(activity_log.duration_act) as actual_duration,
+										sum(activity_log.duration - activity_log.duration_est_baseline ) AS design_to_baseline,
+										sum(activity_log.duration - activity_log.duration_act ) AS design_to_actual
+						FROM activity_log
+						WHERE activity_log.work_pkg_id IS NOT NULL
+						AND activity_log.status like 'COMPLETED%'
+						GROUP BY activity_log.project_id, activity_log.work_pkg_id) activity_aggs, project, program, bl
+						WHERE
+							activity_aggs.project_id = project.project_id AND 
+							program.program_id(+) = project.program_id AND 
+							project.bl_id = bl.bl_id(+)
+						</sql>
+					</query>
+					<dimensions>
+						<dimension name="Work Package" table="work_pkgs" column="work_pkg_id" hasAll="true">
+							<title translatable="true">Work Package</title>
+							<allMemberTitle translatable="true">Work Packages</allMemberTitle>
+						</dimension>
+					</dimensions>
+					<measures>
+						<measure name="Baseline Duration" aggregator="sum" column="baseline_duration" type="calculated" decimals="0">
+							<title translatable="true">Baseline Duration</title>
+						</measure>
+						<measure name="Design Estimated Duration" aggregator="sum" column="design_estimated_duration" type="calculated" decimals="0">
+							<title translatable="true">Design Estimated Duration</title>
+						</measure>
+						<measure name="Actual Duration" aggregator="sum" column="actual_duration" type="calculated" decimals="0">
+							<title translatable="true">Actual Duration</title>
+						</measure>
+						<measure name="Design to Baseline" aggregator="sum" column="design_to_baseline" type="calculated" decimals="0">
+							<title translatable="true">Design to Baseline</title>
+						</measure>
+						<measure name="Design to Actual" aggregator="sum" column="design_to_actual" type="calculated" decimals="0">
+							<title translatable="true">Design to Actual</title>
+						</measure>
+					</measures>
+				</preferences>
+			</mdx>
+		</dataSource>
+	</afmTableGroup>
+</afmXmlView>

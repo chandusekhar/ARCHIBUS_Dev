@@ -1,0 +1,98 @@
+<view version="2.0">
+	<layout file="console-small.axvw" />
+ 
+	<js file="ab-helpdesk-report-satisfaction-location.js" />
+	<js file="ab-helpdesk-common-v2.js" />
+	<js file="ab-helpdesk-report-common.js" />
+	
+	<message name="selectTitle" translatable="true">-select-</message>
+	<dataSource id="consoleDS">
+		<table name="hactivity_logmonth" role="main" />
+		<field table="hactivity_logmonth" name="activity_log_id" />
+	</dataSource>
+
+	<panel type="console" columns="3" id="consolePanel"
+		dataSource="consoleDS" layout="mainLayout" region="north">
+		<title translatable="true">Filter</title>
+		<action id="filter">
+			<title translatable="true">Show</title>
+			<command type="callFunction" functionName="ABHDRPTC_setRestriction('hactivity_logmonth.month','reportPanel')" />
+		</action>
+		<action id="clear">
+			<title translatable="true">Clear</title>
+			<command type="callFunction" functionName="ABHDRPTC_clearConsole('reportPanel')" />
+		</action>
+		<field>
+			<title translatable="true">Year</title>
+			<html>
+				<select id="selectYear" name="selectYear">
+				</select>
+			</html>
+		</field>
+		<field table="hactivity_logmonth" name="activity_log_id"
+			hidden="true" />
+	</panel>
+	
+	<!-- cross table panel -->
+	<dataSource id="crossTableDS" type="grouping">
+		<sql dialect="generic">
+			SELECT 
+				activity_log_id,
+				month,
+				site_id,
+				bl_id,
+				case
+            		when satisfaction = 5 then 'Exceptional'
+            		when satisfaction = 4 then 'Above Average'
+            		when satisfaction = 3 then 'Average'
+            		when satisfaction = 2 then 'Below Average'
+            		when satisfaction = 1 then 'Poor'
+            		else 'N/A'
+               	end as satisfaction_message
+			FROM hactivity_logmonth 
+			WHERE activity_type LIKE 'SERVICE DESK%'
+		</sql>
+		<sql dialect="oracle">
+			SELECT 
+				activity_log_id,
+				month,
+				site_id,
+				bl_id,
+				DECODE(satisfaction,
+            		5,'Exceptional',
+            		4,'Above Average',
+            		3,'Average',
+            		2,'Below Average',
+            		1,'Poor','N/A')
+               	 as satisfaction_message
+			FROM hactivity_logmonth 
+			WHERE activity_type LIKE 'SERVICE DESK%'
+		</sql>
+		
+		<table name="hactivity_logmonth" role="main" />
+		<sortField name="sitebl" ascending="true" />
+		<sortField name="month" ascending="true" />
+		
+		<field name="sitebl" groupBy="true" dataType="text">
+			<title translatable="true">Site - Building - Satisfaction</title>
+			<sql dialect="generic">
+			RTRIM(hactivity_logmonth.site_id) ${sql.concat} '-' ${sql.concat} RTRIM(hactivity_logmonth.bl_id) ${sql.concat} '-' ${sql.concat} RTRIM(hactivity_logmonth.satisfaction_message)
+			</sql>
+		</field>
+		 
+		<field name="month" groupBy="true">
+			<title translatable="true">Month</title>
+		</field>
+                        
+		<field name="Count" formula="count" dataType="number"
+			baseField="hactivity_logmonth.activity_log_id" decimals="0">
+			<title translatable="true">#</title>
+		</field>
+		
+	</dataSource>
+
+	<panel type="crossTable" id="reportPanel" dataSource="crossTableDS"
+		layout="mainLayout" region="center" showOnLoad="false">
+		 <title translatable="true">Satisfaction Survey Results of Archived Service Requests by Site / Building</title>
+    </panel>
+</view>

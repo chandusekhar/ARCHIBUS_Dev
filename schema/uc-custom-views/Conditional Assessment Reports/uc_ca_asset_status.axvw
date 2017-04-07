@@ -1,0 +1,183 @@
+<view version="2.0">
+	<title>Asset Status and Change Reporting</title>
+    <js file="uc_ca_asset_status.js" />
+	<js file="prevnext.js" />
+	<js file="brg-common.js" />
+    
+	<dataSource id="wpPanel_ds1">
+		<sql dialect="generic">
+			SELECT
+				'Edit' wr_view,
+				eq.eq_id,
+				eq.eq_std,
+				eq.status,
+				eq.condition,
+				CASE WHEN 
+					eq.bl_id+eq.fl_id+eq.rm_id &lt;&gt; '' then rtrim(eq.bl_id)+' | '+rtrim(eq.fl_id)+' | '+rtrim(eq.rm_id) else '' end location,
+				CONVERT(varchar(12), eq.date_installed, 100) date_installed,
+				CASE WHEN
+					CAST(DATEDIFF(mm,eq.date_installed,GETDATE()) as char(3)) &lt;&gt; '' then CAST(DATEDIFF(mm,eq.date_installed,GETDATE()) as char(3)) + 'Month(s)' else '' end asset_age,
+				CASE
+					WHEN eq.date_in_storage &lt;&gt; '' then CONVERT(varchar(12), eq.date_in_storage, 100)
+					WHEN eq.date_salvaged &lt;&gt; '' then CONVERT(varchar(12), eq.date_salvaged, 100)
+					WHEN eq.date_sold &lt;&gt; '' then CONVERT(varchar(12), eq.date_sold, 100)
+					ELSE 'N/A'
+					end retired_date
+			FROM eq 
+			where ${parameters['PageRest']}  
+		</sql>
+		<!--parameter name="row1_param" dataType="verbatim" value="" /-->
+		<parameter name="PageRest" dataType="verbatim" value="1=2" />
+		
+		
+		<table name="eq" role="main"/>
+		<field name="wr_view" dataType="text"/>
+		<field name="eq_id" table="eq"/>
+		<field name="eq_std" table="eq"/>
+		<field name="status" table="eq"/>
+		<field name="condition" table="eq"/>
+		<field name="location" dataType="text"/>
+		<field name="date_installed" dataType="text"/>
+		<field name="asset_age" dataType="text"/>
+		<field name="retired_date" dataType="text"/>
+	</dataSource>
+
+	<dataSource id="wpConsole_ds">
+		<table name="eq" role="main"/>
+		<field name="eq_id" table="eq" />
+		<field name="bl_id" table="eq" />
+		<field name="fl_id" table="eq" />
+		<field name="rm_id" table="eq" />
+		<field name="eq_std" table="eq" />
+		<field name="date_installed" table="eq" />
+		<field name="status" table="eq" />
+		<field name="condition" table="eq" />
+		<field name="limit_alarm_high" table="eq" />
+		<field name="date_in_service" table="eq" />
+	</dataSource>
+	
+	<panel id="wpConsole" type="console" columns="4"  dataSource="wpConsole_ds" labelsPosition="top">
+		<title>Filter</title>
+		<action id="search">
+			<title>Show</title>
+		</action>
+		<action id="clearSearch">
+		  <title>Clear Restrictions</title>
+		  <command type="clearPanel" panelId="wpConsole"/>
+		</action>
+		
+		<field name="eq_id" table="eq">
+			<title>Equipment Barcode</title>
+			<action id="selEqId">
+				<command type="callFunction" functionName="selectEqId"/>
+			</action>
+			<!-- <action>
+				<title translatable="false">...</title>
+					<command type="selectValue"
+						fieldNames="eq.eq_id, eq.eq_std"
+						selectFieldNames="eq.eq_id, eq.eq_std"
+						visibleFieldNames="eq.eq_id, eq.eq_std"
+					/>
+			</action> -->
+		</field>
+		<field name="bl_id" table="eq"/>
+		<field name="date_installed" table="eq" alias="date_installed.from">
+			<title>Installed Between</title>
+		</field>
+		<field name="date_installed" table="eq" alias="date_installed.to">
+			<title>And</title>
+		</field>
+		<field name="eq_std" table="eq">
+			<action id="selEqStd">
+				<command type="callFunction" functionName="selectEqStd"/>
+			</action>
+		</field>
+		<field name="fl_id" table="eq"/>
+		<field name="limit_alarm_high" table="eq" alias="asset_age.from" required="false" >
+			<title>Asset Age Months Between</title>
+		</field>
+		<field name="limit_alarm_high" table="eq" alias="asset_age.to" required="false" >
+			<title>And </title>
+		</field>
+		<field name="status" table="eq"/>
+		<field name="rm_id" table="eq"/>
+		<field name="date_in_service" table="eq" alias="asset_retired.from" required="false" >
+			<title>Retired Between</title>
+		</field>
+		<field name="date_in_service" table="eq" alias="asset_retired.to" required="false" >
+			<title>And</title>
+		</field>
+		<field name="condition" table="eq"/>
+	</panel>
+    
+	<panel id="wpPanel" type="grid" controlType="reportGrid" dataSource="wpPanel_ds1">
+		<action id="exportXLSAll">
+			<title translatable="true">Export</title>
+			<command type="exportPanel" outputType="xls" panelId="wpPanelExport"/>
+		</action>
+	
+		<sortField name="eq_id" ascending="true" />
+		<title translatable="true">Report</title>
+		<field controlType="image" id="wr_view" imageName="edit.gif" >
+			<title>Detailed Info</title>
+			<command type="callFunction" functionName="openEquipmentDetails"/>
+		</field>
+		<field name="eq_id" table="eq">
+			<title>Eq. Barcode</title>
+		</field>
+		<field name="eq_std" table="eq">
+			<title>Eq. Standard</title>
+		</field>
+		<field name="status" table="eq">
+			<title>Status</title>
+		</field>
+		<field name="condition" table="eq">
+			<title>Eq. Condition</title>
+		</field>
+		<field name="location" dataType="text" >
+			<title>Location</title>
+		</field>
+		<field name="date_installed" dataType="text">
+			<title>Date Installed</title>
+		</field>
+		<field name="asset_age" dataType="text">
+			<title>Asset Age</title>
+		</field>
+		<field name="retired_date" dataType="text">
+			<title>Retired Date</title>
+		</field>
+	</panel>
+	
+	<panel id="wpPanelExport" type="grid" showOnLoad="false" controlType="reportGrid" dataSource="wpPanel_ds1">
+		<title>Asset Status</title>
+		<sortField name="eq_id" ascending="true" />
+		<field controlType="image" id="wr_view" imageName="edit.gif" >
+			<title>Detailed Info</title>
+			<command type="callFunction" functionName="openEquipmentDetails"/>
+		</field>
+		<field name="eq_id" table="eq">
+			<title>Eq. Barcode</title>
+		</field>
+		<field name="eq_std" table="eq">
+			<title>Eq. Standard</title>
+		</field>
+		<field name="status" table="eq">
+			<title>Status</title>
+		</field>
+		<field name="condition" table="eq">
+			<title>Eq. Condition</title>
+		</field>
+		<field name="location" dataType="text" >
+			<title>Location</title>
+		</field>
+		<field name="date_installed" dataType="text">
+			<title>Date Installed</title>
+		</field>
+		<field name="asset_age" dataType="text">
+			<title>Asset Age</title>
+		</field>
+		<field name="retired_date" dataType="text">
+			<title>Retired Date</title>
+		</field>
+	</panel>
+</view>

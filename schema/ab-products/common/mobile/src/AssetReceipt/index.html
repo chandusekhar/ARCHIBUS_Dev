@@ -1,0 +1,150 @@
+<!DOCTYPE HTML>
+<html manifest="" lang="en-US">
+<head>
+    <meta charset="UTF-8">
+    <meta name="format-detection" content="telephone=no"/>
+    <title>Asset &amp; Equipment Registration</title>
+    <link rel="stylesheet" type="text/css" href="resources/css/loader.css">
+    <script>
+        /**
+         * The LocaleManager script is dependent on the language files loading in the AppCache.
+         * Whe the app is started in native mode we need to check that the AppCache is loaded
+         * and that the Cordova deviceready event is fired before loading the application
+         * app.js and app.css files.
+         */
+        (function (appId) {
+            var me = this;
+            var cordovaReady = false;
+            var appCacheReady = false;
+            var mode;
+            var scriptsToLoad;
+
+            var scripts = {
+                desktop: [
+                    {path: '../Common/lang/', file: 'LocaleManager.js?version=4'},
+                    {path: '../Common/', file: 'cordova.js'},
+                    {path: '../Common/', file: 'startup.js'},
+                    {path: '../Common/lib/', file: 'promise-6.1.0.min.js'}
+                ],
+                device: [
+                    {path: '', file: 'cordova.js'},
+                    {path: '', file: 'mobile-combined-lib.js'}
+                ]
+            };
+
+            document.addEventListener('deviceready', function() {
+                console.log('Device Ready.');
+                cordovaReady = true;
+                loadAppFiles();
+            }, false);
+
+            applicationCache.addEventListener('progress', function (event) {
+                console.log('Loading AppCache item ' + event.loaded + " of " + event.total);
+            }, false);
+
+            function loadAppFiles() {
+                if(cordovaReady && appCacheReady) {
+                    console.log('Load Application files.');
+                    Ext.blink.call(me, {id: appId});
+                }
+            }
+
+            function isNativeMode() {
+                var href = document.location.href;
+                return (href.indexOf('/mobile/android') + href.indexOf('/mobile/ios') + href.indexOf('/mobile/wp8')) !== -3;
+            }
+
+            function injectScript(url, onload, onerror) {
+                var head = document.getElementsByTagName('head')[0] || document.documentElement;
+                var script = document.createElement('script');
+                // onload fires even when script fails loads with an error.
+                script.onload = onload;
+                // onerror fires for malformed URLs.
+                script.onerror = onerror;
+                script.src = url;
+                head.appendChild(script);
+            }
+
+            function loadScripts(scriptsToLoad, onCompleted, onError) {
+                var scripts = scriptsToLoad.slice(0);
+                var script = scripts.shift();
+
+                var doLoad = function (scriptToLoad) {
+                    if (typeof scriptToLoad === 'undefined') {
+                        onCompleted.call();
+                    } else {
+                        injectScript(scriptToLoad.path + scriptToLoad.file, function () {
+                            console.log('Script Loaded: ' + scriptToLoad.path + scriptToLoad.file);
+                            script = scripts.shift();
+                            doLoad(script);
+                        }, onError)
+                    }
+                };
+                doLoad(script);
+            }
+
+            function scriptLoadedMsg() {
+                console.log('All Scripts Loaded');
+            }
+
+            function scriptErrorMsg() {
+                console.log('Error Loading scripts');
+                alert('Error starting application.');
+            }
+
+            function injectLocaleManager(intervalFn) {
+                injectScript('LocaleManager.js', function() {
+                    appCacheReady = true;
+                    loadAppFiles();
+                }, scriptErrorMsg);
+                clearInterval(intervalFn);
+            }
+
+            function checkAppCache() {
+                var ac = window.applicationCache;
+                var loopMax = 20;
+                var interval = 200;
+
+                var check = setInterval(function() {
+                    if(loopMax--) {
+                        console.log('Checking AppCache Status. Status: ' + ac.status);
+                        if(ac.status != 0 && ac.status !== 2 && ac.status !== 3) {
+                            console.log('AppCache is loaded. Load LocaleManager.');
+                            injectLocaleManager(check);
+                        }
+                    } else {
+                        // The cache has not loaded or there was an error, continue loading the
+                        // app files
+                        console.log('Error loading AppCache files. Load LocaleManager.');
+                        injectLocaleManager(check);
+                    }
+                }, interval)
+            }
+
+            mode = isNativeMode() ? 'device' : 'desktop';
+            scriptsToLoad = scripts[mode];
+
+            if(mode === 'desktop') {
+                loadScripts(scriptsToLoad, scriptLoadedMsg, scriptErrorMsg);
+            } else {
+                // Load everything but LocaleManager
+                loadScripts(scriptsToLoad, scriptLoadedMsg, scriptErrorMsg);
+                checkAppCache();
+            }
+        }('c7b05c90-39aa-4002-a26e-138bc1a98b19'));
+    </script>
+    <!-- The line below must be kept intact for Sencha Command to build your application -->
+    <script id="microloader" type="text/javascript" src="../touch/microloader/development.js"></script>
+</head>
+<body>
+<div id="appLoadingIndicator">
+    <div class="spinner">
+        <div class="rect1"></div>
+        <div class="rect2"></div>
+        <div class="rect3"></div>
+        <div class="rect4"></div>
+        <div class="rect5"></div>
+    </div>
+</div>
+</body>
+</html>

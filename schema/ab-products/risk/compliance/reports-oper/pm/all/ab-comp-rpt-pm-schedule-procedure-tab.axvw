@@ -1,0 +1,296 @@
+<view version="2.0">    
+	<js file="ab-comp-rpt-pm-schedule-procedure-tab.js"/>	   
+	<js file="ab-comp-common.js"/>	   
+
+	<layout id="main">
+        <north id="console" split="true"/>
+        <center id="grid"/>
+    </layout>
+
+    <panel type="view" id="abCompRptPmsLicenseCheck" file="ab-comp-rpt-work-history-license-check.axvw"/>
+
+	<dataSource id="abCompRptPmsConsoleDS">
+		<table name="wr" role="main"/>
+		<table name="regreq_pmp" role="standard"/>
+		<table name="pmp" role="standard"/>
+		<table name="pms" role="standard"/>
+ 		<table name="regprogram" role="standard"/>
+ 		<table name="regrequirement" role="standard"/>
+ 		<table name="eqstd" role="standard"/>
+ 		<table name="eq" role="standard"/>
+
+		<field table="pms" name="site_id"/>
+		<field table="eqstd" name="category"/>
+		<field table="pms" name="pmp_id"/>
+
+		<field table="pms" name="bl_id"/>
+		<field table="eq" name="eq_std"/>
+		<field table="pmp" name="pmp_type"/>
+
+		<field table="pms" name="fl_id"/>
+		<field table="wr" name="status"/>
+		<field table="pms" name="pm_group"/>
+
+		<field table="regreq_pmp" name="regulation"/>
+		<field table="regrequirement" name="regreq_cat"/>
+ 		<field table="pms" name="date_last_completed"/>
+
+		<field table="regreq_pmp" name="reg_program"/>
+		<field table="regrequirement" name="regreq_type"/>
+
+		<field table="regreq_pmp" name="reg_requirement"/>
+		<field table="regprogram" name="priority"/>
+		<field table="regprogram" name="project_id"/>
+	</dataSource>
+
+	<panel type="console" columns="3" id="abCompRptPmsConsole" dataSource="abCompRptPmsConsoleDS" layoutRegion="console">
+		<title translatable="true">Filter</title>
+
+		<action id="show">
+			<title translatable="true">Show</title>
+		</action>
+		<action id="clear">
+			<title translatable="true">Clear</title>
+			<command type="clearPanel" panelId="abCompRptPmsConsole"/>
+		</action>
+
+		<field table="pms" name="site_id" selectValueType="multiple"/>
+		<field table="eqstd" name="category" selectValueType="multiple"/>
+		<field table="pms" name="pmp_id" selectValueType="multiple"/>
+
+		<field table="pms" name="bl_id" selectValueType="multiple"/>
+		<field table="eq" name="eq_std" selectValueType="multiple"/>
+		<field table="pmp" name="pmp_type" selectValueType="multiple"/>
+
+		<field table="pms" name="fl_id" selectValueType="multiple"/>
+		<field table="wr" name="status" selectValueType="multiple"/>
+		<field table="pms" name="pm_group" selectValueType="multiple"/>
+
+		<field table="regreq_pmp" name="regulation" selectValueType="multiple"/>
+		<field table="regrequirement" name="regreq_cat" selectValueType="multiple"/>
+ 		<field table="pms" name="date_last_completed" alias="pms.date_last_completed.from">
+			<title translatable="true">Date From</title>
+		</field>
+
+		<field table="regreq_pmp" name="reg_program" selectValueType="multiple"/>
+		<field table="regrequirement" name="regreq_type" selectValueType="multiple"/>
+ 		<field table="pms" name="date_last_completed" alias="pms.date_last_completed.to">
+			<title translatable="true">Date To</title>
+		</field>
+
+		<field table="regreq_pmp" name="reg_requirement" selectValueType="multiple"/>
+		<field table="regprogram" name="priority" selectValueType="multiple"/>
+		<field table="regprogram" name="project_id">
+			<action>
+				<command type="selectValue" restriction="project_type='REGULATION'"  
+					selectValueType="multiple"
+					fieldNames="regprogram.project_id" applyFilter="true" 
+					selectFieldNames=" project.project_id, project.summary, project.hierarchy_ids"
+					visibleFieldNames=" project.project_id, project.summary, project.hierarchy_ids">
+				</command>
+			</action>
+		</field>
+	</panel>
+
+	<dataSource id="abCompRptPmsGridDS">
+		<sql dialect="generic">
+			SELECT 
+				DISTINCT	pms.pms_id, regreq_pmp.regulation, regreq_pmp.reg_program, regreq_pmp.reg_requirement, regrequirement.priority, pms.eq_id, pms.bl_id, pms.fl_id, pms.rm_id, 
+									pms.pmp_id, pms.date_last_completed, pms.date_next_todo, pms.pm_group, 
+									eq.eq_std, eqstd.category	, pms.site_id, regreq_pmp.update_status,   
+									(SELECT COUNT(wr.wr_id) FROM wr WHERE wr.pms_id= pms.pms_id AND wr.status NOT IN ('Com','Clo')) ${sql.as} nactive   
+				FROM regreq_pmp 
+				JOIN pms ON pms.pmp_id = regreq_pmp.pmp_id
+				JOIN pmp ON pmp.pmp_id = regreq_pmp.pmp_id
+				LEFT JOIN regloc ${sql.as} rl ON regreq_pmp.regulation=rl.regulation AND regreq_pmp.reg_program=rl.reg_program AND regreq_pmp.reg_requirement=rl.reg_requirement
+				LEFT JOIN compliance_locations ${sql.as} cl ON rl.location_id = cl.location_id
+				LEFT JOIN regrequirement ON regreq_pmp.regulation=regrequirement.regulation AND regreq_pmp.reg_program=regrequirement.reg_program AND regreq_pmp.reg_requirement=regrequirement.reg_requirement
+				LEFT JOIN regprogram ON regreq_pmp.regulation=regprogram.regulation AND regreq_pmp.reg_program=regprogram.reg_program 
+				LEFT JOIN eq ON pms.eq_id = eq.eq_id
+				LEFT JOIN eqstd ON eq.eq_std = eqstd.eq_std
+				WHERE 
+							(pms.site_id=cl.site_id OR cl.site_id IS NULL)
+							AND (pms.bl_id=cl.bl_id OR cl.bl_id IS NULL)
+							AND (pms.fl_id=cl.fl_id OR cl.fl_id IS NULL)
+							AND (pms.rm_id=cl.rm_id OR cl.rm_id IS NULL)
+							AND (pms.eq_id=cl.eq_id OR cl.eq_id IS NULL)
+							AND (eq.eq_std=cl.eq_std OR cl.eq_std IS NULL)
+							AND ${parameters['pmsRes']}
+		</sql>
+		
+		<table name="pms" role="main"/>
+
+		<field table="pms" name="pms_id"/>
+		<field table="pms" name="eq_id"/>
+		<field table="pms" name="bl_id"/>
+		<field table="pms" name="fl_id"/>
+ 		<field table="pms" name="rm_id"/>
+		<field table="pms" name="pmp_id"/>
+		<field table="pms" name="nactive"/>
+		<field table="pms" name="date_last_completed"/>
+		<field table="pms" name="date_next_todo"/>
+		<field table="pms" name="pm_group"/>
+		<field table="pms" name="site_id"/>
+
+         <parameter name="pmsRes" dataType="verbatim" value=" 1=1 "/>
+	</dataSource>
+    
+    <panel type="grid" id="abCompRptPmsGrid" showOnLoad="false"  dataSource="abCompRptPmsGridDS" layoutRegion="center">
+        <title translatable="true">Select PM Schedule</title>
+
+		<action id="viewPmps">
+            <title translatable="true">View PM Procedures</title>
+        </action>
+        <action id="doc">
+            <title translatable="true">DOCX</title>
+            <command type="exportPanel" outputType="docx" panelId="abCompRptPmsGrid" orientation="landscape"/>
+        </action>
+        <action id="xls">
+            <title translatable="true">XLS</title>
+            <command type="exportPanel" outputType="xls" panelId="abCompRptPmsGrid"/>
+        </action>
+        <action id="xls">
+            <title translatable="true">PDF</title>
+            <command type="exportPanel" outputType="pdf" panelId="abCompRptPmsGrid" orientation="landscape"/>
+        </action>
+
+        <field controlType="button" id="viewPmsDetail"> 
+            <title translatable="true">View</title>
+            <command type="openDialog" viewName="ab-comp-rpt-pm-schedule-details.axvw"/>
+        </field>
+
+		<field table="pms" name="pms_id"/>
+		<field table="pms" name="regulation" dataType="text">
+		  <title>Regulation</title>
+		</field>
+		<field table="pms" name="reg_program" dataType="text">
+		  <title>Compliance Program</title>
+		</field>
+		<field table="pms" name="reg_requirement" dataType="text">
+		  <title>Compliance Requirement</title>
+		</field>
+		<field table="pms" name="priority" dataType="text">
+		  <title>Requirement Priority</title>
+		</field>
+
+		<field table="pms" name="eq_id"/>
+		<field table="pms" name="bl_id"/>
+		<field table="pms" name="fl_id"/>
+ 		<field table="pms" name="rm_id"/>
+		<field table="pms" name="pmp_id"/>
+		<field table="pms" name="nactive">
+		  <title>Num. Open Work Requests</title>
+		</field>
+		<field table="pms" name="date_last_completed"/>
+		<field table="pms" name="date_next_todo"/>
+		<field table="pms" name="pm_group"/>
+		<field table="pms" name="eq_std" dataType="text">
+		  <title>Equipment Standard</title>
+		</field>
+		<field table="pms" name="category" dataType="text">
+		  <title>Equipment Category</title>
+		</field>
+		<field table="pms" name="site_id"/>
+		<field table="pms" name="update_status" dataType="integer">
+		  <title>Auto-Update Event Status?</title>
+		</field>
+
+		<indexField table="pms" name="regulation"/>
+    </panel>
+  
+	<dataSource id="abCompRptPmpGridDS">
+		<sql dialect="generic">
+			SELECT 
+				DISTINCT	regreq_pmp.regulation, regreq_pmp.reg_program, regreq_pmp.reg_requirement, regrequirement.priority, pmp.pmp_id, pmp.pmp_type, 
+				regreq_pmp.update_status, pmp.eq_std, COUNT(CASE WHEN wr.status IN ('Com','Clo') THEN NULL ELSE 1 END)  ${sql.as} option1,
+				COUNT (DISTINCT pms.pms_id) ${sql.as} option2, pmp.description, pmp.ac_id   
+				FROM regreq_pmp 
+				JOIN pmp ON pmp.pmp_id = regreq_pmp.pmp_id
+				LEFT JOIN pms ON pms.pmp_id = regreq_pmp.pmp_id
+				LEFT JOIN regloc ${sql.as} rl ON regreq_pmp.regulation=rl.regulation AND regreq_pmp.reg_program=rl.reg_program AND regreq_pmp.reg_requirement=rl.reg_requirement
+				LEFT JOIN compliance_locations ${sql.as} cl ON rl.location_id = cl.location_id
+				LEFT JOIN regrequirement ON regreq_pmp.regulation=regrequirement.regulation AND regreq_pmp.reg_program=regrequirement.reg_program AND regreq_pmp.reg_requirement=regrequirement.reg_requirement
+				LEFT JOIN regprogram ON regreq_pmp.regulation=regprogram.regulation AND regreq_pmp.reg_program=regprogram.reg_program 
+                LEFT JOIN wr ON wr.pms_id = pms.pms_id
+				LEFT JOIN eq ON pms.eq_id = eq.eq_id
+				LEFT JOIN eqstd ON eq.eq_std = eqstd.eq_std
+				WHERE 
+							(pms.site_id=cl.site_id OR cl.site_id IS NULL)
+							AND (pms.bl_id=cl.bl_id OR cl.bl_id IS NULL)
+							AND (pms.fl_id=cl.fl_id OR cl.fl_id IS NULL)
+							AND (pms.rm_id=cl.rm_id OR cl.rm_id IS NULL)
+							AND (pms.eq_id=cl.eq_id OR cl.eq_id IS NULL)
+							AND (eq.eq_std=cl.eq_std OR cl.eq_std IS NULL)
+							AND ${parameters['pmsRes']}
+                GROUP BY regreq_pmp.regulation, regreq_pmp.reg_program, regreq_pmp.reg_requirement, regrequirement.priority, pmp.pmp_id, pmp.pmp_type, regreq_pmp.update_status, pmp.eq_std, pmp.description, pmp.ac_id							
+		</sql>
+
+ 		<table name="pmp" role="main"/>
+
+		<field table="pmp" name="pmp_id"/>
+		<field table="pmp" name="pmp_type"/>
+		<field table="pmp" name="eq_std"/>
+		<field table="pmp" name="option1"/>
+		<field table="pmp" name="option2"/>
+		<field table="pmp" name="description"/>
+		<field table="pmp" name="ac_id"/>
+
+		<parameter name="pmsRes" dataType="verbatim" value=" 1=1 "/>
+	</dataSource>
+    
+    <panel type="grid" id="abCompRptPmpGrid" showOnLoad="false"  dataSource="abCompRptPmpGridDS" layoutRegion="center">
+		<title translatable="true">Select PM Procedure</title>
+
+		<action id="viewPms">
+            <title translatable="true">View PM Schedules</title>
+        </action>
+        <action id="doc">
+            <title translatable="true">DOCX</title>
+            <command type="exportPanel" outputType="docx" panelId="abCompRptPmpGrid" orientation="landscape"/>
+        </action>
+        <action id="xls">
+            <title translatable="true">XLS</title>
+            <command type="exportPanel" outputType="xls" panelId="abCompRptPmpGrid"/>
+        </action>
+        <action id="xls">
+            <title translatable="true">PDF</title>
+            <command type="exportPanel" outputType="pdf" panelId="abCompRptPmpGrid" orientation="landscape"/>
+        </action>
+
+        <field controlType="button" id="viewPmpDetail"> 
+            <title translatable="true">View</title>
+            <command type="openDialog" viewName="ab-comp-rpt-pm-procedure-details.axvw"/>
+        </field>
+		
+		<field table="pmp" name="regulation" dataType="text">
+		  <title>Regulation</title>
+		</field>
+		<field table="pmp" name="reg_program" dataType="text">
+		  <title>Compliance Program</title>
+		</field>
+		<field table="pmp" name="reg_requirement" dataType="text">
+		  <title>Compliance Requirement</title>
+		</field>
+		<field table="pmp" name="priority" dataType="text">
+		  <title>Requirement Priority</title>
+		</field>
+		
+		<field table="pmp" name="pmp_id"/>
+		<field table="pmp" name="pmp_type"/>
+		<field table="pmp" name="update_status" dataType="integer">
+		  <title>Auto-Update Event Status?</title>
+		</field>
+		<field table="pmp" name="eq_std"/>
+		<field table="pmp" name="option1">
+			<title>Num. Open Work Requests</title>
+		</field>
+
+		<field table="pmp" name="option2">
+			<title>Num. Schedules</title>
+		</field>
+		<field table="pmp" name="description"/>
+		<field table="pmp" name="ac_id"/>
+
+		<indexField table="pmp" name="regulation"/>
+    </panel>
+</view>

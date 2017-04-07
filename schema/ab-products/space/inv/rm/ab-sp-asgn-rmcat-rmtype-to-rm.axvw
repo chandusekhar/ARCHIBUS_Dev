@@ -1,0 +1,158 @@
+<view version="2.0">
+    <layout id="main">
+        <north id="filterPosition" initialSize="13%" split="true"/>
+        <west initialSize="30%" split="true"/>
+        <center/>
+    </layout>
+    
+    <layout id="nested_west" containingLayout="main" region="west">
+        <north id="treePositon" initialSize="40%" split="true"/>
+        <center id="assignPosition"/>
+    </layout>
+    
+    <layout id="nested_center" containingLayout="main" region="center">
+        <center id="dwgPosition"/>
+        <south id="assignmentsPosition" initialSize="20%" split="true"/>
+    </layout>
+    
+    <title translatable="true">Assign Categories and Types to Rooms</title>
+    <message name="selectFloor" translatable="true">Please select a floor</message>
+    <message name="selectType" translatable="true">Please select a room Type</message>
+    <message name="selectRm" translatable="true">Please select a room to assign %s to</message>
+    <message name="noFloorSelected" translatable="true">Please select a floor first</message>
+    <message name="confirmMessage" translatable="true">Switching floors will cause all changes to be lost, do you wish to continue?</message>
+    
+    <dataSource id="ds_ab-sp-asgn-rmcat-rmtype-to-rm_console_rm">
+        <table name="rm" role="main"/>
+        <field table="rm" name="bl_id"/>
+        <field table="rm" name="rm_cat"/>
+    </dataSource>
+    
+    <dataSource id="ds_ab-sp-asgn-rmcat-rmtype-to-rm_tree_bl">
+        <table name="bl" role="main"/>
+        <field table="bl" name="bl_id"/>
+		<restriction type="sql" sql="EXISTS (SELECT 1 FROM rm WHERE rm.dwgname IS NOT NULL AND rm.bl_id=bl.bl_id)"/>
+        <sortField table="bl" name="bl_id" ascending="true"/>
+    </dataSource>
+    
+    <dataSource id="ds_ab-sp-asgn-rmcat-rmtype-to-rm_tree_fl">
+         <sql dialect="generic">
+            SELECT
+            rm.bl_id ${sql.as} bl_id,
+            rm.fl_id ${sql.as} fl_id,
+            rm.dwgname ${sql.as} dwgname
+            FROM rm WHERE rm.dwgname IS NOT NULL GROUP BY rm.bl_id,rm.fl_id,rm.dwgname
+        </sql>
+        <table name="fl" role="main"/>
+        <field name="fl_id"/>
+        <field name="dwgname"/>
+        <sortField table="fl" name="fl_id" ascending="true"/>
+    </dataSource>
+    
+    <dataSource id="ds_ab-sp-asgn-rmcat-rmtype-to-rm_tree_rmcat">
+        <table name="rmcat" role="main"/>
+        <field name="rm_cat"/>
+        <sortField table="rmcat" name="rm_cat" ascending="true"/>
+    </dataSource>
+    
+    <dataSource id="ds_ab-sp-asgn-rmcat-rmtype-to-rm_tree_rmtype">
+        <table name="rmtype" role="main"/>
+        <field name="rm_type"/>
+        <field name="hpattern_acad"/>
+        <sortField table="rmtype" name="rm_type" ascending="true"/>
+    </dataSource>
+    
+    <dataSource id="ds_ab-sp-asgn-rmcat-rmtype-to-rm_drawing_rmHighlight">
+        <table name="rm" role="main"/>
+        <table name="rmtype" role="standard"/>
+        <field table="rm" name="bl_id"/>
+        <field table="rm" name="fl_id"/>
+        <field table="rm" name="rm_id"/>
+        <field table="rm" name="rm_type"/>
+        <field table="rmtype" name="rm_cat"/>
+        <field table="rmtype" name="rm_type" legendKey="true"/>
+        <field table="rmtype" name="hpattern_acad"/>
+    </dataSource>
+    
+    <dataSource id="ds_ab-sp-asgn-rmcat-rmtype-to-rm_drawing_rmLabel">
+        <table name="rm" role="main"/>
+        <field name="bl_id" hidden="true"/>
+        <field name="fl_id" hidden="true"/>
+        <field name="rm_id"/>
+        <field name="rm_cat"/>
+        <field name="rm_type"/>
+    </dataSource>
+    
+    <dataSource id="ds_ab-sp-asgn-rmcat-rmtype-to-rm_grid_rm">
+        <table name="rm" role="main"/>
+    </dataSource>
+    
+    <dataSource id="ds_ab-sp-asgn-rmcat-rmtype-to-rm_rmtype">
+        <table name="rmtype" role="main"/>
+        <field name="rm_cat"/>
+        <field name="rm_type"/>
+        <field name="hpattern_acad"/>
+    </dataSource>
+    
+    <panel type="console" id="abSpAsgnRmcatRmTypeToRm_filterConsole" columns="2" dataSource="ds_ab-sp-asgn-rmcat-rmtype-to-rm_console_rm" layoutRegion="filterPosition">
+        <title translatable="true">Filter</title>
+        <action id="showTree">
+            <title translatable="true">Show</title>
+        </action>
+        <action id="clear">
+            <title translatable="true">Clear</title>
+            <command type="clearPanel" panelId="abSpAsgnRmcatRmTypeToRm_filterConsole"/>
+        </action>
+    </panel>
+    
+    <panel type="tree" id="abSpAsgnRmcatRmTypeToRm_blTree" dataSource="ds_ab-sp-asgn-rmcat-rmtype-to-rm_tree_bl" layoutRegion="treePositon">
+        <title translatable="true">Select Floor</title>
+        <panel type="tree" id="abSpAsgnRmcatRmTypeToRm_flTree" dataSource="ds_ab-sp-asgn-rmcat-rmtype-to-rm_tree_fl">
+            <event type="onClickNode">
+                <command type="callFunction" functionName="onFlTreeClick"/>
+            </event>
+        </panel>
+    </panel>
+    
+    <panel type="tree" id="abSpAsgnRmcatRmTypeToRm_rmcatTree" dataSource="ds_ab-sp-asgn-rmcat-rmtype-to-rm_tree_rmcat" layoutRegion="assignPosition">
+        <title translatable="true">Select Category and Type</title>
+        <panel type="tree" id="abSpAsgnRmcatRmTypeToRm_rmtypeTree" dataSource="ds_ab-sp-asgn-rmcat-rmtype-to-rm_tree_rmtype">
+            <event type="onClickNode">
+                <command type="callFunction" functionName="onRmTypeTreeClick"/>
+            </event>
+        </panel>
+    </panel>
+    
+    <panel type="drawing" id="abSpAsgnRmcatRmTypeToRm_drawingPanel" layoutRegion="dwgPosition" multiple="false" selectionMode="2" assignMode="2"
+     highlightDataSource="ds_ab-sp-asgn-rmcat-rmtype-to-rm_drawing_rmHighlight"
+     labelsDataSource="ds_ab-sp-asgn-rmcat-rmtype-to-rm_drawing_rmLabel">
+        <title></title>
+    </panel>
+    
+    <panel type="grid" id="abSpAsgnRmcatRmTypeToRm_rmtypeAssignGrid" controlType="reportGrid" dataSource="ds_ab-sp-asgn-rmcat-rmtype-to-rm_grid_rm" layoutRegion="assignmentsPosition" showOnLoad="false">
+        <title translatable="true">Assignments</title>
+        <action id="save">
+            <title translatable="true">Save</title>
+            <command type="callFunction" functionName="saveAllChanges"/>
+        </action>
+        <action id="revert">
+            <title translatable="true">Revert All</title>
+            <command type="callFunction" functionName="resetAssignmentCtrls"/>
+        </action>
+        <field table="composite" name="loc">
+            <title translatable="true">Location</title>
+        </field>
+        <field table="rm" name="rm_cat">
+            <title translatable="true">Room Category</title>
+        </field>
+        <field table="rm" name="rm_type">
+            <title translatable="true">Room Type</title>
+        </field>
+		<field table="rm" name="bl_id" hidden="true"/>
+		<field table="rm" name="fl_id" hidden="true"/>
+		<field table="rm" name="rm_id" hidden="true"/>
+    </panel>
+    
+    <js file="ab-sp-asgn-rmcat-rmtype-to-rm.js"/>
+    <js file="ab-sp-common.js"/>
+</view>

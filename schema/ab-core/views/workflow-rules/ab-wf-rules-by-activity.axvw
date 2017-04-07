@@ -1,0 +1,240 @@
+<!-- Workflow Rule Manager view. Allows the user to search, review, edit or create new workflow rules. -->
+<view version="2.0">
+    <layout file="pkey-tree-details.axvw" />
+    
+    <js file="ab-wf-rules-by-activity.js" />
+    
+    <message name="error_1" translatable="true">Error 1</message>
+    <message name="reloadConfirmation" translatable="true">Are you sure you want to reload all workflow rules?</message>
+    <message name="reloadProgress" translatable="true">Reloading workflow rules</message>
+    <message name="labelEdit" translatable="true">Edit</message>
+    <message name="labelHour" translatable="true">Hour</message>
+    <message name="labelDay" translatable="true">Day</message>
+    <message name="labelWeek" translatable="true">Week</message>
+    <message name="labelCron" translatable="true">Cron Expression</message>
+    <message name="errStartEndDateTime" translatable="true">End date time must be greater than Start date time.</message>
+    <message name="errRepeatCount" translatable="true">Repeat Count field can be -1 or a positive integer.</message>
+    <message name="errEmptyCronExpression" translatable="true">You must specify a value for Cron Expression field.</message>
+    
+    <title translatable="true">Workflow Rule Manager</title>
+
+    <dataSource id="activityDataSource">
+        <table name="afm_activities" role="main"/>
+        <field table="afm_activities" name="activity_id"/>
+        <restriction type="sql" sql="EXISTS(SELECT * FROM afm_processes WHERE afm_activities.activity_id = afm_processes.activity_id AND afm_activities.is_active=1 AND afm_processes.process_type IN ('WEB', 'WEB-DASH')) OR EXISTS(SELECT * FROM afm_wf_rules WHERE afm_activities.activity_id = afm_wf_rules.activity_id)"/>
+    </dataSource>
+    <!-- List of activities with mini-console search -->
+    <panel type="grid" id="activityReportPanel" dataSource="activityDataSource" layout="mainLayout" region="west" selectionEnabled="true" >
+        <title translatable="true">Activities</title>
+        <action id="showAll">
+            <title translatable="true">Show All Rules</title>
+            <command type="showPanel" panelId="wfrReportPanel" clearRestriction="true"/>
+        </action>
+        <sortField table="afm_activities" name="activity_id" ascending="true" />
+        <field table="afm_activities" name="activity_id" controlType="link">
+            <command type="showPanel" panelId="wfrReportPanel"/>
+            <command type="showPanel" panelId="wfrFormPanel" show="false"/>
+        </field>
+    </panel>
+
+    <dataSource id="wfrActivityDataSource">
+        <table name="afm_wf_rules" role="main"/>
+        <table name="afm_activities" role="standard"/>
+        <field table="afm_wf_rules" name="activity_id"/>
+        <field table="afm_activities" name="activity_id"/>
+        <field table="afm_wf_rules" name="rule_id"/>
+        <field table="afm_wf_rules" name="is_active"/>
+        <field table="afm_wf_rules" name="rule_type"/>
+        <field table="afm_wf_rules" name="xml_rule_props"/>
+    </dataSource>
+    <!-- List of workflow rules for activity with mini-console search -->
+    <panel type="grid" id="wfrReportPanel" dataSource="wfrActivityDataSource" layout="nestedLayout_1" region="north" selectionEnabled="true" showOnLoad="false" 
+        refreshWorkflowRuleId="AbSystemAdministration-getWorkflowRuleRecords">
+        <title translatable="true">Workflow Rules</title>
+        <action id="addNew">
+            <title translatable="true">Add New</title>
+            <command type="showPanel" panelId="wfrFormPanel" newRecord="true"/>
+        </action>
+        <action id="showDuplicates">
+            <title translatable="true">Show Duplicate Rules</title>
+            <command type="openDialog" panelId="duplicateRulesGrid" applyParentRestriction="false" width="600" height="400"/>
+        </action>
+        <action id="showBeans">
+            <title translatable="true">Show Rules defined as Spring Beans</title>
+        </action>
+        <action id="reloadWorkflowRules">
+            <title translatable="true">Reload Workflow Rules</title>
+        </action>
+        <sortField table="afm_wf_rules" name="rule_id" ascending="true" />
+        <field table="afm_wf_rules" name="rule_id" controlType="link">
+            <command type="showPanel" panelId="wfrFormPanel"/>
+        </field>
+        <field table="afm_wf_rules" name="is_active"/>
+        <field table="afm_wf_rules" name="rule_type">
+            <title translatable="true">Rule Type</title>
+        </field>
+        <field table="afm_wf_rules" name="xml_rule_props">
+            <title translatable="true">Rule Class</title>
+        </field>
+    </panel>
+
+    <dataSource id="wfrDataSource">
+        <table name="afm_wf_rules" role="main"/>
+        <field table="afm_wf_rules" name="activity_id"/>
+        <field table="afm_wf_rules" name="rule_id"/>
+        <field table="afm_wf_rules" name="is_active"/>
+        <field table="afm_wf_rules" name="rule_type"/>
+        <field table="afm_wf_rules" name="group_name"/>
+        <field table="afm_wf_rules" name="description"/>
+        <field table="afm_wf_rules" name="xml_rule_props"/>
+        <field table="afm_wf_rules" name="xml_sched_props"/>
+    </dataSource>
+    <!-- Workflow rule review/edit form -->
+    <panel type="form" id="wfrFormPanel" dataSource="wfrDataSource" layout="nestedLayout_1" region="center" columns="2" showOnLoad="false" 
+        refreshWorkflowRuleId="AbSystemAdministration-getWorkflowRuleRecord" clearWorkflowRuleId="AbSystemAdministration-getDefaultWorkflowRuleRecord" 
+        saveWorkflowRuleId="AbSystemAdministration-saveWorkflowRuleRecord" deleteWorkflowRuleId="AbSystemAdministration-deleteWorkflowRuleRecord" >
+        <title translatable="true">Workflow Rule</title>
+        <action id="save">
+            <title translatable="true">Save</title>
+            <command type="saveForm"/>
+            <command type="showPanel" panelId="wfrReportPanel" applyParentRestriction="false"/>
+        </action>
+        <action id="delete">
+            <title translatable="true">Delete</title>
+            <command type="deleteRecord"/>
+            <command type="showPanel" panelId="wfrFormPanel" show="false"/>
+            <command type="showPanel" panelId="wfrReportPanel" applyParentRestriction="false"/>
+        </action>
+        <action id="cancel">
+            <title translatable="true">Cancel</title>
+            <command type="showPanel" panelId="wfrFormPanel" show="false"/>
+        </action>
+
+        <field table="afm_wf_rules" name="activity_id">
+        	<action>
+        		<title>...</title>
+				<tooltip>Select Value</tooltip>
+				<command type="selectValue" fieldNames="afm_wf_rules.activity_id" selectFieldNames="afm_activities.activity_id" visibleFieldNames="afm_activities.activity_id,afm_activities.title" restriction="EXISTS(SELECT * FROM afm_processes WHERE afm_activities.activity_id = afm_processes.activity_id AND afm_activities.is_active=1 AND afm_processes.process_type IN ('WEB', 'WEB-DASH')) OR EXISTS(SELECT * FROM afm_wf_rules WHERE afm_activities.activity_id = afm_wf_rules.activity_id)"/>
+			</action>
+        </field>	
+        <field table="afm_wf_rules" name="is_active" onchange="wfrByActivityController.setRuleProps()"/>
+      
+        <field table="afm_wf_rules" name="rule_id" colspan="2"/>
+        <!-- Display event handler class name from XML field -->
+        <field table="afm_wf_rules" name="xml_rule_props" alias="afm_wf_rules.eventHandlerClass">
+            <title translatable="true">Rule Class</title>
+            <!-- Custom Select Value for the class name -->
+            <action>
+	        <title>...</title>
+	        <tooltip>Select Value</tooltip>
+	        <command type="selectValue" fieldNames="afm_wf_rules.eventHandlerClass"
+					selectFieldNames="afm_wf_rules.xml_rule_props" 
+					visibleFieldNames="afm_wf_rules.xml_rule_props" 
+					workflowRuleId="AbSystemAdministration-getEventHandlers" 
+					showIndex="false"/>
+	    </action>
+        </field>
+        <field table="afm_wf_rules" name="group_name"/>
+        <!-- Display event handler method name from XML field -->
+        <field table="afm_wf_rules" name="rule_id" alias="afm_wf_rules.eventHandlerMethod" required="false">
+            <title translatable="true">Rule Method (optional)</title>
+            <!-- Custom Select Value for the class/method names -->
+            <action>
+	        <title>...</title>
+			<tooltip>Select Value</tooltip>
+	        <command type="selectValue" fieldNames="afm_wf_rules.eventHandlerClass,afm_wf_rules.eventHandlerMethod" 
+					selectFieldNames="afm_wf_rules.xml_rule_props,afm_wf_rules.rule_id" 
+					visibleFieldNames="afm_wf_rules.xml_rule_props,afm_wf_rules.rule_id" 
+					workflowRuleId="AbSystemAdministration-getEventHandlers" 
+					showIndex="false" />
+            </action>
+        </field>
+        <field table="afm_wf_rules" name="rule_type" onchange="wfrByActivityController.setSchedProps()"/>
+        <field table="afm_wf_rules" name="xml_sched_props" colspan="2">
+            <action id="edit">
+                <title>Edit</title>
+                <tooltip>Edit</tooltip>
+                <command type="openDialog" panelId="schedPropFormPanel" newRecord="false" width="800" height="600"/>
+            </action>
+        </field>
+        
+        <field table="afm_wf_rules" name="xml_rule_props" alias="afm_wf_rules.description" hidden="true" colspan="2">
+            <title translatable="true">Description</title>
+        </field>
+        <field table="afm_wf_rules" name="xml_rule_props" hidden="true"/>
+    </panel>
+    
+    <!-- Data source and panel for the Show Duplicate Rules action -->
+    <dataSource id="duplicateRulesDS">
+        <table name="afm_wf_rules"/>
+        <field name="activity_id"/>
+        <field name="rule_id"/>
+        <sql dialect="generic">
+            SELECT activity_id, rule_id FROM afm_wf_rules WHERE rule_id IN (SELECT rule_id FROM afm_wf_rules GROUP BY rule_id HAVING count(*) > 1)
+        </sql>
+    </dataSource>
+    
+    <panel type="grid" id="duplicateRulesGrid" dataSource="duplicateRulesDS" showOnLoad="false" hidden="true">
+        <title>Workflow Rules with Duplicate Names</title>
+    </panel>
+
+    <dataSource id="schedPropDS">
+        <table name="afm_wf_rules" role="main"/>
+        <field table="afm_wf_rules" name="activity_id"/>
+    </dataSource>
+    
+    <panel type="form" id="schedPropFormPanel" dataSource="schedPropDS" columns="2" showOnLoad="false" hidden="true">
+        <title>Scheduled Properties</title>
+        <action id="save">
+            <title>Save</title>
+        </action>
+        <action id="cancel">
+            <title>Cancel</title>
+            <command type="closeDialog"/>
+        </action>
+        <field id="fld_run_at_start" colspan="2">
+            <title>Run On Statup</title>
+            <html>
+                <input type="checkbox" id="run_at_start"/>
+            </html>
+        </field>
+        <field id="start_date" dataType="date">
+            <title>Start Date</title>
+        </field>
+        <field id="start_time" dataType="time">
+            <title>Start Time</title>
+        </field>
+        <field id="end_date" dataType="date">
+            <title>End Date</title>
+        </field>
+        <field id="end_time" dataType="time">
+            <title>End Time</title>
+        </field>
+        <field id="fld_invoke_every" rowspan="2">
+            <title>Invoke Rule Every</title>
+            <html>
+                <input type="radio" name="invoke_every" id="invoke_every_hour" value="hour" checked="true" onclick="wfrByActivityController.checkInvokeRule()"><span id="spanHour" translatable="false"></span></input><br/>
+                <input type="radio" name="invoke_every" id="invoke_every_day" value="day" onclick="wfrByActivityController.checkInvokeRule()"><span id="spanDay" translatable="false"></span></input><br/>
+                <input type="radio" name="invoke_every" id="invoke_every_week" value="week" onclick="wfrByActivityController.checkInvokeRule()"><span id="spanWeek" translatable="false"></span></input><br/>
+                <input type="radio" name="invoke_every" id="invoke_every_cron" value="cron" onclick="wfrByActivityController.checkInvokeRule()"><span id="spanCron" translatable="false"></span></input><br/>
+            </html>
+        </field>
+        <field id="repeat_count" dataType="number" size="20" decimals="0">
+            <title >Repeat Count</title>
+        </field>
+        <field id="cron_expression" dataType="text" size="20">
+            <title>Cron Expression</title>
+        </field>
+    </panel>
+
+    <message name="beansListTitle">Rules Defined as Spring Beans</message>
+
+    <panel type="html" id="beansList" showOnLoad="false" hidden="true">
+    </panel>
+
+    <template id="beansListTemplate">
+        {{#each workflowRules}}
+            <p>{{.}}</p>
+        {{/each}}
+    </template>
+</view>

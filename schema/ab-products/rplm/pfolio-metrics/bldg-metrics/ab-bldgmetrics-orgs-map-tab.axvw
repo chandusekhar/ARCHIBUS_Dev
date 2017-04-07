@@ -1,0 +1,173 @@
+<view version="2.0">
+    <!-- esri js library (required) -->
+    <js url="//js.arcgis.com/3.9/"/>
+    <css url="//js.arcgis.com/3.9/js/esri/css/esri.css" />
+    <!-- ab core map control (required) -->
+    <js file="ab-arcgis-map.js"/>
+    <css file="ab-arcgis-map.css"/>
+    <js file="colorbrewer.js"/>
+
+	<js file="ab-bldgmetrics-orgs-map-tab.js"/>
+	
+	<message name="area_alloc" translatable="true">Area - Allocated Area</message>
+	<message name="area_chargable" translatable="true">Area - Chargeable Area</message>
+	<message name="area_comn_nocup" translatable="true">Area - Non-Occupiable Common Area</message>
+	<message name="area_comn_ocup" translatable="true">Area - Occupiable Common Area</message>
+	<message name="area" translatable="true">Area - Room Area</message>	
+	<message name="area_comn_rm" translatable="true">Area - Room Common Area</message>
+	<message name="area_manual" translatable="true">Area - Room Area Manual Entry</message>
+	<message name="area_comn_serv" translatable="true">Area - Service Common Area</message>
+	<message name="area_comn" translatable="true">Area - Total Common Area</message>
+	<message name="area_unalloc" translatable="true">Area - Under Allocated Area</message>
+	<message name="area_per_em" translatable="true">KPI - Area per Employee</message>
+	<message name="cost_per_area" translatable="true">KPI - Cost per Area</message>	
+	<message name="fci" translatable="true">KPI - FCI</message>
+	<message name="employee_headcount" translatable="true">Occupancy - Employee Headcount</message>
+	<message name="chargeable_cost" translatable="true">Cost - Chargeable Cost</message>
+	<message name="labelShowDetails" translatable="true">Show Details</message>
+	<dataSource id="abBldgMetricsOrgsMap_ds">
+		<sql dialect="sybase">
+			select 
+				rm.bl_id ${sql.as} bl_id,
+                (select bl.pr_id from bl where bl.bl_id = rm.bl_id) ${sql.as} pr_id,
+                (select bl.site_id from bl where bl.bl_id = rm.bl_id) ${sql.as} site_id,
+                (select bl.name from bl where bl.bl_id = rm.bl_id) ${sql.as} bl_name,
+                (select ((CASE WHEN address1 IS NULL THEN '' ELSE address1 END)
+                    ${sql.concat}(CASE WHEN address1 IS NULL OR address2 IS NULL THEN '' ELSE ', ' END)
+                    ${sql.concat}(CASE WHEN address2 IS NULL THEN '' ELSE address2 END)) from bl where bl.bl_id = rm.bl_id ) ${sql.as} address,
+				sum( rm.area_alloc) ${sql.as} area_alloc, 
+				sum( rm.area_chargable) ${sql.as} area_chargeable, 
+				sum( rm.area_comn_nocup) ${sql.as} area_comn_nocup, 
+				sum( rm.area_comn_ocup) ${sql.as} area_comn_ocup, 
+				sum( rm.area) ${sql.as} area, 
+				sum( rm.area_comn_rm) ${sql.as} area_comn_rm, 
+				sum( rm.area_manual) ${sql.as} area_manual, 
+				sum( rm.area_comn_serv) ${sql.as} area_comn_serv, 
+				sum( rm.area_comn) ${sql.as} area_comn, 
+				sum( rm.area_unalloc) ${sql.as} area_unalloc, 
+				sum(rm.cost) ${sql.as} chargeable_cost, 
+				(select count(em.em_id) from em where em.bl_id = rm.bl_id)  ${sql.as} em_headcount,
+				sum(rm.cost)/ ${sql.replaceZero('sum( rm.area)')}  ${sql.as} cost_per_area,
+				sum( rm.area)/${sql.replaceZero('em_headcount')}  ${sql.as} area_per_em,
+				(select bl.lat from bl where bl.bl_id = rm.bl_id) ${sql.as} lat,
+				(select bl.lon from bl where bl.bl_id = rm.bl_id) ${sql.as} lon,
+				(SELECT avg(${sql.getFormula('AbCapitalPlanningCA-FacilityConditionIndex')}) FROM activity_log , rm ${sql.as} a WHERE  cost_to_replace > 0  AND activity_type = 'ASSESSMENT' AND activity_log.rm_id = a.rm_id and activity_log.fl_id = a.fl_id and activity_log.bl_id = a.bl_id and rm.bl_id = a.bl_id)  ${sql.as} fci
+			from rm
+			where ${parameters['treeSelection']} and rm.bl_id in (select bl_id from bl where lat is not null and lon is not null)
+			group by rm.bl_id	
+				
+			
+		</sql>
+		
+		<sql dialect="generic">
+			select 
+				rm.bl_id ${sql.as} bl_id,
+                 (select bl.pr_id from bl where bl.bl_id = rm.bl_id) ${sql.as} pr_id,
+                (select bl.site_id from bl where bl.bl_id = rm.bl_id) ${sql.as} site_id,
+                (select bl.name from bl where bl.bl_id = rm.bl_id) ${sql.as} bl_name,
+                (select ((CASE WHEN address1 IS NULL THEN '' ELSE address1 END)
+                    ${sql.concat}(CASE WHEN address1 IS NULL OR address2 IS NULL THEN '' ELSE ', ' END)
+                    ${sql.concat}(CASE WHEN address2 IS NULL THEN '' ELSE address2 END)) from bl where bl.bl_id = rm.bl_id ) ${sql.as} address,
+				sum( rm.area_alloc) ${sql.as} area_alloc, 
+				sum( rm.area_chargable) ${sql.as} area_chargeable, 
+				sum( rm.area_comn_nocup) ${sql.as} area_comn_nocup, 
+				sum( rm.area_comn_ocup) ${sql.as} area_comn_ocup, 
+				sum( rm.area) ${sql.as} area, 
+				sum( rm.area_comn_rm) ${sql.as} area_comn_rm, 
+				sum( rm.area_manual) ${sql.as} area_manual, 
+				sum( rm.area_comn_serv) ${sql.as} area_comn_serv, 
+				sum( rm.area_comn) ${sql.as} area_comn, 
+				sum( rm.area_unalloc) ${sql.as} area_unalloc, 
+				sum(rm.cost) ${sql.as} chargeable_cost, 
+				(select count(em.em_id) from em where em.bl_id = rm.bl_id)  ${sql.as} em_headcount,
+				sum(rm.cost)/ ${sql.replaceZero('sum( rm.area)')}  ${sql.as} cost_per_area,
+				sum( rm.area)/${sql.replaceZero('(select count(em.em_id) from em where em.bl_id = rm.bl_id ) ')}  ${sql.as} area_per_em,
+				(select bl.lat from bl where bl.bl_id = rm.bl_id) ${sql.as} lat,
+				(select bl.lon from bl where bl.bl_id = rm.bl_id) ${sql.as} lon,
+				(SELECT avg(${sql.getFormula('AbCapitalPlanningCA-FacilityConditionIndex')}) FROM activity_log , rm ${sql.as} a WHERE  cost_to_replace > 0  AND activity_type = 'ASSESSMENT' AND activity_log.rm_id = a.rm_id and activity_log.fl_id = a.fl_id and activity_log.bl_id = a.bl_id and rm.bl_id = a.bl_id)  ${sql.as} fci
+			from rm
+			where ${parameters['treeSelection']} and rm.bl_id in (select bl_id from bl where lat is not null and lon is not null)
+			group by rm.bl_id	
+				
+			
+		</sql>
+		<table name="rm" role="main"/>
+		<field table="rm" name="bl_id" dataType="text"/>
+        <field table="rm" name="pr_id" dataType="text" >
+            <title translatable="true">Property Code</title>
+        </field>
+        <field table="rm" name="site_id" dataType="text" >
+            <title translatable="true">Site Code</title>
+        </field>
+        <field table="rm" name="bl_name" dataType="text" >
+            <title translatable="true">Building Name</title>
+        </field>
+        <field table="rm" name="address" dataType="text" >
+            <title translatable="true">Address</title>
+        </field>
+        
+		<field table="rm" name="area_alloc" dataType="number" decimals="2" >
+			<title translatable="true">Allocated Area</title>
+		</field>
+		<field table="rm" name="area_chargeable" dataType="number" decimals="2">
+			<title translatable="true">Chargeable Area</title>
+		</field>	
+		<field table="rm" name="area_comn_nocup" dataType="number" decimals="2">
+			<title translatable="true">Non-Occupiable Common Area</title>
+		</field>	
+		<field table="rm" name="area_comn_ocup" dataType="number" decimals="2">
+			<title translatable="true">Occupiable Common Area</title>
+		</field>	
+		<field table="rm" name="area" dataType="number" decimals="2">
+			<title translatable="true">Room Area</title>
+		</field>
+		<field table="rm" name="area_comn_rm" dataType="number" decimals="2">
+			<title translatable="true">Room Common Area</title>
+		</field>	
+		<field table="rm" name="area_manual" dataType="number" decimals="2">
+			<title translatable="true">Room Area Manual Entry</title>
+		</field>	
+		<field table="rm" name="area_comn_serv" dataType="number" decimals="2">
+			<title translatable="true">Service Common Area</title>
+		</field>	
+		<field table="rm" name="area_comn" dataType="number" decimals="2">
+			<title translatable="true">Total Common Area</title>
+		</field>	
+		<field table="rm" name="area_unalloc" dataType="number" decimals="2">
+			<title translatable="true">Under Allocated Area</title>
+		</field>	
+		<field table="rm" name="chargeable_cost" dataType="number" decimals="2">
+			<title translatable="true">Chargeable Cost</title>
+		</field>	
+		<field table="rm" name="em_headcount" dataType="number" decimals="2">
+			<title translatable="true">Employee Headcount</title>
+		</field>	
+		<field table="rm" name="cost_per_area" dataType="number" decimals="2">
+			<title translatable="true">Cost per Area</title>
+		</field>	
+		<field table="rm" name="area_per_em" dataType="number" decimals="2">
+			<title translatable="true">Area per Employee</title>
+		</field>	
+		<field table="rm" name="fci" dataType="number" decimals="2">
+			<title translatable="true">FCI</title>
+		</field>	
+		<field table="rm" name="lat" dataType="number" size="24" decimals="16"/>
+		<field table="rm" name="lon" dataType="number" size="24" decimals="16"/>
+		<parameter name="treeSelection" dataType="verbatim" value="1=1"/>
+	</dataSource>
+	
+	
+	
+	<panel type="html" id="htmlOrgsMap">
+		<action id="highlightByMetric">
+			<title translatable="true">Highlight by Metric</title>
+		</action>
+		<action id="basemapLayerMenu" type="menu" imageName="/schema/ab-core/graphics/icons/view/ab-arcgis-basemap-16.png">
+	        <title translatable="true"></title>
+	        <tooltip translatable="true">Basemaps</tooltip>
+        </action> 
+	    <html>    
+	      	<div id="objOrgsMap"> </div>
+	    </html>
+	</panel>
+</view>

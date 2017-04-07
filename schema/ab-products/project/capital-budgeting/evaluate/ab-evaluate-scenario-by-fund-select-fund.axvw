@@ -1,0 +1,46 @@
+<view version="2.0">  
+    <js file="ab-evaluate-scenario-by-fund-select-fund.js"/> 
+    <message name="noFunds">No funding sources are available.</message>
+      
+    <dataSource id="evaluateScenarioByFundSelectFundGridDs" applyVpaRestrictions="false">
+        <table name="funding"/>
+        <sql dialect="generic">
+        SELECT funding.fund_id, funding.program_id, funding.amt_total, funding.date_avail, funding.date_avail_end, (CASE WHEN used_funds.funds_remaining IS NULL THEN funding.amt_total ELSE 
+        (funding.amt_total - used_funds.funds_remaining) END) funds_remain FROM 
+        funding LEFT OUTER JOIN
+        (SELECT projfunds.fund_id, (CASE WHEN SUM(amount_cap + amount_exp) IS NULL THEN 0 ELSE SUM(amount_cap + amount_exp) END) as funds_remaining 
+        FROM projfunds GROUP BY projfunds.fund_id) used_funds
+        ON used_funds.fund_id=funding.fund_id
+        </sql>
+        <sql dialect="oracle">
+        SELECT funding.fund_id, funding.program_id, funding.amt_total, funding.date_avail, funding.date_avail_end, (CASE WHEN used_funds.funds_remaining IS NULL THEN funding.amt_total ELSE 
+        (funding.amt_total - used_funds.funds_remaining) END) funds_remain FROM 
+        funding, 
+        (SELECT projfunds.fund_id, (CASE WHEN SUM(amount_cap + amount_exp) IS NULL THEN 0 ELSE SUM(amount_cap + amount_exp) END) as funds_remaining 
+        FROM projfunds GROUP BY projfunds.fund_id) used_funds
+          WHERE used_funds.fund_id(+)=funding.fund_id
+        </sql>
+        <field name="fund_id"/>
+        <field name="program_id"/>
+        <field name="amt_total" table="funding"/>
+        <field name="funds_remain" dataType="number" decimals="2"/>
+        <field name="date_avail" table="funding"/>
+        <field name="date_avail_end" table="funding"/>
+    </dataSource>
+    
+    <panel type="grid" id="evaluateScenarioByFundSelectFundGrid" dataSource="evaluateScenarioByFundSelectFundGridDs" showOnLoad="true">
+    	<title>Select Program Fund</title>
+        <sortField name="fund_id" table="funding" ascending="true"/>
+    	<field controlType="button" id="selectFund">
+            <title>Select</title>
+        </field>
+        <field name="fund_id"/>
+        <field name="program_id"/>
+        <field name="date_avail" table="funding"/>
+        <field name="date_avail_end" table="funding"/>
+        <field name="amt_total" table="funding"/>
+        <field name="funds_remain">
+            <title>Funds Remaining</title>
+        </field>
+    </panel>
+</view>

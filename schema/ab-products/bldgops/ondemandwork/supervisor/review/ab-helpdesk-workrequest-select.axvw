@@ -1,0 +1,97 @@
+<view version="2.0">
+    <!--
+    @summary
+    Supervisor - Review work request<br />
+    This view allows the user to:
+    <ul>
+    <li>View a list of work requests waiting for estimation or scheduling</li>
+    <li>Filter the list on trade code, problem type and date requested</li>
+    <li>Select a work request to view details, estimate or schedule</li>
+    </ul>
+    
+    @console
+    Console restriction on :
+    <ul>
+    <li>date_requested : start and end of the request date</li>
+    <li>tr_id : Trade Code</li>
+    <li>prob_type : Problem Type</li>
+    </ul>
+    -->
+    
+    <message name="error_date_range" translatable="true">Given dates are invalid.</message>
+    <message name="substituteLegend" translatable="true">Work Requests assigned to you as substitute</message>
+    
+    <js file="ab-helpdesk-common-v2.js"/>
+    
+    <dataSource id="ds_ab-helpdesk-workrequest-select_console_wr">
+        <table name="wr" role="main"/>
+        <field table="wr" name="date_requested"/>
+        <field table="wr" name="prob_type"/>
+        <field table="wr" name="wo_id"/>
+    </dataSource>
+    
+    <panel type="console" columns="5" labelsPosition="top" id="request_console" dataSource="ds_ab-helpdesk-workrequest-select_console_wr">
+        <title translatable="true">Filter</title>
+        <action id="filter">
+            <title translatable="true">Show</title>
+            <command type="callFunction" functionName="setRestriction"/>
+        </action>
+        <action id="clear">
+            <title translatable="true">Clear</title>
+            <command type="showPanel" panelId="wr_report" applyParentRestriction="false" clearRestriction="true"/>
+            <command type="callFunction" functionName="clearRestriction"/>
+        </action>
+        <field table="wr" name="prob_type"/>
+        <field table="wr" name="date_requested" required="false" alias="wr.date_requested.from">
+            <title translatable="true">Date Requested From</title>
+        </field>
+        <field table="wr" name="date_requested" required="false" alias="wr.date_requested.to">
+            <title translatable="true">Date Requested To</title>
+        </field>
+    </panel>
+    
+    <dataSource id="ds_ab-helpdesk-workrequest-select_grid_wr">
+        <table name="wr" role="main"/>
+        <table name="wr_step_waiting" role="standard"/>
+        <field table="wr" name="wr_id"/>
+        <field table="wr" name="wo_id"/>
+        <field table="wr" name="status"/>
+        <field table="wr" name="requestor"/>
+        <field table="wr" name="prob_type"/>
+        <field table="wr" name="description"/>
+        <field table="wr" name="date_requested"/>
+        <field table="wr" name="tr_id"/>
+        <field table="wr_step_waiting" name="step"/>
+        <field table="wr_step_waiting" name="step_type"/>
+        <field table="wr_step_waiting" name="em_id"/>
+        <field table="wr_step_waiting" name="user_name"/>
+        <field table="wr_step_waiting" name="step_log_id"/>
+        
+        <parameter name="emWorkflowSubstitutes" dataType="verbatim" value="''"/>
+        
+        <restriction type="sql" sql=" (wr.status = 'A' OR wr.status = 'AA')            	 
+         AND (wr_step_waiting.em_id=${sql.literal(user.employee.id)} OR wr_step_waiting.em_id ${sql.concat} wr_step_waiting.step_type IN (${parameters['emWorkflowSubstitutes']}))
+         AND wr_step_waiting.step_type IN('estimation','scheduling')" />
+    </dataSource>
+    
+    <panel type="grid" id="wr_report" controlType="reportGrid" dataSource="ds_ab-helpdesk-workrequest-select_grid_wr">
+        <title translatable="true">Work Requests</title>
+		 <sortField name="wr_id" table="wr" ascending="false"/>
+        <field controlType="button">
+            <title translatable="true">Details</title>
+            <command type="selectTabPage" tabPageName="review"/>
+        </field>
+        <field id="eschedule" controlType="button">
+            <title translatable="true">Estimate/Schedule</title>
+        </field>
+        <field table="wr" name="wr_id"/>
+        <field table="wr" name="wo_id"/>
+        <field table="wr" name="requestor"/>
+        <field table="wr" name="prob_type"/>
+        <field table="wr" name="date_requested"/>
+        <field table="wr_step_waiting" name="step_type"/>
+    </panel>
+    
+    <js file="ab-helpdesk-workrequest-select.js"/>
+	<js file="ab-ondemand-filter.js"/>
+</view>

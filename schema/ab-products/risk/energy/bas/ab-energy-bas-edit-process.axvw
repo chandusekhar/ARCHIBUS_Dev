@@ -1,0 +1,257 @@
+<view version="2.0">
+    <layout id="mainLayout">
+        <west initialSize="500" split="true" id="months"/>
+        <center id="data"/>
+  	</layout>
+  	<message name="loading">Loading</message>
+    <message name="virtualMeter">The selected meter is a Virtual Meter, representing a combination of two or more other meters.  Its component meters {0} must be processed individually.</message>
+  	<message name="progressMessage">Updating records</message>
+  	<message name="forMonth">Month:</message>
+    <message name="allMonths">All Months</message>
+  	<message name="incomplete">Processing Required</message>
+  	<message name="complete">Processing Completed</message>
+    <message name="confirmDelete">Delete record?</message>
+  	<js file="ab-energy-bas-edit-process.js"/>
+    
+  	<!-- Note: Datasource is also used by BasDataService.java wfr -->
+  	<dataSource id="energyBasEdit_ds1">
+        <table name="bas_data_clean_num" />
+        <field table="bas_data_clean_num" name="data_point_id"/>
+        <field table="bas_data_clean_num" name="date_measured"/>
+        <field table="bas_data_clean_num" name="time_measured"/>
+        <field table="bas_data_clean_num" name="value_reported" decimals="2"/>
+        <field table="bas_data_clean_num" name="delta" decimals="2"/>
+        <field table="bas_data_clean_num" name="process_status" readOnly="false"/>
+        <field table="bas_data_clean_num" name="auto_number" readOnly="true"/>
+        <field table="bas_data_clean_num" name="year_month" dataType="text">
+        		<sql dialect="generic">${sql.yearMonthOf('bas_data_clean_num.date_measured')}</sql>
+        </field>
+        <sortField table="bas_data_clean_num" name="data_point_id"/>
+        <sortField table="bas_data_clean_num" name="date_measured"/>
+        <sortField table="bas_data_clean_num" name="time_measured"/>
+        <sortField table="bas_data_clean_num" name="auto_number"/>
+    </dataSource>
+    
+    <!-- Set entire month to NOT PROCESSED if there exists a date within the range without a corresponding bas_data_time_norm_num data record -->
+    <!-- Update Bali5: Meters which are less frequent than daily now do not get Daily processed values and so this check no longer works.
+            Modify datasource as follows:
+                1) Only display months which contain bas_data_clean_num data
+                2) Mark month as NOT PROCESSED if there exists a bas_data_clean_num record within that month with status NOT PROCESSED -->
+    <!-- Note: Datasource is also used by BasDataService.java wfr -->
+    
+    <dataSource id="energyBasEdit_ds2">
+    		<table name="bas_data_clean_num" role="main"/>
+    		<table name="bas_data_point" role="standard"/> 
+            <sql dialect="generic">
+            SELECT bas_data_clean_num.year_month, bas_data_clean_num.data_point_id, bas_data_clean_num.name,  
+                CASE WHEN not_processed_months.data_point_id IS NOT NULL THEN 'NOT PROCESSED' ELSE 'PROCESSED' END ${sql.as} process_status, 
+                (CASE WHEN not_processed_months.data_point_id IS NOT NULL 
+                    THEN ${parameters['incomplete']} ELSE ${parameters['complete']} END) ${sql.as} process_summary          
+            FROM
+                (SELECT ${sql.yearMonthOf('bas_data_clean_num.date_measured')} ${sql.as} year_month, 
+                    bas_data_point.data_point_id, MIN(bas_data_point.name) ${sql.as} name 
+                FROM bas_data_clean_num
+                LEFT OUTER JOIN bas_data_point
+                ON bas_data_point.data_point_id = bas_data_clean_num.data_point_id
+                WHERE bas_data_point.data_point_id IN (${parameters['id']})
+                GROUP BY bas_data_point.data_point_id, ${sql.yearMonthOf('bas_data_clean_num.date_measured')}) ${sql.as} bas_data_clean_num
+            LEFT OUTER JOIN (
+                SELECT ${sql.yearMonthOf('bas_data_clean_num.date_measured')} ${sql.as} year_month, data_point_id
+                FROM bas_data_clean_num 
+                WHERE bas_data_clean_num.process_status = 'NOT PROCESSED'
+                    AND bas_data_clean_num.data_point_id IN (${parameters['id']})
+                GROUP BY bas_data_clean_num.data_point_id, ${sql.yearMonthOf('bas_data_clean_num.date_measured')}) ${sql.as} not_processed_months 
+            ON (not_processed_months.data_point_id = bas_data_clean_num.data_point_id 
+                AND not_processed_months.year_month = bas_data_clean_num.year_month)
+            </sql>
+    		<field table="bas_data_clean_num" name="year_month" dataType="text"/>
+            <field table="bas_data_clean_num" name="data_point_id"/>
+            <field table="bas_data_clean_num" name="process_status"/>
+            <field table="bas_data_clean_num" name="process_summary" dataType="text"/>
+            <field table="bas_data_point" name="name"/>
+				<sortField table="bas_data_clean_num" name="year_month"/>
+				<parameter name="id" dataType="verbatim" value="0"/>
+				<parameter name="incomplete" dataType="text" value="incomplete"/>
+				<parameter name="complete" dataType="text" value="complete"/>
+    </dataSource>
+    <dataSource id="energyBasEdit_ds3">
+        <table name="bas_data_time_norm_num" role="main" />
+        <table name="bas_data_point" role="standard"/>
+        <table name="bill_unit" role="standard"/>
+        <sql dialect="generic">
+            SELECT bas_data_time_norm_num.data_point_id, bas_data_time_norm_num.date_measured, bas_data_time_norm_num.time_measured,
+            bas_data_time_norm_num.delta, bas_data_time_norm_num.value_common, bas_data_time_norm_num.auto_number, bas_data_time_norm_num.interval,
+            bas_data_point.bill_type_id, bas_data_point.bill_unit_id, bill_unit.rollup_type 
+            FROM bas_data_time_norm_num 
+            LEFT OUTER JOIN bas_data_point ON bas_data_time_norm_num.data_point_id = bas_data_point.data_point_id 
+            LEFT OUTER JOIN bill_unit ON (bill_unit.bill_type_id = bas_data_point.bill_type_id AND bill_unit.bill_unit_id = bas_data_point.bill_unit_id)
+        </sql>
+        <field table="bas_data_time_norm_num" name="data_point_id"/>
+        <field table="bas_data_time_norm_num" name="date_measured"/>
+        <field table="bas_data_time_norm_num" name="time_measured"/>
+        <field table="bas_data_time_norm_num" name="delta"/>
+        <field table="bas_data_time_norm_num" name="value_common"/>
+        <field table="bas_data_time_norm_num" name="interval"/>
+        <field table="bas_data_time_norm_num" name="auto_number" readOnly="true"/>
+        <field table="bas_data_point" name="bill_type_id"/>
+        <field table="bas_data_point" name="bill_unit_id"/>
+        <field table="bill_unit" name="rollup_type"/>
+        <sortField table="bas_data_time_norm_num" name="data_point_id"/>
+        <sortField table="bas_data_time_norm_num" name="date_measured"/>
+        <sortField table="bas_data_time_norm_num" name="time_measured"/>
+    </dataSource>
+    
+    <!-- Datasource also used by BasDataService.java wfr --> 
+       
+    <dataSource id="energyBasEdit_ds4">
+        <table name="bas_data_clean_num" />
+        <field table="bas_data_clean_num" name="data_point_id"/>
+        <field table="bas_data_clean_num" name="date_measured"/>
+        <field table="bas_data_clean_num" name="time_measured"/>
+        <field table="bas_data_clean_num" name="value_reported" decimals="2"/>
+        <field table="bas_data_clean_num" name="delta" decimals="2"/>
+        <field table="bas_data_clean_num" name="process_status" readOnly="false"/>
+        <field table="bas_data_clean_num" name="auto_number" readOnly="true"/>
+        <sortField table="bas_data_clean_num" name="data_point_id"/>
+        <sortField table="bas_data_clean_num" name="date_measured"/>
+        <sortField table="bas_data_clean_num" name="time_measured"/>
+    </dataSource>
+    
+    <dataSource id="energyBasEdit_ds5">
+        <table name="afm_cal_dates" />
+        <sql dialect="generic">
+        SELECT MIN(cal_date) ${sql.as} cal_date FROM afm_cal_dates WHERE ${parameters['dateRestriction']}
+        </sql>
+        <field table="afm_cal_dates" name="cal_date" />
+        <parameter name="dateRestriction" value=" 1=1 " dataType="verbatim"/>
+    </dataSource>
+    
+    <dataSource id="energyBasEdit_ds6">
+        <table name="afm_cal_dates" />
+        <sql dialect="generic">
+        SELECT MAX(cal_date) ${sql.as} cal_date FROM afm_cal_dates WHERE ${parameters['dateRestriction']}
+        </sql>
+        <field table="afm_cal_dates" name="cal_date" />
+        <parameter name="dateRestriction" value=" 1=1 " dataType="verbatim"/>
+    </dataSource>
+    
+    <!-- Datasource used by BasDataService.java wfr --> 
+    <dataSource id="energyBasEdit_ds7">
+        <table name="bas_data_point" role="main"/>
+        <table name="bill_unit" role="standard"/>
+        <field table="bas_data_point" name="data_point_id"/>
+        <field table="bas_data_point" name="bill_type_id"/>
+        <field table="bas_data_point" name="bill_unit_id"/>
+        <field table="bas_data_point" name="meters_to_include"/>
+        <field table="bas_data_point" name="meters_to_exclude"/>
+        <field table="bas_data_point" name="sampling_interval"/>
+        <field table="bill_unit" name="rollup_type"/>
+        <field table="bill_unit" name="conversion_factor"/>
+    </dataSource>
+    
+    <dataSource id="energyBasEdit_ds8">
+        <table name="afm_cal_dates" />
+        <field table="afm_cal_dates" name="cal_date"/>
+        <field table="afm_cal_dates" name="year_month" dataType="text">
+                <sql dialect="generic">${sql.yearMonthOf('afm_cal_dates.cal_date')}</sql>
+        </field>
+    </dataSource>
+    
+    <!-- Datasource used by BasDataService.java wfr --> 
+    <dataSource id="energyBasEdit_ds9">
+        <table name="bas_data_point" role="main"/>
+        <field name="data_point_id" table="bas_data_point"/>
+        <field name="meters_to_include" table="bas_data_point"/>
+        <field name="meters_to_exclude" table="bas_data_point"/>
+        <field name="sampling_interval" table="bas_data_point"/>
+        <field name="bill_type_id" table="bas_data_point"/>
+        <field name="bill_unit_id" table="bas_data_point"/>
+        <field name="rollup_type" table="bill_unit"/>
+        <field name="conversion_factor" table="bill_unit"/>
+        <sql dialect="generic">
+        SELECT bas_data_point.data_point_id, 
+        bas_data_point.meters_to_include, bas_data_point.meters_to_exclude, 
+        bas_data_point.sampling_interval,
+        bas_data_point.bill_type_id, bas_data_point.bill_unit_id, 
+        bill_unit.rollup_type, bill_unit.conversion_factor
+        FROM bas_data_point
+        LEFT OUTER JOIN bill_unit 
+        ON (bill_unit.bill_type_id = bas_data_point.bill_type_id AND bill_unit.bill_unit_id = bas_data_point.bill_unit_id) 
+        WHERE (',' ${sql.concat} RTRIM(LTRIM(bas_data_point.meters_to_include)) ${sql.concat} ',' 
+            LIKE '%,' ${sql.concat} ${parameters['id']} ${sql.concat} ',%')
+        OR (',' ${sql.concat} RTRIM(LTRIM(bas_data_point.meters_to_exclude)) ${sql.concat} ',' 
+            LIKE '%,' ${sql.concat} ${parameters['id']} ${sql.concat} ',%')
+        </sql>
+        <parameter name="id" dataType="text" value="0"/>
+    </dataSource>
+    
+    <panel type="grid" dataSource="energyBasEdit_ds2" id="energyBasEdit_yearMonth" layoutRegion="months" showOnLoad="true">
+		<title>Select Month</title>
+        <action id="selectPreviousTab">
+            <title>&lt;&lt; Previous</title>
+        </action>
+		<action id="processAll">
+			<title>Process All</title>
+		</action>
+		<field id="processedIcon" controlType="image" imageName="/schema/ab-core/graphics/icons/tick.png">
+       		<tooltip>Processed</tooltip>
+		</field>		    
+		<field id="select" controlType="button">
+       	    <title>View</title>
+		</field>
+		<field id="process" controlType="button">
+		    <title>Process</title>
+		</field>
+		<field table="bas_data_clean_num" name="year_month" dataType="text" controlType="link">
+			<title>Year-Month</title>
+        	<command type="showPanel" panelId="energyBasEdit_grid"/>
+        </field>
+        <field table="bas_data_clean_num" name="process_summary" dataType="text">
+            <title>Processing Summary</title>
+        </field>
+        <field table="bas_data_point" name="name"/>
+        <field table="bas_data_clean_num" name="data_point_id"/>
+        
+        <field table="bas_data_clean_num" name="process_status" hidden="true"/>        
+	</panel>
+    
+	<panel type="grid" dataSource="energyBasEdit_ds1" id="energyBasEdit_grid" layoutRegion="data" showOnLoad="false">
+				<title>Clean Data</title>	
+                <indexField name="date_measured" table="bas_data_clean_num"/>
+				<action id="add">
+						<title>Add</title>
+						<command type="openDialog" panelId="energyBasEdit_form" newRecord="true"/>
+				</action>				
+				<action id="data">
+            			<title translatable="true">DATA</title>
+            			<command type="exportPanel" outputType="txfr" panelId="energyBasEdit_grid"/> 
+        		</action>							
+        <field table="bas_data_clean_num" name="date_measured" controlType="link">
+						<command type="openDialog" panelId="energyBasEdit_form"/>
+				</field>
+        <field table="bas_data_clean_num" name="time_measured"/>
+        <field table="bas_data_clean_num" name="data_point_id" hidden="true"/>
+        <field table="bas_data_clean_num" name="value_reported" decimals="2" />
+        <field table="bas_data_clean_num" name="delta" decimals="2"/>
+        <field table="bas_data_clean_num" name="process_status" />
+        <field table="bas_data_clean_num" name="auto_number" hidden="true"/>
+	</panel>
+		
+	<panel type="form" dataSource="energyBasEdit_ds4" id="energyBasEdit_form" showOnLoad="false" hidden="true">
+				<title>Edit Clean Data Record</title>
+                <instructions>To edit a Measurement Value and recalculate the Consumption, enter the new value, set Consumption to 0, set the Processing Status to 'Not Processed' and Save.  To override the Consumption calculation, enter a new Consumption value and set Processing Status to 'Manual'.</instructions>
+				<action id="save">
+						<title>Save</title>
+				</action>
+				<action id="delete">
+						<title>Delete</title>
+				</action>
+				<field table="bas_data_clean_num" name="data_point_id" readOnly="true"/>
+        <field table="bas_data_clean_num" name="date_measured"/>
+        <field table="bas_data_clean_num" name="time_measured"/>
+        <field table="bas_data_clean_num" name="value_reported" />
+        <field table="bas_data_clean_num" name="delta"/>
+        <field table="bas_data_clean_num" name="process_status" readOnly="false" value="NOT PROCESSED"/>
+        <field table="bas_data_clean_num" name="auto_number" readOnly="true"/>
+	</panel>
+</view>

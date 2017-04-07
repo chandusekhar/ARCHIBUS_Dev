@@ -1,0 +1,95 @@
+<view version="2.0">
+    <title>Confined Space Work Requests</title>
+    
+    <js file="uc-cs-wr-report.js"/>
+    
+    <layout id="mainLayout">
+        <north initialSize="150"/>
+        <center/>
+    </layout>
+    
+    <dataSource id="cswrConsoleDS">
+        <table name="wr"/>
+        <field name="wr_id" dataType="text"/>
+        <field name="location" dataType="text"/>
+        <field name="status" dataType="text"/>
+        <field name="bl_id" dataType="text"/>
+        <field name="fl_id" dataType="text"/>
+        <field name="rm_id" dataType="text"/>
+        <field name="date_requested" dataType="date"/>
+        <field name="date_fwc" dataType="date"/>
+    </dataSource>
+    
+    <dataSource id="cswrGridDS">
+        <sql dialect="sqlserver">
+            SELECT wr.wr_id, wr.bl_id, wr.fl_id, wr.rm_id, wr.prob_type, wr.date_requested, wr.work_team_id, wr.description, wr.location, wr.status,
+                   cf_list.cf_list, CASE WHEN cf_list.cf_list IS NOT NULL AND missing_certs.num_missing IS NULL THEN 'Yes' ELSE 'No' END certified
+            FROM wr
+            LEFT JOIN (
+                SELECT wr_id, STUFF((SELECT ', ' + RTRIM(cf_id) FROM wrcf WHERE wrcf.wr_id = wr.wr_id GROUP BY cf_id FOR XML PATH('')), 1, 1, '') cf_list
+                FROM wr
+            ) cf_list ON cf_list.wr_id = wr.wr_id
+            LEFT JOIN (
+                SELECT wr_id, COUNT(*) num_missing
+                FROM wrcf
+                WHERE cf_id NOT IN (
+                    SELECT em_id
+                    FROM uc_certifications a
+                    WHERE course_id IN ('CONFINED SPACE ENTRY', 'CONFINED SPACE ENTRY LEVEL II')
+                      AND start_date = (SELECT MAX(start_date) FROM uc_certifications b WHERE a.em_id = b.em_id AND b.course_id IN ('CONFINED SPACE ENTRY', 'CONFINED SPACE ENTRY LEVEL II'))
+                      AND status = 'A')
+                GROUP BY wr_id
+            ) missing_certs ON missing_certs.wr_id = wr.wr_id
+            WHERE wr.confined_space = 'Yes'
+        </sql>
+    
+        <table name="wr"/>
+        <field name="wr_id" dataType="text"/>
+        <field name="bl_id" dataType="text"/>
+        <field name="fl_id" dataType="text"/>
+        <field name="rm_id" dataType="text"/>
+        <field name="prob_type" dataType="text"/>
+        <field name="location" dataType="text"/>
+        <field name="status" dataType="text"/>
+        <field name="date_requested" dataType="date"/>
+        <field name="cf_list" dataType="text">
+            <title>Craftsperson(s)</title>
+        </field>
+        <field name="certified" dataType="text">
+            <title>Craftsperson(s) Certified</title>
+        </field>
+        <field name="work_team_id" dataType="text"/>
+        <field name="description" dataType="text"/>
+    </dataSource>
+    
+    <panel id="cswrConsole" dataSource="cswrConsoleDS" type="console" columns="3" layout="mainLayout" region="north">
+        <title>Filter</title>
+        <action>
+            <title>Clear</title>
+            <command type="clearPanel" />
+        </action>
+        <action id="doFilter">
+            <title>Filter</title>
+        </action>
+        <field name="wr_id"/>
+        <field name="location"/>
+        <field name="status"/>
+        <field name="bl_id"/>
+        <field name="fl_id"/>
+        <field name="rm_id"/>
+        <field name="date_requested" alias="date_req_from">
+            <title>Date Work Requested From</title>
+        </field>
+        <field table="wr" name="date_requested" alias="date_req_to">
+            <title>Date Work Requested To</title>
+        </field>
+    </panel>
+    
+    <panel id="cswrGrid" dataSource="cswrGridDS" type="grid" layout="mainLayout" region="center">
+        <title>Confined Space Work Requests</title>
+        <action>
+            <title>XLS</title>
+            <command type="exportPanel" outputType="xls" panelId="cswrGrid"/>
+        </action>
+    </panel>
+</view>

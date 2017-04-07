@@ -1,0 +1,172 @@
+<view version="2.0">
+
+	<title translatable="true">
+		Service Provider Performance Reports
+	</title>
+
+	<layout file="console-small.axvw" />
+	
+ 
+	<js file="ab-helpdesk-service-report-archived.js" />
+	<js file="../ab-helpdesk-common-v2.js" />
+ 
+
+	<message name="selectTitle" translatable="true">-select-</message>
+
+	<dataSource id="consoleDS">
+		<table name="hactivity_log" role="main" />
+		<field table="hactivity_log" name="activity_log_id" />
+	</dataSource>
+	
+ 
+	<dataSource id="crossTableDS" type="grouping" applyVpaRestrictions="false">
+		<sql dialect="generic">
+           SELECT activity_log_id, service_provider, assigned_to, vn_id,
+				hactivity_logmonth.site_id, activity_type, date_requested, 
+				hactivity_logmonth.status,cost_actual, cost_estimated, cost_var, month,
+				escalated_response,escalated_completion,
+				case when escalated_response = 0 then 1
+						else null
+				end as responseOnTime,
+				case when escalated_completion = 0 then 1 
+						else null
+				end as completionOnTime,
+				case when cost_estimated >= cost_actual then 1
+						else null
+				end as completeEstCost,
+				case when cost_estimated >= cost_actual and escalated_completion = 0 then 1
+						else null
+	        	end as completeOnTimeEstCost,
+	        	case when satisfaction = 5 then 1
+	        		else null
+	        	end as satisfaction_5,
+	        	case when satisfaction = 4 then 1
+	        		else null
+	        	end as satisfaction_4,
+	        	case when satisfaction = 3 then 1
+	        		else null
+	        	end as satisfaction_3,
+	        	case when satisfaction = 2 then 1
+	        		else null
+	        	end as satisfaction_2,
+	        	case when satisfaction = 1 then 1
+	        		else null
+	        	end as satisfaction_1
+           FROM hactivity_logmonth left outer join bl on hactivity_logmonth.bl_id=bl.bl_id
+           WHERE activity_type LIKE 'SERVICE DESK%' AND ${sql.getVpaRestrictionForTable('bl')}
+        </sql>
+             
+		<table name="hactivity_logmonth" role="main" />
+        <table name="bl" role="standard"/>
+		
+		<field groupBy="true" name="service_provider" dataType="text"
+			 baseField="hactivity_logmonth.service_provider">
+			<title translatable="true">Service Provider</title>
+		</field>
+		
+		<field groupBy="true" name="month" dataType="text"
+			baseField="hactivity_logmonth.month">
+			<title translatable="true">Month</title>
+		</field>
+		
+		<field name="Count" formula="count" dataType="number" decimals="0"
+			baseField="hactivity_logmonth.activity_log_id">
+			<title translatable="true">Number of Requests</title>
+		</field>
+		
+		<field name="Estimated_Cost" formula="sum"  dataType="number"
+			baseField="hactivity_logmonth.cost_estimated" size="6" decimals="2">
+			<title translatable="true">Estimated Costs</title>
+		</field>
+		<field name="Actual_Cost" formula="sum"  dataType="number"
+			baseField="hactivity_logmonth.cost_actual" size="6" decimals="2">
+			<title translatable="true">Actual Costs</title>
+		</field>
+		<field name="Cost_Variance" formula="sum" size="6" decimals="2"
+			 baseField="hactivity_logmonth.cost_var"  dataType="number">
+			<title translatable="true">Cost Variance</title>
+		</field>
+		<field name="responseOnTime" formula="count" size="5" decimals="0"
+			baseField="hactivity_logmonth.responseOnTime"  dataType="number">
+			<title translatable="true"># Response on Time</title>
+		</field>
+		<field name="completionOnTime" formula="count" size="5" decimals="0"
+			baseField="hactivity_logmonth.completionOnTime"  dataType="number">
+			<title translatable="true"># Completion on Time</title>
+		</field>
+		<field name="completeEstCost" formula="count" size="5" decimals="0"
+			baseField="hactivity_logmonth.completeEstCost"  dataType="number">
+			<title translatable="true"># Complete within Estimated Cost</title>
+		</field>
+		<field name="completeOnTimeEstCost" formula="count" size="5" decimals="0"
+			baseField="hactivity_logmonth.completeOnTimeEstCost"  dataType="number">
+			<title translatable="true"># Complete On Time within Estimated Cost</title>
+		</field>
+		<field name="satisfaction_5" formula="count" size="5" decimals="0"
+			baseField="hactivity_logmonth.satisfaction_5"  dataType="number">
+			<title translatable="true"># Satisfaction Exceptional</title>
+		</field>
+		<field name="satisfaction_4" formula="count" size="5" decimals="0"
+			baseField="hactivity_logmonth.satisfaction_4"  dataType="number">
+			<title translatable="true"># Satisfaction Above Average</title>
+		</field>
+		<field name="satisfaction_3" formula="count"  size="5" decimals="0"
+			baseField="hactivity_logmonth.satisfaction_3"  dataType="number">
+			<title translatable="true"># Satisfaction Average</title>
+		</field>
+		<field name="satisfaction_2" formula="count" size="5" decimals="0"
+			baseField="hactivity_logmonth.satisfaction_2"  dataType="number">
+			<title translatable="true"># Satisfaction Below Average</title>
+		</field>
+		<field name="satisfaction_1" formula="count" dataType="number"
+			baseField="hactivity_logmonth.satisfaction_1" size="5" decimals="0">
+			<title translatable="true"># Satisfaction Poor</title>
+		</field>
+		
+		<restriction type="sql"
+			sql="status  NOT IN ('REJECTED','CANCELLED') AND
+            	(assigned_to = ${sql.literal(user.employee.id)} OR vn_id IN (SELECT vn_id FROM vn WHERE email = ${sql.literal(user.email)}))" />
+	</dataSource>
+
+
+	<panel type="console" columns="2" id="consolePanel"
+		dataSource="consoleDS" layout="mainLayout" region="north">
+
+		<title translatable="true">Filter</title>
+
+
+		<action id="filter">
+			<title translatable="true">Show</title>
+			<command type="callFunction" functionName="setRestriction" />
+		</action>
+
+		<action id="clear">
+			<title translatable="true">Clear</title>
+			<command type="callFunction" functionName="clearConsole" />
+		</action>
+
+		<field>
+			<title translatable="true">Site Code</title>
+			<html>
+				<select id="site.site_id" name="site.site_id"></select>
+			</html>
+		</field>
+
+		<field>
+			<title translatable="true">Year</title>
+			<html>
+				<select id="selectYear" name="selectYear"></select>
+			</html>
+		</field>
+
+		<field table="hactivity_log" name="activity_log_id"
+			hidden="true" />
+	</panel>
+
+ 
+	<panel type="crossTable" id="reportPanel"
+		dataSource="crossTableDS" layout="mainLayout" region="center">
+		<title translatable="true">Completed Requests / Escalated Requests</title>
+    </panel>
+ 	
+</view>

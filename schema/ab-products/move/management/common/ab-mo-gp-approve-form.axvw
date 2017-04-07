@@ -1,0 +1,384 @@
+<view version="2.0">
+    <js file="ab-mo-gp-approve-form.js"/>
+	<js file="ab-mo-common.js"/>
+	
+	<title translatable="true">Group Move</title>
+	
+	<dataSource id="ds_abMoGroupApproveForm_pr">
+					
+		<table name="project" role="main"/>
+		<table name="dp" role="standard"/>
+		
+        <field name="project_id" table="project"/>
+        <field name="status" table="project"/>
+        <field name="ac_id" table="project"/>
+        <field name="dv_id" table="project"/>
+        <field name="dp_id" table="project"/>
+        <field name="name" table="dp"/>
+        <field name="requestor" table="project"/>
+        <field name="phone_req" table="project"/>
+        <field name="dept_contact" table="project"/>
+        <field name="phone_dept_contact" table="project"/>
+        <field name="date_start" table="project"/>
+        <field name="date_end" table="project"/>
+        <field name="date_created" table="project"/>
+        <field name="date_requested" table="project"/>
+        <field name="date_issued" table="project"/>
+        <field name="date_completed" table="project"/>
+        <field name="description" table="project"/>
+        
+        <field name="proj_mgr" table="project"/>
+        <field name="date_commence_work" table="project"/>
+        <field name="date_target_end" table="project"/>
+        <field name="hours_est" table="project"/>
+        <field name="cost_est_baseline" table="project"/>
+        <field name="comments" table="project"/>
+        
+        <field name="apprv_mgr1" table="project"/>
+        <field name="apprv_mgr2" table="project"/>
+        <field name="apprv_mgr3" table="project"/>
+        <field name="date_app_mgr1" table="project"/>
+        <field name="date_app_mgr2" table="project"/>
+        <field name="date_app_mgr3" table="project"/>
+        <field name="apprv_mgr1_status" table="project"/>
+        <field name="apprv_mgr2_status" table="project"/>
+        <field name="apprv_mgr3_status" table="project"/>
+		
+		<parameter dataType="verbatim" name="projectId" value=""/>
+		<restriction type="parsed">
+			<clause table="project" name="project_id" op="=" value="${parameters['projectId']}"/>
+		</restriction>
+	</dataSource>
+	
+	<panel type="form" id="report_abMoGroupApproveForm_pr" showOnLoad="false" dataSource="ds_abMoGroupApproveForm_pr" columns="2">
+    	<title translatable="true">Project Information:</title>
+		<action id="approve" enabled="${record['project.status'] == 'Requested-Routed'}">
+     		<title translatable="true">Approve</title>
+			<command type="saveForm"/>
+			<command type="callFunction" functionName="onApproveMove"/>
+			<command type="showPanel" panelId="report_abMoGroupApproveForm_pr"/>
+			
+		</action>
+		<action id="reject" enabled="${record['project.status'] == 'Requested-Routed'}">
+     		<title translatable="true">Reject</title>
+			<command type="saveForm"/>
+			<command type="callFunction" functionName="onRejectMove"/>
+			<command type="showPanel" panelId="report_abMoGroupApproveForm_pr"/>
+		</action>
+		<action id="report">
+			<title translatable="true">Report</title>
+			<command type="callFunction" functionName="onPaginatedReport('group', this)"/>
+		</action>
+		<field name="apprv_mgr1" table="project"  readOnly="true"/>
+		<field/>
+		<field name="apprv_mgr1_status" table="project"  readOnly="true"/>
+		<field/>
+		<field name="date_app_mgr1" table="project" readOnly="true"/>
+		<field/>
+		<field name="apprv_mgr2" table="project" readOnly="true"/>
+		<field/>
+		<field name="apprv_mgr2_status" table="project" readOnly="true"/>
+		<field/>
+		<field name="date_app_mgr2" table="project" readOnly="true"/>
+		<field/>
+		<field name="apprv_mgr3" table="project" readOnly="true"/>
+		<field/>
+		<field name="apprv_mgr3_status" table="project" readOnly="true"/>
+		<field/>
+		<field name="date_app_mgr3" table="project" readOnly="true"/>
+		<field/>
+		<field name="comments" table="project" readOnly="${record['project.status'] != 'Requested-Routed'}" colspan="2"/>
+		<field name="project_id" table="project" readOnly="true"/>
+		<field name="date_requested" table="project" readOnly="true"/>
+		<field name="description" table="project" colspan="2" readOnly="true"/>
+		<field name="dv_id" table="project" readOnly="true"/>
+		<field name="ac_id" table="project" readOnly="true"/>
+		<field name="dp_id" table="project" readOnly="true"/>
+        <field name="name" table="dp" readOnly="true" required="false"/>
+		<field name="date_start" table="project" readOnly="true">
+			<title translatable="true">Requested Start Date</title>
+		</field>
+        <field name="date_end" table="project" readOnly="true">
+			<title translatable="true">Requested End Date</title>
+		</field>
+		<field name="proj_mgr" table="project" readOnly="true"/>
+		<field name="status" table="project" readOnly="true"/>
+		<field name="hours_est" table="project" readOnly="true"/>
+        <field name="cost_est_baseline" table="project" readOnly="true">
+        	<title translatable="true">Estimated Cost</title>
+        </field>
+		<field name="date_commence_work" table="project" readOnly="true">
+            <title translatable="true">Scheduled Start Date</title>
+        </field>
+        <field name="date_target_end" table="project" readOnly="true">
+            <title translatable="true">Scheduled End Date</title>
+        </field>
+		 
+    </panel>
+	
+	<dataSource id="ds_abMoGroupApproveForm_mo">
+					
+		<sql dialect="generic">
+			select
+			mo.mo_id,
+			mo.project_id,
+			mo.mo_type,
+			mo.em_id,
+			((case when mo.from_bl_id is null then 'N\A' else mo.from_bl_id end) ${sql.concat}'|'
+			${sql.concat} (case when mo.from_fl_id is null then 'N\A' else mo.from_fl_id end) ${sql.concat}'|'
+			${sql.concat} (case when mo.from_rm_id is null then 'N\A' else mo.from_rm_id end) ) ${sql.as} move_from,
+		
+			((case when mo.to_bl_id is null then 'N\A' else mo.to_bl_id end) ${sql.concat}'|'
+			${sql.concat} (case when mo.to_fl_id is null then 'N\A' else mo.to_fl_id end) ${sql.concat}'|'
+			${sql.concat} (case when mo.to_rm_id is null then 'N\A' else mo.to_rm_id end)) ${sql.as} move_to,
+			 mo.date_start_req, 
+			 mo.date_to_perform
+			from mo
+		</sql>	
+		
+		<table name="mo" role="main"/>
+		<field table="mo" name="mo_id"/>
+		<field table="mo" name="em_id"/>
+		<field table="mo" name="mo_type"/>
+		<field table="mo" name="move_from" dataType="text"/>
+		<field table="mo" name="move_to" dataType="text"/>
+		<field table="mo" name="date_start_req"/>
+		<field table="mo" name="date_to_perform"/>
+		
+	</dataSource>
+	
+	<dataSource id="ds_abMoGroupApproveForm_eq">
+        
+		<table name="mo_eq" role="main"/>
+		
+		<field table="mo_eq" name="eq_id"/>
+		<field table="mo_eq" name="mo_id"/>
+		<field table="mo_eq" name="eq_std"/>
+		<field table="mo_eq" name="from_bl_id"/>
+		<field table="mo_eq" name="from_fl_id"/>
+		<field table="mo_eq" name="from_rm_id"/>
+    </dataSource>
+	
+	 <dataSource id="ds_abMoGroupApproveForm_ta">
+        
+		<table name="mo_ta" role="main"/>
+		
+		<field table="mo_ta" name="ta_id"/>
+		<field table="mo_ta" name="mo_id"/>
+		<field table="mo_ta" name="fn_std"/>
+		<field table="mo_ta" name="from_bl_id"/>
+		<field table="mo_ta" name="from_fl_id"/>
+		<field table="mo_ta" name="from_rm_id"/>
+    </dataSource>
+	
+	
+	
+	<tabs workflow="free" id="abMoGroupApproveForm_moTabsFrame" tabRefreshPolicy="refreshOnLoad">
+    	<title translatable="true">Moves:</title>
+    	<tab name="abMoGroupApproveForm_employee_tab" useFrame = "false" hidden="true">
+        	<title translatable="true">Employees Moves</title>
+			<panel type="grid" id="grid_abMoGroupApproveForm_mo_em" showOnLoad="false" dataSource="ds_abMoGroupApproveForm_mo">
+            	<field table="mo" name="em_id">
+                	<title translatable="true">Employee</title>
+            	</field>
+            	<field table="mo" name="mo_id"/>
+            	<field table="mo" name="move_from" dataType="text">
+                	<title translatable="true">Move From</title>
+            	</field>
+            	<field table="mo" name="move_to" dataType="text">
+                	<title translatable="true">Move To</title>
+            	</field>
+            	<field table="mo" name="date_start_req">
+                	<title translatable="true">Requested Move Date</title>
+            	</field>
+            	<field table="mo" name="date_to_perform">
+                	<title translatable="true">Move Date</title>
+            	</field>
+            	<field table="mo" name="mo_type" hidden="true"/>
+        	</panel>
+        
+        	<panel type="grid" id="grid_abMoGroupApproveForm_em_eq" showOnLoad="false" showIfNoData="false" dataSource="ds_abMoGroupApproveForm_eq">
+            	<title translatable="true">Equipment Associated with Employee:</title>
+            	<field table="mo_eq" name="eq_id"/>
+            	<field table="mo_eq" name="mo_id"/>
+            	<field table="mo_eq" name="eq_std"/>
+            	<field table="mo_eq" name="from_bl_id"/>
+            	<field table="mo_eq" name="from_fl_id"/>
+            	<field table="mo_eq" name="from_rm_id"/>
+        	</panel>
+        
+        	<panel type="grid" id="grid_abMoGroupApproveForm_em_ta" showOnLoad="false" showIfNoData="false" dataSource="ds_abMoGroupApproveForm_ta">
+            	<title translatable="true">Furniture Associated with Employee:</title>
+            	<field table="mo_ta" name="ta_id"/>
+            	<field table="mo_ta" name="mo_id"/>
+            	<field table="mo_ta" name="fn_std"/>
+            	<field table="mo_ta" name="from_bl_id"/>
+            	<field table="mo_ta" name="from_fl_id"/>
+            	<field table="mo_ta" name="from_rm_id"/>
+        	</panel>
+    	</tab>
+		<tab name="abMoGroupApproveForm_new_hire_tab" useFrame = "false" hidden="true">
+			<title translatable="true">New Hires</title>
+			<panel type="grid" id="grid_abMoGroupApproveForm_mo_hr" showOnLoad="false" dataSource="ds_abMoGroupApproveForm_mo">
+            	<field table="mo" name="em_id">
+                	<title translatable="true">New Hire</title>
+            	</field>
+            	<field table="mo" name="mo_id"/>
+            	<field table="mo" name="move_to" dataType="text">
+                	<title translatable="true">Move To</title>
+            	</field>
+            	<field table="mo" name="date_start_req">
+                	<title translatable="true">Requested Move Date</title>
+            	</field>
+            	<field table="mo" name="date_to_perform">
+                	<title translatable="true">Move Date</title>
+            	</field>
+            	<field table="mo" name="mo_type" hidden="true"/>
+        	</panel>
+        
+        	<panel type="grid" id="grid_abMoGroupApproveForm_hr_eq" showOnLoad="false" showIfNoData="false" dataSource="ds_abMoGroupApproveForm_eq">
+            	<title translatable="true">Equipment Associated with New Hire:</title>
+            	<field table="mo_eq" name="eq_id"/>
+            	<field table="mo_eq" name="mo_id"/>
+            	<field table="mo_eq" name="eq_std"/>
+            	<field table="mo_eq" name="from_bl_id"/>
+            	<field table="mo_eq" name="from_fl_id"/>
+            	<field table="mo_eq" name="from_rm_id"/>
+        	</panel>
+        
+        	<panel type="grid" id="grid_abMoGroupApproveForm_hr_ta" showOnLoad="false" showIfNoData="false" dataSource="ds_abMoGroupApproveForm_ta">
+            	<title translatable="true">Furniture Associated with New Hire:</title>
+            	<field table="mo_ta" name="ta_id"/>
+            	<field table="mo_ta" name="mo_id"/>
+            	<field table="mo_ta" name="fn_std"/>
+            	<field table="mo_ta" name="from_bl_id"/>
+            	<field table="mo_ta" name="from_fl_id"/>
+            	<field table="mo_ta" name="from_rm_id"/>
+        	</panel>	
+		</tab>
+		<tab name="abMoGroupApproveForm_leaving_tab" useFrame = "false" hidden="true">
+			<title translatable="true">Employees Leaving</title>
+			<panel type="grid" id="grid_abMoGroupApproveForm_mo_lv" showOnLoad="false" dataSource="ds_abMoGroupApproveForm_mo">
+            	<field table="mo" name="em_id">
+                	<title translatable="true">Employee Leaving</title>
+            	</field>
+            	<field table="mo" name="mo_id"/>
+            	<field table="mo" name="move_from" dataType="text">
+                	<title translatable="true">Move From</title>
+            	</field>
+            	<field table="mo" name="date_start_req">
+                	<title translatable="true">Requested Move Date</title>
+            	</field>
+            	<field table="mo" name="date_to_perform">
+                	<title translatable="true">Move Date</title>
+            	</field>
+            	<field table="mo" name="mo_type" hidden="true"/>
+        	</panel>
+        
+        	<panel type="grid" id="grid_abMoGroupApproveForm_lv_eq" showOnLoad="false" showIfNoData="false" dataSource="ds_abMoGroupApproveForm_eq">
+            	<title translatable="true">Equipment Associated with Employee Leaving:</title>
+            	<field table="mo_eq" name="eq_id"/>
+            	<field table="mo_eq" name="mo_id"/>
+            	<field table="mo_eq" name="eq_std"/>
+            	<field table="mo_eq" name="from_bl_id"/>
+            	<field table="mo_eq" name="from_fl_id"/>
+            	<field table="mo_eq" name="from_rm_id"/>
+        	</panel>
+        
+        	<panel type="grid" id="grid_abMoGroupApproveForm_lv_ta" showOnLoad="false" showIfNoData="false" dataSource="ds_abMoGroupApproveForm_ta">
+            	<title translatable="true">Furniture Associated with Employee Leaving:</title>
+            	<field table="mo_ta" name="ta_id"/>
+            	<field table="mo_ta" name="mo_id"/>
+            	<field table="mo_ta" name="fn_std"/>
+            	<field table="mo_ta" name="from_bl_id"/>
+            	<field table="mo_ta" name="from_fl_id"/>
+            	<field table="mo_ta" name="from_rm_id"/>
+        	</panel>
+		</tab>
+		<tab name="abMoGroupApproveForm_equipment_tab" useFrame = "false" hidden="true">
+			<title translatable="true">Equipment</title>
+			<panel type="grid" id="grid_abMoGroupApproveForm_mo_eq" showOnLoad="false" dataSource="ds_abMoGroupApproveForm_mo">
+            	<field table="mo" name="em_id">
+                	<title translatable="true">Equipment</title>
+            	</field>
+            	<field table="mo" name="mo_id"/>
+            	<field table="mo" name="move_from" dataType="text">
+                	<title translatable="true">Move From</title>
+            	</field>
+            	<field table="mo" name="move_to" dataType="text">
+                	<title translatable="true">Move To</title>
+            	</field>
+            	<field table="mo" name="date_start_req">
+                	<title translatable="true">Requested Move Date</title>
+            	</field>
+            	<field table="mo" name="date_to_perform">
+                	<title translatable="true">Move Date</title>
+            	</field>
+            	<field table="mo" name="mo_type" hidden="true"/>
+        	</panel>
+		</tab>
+		<tab name="abMoGroupApproveForm_asset_tab" useFrame = "false" hidden="true">
+			<title translatable="true">Assets</title>
+			<panel type="grid" id="grid_abMoGroupApproveForm_mo_as" showOnLoad="false" dataSource="ds_abMoGroupApproveForm_mo">
+            	<field table="mo" name="em_id">
+                	<title translatable="true">Asset</title>
+            	</field>
+            	<field table="mo" name="mo_id"/>
+            	<field table="mo" name="move_from" dataType="text">
+                	<title translatable="true">Move From</title>
+            	</field>
+            	<field table="mo" name="move_to" dataType="text">
+                	<title translatable="true">Move To</title>
+            	</field>
+            	<field table="mo" name="date_start_req">
+                	<title translatable="true">Requested Move Date</title>
+            	</field>
+            	<field table="mo" name="date_to_perform">
+                	<title translatable="true">Move Date</title>
+            	</field>
+            	<field table="mo" name="mo_type" hidden="true"/>
+        	</panel>
+		</tab>
+		<tab name="abMoGroupApproveForm_room_tab" useFrame = "false" hidden="true">
+			<title translatable="true">Rooms</title>
+			<panel type="grid" id="grid_abMoGroupApproveForm_mo_rm" showOnLoad="false" dataSource="ds_abMoGroupApproveForm_mo">
+            	<field table="mo" name="em_id">
+                	<title translatable="true">Room</title>
+            	</field>
+            	<field table="mo" name="mo_id"/>
+            	<field table="mo" name="move_from" dataType="text">
+                	<title translatable="true">Move From</title>
+            	</field>
+            	<field table="mo" name="date_start_req">
+                	<title translatable="true">Requested Move Date</title>
+            	</field>
+            	<field table="mo" name="date_to_perform">
+                	<title translatable="true">Move Date</title>
+            	</field>
+            	<field table="mo" name="mo_type" hidden="true"/>
+        	</panel>
+        
+        	<panel type="grid" id="grid_abMoGroupApproveForm_rm_eq" showOnLoad="false" showIfNoData="false" dataSource="ds_abMoGroupApproveForm_eq">
+            	<title translatable="true">Equipment Associated with Room:</title>
+            	<field table="mo_eq" name="eq_id"/>
+            	<field table="mo_eq" name="mo_id"/>
+            	<field table="mo_eq" name="eq_std"/>
+            	<field table="mo_eq" name="from_bl_id"/>
+            	<field table="mo_eq" name="from_fl_id"/>
+            	<field table="mo_eq" name="from_rm_id"/>
+        	</panel>
+        
+        	<panel type="grid" id="grid_abMoGroupApproveForm_rm_ta" showOnLoad="false" showIfNoData="false" dataSource="ds_abMoGroupApproveForm_ta">
+            	<title translatable="true">Furniture Associated with Room:</title>
+            	<field table="mo_ta" name="ta_id"/>
+            	<field table="mo_ta" name="mo_id"/>
+            	<field table="mo_ta" name="fn_std"/>
+            	<field table="mo_ta" name="from_bl_id"/>
+            	<field table="mo_ta" name="from_fl_id"/>
+            	<field table="mo_ta" name="from_rm_id"/>
+        	</panel>
+		</tab>
+	</tabs>
+	
+	
+</view>

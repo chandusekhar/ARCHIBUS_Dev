@@ -1,0 +1,230 @@
+<view version="2.0">
+    <!--
+    @summary
+    Supervisor - Review work request - Estimate<br />
+    This view allows the user to:
+    <ul>
+    <li>View lists of trades and resource estimations for the selected workrequest</li>
+    <li>Add, update and delete trades and resource estimations</li>
+    <li>Complete the estimation of the workrequest</li>
+    </ul>
+    @restriction (wr_id = ? AND step_log_id = ?)
+    Restriction from select tab
+    -->
+    
+    
+    <dataSource id="ds_ab-helpdesk-workrequest-estimate_form_wr">
+        <table name="wr" role="main"/>
+        <table name="wr_step_waiting" role="standard"/>
+        <field table="wr" name="wr_id"/>
+        <!-- <field name="wr_id" table="wr_step_waiting"/> -->
+        <field name="step_code" table="wr_step_waiting"/>
+        <field name="step_type" table="wr_step_waiting"/>
+        <field name="step_log_id" table="wr_step_waiting"/>
+        <field table="wr" name="requestor"/>
+        <field table="wr" name="status"/>
+        <field table="wr" name="prob_type"/>
+        <field table="wr" name="date_requested"/>
+        <field table="wr" name="description"/>
+        <field table="wr" name="cost_est_other"/>
+        <field table="wr" name="cost_est_labor"/>
+        <field table="wr" name="cost_est_parts"/>
+        <field table="wr" name="cost_est_tools"/>
+        <field table="wr" name="cost_est_total"/>
+        
+        <parameter name="emWorkflowSubstitutes" dataType="verbatim" value="''"/>
+        
+        <restriction type="sql" sql="(wr_step_waiting.em_id = ${sql.literal(user.employee.id)} OR wr_step_waiting.em_id ${sql.concat} wr_step_waiting.step_type IN (${parameters['emWorkflowSubstitutes']}))
+                AND wr_step_waiting.step_type='estimation'"/>
+    </dataSource>
+    
+    <panel type="form" columns="2" id="panel_estimation" dataSource="ds_ab-helpdesk-workrequest-estimate_form_wr">
+        <title translatable="true">Work Request Estimation</title>
+        <action type="javascript" onclick="completeEstimation('panel_estimation')">
+            <title translatable="true">Complete Estimation</title>
+        </action>
+        <field table="wr" name="wr_id"/>
+        <field table="wr" name="requestor" readOnly="true"/>
+        <field table="wr" name="prob_type" readOnly="true"/>
+        <field table="wr" name="date_requested" readOnly="true"/>
+        <field table="wr" name="description" readOnly="true" colspan="2" style="width:100%"/>
+        <field table="wr" name="status" readOnly="true"/>
+        <field/>
+        <field table="wr" name="cost_est_labor" readOnly="true"/>
+        <field table="wr" name="cost_est_parts" readOnly="true"/>
+        <field table="wr" name="cost_est_tools" readOnly="true"/>
+        <field table="wr" name="cost_est_other" readOnly="true"/>
+        <field table="wr" name="cost_est_total" readOnly="true"/>
+        <field table="wr_step_waiting" name="step_code" hidden="true"/>
+        <field name="step_log_id" table="wr_step_waiting" hidden="true"/>
+        <field name="step_type" table="wr_step_waiting" hidden="true"/>
+    </panel>
+    
+    <dataSource id="ds_ab-helpdesk-workrequest-estimate_grid_wrtr">
+        <table name="wrtr" role="main"/>
+        <field table="wrtr" name="wr_id"/>
+        <field table="wrtr" name="tr_id"/>
+        <field table="wrtr" name="cost_estimated"/>
+        <field table="wrtr" name="hours_est"/>
+        <field table="wrtr" name="work_type"/>
+    </dataSource>
+    
+    <panel type="grid" id="tr_report" controlType="reportGrid" multipleSelectionEnabled="true" dataSource="ds_ab-helpdesk-workrequest-estimate_grid_wrtr" showOnLoad="false">
+        <title translatable="true">Work Request Trades</title>
+		<sortField table="wrtr" name="wr_id"/>
+        <sortField table="wrtr" name="tr_id"/>
+        <action id="addTrade">
+            <title translatable="true">Add Trade</title>
+			<command type="callFunction" functionName="addTrade"/>
+        </action>
+        <action>
+            <title translatable="true">Delete Selected</title>
+            <command type="callFunction" functionName="ABODC_deleteItems('tr_report','wrtr')" />
+            <command type="callFunction" functionName="refreshPanels('tr_report')" />
+        </action>
+        <field controlType="button">
+            <command type="openDialog" viewName="ab-helpdesk-workrequest-trade.axvw"/>
+            <title translatable="true">Edit</title>
+        </field>
+		<field table="wrtr" name="wr_id" hidden="true"/>
+        <field table="wrtr" name="tr_id"/>
+        <field table="wrtr" name="cost_estimated"/>
+        <field table="wrtr" name="hours_est"/>
+    </panel>
+    
+    <panel type="html" id="estimate_space1">
+        <html>
+            <br/>
+        </html>
+    </panel>
+    
+    <dataSource id="ds_ab-helpdesk-workrequest-estimate_grid_wrtt">
+        <table name="wrtt" role="main"/>
+        <field table="wrtt" name="wr_id"/>
+        <field table="wrtt" name="tool_type"/>
+        <field table="wrtt" name="cost_estimated"/>
+        <field table="wrtt" name="hours_est"/>
+        <sortField table="wrtt" name="wr_id" ascending="true"/>
+        <sortField table="wrtt" name="tool_type"/>
+    </dataSource>
+    
+    <panel type="grid" id="tt_report" controlType="reportGrid" showOnLoad="false" multipleSelectionEnabled="true" dataSource="ds_ab-helpdesk-workrequest-estimate_grid_wrtt">
+        <title translatable="true">Work Request Tool Types</title>
+        <action id="addtt">
+            <title translatable="true">Add Tool Type</title>
+			<command type="callFunction" functionName="addToolType"/>
+        </action>
+        <action>
+            <title translatable="true">Delete Selected</title>
+            <command type="callFunction" functionName="ABODC_deleteItems('tt_report','wrtt')" />
+            <command type="callFunction" functionName="refreshPanels('tt_report')" />
+        </action>
+        <field controlType="button">
+            <command type="openDialog" viewName="ab-helpdesk-workrequest-tooltype.axvw"/>
+            <title translatable="true">Edit</title>
+        </field>
+		<field table="wrtt" name="wr_id" hidden="true"/>
+        <field table="wrtt" name="tool_type"/>
+        <field table="wrtt" name="cost_estimated"/>
+        <field table="wrtt" name="hours_est"/>
+    </panel>
+    
+    <panel type="html" id="estimate_space2">
+        <!-- add some space -->
+        <html>
+            <br/>
+        </html>
+    </panel>
+    
+    <dataSource id="ds_ab-helpdesk-workrequest-estimate_grid_wrpt">
+        <table name="wrpt" role="main"/>
+        <field table="wrpt" name="wr_id"/>
+        <field table="wrpt" name="part_id"/>
+        <field table="wrpt" name="qty_estimated"/>
+        <field table="wrpt" name="cost_estimated"/>
+        <field table="wrpt" name="date_assigned"/>
+        <field table="wrpt" name="time_assigned"/>
+        <field table="wrpt" name="status"/>
+        <sortField name="part_id" table="wrpt" ascending="true"/>
+        <sortField name="date_assigned" table="wrpt" ascending="true"/>
+        <sortField name="time_assigned" table="wrpt" ascending="true"/>
+    </dataSource>
+    
+    <panel type="grid" id="pt_report" controlType="reportGrid" showOnLoad="false" multipleSelectionEnabled="true" dataSource="ds_ab-helpdesk-workrequest-estimate_grid_wrpt">
+        <title translatable="true">Work Request Part Reservations</title>
+        <action id="addPart">
+            <title translatable="true">Add Part</title>
+			<command type="callFunction" functionName="addPart"/>
+        </action>
+        <action>
+            <title translatable="true">Delete Selected</title>
+            <command type="callFunction" functionName="ABODC_deleteItems('pt_report','wrpt')" />
+            <command type="callFunction" functionName="refreshPanels('pt_report')" />
+        </action>
+        <field controlType="button">
+            <command type="openDialog" viewName="ab-helpdesk-workrequest-part.axvw"/>
+            <title translatable="true">Edit</title>
+        </field>
+		<field table="wrpt" name="wr_id" hidden="true"/>
+        <field table="wrpt" name="part_id"/>
+        <field table="wrpt" name="cost_estimated"/>
+        <field table="wrpt" name="qty_estimated"/>
+        <field name="date_assigned" table="wrpt"/>
+        <field name="time_assigned" table="wrpt"/>
+        <field table="wrpt" name="status"/>
+    </panel>
+    
+    <panel type="html" id="estimate_space3">
+        <!-- add some space -->
+        <html>
+            <br/>
+        </html>
+    </panel>
+    
+    <dataSource id="ds_ab-helpdesk-workrequest-estimate_grid_wr_other">
+        <table name="wr_other" role="main"/>
+        <field name="wr_id" table="wr_other"/>
+        <field name="date_used" table="wr_other"/>
+        <field name="other_rs_type" table="wr_other"/>
+        <field name="cost_estimated" table="wr_other"/>
+        <field name="cost_total" table="wr_other"/>
+        <field name="description" table="wr_other"/>
+        <field name="qty_used" table="wr_other"/>
+        <field name="units_used" table="wr_other"/>
+    </dataSource>
+    
+    <panel type="grid" controlType="reportGrid" id="other_report" showOnLoad="false" multipleSelectionEnabled="true" dataSource="ds_ab-helpdesk-workrequest-estimate_grid_wr_other">
+        <title translatable="true">Work Request Other Costs</title>
+        <action id="addOthercost">
+            <title translatable="true">Add Other Cost</title>
+			<command type="callFunction" functionName="addOther"/>
+        </action>
+        <action>
+            <title translatable="true">Delete Selected</title>
+            <command type="callFunction" functionName="ABODC_deleteItems('other_report','wr_other')" />
+            <command type="callFunction" functionName="refreshPanels('other_report')" />
+        </action>
+        <field controlType="button">
+            <command type="openDialog" viewName="ab-helpdesk-workrequest-othercost.axvw"/>
+            <title translatable="true">Edit</title>
+        </field>
+		<field table="wr_other" name="wr_id" hidden="true"/>
+        <field name="other_rs_type" table="wr_other"/>
+        <field name="date_used" table="wr_other"/>
+        <field name="qty_used" table="wr_other"/>
+        <field name="units_used" table="wr_other"/>
+        <field name="cost_estimated" table="wr_other"/>
+        <field name="cost_total" table="wr_other"/>
+    </panel>
+    
+    <panel type="html" id="estimate_space4">
+        <!-- add some space -->
+        <html>
+            <br/>
+        </html>
+    </panel>
+    
+    <js file="ab-helpdesk-workrequest-estimate.js"/>
+    <js file="ab-ondemand-common.js"/>
+    
+</view>

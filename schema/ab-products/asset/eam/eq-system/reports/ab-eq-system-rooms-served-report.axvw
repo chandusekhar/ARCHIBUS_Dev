@@ -1,0 +1,215 @@
+<view version="2.0">
+    <title translatable="true">All Spaces Served by Selected Asset and its Dependents</title>
+
+    <layout type="borderLayout" id="mainLayout" region="center">
+        <west initialSize="30%" split="true" autoScroll="false"/>
+        <center autoScroll="true"/>
+    </layout>
+    <layout type="borderLayout" id="detailLayout" containingLayout="mainLayout" region="center">
+        <north id="mainPanelPos" initialSize="50%" split="true"/>
+        <center id="secondPanelPos" autoScroll="true"/>
+    </layout>
+
+    <dataSource id="equipment_ds">
+        <table name="eq"/>
+        <field name="eq_id"/>
+        <field name="eq_std"/>
+        <field name="status"/>
+        <field name="condition"/>
+        <!-- Filter restrictions -->
+        <restriction type="sql" sql="${parameters['filterRestriction']}"/>
+        <parameter name="filterRestriction" dataType="verbatim" value="1=1"/>
+    </dataSource>
+
+    <panel type="grid" id="equipment_panel" dataSource="equipment_ds" multipleSelectionEnabled="false" layout="mainLayout" region="west">
+        <title translatable="true">Equipment</title>
+        <action type="menu" id="export_eq" imageName="/schema/ab-core/graphics/icons/view/export.png">
+            <tooltip>Export</tooltip>
+            <action id="exportDOCX">
+                <title>DOCX</title>
+                <command type="exportPanel" panelId="equipment_panel" outputType="docx" printRestriction="true" orientation="landscape"/>
+            </action>
+            <action id="exportXLS">
+                <title>XLS</title>
+                <command type="exportPanel" panelId="equipment_panel" outputType="xls"/>
+            </action>
+            <action id="exportPDF">
+                <title>PDF</title>
+                <command type="exportPanel" panelId="equipment_panel" outputType="pdf"/>
+            </action>
+        </action>
+
+        <action id="tools_eq" imageName="/schema/ab-core/graphics/icons/view/gear.png">
+            <tooltip>Select Fields</tooltip>
+            <command type="selectFields" panelId="equipment_panel"/>
+        </action>
+
+        <field name="eq_id" controlType="link" onclick="onSelectEquipment"/>
+        <field name="eq_std" controlType="link" onclick="onSelectEquipment"/>
+        <field name="status" controlType="link" onclick="onSelectEquipment"/>
+        <field name="condition" controlType="link" onclick="onSelectEquipment"/>
+        <indexField table="eq" name="eq_id"/>
+    </panel>
+
+    <dataSource id="rooms_served_ds">
+        <sql dialect="generic">
+            SELECT DISTINCT rm.bl_id,
+            rm.fl_id,
+            rm.rm_id,
+            rm.rm_std,
+            rm.rm_cat,
+            rm.rm_type,
+            rm.dv_id,
+            rm.dp_id,
+            rm.area
+            FROM rm INNER JOIN (SELECT distinct eq.eq_id,eq_rm.bl_id,eq_rm.fl_id,eq_rm.rm_id FROM (SELECT
+            l1.eq_id_master As level1,
+            l1.eq_id_depend As level2,
+            l2.eq_id_depend As level3,
+            l3.eq_id_depend As level4,
+            l4.eq_id_depend As level5,
+            l5.eq_id_depend As level6,
+            l6.eq_id_depend As level7,
+            l7.eq_id_depend As level8,
+            l8.eq_id_depend As level9,
+            l9.eq_id_depend As level10
+            FROM eq_system AS l1
+            LEFT JOIN eq_system AS l2 ON l1.eq_id_depend=l2.eq_id_master
+            LEFT JOIN eq_system AS l3 ON l2.eq_id_depend=l3.eq_id_master
+            LEFT JOIN eq_system AS l4 ON l3.eq_id_depend=l4.eq_id_master
+            LEFT JOIN eq_system AS l5 ON l4.eq_id_depend=l5.eq_id_master
+            LEFT JOIN eq_system AS l6 ON l5.eq_id_depend=l6.eq_id_master
+            LEFT JOIN eq_system AS l7 ON l6.eq_id_depend=l7.eq_id_master
+            LEFT JOIN eq_system AS l8 ON l7.eq_id_depend=l8.eq_id_master
+            LEFT JOIN eq_system AS l9 ON l8.eq_id_depend=l9.eq_id_master) AS eqs
+            INNER JOIN eq ON eq.eq_id=level2
+            OR eq.eq_id=level3
+            OR eq.eq_id=level4
+            OR eq.eq_id=level5
+            OR eq.eq_id=level6
+            OR eq.eq_id=level7
+            OR eq.eq_id=level8
+            OR eq.eq_id=level9
+            OR eq.eq_id=level10
+            LEFT JOIN eq_rm ON eq.eq_id=eq_rm.eq_id
+            WHERE (level1='${parameters['eqid']}'
+            OR eq.eq_id='${parameters['eqid']}')
+            AND eq_rm.fl_id IS NOT NULL
+            UNION
+            SELECT eq.eq_id,
+            eq_rm.bl_id,
+            eq_rm.fl_id,
+            eq_rm.rm_id
+            FROM eq LEFT JOIN eq_rm ON eq.eq_id=eq_rm.eq_id
+            WHERE NOT EXISTS (SELECT 1 FROM eq_system where eq_id_master=eq.eq_id AND eq_id_depend=eq.eq_id)
+            AND eq.eq_id='${parameters['eqid']}'
+            ) AS A ON rm.bl_id=A.bl_id AND rm.fl_id=A.fl_id AND rm.rm_id=A.rm_id
+        </sql>
+
+        <table name="rm" role="main"/>
+        <field table="rm" name="bl_id" dataType="text"/>
+        <field table="rm" name="fl_id" dataType="text"/>
+        <field table="rm" name="rm_id" dataType="text"/>
+        <field table="rm" name="rm_std" dataType="text"/>
+        <field table="rm" name="rm_cat" dataType="text"/>
+        <field table="rm" name="rm_type" dataType="text"/>
+        <field table="rm" name="dv_id" dataType="text"/>
+        <field table="rm" name="dp_id" dataType="text"/>
+        <field table="rm" name="area" dataType="text"/>
+
+        <parameter name="eqid" dataType="verbatim" value=""/>
+    </dataSource>
+
+    <panel type="grid" id="eq_system_panel" dataSource="rooms_served_ds" multipleSelectionEnabled="true" showOnLoad="false" layoutRegion="mainPanelPos">
+        <title translatable="true">All Spaces Served by Selected Asset and its Dependents</title>
+        <action type="menu" id="export_rm" imageName="/schema/ab-core/graphics/icons/view/export.png">
+            <tooltip>Export</tooltip>
+            <action id="exportDOCX">
+                <title>DOCX</title>
+                <command type="exportPanel" panelId="eq_system_panel" outputType="docx" printRestriction="true" orientation="landscape"/>
+            </action>
+            <action id="exportXLS">
+                <title>XLS</title>
+                <command type="exportPanel" panelId="eq_system_panel" outputType="xls"/>
+            </action>
+            <action id="exportPDF">
+                <title>PDF</title>
+                <command type="exportPanel" panelId="eq_system_panel" outputType="pdf"/>
+            </action>
+        </action>
+
+        <action id="tools_rm" imageName="/schema/ab-core/graphics/icons/view/gear.png">
+            <tooltip>Select Fields</tooltip>
+            <command type="selectFields" panelId="eq_system_panel"/>
+        </action>
+
+        <field name="bl_id" dataType="text"/>
+        <field name="fl_id" dataType="text"/>
+        <field name="rm_id" dataType="text"/>
+        <field name="rm_std" dataType="text"/>
+        <field name="rm_cat" dataType="text"/>
+        <field name="rm_type" dataType="text"/>
+        <field name="dv_id" dataType="text"/>
+        <field name="dp_id" dataType="text"/>
+        <field name="area" dataType="text"/>
+        <indexField table="rm" name="bl_id"/>
+    </panel>
+
+    <dataSource id="rooms_employees_ds">
+        <table name="em"/>
+        <field name="em_id"/>
+        <field name="name_first"/>
+        <field name="name_last"/>
+        <field name="em_std"/>
+        <field name="phone"/>
+        <field name="email"/>
+        <field name="extension"/>
+        <field name="bl_id"/>
+        <field name="fl_id"/>
+        <field name="rm_id"/>
+        <field name="dv_id"/>
+        <field name="dp_id"/>
+    </dataSource>
+
+    <panel type="grid" id="rooms_employees_pn" dataSource="rooms_employees_ds" showOnLoad="false" layoutRegion="secondPanelPos">
+        <title translatable="true">Employees</title>
+
+        <action type="menu" id="export_em" imageName="/schema/ab-core/graphics/icons/view/export.png">
+            <tooltip>Export</tooltip>
+            <action id="exportEmDOCX">
+                <title>DOCX</title>
+                <command type="exportPanel" panelId="rooms_employees_pn" outputType="docx" printRestriction="true" orientation="landscape"/>
+            </action>
+            <action id="exportEmXLS">
+                <title>XLS</title>
+                <command type="exportPanel" panelId="rooms_employees_pn" outputType="xls"/>
+            </action>
+            <action id="exportEmPDF">
+                <title>PDF</title>
+                <command type="exportPanel" panelId="rooms_employees_pn" outputType="pdf"/>
+            </action>
+        </action>
+
+        <action id="tools_em" imageName="/schema/ab-core/graphics/icons/view/gear.png">
+            <tooltip>Select Fields</tooltip>
+            <command type="selectFields" panelId="rooms_employees_pn"/>
+        </action>
+
+        <field name="em_id"/>
+        <field name="name_first"/>
+        <field name="name_last"/>
+        <field name="phone"/>
+        <field name="extension"/>
+        <field name="email"/>
+        <field name="em_std"/>
+        <field name="dv_id"/>
+        <field name="dp_id"/>
+        <field name="bl_id"/>
+        <field name="fl_id"/>
+        <field name="rm_id"/>
+        <sortField name="em_id"/>
+        <indexField table="em" name="em_id"/>
+    </panel>
+
+    <js file="ab-eq-system-common-report.js"/>
+</view>

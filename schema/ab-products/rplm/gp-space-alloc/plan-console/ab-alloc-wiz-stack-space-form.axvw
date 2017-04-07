@@ -1,0 +1,485 @@
+<view version="2.0">
+    <js file="ab-alloc-wiz-stack-space-form.js"/>
+    <js file="ab-hpattern-color-dialog.js"/>
+	<js file="ab-alloc-wiz-common.js"/>	
+    <message name="selectBuilding">Building Code</message>
+    <message name="selectFloor">Floor Code</message>
+    <message name="selectDepartment">Department Code</message>
+    <message name="locationCannotBeNULL">Building and Floor cannot be blank.</message>
+    <message name="lessStartDate">The new start date can't be smaller than the original start date.</message>
+    <message name="zeroPerSeat">The employee per seat can't be zero.</message>
+    <message name="calAreaOnCountAndSeat">Only can calculate the area based on employee head count and per seat.</message>
+    <message name="calAreaOnOtherUnavail">The area can only be calculated when you select the Other Unavailable Area radio button.</message>
+    <message name="fillTwoArea">The area of the two allocations should be filled.</message>
+    <message name="areaBeforeSpllit">Area-Before Split</message>
+    <message name="zeroStdAreaPerEm">The calculation cannot be run because the selected floor does not have a set Standard Area Per Employee.  Edit the floor details in the Allocated Buildings tab to set this value for the floor.</message>
+    <message name="moreText">More</message>
+    <message name="lessText">Less</message>
+    <message name="setColor">Set Color</message>
+
+	<dataSource id="scenarioQueryDs">
+        <table name="portfolio_scenario" role="main"/>
+        <field name="portfolio_scenario_id" table="portfolio_scenario"/>
+        <field name="scn_level" table="portfolio_scenario"/>
+    </dataSource>
+    
+    <dataSource id="floorAreaQueryDs">
+        <table name="fl" role="main"/>
+        <field name="bl_id" table="fl"/>
+        <field name="fl_id" table="fl"/>
+        <field name="std_area_per_em" table="fl"/>
+    </dataSource>
+    
+    <dataSource id="leaseQueryDs">
+        <table name="ls" role="main"/>
+        <field name="ls_id" table="ls"/>
+        <field name="date_end" table="ls"/>
+    </dataSource>
+    
+    <dataSource id="divisionDataSource">
+        <table name="dv" role="main"/>
+        <field name="dv_id" table="dv"/>
+        <field name="bu_id" table="dv"/>
+    </dataSource>
+    
+    <dataSource id="spaceOperationDataSource">
+        <table name="gp" role="main"/>
+        <field name="gp_id" table="gp"/>
+        <field name="name" table="gp"/>
+        <field name="description" table="gp"/>
+        <field name="event_name" table="gp"/>
+        <field name="bl_id" table="gp"/>
+        <field name="fl_id" table="gp"/>
+        <field name="planning_bu_id" table="gp"/>
+        <field name="dv_id" table="gp"/>
+        <field name="dp_id" table="gp"/>
+        <field name="date_start" table="gp"/>
+        <field name="portfolio_scenario_id" table="gp"/>
+        <field name="pct_floor" table="gp"/>
+        <field name="gp_function" table="gp"/>
+        <field name="count_em" table="gp"/>
+        <field name="em_per_seat" table="gp"/>
+        <field name="area_manual" table="gp"/>
+        <field name="date_end" table="gp"/>
+        <field name="allocation_type" table="gp"/>
+        <field name="ls_id" table="gp"/>
+        <field name="parent_group_id" table="gp"/>
+        <field name="sort_order" table="gp"/>
+        <field name="hpattern_acad" table="gp"/>
+        <sortField name="sort_order" table="gp" ascending="true"/>
+    </dataSource>
+    
+    <panel type="form" id="allocateSpaceForm" columns="2" dataSource="spaceOperationDataSource" showOnLoad="false">
+        <action id="cancalAllocateSpace">
+            <title>Cancel</title>
+            <command type="closeDialog"/>
+        </action>
+        <action id="saveAllocateSpace">
+            <title>Save</title>
+            <command type="callFunction" functionName="abAllocWizStackSpaceFormController.saveAllocateSpaceForm()"/>
+        </action>
+        <action id="deleteAllocateSpace" enabled="${!panel.newRecord}">
+            <title>Delete</title>
+            <command type="deleteRecord"/>
+            <command type="callFunction" functionName="abAllocWizStackSpaceFormController.afterDeleteAllocation()"/>
+            <command type="closeDialog"/>
+        </action>
+        <field name="name" table="gp" colspan="2" required="true">
+            <title>Allocation Name</title>
+		</field>
+        <field name="description" table="gp" colspan="2" required="true"/>
+
+        <field colspan="2">																											
+            <html>
+                <div style="width:180;work-break:normal;white-space:normal;font-style:italic;" translatable="true">Choose an Event Name. Allocation events are operational events that happen on a specific day and usually represent a collection of allocations, such as the start of a lease, the end of a lease, the date of a department move,etc. Each unique Event Name will appear in the Events Panel.</div>
+            </html>
+        </field>
+        <field name="event_name" colspan="2" table="gp" required="true">
+            <title>Event Name</title>
+            <action>
+                <command type="selectValue"
+                         selectValueType="grid"
+                         autoComplete="true"
+                         fieldNames="gp.event_name, gp.date_start"
+                         selectFieldNames="gp.event_name, gp.date_start"
+                         visibleFieldNames="gp.portfolio_scenario_id, gp.event_name, gp.date_start"/>
+            </action>
+        </field>
+        <field name="bl_id" table="gp">
+            <action id="selectBuilding">
+                <command type="callFunction" functionName="abAllocWizStackSpaceFormController.selectBuildingCodeFromGp()"/>
+            </action>
+        </field>
+        <field name="planning_bu_id" table="gp"/>
+        <field name="fl_id" table="gp">
+            <action id="selectFloor">
+                <command type="callFunction" functionName="abAllocWizStackSpaceFormController.selectBuildingAndFloorCodeFromGp()"/>
+            </action>
+        </field>
+        <field name="dv_id" table="gp">
+            <action id="selectDivision">
+                <command type="selectValue"
+                         selectValueType="grid"
+                         autoComplete="true"
+                         fieldNames="gp.planning_bu_id, gp.dv_id"
+                         selectFieldNames="dv.bu_id, dv.dv_id"
+                         visibleFieldNames="dv.dv_id,dv.bu_id, dv.name"/>
+            </action>
+        </field>
+        <field name="date_start" table="gp" required="true"/>
+        <field name="dp_id" table="gp">
+            <action id="selectDepartment">
+                <command type="callFunction" functionName="abAllocWizStackSpaceFormController.selectDepartment()"/>
+            </action>
+        </field>
+        <field name="date_end" table="gp"/>
+        <field name="gp_function" table="gp" onchange="changeGpFunction(this)"/>
+        <field colspan="2">
+            <html>
+                <div style="width:200;work-break:normal;white-space:normal;font-style:italic;border-top:2px solid#99bbe8;padding-bottom:10px;padding-top:5px;" translatable="true">
+                    You can choose a different highlight pattern for this group. If there is a solid highlight pattern already defined for this organization, then that color will be used by default and this field can be left blank.
+                </div>
+            </html>
+        </field>
+        <field colspan="2">
+            <title>Highlight Pattern</title>
+            <html>
+                <div>
+				<table>
+					<tr>
+                       <td align="left" width="100px">
+							<div id="colorDiv" style="background-color:#cccccc;">
+								<input type="text" id="legendShadingColor" size="4" value="cccccc" disabled="true"/>
+							</div>
+                        </td>
+						<td align="left">
+							<input type="button" id="id_set_color" name="set_colors" value="" onclick="setTrueColor()"/>
+						</td>
+						<td>
+							<input type="checkbox" id="applyAll"/>
+							<span translatable="true">Apply this highlight pattern to all allocations in the scenario for this organization?</span>
+						</td>
+					</tr>
+				</table>
+                </div>
+            </html>
+        </field>      
+        <field name="portfolio_scenario_id" table="gp" readOnly="true"/>
+        <field name="gp_id" table="gp" hidden="true"/>
+        <field colspan="2"/>
+        <field colspan="2"/>
+        <field colspan="2">
+            <html>
+                <div style="width:200;work-break:normal;white-space:normal;font-style:italic;border-top:2px solid#99bbe8;padding-bottom:10px;padding-top:5px;" translatable="true">
+                    Enter the Area of this allocation, or enter criteria on which to calculate the area and click the Calculate Area button.
+                </div>
+            </html>
+        </field>
+        
+        <field colspan="2">
+            <html>
+                <div>
+				<table>
+					<tr>
+						<td>
+							<input type="radio" id="pctFloorAreaRadio" name="areaCalculationRadio" value="pctFloorArea"></input>
+						</td>
+						<td>
+							<div style="text-align:right" translatable="true">% of Floor</div>
+						</td>
+						<td>
+							<input type="text" id="pctFloor" name="pctFloor" disabled="true" value="" onchange="abAllocWizStackSpaceFormController.onChangeValue(this)"/>
+						</td>
+					</tr>
+					<tr>
+						<td>
+							<input type="radio" id="headCounterAreaRadio" name="areaCalculationRadio" value="headCounterArea"></input>
+						</td>
+						<td>
+							<div style="text-align:right" translatable="true">Employee Headcount</div>
+						</td>
+						<td>
+							<input type="text" id="countEm" name="countEm" disabled="true" value=""/>
+						</td>
+					</tr>
+					<tr>
+						<td/>
+						<td>
+							<div style="text-align:right" translatable="true">Employees Per Seat</div>
+						</td>
+						<td>
+							<input type="text" id="add_em_per_seat" disabled="true" name="add_em_per_seat"/>
+						</td>
+					</tr>
+					<tr>
+						<td/>
+						<td/>
+						<td>
+							<a id="calculateGroupArea" class="mediumAction button" translatable="true">Calculate Area</a>
+						</td>
+					</tr>
+					<tr>
+						<td/>
+						<td>
+							<div style="text-align:right" translatable="true">Area</div>
+						</td>
+						<td>
+							<input type="text" id="gp_area_manual" name="gp_area_manual" onchange="abAllocWizStackSpaceFormController.onChangeValue(this)"/>
+						</td>
+					</tr>
+				</table>
+                </div>
+            </html>
+        </field>      
+    </panel>
+    
+    <!-- The form for splitting space. -->
+    <panel type="form" id="splitSpaceForm" dataSource="spaceOperationDataSource" columns="2"  showOnLoad="false">
+        <instructions>Split the allocated space into two separate groups. Enter the area or the percentage of the area for the First Group and then click the Calculate Split Area button.</instructions>
+        <action id="cancelSplitSpaceForm">
+            <title>Cancel</title>
+            <command type="closeDialog"/>
+        </action>
+        <action id="saveSplitSpaceForm">
+            <title>Save</title>
+        </action>
+        <field>
+            <html>
+                <div id="groupNameLabelDiv" style="background:#FFFFFF">
+                    
+                </div>
+            </html>
+        </field>
+        
+        <field>
+            <html>
+                <div id="areaBeforeSplitDiv" style="background:#FFFFFF">
+                
+                </div>
+            </html>
+        </field>
+        <field name="event_name" table="gp" colspan="2" required="true">
+            <title>Event Name</title>
+        </field>
+        <field colspan="2">
+            <html>
+                <div style="width:200;work-break:normal;white-space:normal;font-style:italic;background:#FFFFFF" translatable="true">Choose an Event Name. Allocation events are operational events that happen on a specific day and usually represent a collection of groups, such as the start of a lease, the end of a lease, the date of a department move, etc. Each unique Event Name will appear in the Events Panel.</div>
+            </html>
+        </field>
+        <field colspan="2"/>
+        <field>
+            <html>
+                <div translatable="true">
+                    First Group
+                </div>
+                <div style="margin-top:5px">
+                    <input type="radio" id="firstGroupPctFloor" name="firstGroupAreaStandard" value="firstGroupPctArea"/>
+                    <label for="firstGroupAreaInput" translatable="true">% of Area</label>
+                    <input type="text" id="firstGroupPctAreaInput" onchange="abAllocWizStackSpaceFormController.onChangeValue(this)" style="margin-left:5px;"/>
+                </div>
+                <div style="margin-top:10px">
+                    <input type="radio" id="firstGroupDirectArea" name="firstGroupAreaStandard" value="firstGroupDirectArea"/>
+                    <label for="firstGroupDirectAreaInput" translatable="true">Area</label>
+                    <input type="text" id="firstGroupAreaInput" onchange="abAllocWizStackSpaceFormController.onChangeValue(this)" style="margin-left:33px"/>
+                </div>
+                <div>
+                    <a id="calculateTwoGroupArea" class="mediumAction button" style="margin-top:10px; margin-left:115px;" translatable="true">Calculate Split Area</a>
+                </div>
+            </html>
+        </field>
+        
+        <field>
+            <html>
+                <div translatable="true">
+                    Second Group
+                </div>
+                <div style="margin-top:5px">
+                    <label for="secondGroupPctAreaInput" translatable="true">% of Area</label>
+                    <input type="text" id="secondGroupPctAreaInput" name="secondGroupPctAreaInput" onchange="abAllocWizStackSpaceFormController.onChangeValue(this)" style="margin-left:5px;"/>
+                </div>
+                
+                <div style="margin-top:10px">
+                    <label for="secondGroupDirectAreaInput" translatable="true">Area</label>
+                    <input type="text" id="secondGroupDirectAreaInput" name="secondGroupDirectAreaInput" onchange="abAllocWizStackSpaceFormController.onChangeValue(this)" style="margin-left:33px"/>
+                </div>
+                
+                <div>
+                    <a id="toggleSplitSpaceMoreOptionButton" class="mediumAction button" style="margin-top:10px; margin-left:182px;" translatable="true">More</a>
+                </div>
+            </html>
+        </field>
+        
+        <field name="gp_id" hidden="true"/>
+    </panel>
+    
+    <panel type="form" id="splitSpaceMoreOptionForm"  columns="2" dataSource="spaceOperationDataSource" collapsed="true" showOnLoad="false">
+        <field name="name" table="gp"/>
+        <field name="name" alias="second_name" table="gp">
+            <title>Second Group Name</title>
+        </field>
+        <field name="description" table="gp"/>
+        <field name="description" alias="second_description" table="gp">
+            <title>Second Description</title>
+        </field>
+        
+        <field name="date_start" table="gp" colspan="2" required="true"/>
+        <field name="date_end" table="gp" colspan="2"/>
+    </panel>
+    
+    <panel type="form" id="markSpaceAsUnavailableForm" columns="2" dataSource="spaceOperationDataSource" showOnLoad="false">
+        <instructions>Desginate space on a floor that is unavailable for allocation</instructions>
+        <action id="cancelMarkSpaceForm">
+            <title>Cancel</title>
+            <command type="closeDialog"/>
+        </action>
+        <action id="saveMarkedUnavailableSpace">
+            <title>Save</title>
+        </action>
+        <action id="deleteUnavailableSpace" enabled="${!panel.newRecord}">
+            <title>Delete</title>
+            <command type="deleteRecord"/>
+            <command type="closeDialog"/>
+        </action>
+        <field colspan="2">
+            <title>Type of Space</title>
+            <html>
+                <div>
+                    <ul>
+                        <li>
+                            <input type="radio" id="otherUnavailableAreaRadio" name="typeOfSpace" value="otherUnavailableAreaRadio"/>
+                            <label for="otherUnavailableAreaRadio" translatable="true">Other Unavailable Area</label>
+                        </li>
+                        <li>
+                            <input type="radio" id="serviceUnavailableAreaRadio" name="typeOfSpace" value="serviceUnavailableAreaRadio"/>
+                            <label for="serviceUnavailableAreaRadio" translatable="true">Unavailable - Service Area</label>
+                        </li>
+                        <li>
+                            <input type="radio" id="vpUnavailableAreaRadio" name="typeOfSpace" value="vpUnavailableAreaRadio"/>
+                            <label for="vpUnavailableAreaRadio" translatable="true">Unavailable - Vertical Penetration</label>
+                        </li>
+                        <li>
+                            <input type="radio" id="remainingUnavailableAreaRadio" name="typeOfSpace" value="remainingUnavailableAreaRadio"/>
+                            <label for="remainingUnavailableAreaRadio" translatable="true">Unavailable - Remaining Area</label>
+                        </li>
+                    </ul>
+                </div>
+            </html>
+        </field>
+        
+        <field name="name" table="gp" colspan="2" readOnly="true">
+            <title>Allocation Name</title>
+		</field>
+        <field name="description" table="gp" colspan="2" required="true"/>
+        <field colspan="2">
+            <html>
+                <div style="width:200;work-break:normal;white-space:normal;font-style:italic" translatable="true">Choose an Event Name. Allocation events are operational events that happen on a specific day and usually represent a collection of allocations, such as the start of a lease, the end of a lease, the date of a department move,etc. Each unique Event Name will appear in the Events Panel.</div>
+            </html>
+        </field>
+        <field name="event_name" table="gp" colspan="2" required="true">
+            <title>Event Name</title>
+            <action>
+                <command type="selectValue"
+                         selectValueType="grid"
+                         autoComplete="true"
+                         fieldNames="gp.event_name, gp.date_start"
+                         selectFieldNames="gp.event_name, gp.date_start"
+                         visibleFieldNames="gp.portfolio_scenario_id, gp.event_name, gp.date_start"/>
+            </action>
+        </field>
+        <field name="bl_id" table="gp">
+                <action>
+                    <command type="callFunction" functionName="abAllocWizStackSpaceFormController.selectGpBuilding()"/>
+                </action>
+		</field>
+        <field name="date_start" table="gp" required="true"/>
+        <field name="fl_id" table="gp">
+            <action>
+                <command type="callFunction" functionName="abAllocWizStackSpaceFormController.selectGpFloors()"/>
+            </action>
+        </field>
+        <field name="date_end" table="gp"/>
+        <field name="portfolio_scenario_id" table="gp" readOnly="true"/>
+        <field name="gp_id" table="gp" hidden="true"/>
+        <field/>
+        <field colspan="2">
+            <html>
+                <div style="width:200;work-break:normal;white-space:normal;font-style:italic;border-top:2px solid#99bbe8;padding-bottom:10px;padding-top:5px;" translatable="true">Enter the Area of this allocation, or enter criteria on which to calculate the area and click the Calculate Area button.</div>
+            </html>
+        </field>
+        
+        <field colspan="2">
+            <html>
+                <div>
+				<table>
+					<tr>
+						<td>
+							<div style="text-align:right" translatable="true">Area</div>
+						</td>
+						<td>
+							<input type="text" id="gp_unavail_area_manual" name="gp_unavail_area_manual" onchange="abAllocWizStackSpaceFormController.onChangeValue(this)"/>
+						</td>
+						<td/>
+						<td/>
+						<td/>
+						<td/>
+						<td>
+							<input type="radio" id="pctFloorUnavailAreaRadio" name="unavailAreaCalculationRadio" value="pctFloorUnavailArea"></input>
+						</td>
+						<td>
+							<div style="text-align:right" translatable="true">% of Floor</div>
+						</td>
+						<td>
+							<input type="text" id="unavailPctFloor" name="unavailPctFloor" disabled="true" value="" onchange="abAllocWizStackSpaceFormController.onChangeValue(this)"/>
+						</td>
+					</tr>
+					<tr>
+						<td/>
+						<td/>
+						<td/>
+						<td/>
+						<td/>
+						<td/>
+						<td>
+							<input type="radio" id="headCounterUnavailAreaRadio" name="unavailAreaCalculationRadio" value="headCounterUnavailArea"></input>
+						</td>
+						<td>
+							<div style="text-align:right" translatable="true">Employee Headcount</div>
+						</td>
+						<td>
+							<input type="text" id="unavailableCountEm" name="unavailableCountEm" disabled="true" value=""/>
+						</td>
+					</tr>
+					<tr>
+						<td/>
+						<td/>
+						<td/>
+						<td/>
+						<td/>
+						<td/>
+						<td/>
+						<td>
+							<div style="text-align:right" translatable="true">Employees Per Seat</div>
+						</td>
+						<td>
+							<input type="text" id="unavail_em_per_seat" disabled="true" name="unavail_em_per_seat"/>
+						</td>
+					</tr>
+					<tr>
+						<td/>
+						<td/>
+						<td/>
+						<td/>
+						<td/>
+						<td/>
+						<td/>
+						<td/>
+						<td>
+							<a id="calculateUnavailableGroupArea" class="mediumAction button"  translatable="true">Calculate Area</a>
+						</td>
+					</tr>
+				</table>
+                </div>
+            </html>
+        </field>      
+    </panel>
+</view>

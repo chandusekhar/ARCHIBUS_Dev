@@ -1,0 +1,460 @@
+<view version="2.0">
+    <js file="ab-sp-console-teams.js"/> 
+    <js file="ab-sp-console-mgr-common.js"/>
+    <message name="delta">Seat Ratio - % of Target</message>
+    <message name="editTeam" translatable="true">Edit Team</message>
+    <message name="addTeam" translatable="true">Add Team</message>
+    <message name="pendingTeamAssignmentsTitle" translatable="true">Pending Team Assignments</message>
+    <message name="teamCode" translatable="true">Team Code</message>
+    <message name="teamReport">Team Report</message>
+    <message name="restrictToLocation">Restrict to location filter</message>
+    <message name="unassignedRm">Unassigned to Rooms</message>
+    <message name="unassignedEm">No Team Members</message>
+    <message name="teamIdTitle">Team Code</message>
+    <message name="teamNameTitle">Team Name</message>
+    <message name="statisTitle">Statistics as below</message>
+    <message name="currentCap">Current Capacity</message>
+    <message name="targetRatio">Seat Ratio - Target</message>
+    <message name="addtionalCap">Addtional Capacity</message>
+    <message name="pendingRatio">Pending Seat Ratio</message>
+    <message name="updateTeamsTab">Refreshing Teams tab</message>
+    <message name="commitTeamAssignments">Committing Team Assignments</message>
+    <message name="asOfDate">As of Date</message>
+
+    <dataSource id="teamsDS">
+		<sql dialect="generic">
+			select
+				( select max( rm_team.bl_id) from rm_team where rm_team.team_id = team_properties.team_id 
+																						and (rm_team.date_start is null or ${sql.yearMonthDayOf('rm_team.date_start')} &lt;= ${parameters['asOfDate']})
+																						and (rm_team.date_end is null or ${sql.yearMonthDayOf('rm_team.date_end')} &gt;= ${parameters['asOfDate']}) 
+				) ${sql.as} vf_bl_id,
+				( select sum( rm.area) from rm left outer join rm_team on rm.rm_id=rm_team.rm_id and rm.fl_id=rm_team.fl_id and rm.bl_id=rm_team.bl_id 
+					where rm_team.team_id = team_properties.team_id 
+							AND (rm.rm_cat IS NULL OR EXISTS (SELECT 1 FROM rmcat WHERE rmcat.used_in_calcs IN('all_totals', 'dp_comn_ocup_totals') AND rmcat.rm_cat= rm.rm_cat)) 
+							and (rm_team.date_start is null or ${sql.yearMonthDayOf('rm_team.date_start')} &lt;= ${parameters['asOfDate']})
+							and (rm_team.date_end is null or ${sql.yearMonthDayOf('rm_team.date_end')} &gt;= ${parameters['asOfDate']}) 
+				) ${sql.as} vf_area, 
+				( select count( rm_team.rm_id) from rm_team where rm_team.team_id = team_properties.team_id 
+																					and (rm_team.date_start is null or ${sql.yearMonthDayOf('rm_team.date_start')} &lt;= ${parameters['asOfDate']})
+																					and (rm_team.date_end is null or ${sql.yearMonthDayOf('rm_team.date_end')} &gt;= ${parameters['asOfDate']}) 
+				) ${sql.as} vf_rm_count,
+				(	( select sum( rm.cap_em) from rm left outer join rm_team on rm.rm_id=rm_team.rm_id and rm.fl_id=rm_team.fl_id and rm.bl_id=rm_team.bl_id where rm_team.team_id = team_properties.team_id
+																							and (rm_team.date_start is null or ${sql.yearMonthDayOf('rm_team.date_start')} &lt;= ${parameters['asOfDate']})
+																							and (rm_team.date_end is null or ${sql.yearMonthDayOf('rm_team.date_end')} &gt;= ${parameters['asOfDate']}) 
+					) 
+					- 
+					( select count( em.em_id) from em left outer join rm_team on em.rm_id=rm_team.rm_id and em.fl_id=rm_team.fl_id and em.bl_id=rm_team.bl_id where rm_team.team_id = team_properties.team_id
+																							and (rm_team.date_start is null or ${sql.yearMonthDayOf('rm_team.date_start')} &lt;= ${parameters['asOfDate']})
+																							and (rm_team.date_end is null or ${sql.yearMonthDayOf('rm_team.date_end')} &gt;= ${parameters['asOfDate']}) 
+					) 
+				)  ${sql.as} vf_cap_em, 
+				( select sum(team.pct_time/100.00) from team where team.team_id = team_properties.team_id
+																						and (team.date_start is null or ${sql.yearMonthDayOf('team.date_start')} &lt;= ${parameters['asOfDate']})
+																						and (team.date_end is null or ${sql.yearMonthDayOf('team.date_end')} &gt;= ${parameters['asOfDate']}) 
+																						and team.em_id is not null 
+				) ${sql.as} vf_em_count,
+				(
+					case when 
+					( ( select sum( rm.cap_em) from rm left outer join rm_team on rm.rm_id=rm_team.rm_id and rm.fl_id=rm_team.fl_id and rm.bl_id=rm_team.bl_id where rm_team.team_id = team_properties.team_id
+																							and (rm_team.date_start is null or ${sql.yearMonthDayOf('rm_team.date_start')} &lt;= ${parameters['asOfDate']})
+																							and (rm_team.date_end is null or ${sql.yearMonthDayOf('rm_team.date_end')} &gt;= ${parameters['asOfDate']}) 
+						) 
+						- 
+						( select count( em.em_id) from em left outer join rm_team on em.rm_id=rm_team.rm_id and em.fl_id=rm_team.fl_id and em.bl_id=rm_team.bl_id where rm_team.team_id = team_properties.team_id
+																								and (rm_team.date_start is null or ${sql.yearMonthDayOf('rm_team.date_start')} &lt;= ${parameters['asOfDate']})
+																								and (rm_team.date_end is null or ${sql.yearMonthDayOf('rm_team.date_end')} &gt;= ${parameters['asOfDate']}) 
+						) 
+					) = 0 
+					then 0 
+					else 
+					( select sum(team.pct_time/100.00) from team where team.team_id = team_properties.team_id
+																				and (team.date_start is null or ${sql.yearMonthDayOf('team.date_start')} &lt;= ${parameters['asOfDate']})
+																				and (team.date_end is null or ${sql.yearMonthDayOf('team.date_end')} &gt;= ${parameters['asOfDate']}) 
+																				and team.em_id is not null 
+					)*1.0 
+					/( ( select sum( rm.cap_em) from rm left outer join rm_team on rm.rm_id=rm_team.rm_id and rm.fl_id=rm_team.fl_id and rm.bl_id=rm_team.bl_id where rm_team.team_id = team_properties.team_id
+																							and (rm_team.date_start is null or ${sql.yearMonthDayOf('rm_team.date_start')} &lt;= ${parameters['asOfDate']})
+																							and (rm_team.date_end is null or ${sql.yearMonthDayOf('rm_team.date_end')} &gt;= ${parameters['asOfDate']}) 
+						) 
+						- 
+						( select count( em.em_id) from em left outer join rm_team on em.rm_id=rm_team.rm_id and em.fl_id=rm_team.fl_id and em.bl_id=rm_team.bl_id where rm_team.team_id = team_properties.team_id
+																								and (rm_team.date_start is null or ${sql.yearMonthDayOf('rm_team.date_start')} &lt;= ${parameters['asOfDate']})
+																								and (rm_team.date_end is null or ${sql.yearMonthDayOf('rm_team.date_end')} &gt;= ${parameters['asOfDate']}) 
+						) 
+					)
+					end 
+				) ${sql.as} vf_seat_ratio_act,
+				( case when team_properties.em_seat_ratio_tgt=0 then 0 
+				else 
+					100*(
+							case when 
+							( ( select sum( rm.cap_em) from rm left outer join rm_team on rm.rm_id=rm_team.rm_id and rm.fl_id=rm_team.fl_id and rm.bl_id=rm_team.bl_id where rm_team.team_id = team_properties.team_id
+																									and (rm_team.date_start is null or ${sql.yearMonthDayOf('rm_team.date_start')} &lt;= ${parameters['asOfDate']})
+																									and (rm_team.date_end is null or ${sql.yearMonthDayOf('rm_team.date_end')} &gt;= ${parameters['asOfDate']}) 
+								) 
+								- 
+								( select count( em.em_id) from em left outer join rm_team on em.rm_id=rm_team.rm_id and em.fl_id=rm_team.fl_id and em.bl_id=rm_team.bl_id where rm_team.team_id = team_properties.team_id
+																										and (rm_team.date_start is null or ${sql.yearMonthDayOf('rm_team.date_start')} &lt;= ${parameters['asOfDate']})
+																										and (rm_team.date_end is null or ${sql.yearMonthDayOf('rm_team.date_end')} &gt;= ${parameters['asOfDate']}) 
+								) 
+							) = 0 
+							then 0 
+							else 
+							( select sum( team.pct_time/100.00) from team where team.team_id = team_properties.team_id
+																						and (team.date_start is null or ${sql.yearMonthDayOf('team.date_start')} &lt;= ${parameters['asOfDate']})
+																						and (team.date_end is null or ${sql.yearMonthDayOf('team.date_end')} &gt;= ${parameters['asOfDate']}) 
+																						and team.em_id is not null 
+							)*1.0 
+							/( ( select sum( rm.cap_em) from rm left outer join rm_team on rm.rm_id=rm_team.rm_id and rm.fl_id=rm_team.fl_id and rm.bl_id=rm_team.bl_id where rm_team.team_id = team_properties.team_id
+																									and (rm_team.date_start is null or ${sql.yearMonthDayOf('rm_team.date_start')} &lt;= ${parameters['asOfDate']})
+																									and (rm_team.date_end is null or ${sql.yearMonthDayOf('rm_team.date_end')} &gt;= ${parameters['asOfDate']}) 
+								) 
+								- 
+								( select count( em.em_id) from em left outer join rm_team on em.rm_id=rm_team.rm_id and em.fl_id=rm_team.fl_id and em.bl_id=rm_team.bl_id where rm_team.team_id = team_properties.team_id
+																										and (rm_team.date_start is null or ${sql.yearMonthDayOf('rm_team.date_start')} &lt;= ${parameters['asOfDate']})
+																										and (rm_team.date_end is null or ${sql.yearMonthDayOf('rm_team.date_end')} &gt;= ${parameters['asOfDate']}) 
+								) 
+							)
+							end 
+						)
+					/
+					team_properties.em_seat_ratio_tgt
+				end) vf_seat_ratio_pct, 
+				em_seat_ratio_tgt, 
+				team_properties.team_id, 
+				team_properties.team_name,
+				hpattern_acad, 
+				vt.vf_next_change_date 
+			from team_properties 
+			left outer join 
+			  ( select MIN(t.changeDate) ${sql.as} vf_next_change_date, t.team_id ${sql.as} teamId from 
+							  ( select distinct team.date_start  changeDate, team.team_id from team where  ${sql.yearMonthDayOf('team.date_start')} > ${parameters['asOfDate']}
+								union all  								
+							  select distinct team.date_end  changeDate, team.team_id  from team where   ${sql.yearMonthDayOf('team.date_end')}  > ${parameters['asOfDate']}
+								union all  								
+							  select distinct rm_team.date_start  changeDate , rm_team.team_id from rm_team where  ${sql.yearMonthDayOf('rm_team.date_start')}  > ${parameters['asOfDate']}
+								union all
+							  select distinct rm_team.date_end  changeDate , rm_team.team_id from rm_team where ${sql.yearMonthDayOf('rm_team.date_end')} > ${parameters['asOfDate']}						
+							  ) ${sql.as} t  group by t.team_id
+			) ${sql.as} vt on vt.teamId= team_properties.team_id 	
+			WHERE team_properties.needs_team_space=1 
+		</sql>
+        <table name="team_properties"/>
+        <field name="team_id" table="team_properties" dataType="text" hidden="true"  legendKey="true"/>
+        <field name="team_name" table="team_properties" dataType="text"/>
+        <field name="vf_bl_id" table="team_properties" dataType="text" hidden="true">
+			<title>Buildings</title>
+		</field>
+        <field table="team_properties" name="vf_area" dataType="number" size="8" decimals="2"  showTotals="true" numericFormat="area" hidden="true">
+			<title>Area</title>
+        </field>
+        <field table="team_properties" name="vf_rm_count" dataType="integer" showTotals="true" hidden="true">
+			<title>Room Count</title>
+        </field>
+        <field table="team_properties" name="vf_cap_em" dataType="integer" showTotals="true" hidden="true">
+			<title>Capacity</title>
+        </field>
+        <field table="team_properties" name="vf_em_count" dataType="number" size="8" showTotals="true" decimals="2" hidden="true">
+			<title>Headcount</title>
+        </field>
+        <field table="team_properties" name="vf_seat_ratio_act"  dataType="number" size="8" decimals="2" showTotals="true">
+			<title>Seat Ratio - Actual</title>
+        </field>
+        <field name="em_seat_ratio_tgt" table="team_properties" dataType="number" decimals="2" hidden="true"/>
+        <field table="team_properties" name="vf_seat_ratio_pct"  dataType="number" size="8" decimals="2" hidden="true">
+			<title>Seat Ratio - % of Target</title>
+        </field>
+        <field name="hpattern_acad" table="team_properties" dataType="text"/>
+        <field table="team_properties" name="vf_next_change_date"  dataType="date" hidden="true">
+			<title>Next Change Event Date</title>
+        </field>
+
+		<sortField name="vf_seat_ratio_pct"/>
+
+        <restriction type="sql" sql="  ( EXISTS ( select 1 from rm_team 
+																	left outer join rm on rm.bl_id = rm_team.bl_id AND rm.fl_id = rm_team.fl_id AND rm.rm_id = rm_team.rm_id  
+																	left outer join dv on rm.dv_id=dv.dv_id
+																	left outer join dp on rm.dv_id=dp.dv_id and rm.dp_id=dp.dp_id 
+																	left outer join rmcat on rm.rm_cat=rmcat.rm_cat 
+																	left outer join rmtype on rm.rm_cat=rmtype.rm_cat  and rm.rm_type=rmtype.rm_type
+																where ${parameters['commonParameters']} and ${parameters['teamRmRestriction']} and rm_team.team_id=team_properties.team_id  )
+														or ${parameters['restrictToLoc']} )
+														AND ( EXISTS ( select 1 from team left outer join em on em.em_id=team.em_id 
+																				where ${parameters['teamEmRestriction']} and team.team_id=team_properties.team_id  )
+														or ${parameters['restrictToEm']} )
+													AND ${parameters['noRmAssigned']} AND ${parameters['noEmAssigned']} AND ${parameters['teamRestriction']} "/> 
+        <parameter name="commonParameters" dataType="verbatim" value="2=2"/>
+        <parameter name="dv_id" dataType="verbatim" value="1=1"/>
+        <parameter name="dp_id" dataType="verbatim" value="1=1"/>
+        <parameter name="bl_id" dataType="verbatim" value="1=1"/>
+        <parameter name="fl_id" dataType="verbatim" value="1=1"/>
+        <parameter name="rm_id" dataType="verbatim" value="1=1"/>
+        <parameter name="rm_cat" dataType="verbatim" value="1=1"/>
+        <parameter name="rm_type" dataType="verbatim" value="1=1"/>
+        <parameter name="rm_std" dataType="verbatim" value="1=1"/>
+        <parameter name="occupancy" dataType="verbatim" value="1=1"/>
+        <parameter name="organizationUnassigned" dataType="verbatim" value="1=1"/>
+        <parameter name="typeUnassigned" dataType="verbatim" value="1=1"/>
+        <parameter name="totalArea" dataType="verbatim" value="1=1"/>
+        <parameter name="teamRmRestriction" dataType="verbatim" value="6=6"/>
+        <parameter name="teamEmRestriction" dataType="verbatim" value="6=6"/>
+        <parameter name="teamRestriction" dataType="verbatim" value="6=6"/>
+        <parameter name="restrictToLoc" dataType="verbatim" value="1=1"/>
+        <parameter name="restrictToEm" dataType="verbatim" value="1=1"/>
+        <parameter name="noRmAssigned" dataType="verbatim" value="1=1"/>
+        <parameter name="noEmAssigned" dataType="verbatim" value="1=1"/>
+        <parameter name="asOfDate" dataType="text" value=""/>
+    </dataSource>
+
+    <panel id="teamGrid" dataSource="teamsDS" type="grid">
+        <action id="addNewTeam" >
+            <title translatable="true">Add New</title>
+        </action>
+        
+         <action type="menu" id="exportTeamsMenu"   imageName="/schema/ab-core/graphics/icons/view/export.png">
+            <title></title>
+            <action id="exportTeamDOCX">
+                <title>Export to DOCX</title>
+                <command type="callFunction" functionName="exportTeamToDOCX()"/>
+            </action>
+            <action id="exportTeamXLS">
+                <title>Export to XLS</title>
+                <command type="callFunction" functionName="exportTeamoXLS()"/>
+            </action>
+        </action>
+        
+        <action type="menu" id="TeamMenu" imageName="/schema/ab-core/graphics/icons/view/gear.png">
+            <action id="selectFields">
+                <title>Select Fields</title>
+                <command type="selectFields" panelId="teamGrid"/>
+            </action>
+            <action id="showComapareTeams">
+                <title>Compare Team Room Statistics</title>
+				<command type="openDialog" viewName="ab-sp-console-teams-statistics.axvw"/>
+            </action>
+        </action>
+        
+        <field name="team_id" table="team_properties" legendKey="true" hidden="true"/>
+        <field name="team_name" table="team_properties"  controlType="link">
+            <command type="callFunction" functionName="locateTeam()"/>
+        </field>
+        <field name="vf_bl_id" table="team_properties" hidden="true">
+			<title>Buildings</title>
+		</field>
+        <field table="team_properties" name="vf_area" hidden="true">
+			<title>Area</title>
+        </field>
+        <field table="team_properties" name="vf_rm_count" dataType="integer" hidden="true">
+			<title>Room\nCount</title>
+        </field>
+        <field table="team_properties" name="vf_cap_em" dataType="integer" hidden="true">
+			<title>Capacity</title>
+        </field>
+        <field table="team_properties" name="vf_em_count" dataType="number" hidden="true" decimals="2">
+			<title>Headcount</title>
+        </field>
+        <field table="team_properties" name="vf_seat_ratio_act">
+			<title>Seat Ratio - Actual</title>
+        </field>
+        <field name="em_seat_ratio_tgt" table="team_properties" hidden="true"/>
+        <field table="team_properties" name="vf_seat_ratio_pct" hidden="true">
+			<title>Seat Ratio - % of Target</title>
+        </field>
+        <field name="hpattern_acad" table="team_properties" controlType="color">
+           <title>Legend</title>
+        </field>
+        <field name="vf_next_change_date" table="team_properties" hidden="true">
+           <title>Next Change Event Date</title>
+        </field>
+        
+        <field name="edit" controlType="image" imageName="pencil.png">
+            <command type="callFunction" functionName="teamsController.teamGrid_onEdit()"/>
+            <title>Edit</title>
+        </field>
+        
+        <field id="assignTeam" controlType="button">
+            <title>Assign</title>
+        </field>
+    </panel>
+    
+    <dataSource id="teamPendingAssignmentDs">
+        <table name="rm_team" role="main"/>
+        <table name="rm" role="standard"/>
+        <table name="team_properties" role="standard"/>
+        <field table="rm_team" name="bl_id"/>
+        <field table="rm_team" name="fl_id"/>
+        <field table="rm_team" name="rm_id"/>
+        <field table="rm" name="cap_em"/>
+        <field table="rm_team" name="team_id"/>
+        <field table="team_properties" name="team_name"/>
+        <field table="rm_team" name="date_start"/>
+        <field table="rm_team" name="date_end"/>
+		<restriction type="sql" sql=" 1=0 "/>
+    </dataSource>
+    
+    <panel type="grid" id="teamPendingAssignmentPanel" showOnLoad="false" dataSource="teamPendingAssignmentDs" controlType="reportGrid" hidden="true" sortEnabled="false" buttonsPosition="footer">
+        <action id="commitTeamPendingAssignments" mainAction="true" enabled="${user.isMemberOfGroup('SPACE-CONSOLE-ALL-ACCESS')}">
+            <title>Commit Assignments</title>
+            <command type="closeDialog"/>
+        </action>
+        <action id="cancelTeamPendingAssignments">
+            <title>Cancel Assignments</title>
+            <command type="closeDialog"/>
+        </action>
+        <action id="hideTeamPendingAssignments">
+            <title>Close</title>
+            <command type="closeDialog"/>
+        </action>
+        
+        <field table="rm_team" name="bl_id"/>
+        <field table="rm_team" name="fl_id"/>
+        <field table="rm_team" name="rm_id"/>
+        <field table="rm" name="cap_em">
+            <title>Available Capacity</title>
+		</field>
+        <field table="rm_team" name="team_id"/>
+        <field table="team_properties" name="team_name"/>
+        <field table="rm_team" name="date_start"/>
+        <field table="rm_team" name="date_end"/>
+        <field id="removeTeamPendingAssignment" controlType="image" imageName="delete.gif" hidden="!${record['rm_team.team_id']}">
+			<command type="callFunction" functionName="teamsController.onRemoveTeamPendingAssignment()"/> 
+		</field>
+    </panel>
+    
+    <dataSource id="teamBuildingDS" distinct="true">
+		<sql dialect="generic">
+			SELECT DISTINCT rm_team.team_id, rm_team.bl_id
+			FROM rm_team
+				left outer join rm on rm.bl_id = rm_team.bl_id AND rm.fl_id = rm_team.fl_id AND rm.rm_id = rm_team.rm_id  
+				left outer join dv on rm.dv_id=dv.dv_id
+				left outer join dp on rm.dv_id=dp.dv_id and rm.dp_id=dp.dp_id 
+				left outer join rmcat on rm.rm_cat=rmcat.rm_cat 
+				left outer join rmtype on rm.rm_cat=rmtype.rm_cat  and rm.rm_type=rmtype.rm_type
+				left outer join team_properties on rm_team.team_id=team_properties.team_id 
+			WHERE ( ${parameters['commonParameters']} and ${parameters['teamRmRestriction']} or ${parameters['restrictToLoc']} )
+						AND ( EXISTS ( select 1 from team left outer join em on em.em_id=team.em_id 
+												where ${parameters['teamEmRestriction']} and team.team_id=rm_team.team_id  )
+									or ${parameters['restrictToEm']} )
+						AND ${parameters['noRmAssigned']} AND ${parameters['noEmAssigned']} AND ${parameters['teamRestriction']} 
+						and team_properties.needs_team_space=1 
+		</sql>
+        <table name="rm_team"/>
+        <field name="bl_id" dataType="text"/>
+        <field name="team_id" dataType="text"/>
+        <parameter name="commonParameters" dataType="verbatim" value="2=2"/>
+        <parameter name="dv_id" dataType="verbatim" value="1=1"/>
+        <parameter name="dp_id" dataType="verbatim" value="1=1"/>
+        <parameter name="bl_id" dataType="verbatim" value="1=1"/>
+        <parameter name="fl_id" dataType="verbatim" value="1=1"/>
+        <parameter name="rm_id" dataType="verbatim" value="1=1"/>
+        <parameter name="rm_cat" dataType="verbatim" value="1=1"/>
+        <parameter name="rm_type" dataType="verbatim" value="1=1"/>
+        <parameter name="rm_std" dataType="verbatim" value="1=1"/>
+        <parameter name="occupancy" dataType="verbatim" value="1=1"/>
+        <parameter name="organizationUnassigned" dataType="verbatim" value="1=1"/>
+        <parameter name="typeUnassigned" dataType="verbatim" value="1=1"/>
+        <parameter name="totalArea" dataType="verbatim" value="1=1"/>
+        <parameter name="teamRmRestriction" dataType="verbatim" value="6=6"/>
+        <parameter name="teamEmRestriction" dataType="verbatim" value="6=6"/>
+        <parameter name="teamRestriction" dataType="verbatim" value="6=6"/>
+        <parameter name="restrictToLoc" dataType="verbatim" value="1=1"/>
+        <parameter name="restrictToEm" dataType="verbatim" value="1=1"/>
+        <parameter name="noRmAssigned" dataType="verbatim" value="1=1"/>
+        <parameter name="noEmAssigned" dataType="verbatim" value="1=1"/>
+		<sortField table="rm_team" name="bl_id" />
+    </dataSource>
+
+    <dataSource id="teamFloorDS" distinct="true">
+		<sql dialect="generic">
+			SELECT DISTINCT rm_team.team_id, rm.bl_id, rm.fl_id, rm.dwgname 
+			FROM rm_team
+				left outer join rm on rm.bl_id = rm_team.bl_id AND rm.fl_id = rm_team.fl_id AND rm.rm_id = rm_team.rm_id  
+				left outer join dv on rm.dv_id=dv.dv_id
+				left outer join dp on rm.dv_id=dp.dv_id and rm.dp_id=dp.dp_id 
+				left outer join rmcat on rm.rm_cat=rmcat.rm_cat 
+				left outer join rmtype on rm.rm_cat=rmtype.rm_cat  and rm.rm_type=rmtype.rm_type
+				left outer join team_properties on rm_team.team_id=team_properties.team_id 
+			WHERE ( ${parameters['commonParameters']} and ${parameters['teamRmRestriction']} or ${parameters['restrictToLoc']} )
+						AND ( EXISTS ( select 1 from team left outer join em on em.em_id=team.em_id 
+												where ${parameters['teamEmRestriction']} and team.team_id=rm_team.team_id  )
+									or ${parameters['restrictToEm']} )
+						AND ${parameters['noRmAssigned']} AND ${parameters['noEmAssigned']} AND ${parameters['teamRestriction']}
+						AND rm_team.team_id=${parameters['teamId']}
+						and team_properties.needs_team_space=1 
+		</sql>
+        <table name="rm_team"/>
+        <field name="bl_id" dataType="text"/>
+        <field name="fl_id" dataType="text"/>
+        <field name="dwgname" dataType="text"/>
+        <field name="team_id" dataType="text"/>
+        <parameter name="commonParameters" dataType="verbatim" value="2=2"/>
+        <parameter name="dv_id" dataType="verbatim" value="1=1"/>
+        <parameter name="dp_id" dataType="verbatim" value="1=1"/>
+        <parameter name="bl_id" dataType="verbatim" value="1=1"/>
+        <parameter name="fl_id" dataType="verbatim" value="1=1"/>
+        <parameter name="rm_id" dataType="verbatim" value="1=1"/>
+        <parameter name="rm_cat" dataType="verbatim" value="1=1"/>
+        <parameter name="rm_type" dataType="verbatim" value="1=1"/>
+        <parameter name="rm_std" dataType="verbatim" value="1=1"/>
+        <parameter name="occupancy" dataType="verbatim" value="1=1"/>
+        <parameter name="organizationUnassigned" dataType="verbatim" value="1=1"/>
+        <parameter name="typeUnassigned" dataType="verbatim" value="1=1"/>
+        <parameter name="totalArea" dataType="verbatim" value="1=1"/>
+        <parameter name="teamRmRestriction" dataType="verbatim" value="6=6"/>
+        <parameter name="teamEmRestriction" dataType="verbatim" value="6=6"/>
+        <parameter name="teamRestriction" dataType="verbatim" value="6=6"/>
+        <parameter name="restrictToLoc" dataType="verbatim" value="1=1"/>
+        <parameter name="restrictToEm" dataType="verbatim" value="1=1"/>
+        <parameter name="noRmAssigned" dataType="verbatim" value="1=1"/>
+        <parameter name="noEmAssigned" dataType="verbatim" value="1=1"/>
+        <parameter name="teamId" dataType="text" value="1"/>
+    </dataSource>
+
+    <dataSource id="abSpConsoleTeamMetricDefDs">
+        <table name="afm_metric_definitions" role="main"/>
+        <field name="report_limit_low_crit"/>
+        <field name="report_limit_low_warn"/>
+        <field name="report_limit_high_warn"/>
+        <field name="report_limit_high_crit"/>
+        <restriction type="sql" sql="metric_name='spac_Team_Ratio_Percent_Target'"/>
+    </dataSource>
+
+	<dataSource id="teamStatisticRowDS">
+        <table name="team_properties"/>
+        <field name="team_id" table="team_properties"/>
+        <field name="team_name" table="team_properties"/>
+        <field table="team_properties" name="vf_cap_em" dataType="integer">
+			<title>Capacity</title>
+			<sql dialect="generic">
+				(	( select sum( rm.cap_em) from rm left outer join rm_team on rm.rm_id=rm_team.rm_id and rm.fl_id=rm_team.fl_id and rm.bl_id=rm_team.bl_id 
+														where rm_team.team_id = team_properties.team_id
+																and (rm_team.date_start is null or ${sql.yearMonthDayOf('rm_team.date_start')} &lt;= ${parameters['asOfDate']})
+																and (rm_team.date_end is null or ${sql.yearMonthDayOf('rm_team.date_end')} &gt;= ${parameters['asOfDate']}) 
+					) 
+					- 
+					( select count( em.em_id) from em left outer join rm_team on em.rm_id=rm_team.rm_id and em.fl_id=rm_team.fl_id and em.bl_id=rm_team.bl_id 
+														where rm_team.team_id = team_properties.team_id
+																and (rm_team.date_start is null or ${sql.yearMonthDayOf('rm_team.date_start')} &lt;= ${parameters['asOfDate']})
+																and (rm_team.date_end is null or ${sql.yearMonthDayOf('rm_team.date_end')} &gt;= ${parameters['asOfDate']}) 
+					) 
+				) 
+			</sql>
+        </field>
+        <field table="team_properties" name="vf_em_count" dataType="number" size="8" decimals="2">
+			<title>Headcount</title>
+			<sql dialect="generic">
+				( select sum(team.pct_time/100.00) from team where team.team_id = team_properties.team_id
+																						and (team.date_start is null or ${sql.yearMonthDayOf('team.date_start')} &lt;= ${parameters['asOfDate']})
+																						and (team.date_end is null or ${sql.yearMonthDayOf('team.date_end')} &gt;= ${parameters['asOfDate']}) 
+																						and team.em_id is not null 
+				) 
+			</sql>
+        </field>
+        <field name="em_seat_ratio_tgt" table="team_properties"/>
+
+        <restriction type="sql" sql="  team_properties.team_id=${parameters['teamId']} and team_properties.needs_team_space=1 "/> 
+        <parameter name="teamId" dataType="text" value=""/>
+        <parameter name="asOfDate" dataType="text" value=""/>
+		<sortField name="team_id"/>
+    </dataSource>
+</view>

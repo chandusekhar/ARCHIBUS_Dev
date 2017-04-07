@@ -1,0 +1,145 @@
+<view version="2.0">
+	<dataSource id="abPmRptEqMaintHistChlineGroupingAxisDS" type="grouping">
+		<table name="afm_cal_dates" />
+		<field name="month" groupBy="true" dataType="text" formula="month" baseField="afm_cal_dates.cal_date">
+			<title translatable="true">Month</title>
+		</field>
+		<restriction type="sql" 
+			sql="${sql.yearMonthDayOf('cal_date')} &gt;= ${parameters['dateStart']} AND ${sql.yearMonthDayOf('cal_date')} &lt;= ${parameters['dateEnd']}" />
+		<parameter name="dateStart" dataType="text" value="2010-01-01" />
+		<parameter name="dateEnd" dataType="text" value="2010-12-31" />
+		<sortField table="afm_cal_dates" name="cal_date" ascending="true" />
+	</dataSource>
+	
+	<dataSource id="abPmRptEqMaintHistChlineDataAxisDS" type="grouping">
+		<sql dialect="generic">
+			(SELECT 
+				  eq.eq_std ${sql.as} eq_std,
+				  case when wrhwr.cost_total &lt;=0 then 0 else SUM(wrhwr.cost_total) end ${sql.as} month_value
+				  FROM wrhwr JOIN eq on wrhwr.eq_id=eq.eq_id 
+				  WHERE   
+						 wrhwr.status NOT IN ('Rej','Can')  
+						AND ${sql.yearMonthOf("wrhwr.date_completed")}=${parameters['summaryValueForThisGroup']}  
+						AND  ${parameters['parentRestriction']}  
+			  	 group by eq.eq_std,wrhwr.cost_total 
+				) 
+		</sql>	
+		<table name="wrhwr" role="main"/>
+		<field table="wrhwr" name="eq_std"  dataType="verbatim" groupBy="true"  />
+	        <field table="wrhwr" name="sum_cost_total" formula="sum" baseField="wrhwr.month_value" dataType="number"  size="6" decimals="2"/>
+		
+		<parameter name="summaryValueForThisGroup" dataType="text" value="" />
+		<parameter name="parentRestriction" dataType="verbatim" value=" 1=1 " />
+		
+		<sortField name="eq_std" table="wrhwr" ascending="false"/>
+	</dataSource>
+
+	<panel id="abPmRptEqMaintHistChlineByMonthChart" type="chart" showLegendOnLoad="false" controlType="lineChart" legendLocation="right" showOnLoad="true"  >
+		<title translatable="true">Equipment History by Equipment Standards</title>
+		<action id="crossTable"  imageName="/schema/ab-system/graphics/ab-icon-report.gif">
+			<tooltip  translatable="true">Report</tooltip>
+			<command type="openDialog" viewName="ab-pm-rpt-eq-maint-hist-cht-line-cross-dash.axvw"/>
+		</action>  
+		<event type="onClickItem">                 
+			<command type="callFunction" functionName="onEqHisLineChartClick"/>
+		</event>
+		<groupingAxis table="afm_cal_dates" field="month" dataSource="abPmRptEqMaintHistChlineGroupingAxisDS">
+			<title translatable="true">Month</title>
+		</groupingAxis>
+		<secondaryGroupingAxis table="wrhwr" field="eq_std" dataSource="abPmRptEqMaintHistChlineDataAxisDS" />
+		<dataAxis  table="wrhwr" field="sum_cost_total" dataSource="abPmRptEqMaintHistChlineDataAxisDS">
+		</dataAxis>
+	</panel>	
+	
+    <dataSource id="abPmRptEqMmaintHistChlineGridDS">
+        <table name="wrhwr" role="main"/>
+        <table name="eq" role="standard"/>
+        <field table="eq" name="eq_std"/>
+        <field table="wrhwr" name="wr_id"/>
+        <field table="wrhwr" name="prob_type"/>
+        <field table="wrhwr" name="cost_total"/>
+        <field table="wrhwr" name="act_labor_hours"/>
+        <field table="wrhwr" name="down_time"/>
+        <field table="wrhwr" name="date_requested"/>
+        <field table="wrhwr" name="date_completed"/>
+        <field table="wrhwr" name="wo_id"/>
+        <field table="wrhwr" name="cause_type"/>
+        <field table="wrhwr" name="repair_type"/>
+        <field table="wrhwr" name="pmp_id"/>
+        <field table="wrhwr" name="cf_notes"/>
+        <field table="wrhwr" name="description"/>
+        <field table="wrhwr" name="eq_id"/>
+        <restriction type="sql" sql="wrhwr.eq_id IS NOT NULL  
+							AND  ${sql.yearMonthOf('wrhwr.date_completed')} = ${parameters['selectedMonth']}  
+							 "/>
+	<parameter name="selectedMonth" dataType="text" value="2002-01"/>
+    </dataSource>
+
+    <panel type="grid" id="eq_main_hwr_detail" dataSource="abPmRptEqMmaintHistChlineGridDS" showOnLoad="false">
+        <title translatable="true">View Maintenance History</title>
+        <sortField table="wrhwr" name="eq_id" ascending="true"/>
+        <sortField table="wrhwr" name="wr_id" ascending="true"/>
+        <field table="wrhwr" name="eq_id"/>
+        <field table="eq" name="eq_std"/>
+	<field table="wrhwr" name="cost_total"/>
+        <field table="wrhwr" name="wr_id"/>
+        <field table="wrhwr" name="prob_type"/>
+        <field table="wrhwr" name="act_labor_hours"/>
+        <field table="wrhwr" name="down_time"/>
+        <field table="wrhwr" name="date_requested"/>
+        <field table="wrhwr" name="date_completed"/>
+        <field table="wrhwr" name="wo_id"/>
+        <field table="wrhwr" name="cause_type"/>
+        <field table="wrhwr" name="repair_type"/>
+        <field table="wrhwr" name="pmp_id"/>
+        <field table="wrhwr" name="cf_notes"/>
+        <field table="wrhwr" name="description"/>
+    </panel>
+
+	<dataSource id="abPmRptEqMaintHistChlineByStdGroupingAxisDS" type="grouping">
+		<table name="afm_cal_dates" />
+		<field name="month" groupBy="true" dataType="text" formula="month" baseField="afm_cal_dates.cal_date">
+			<title translatable="true">Month</title>
+		</field>
+		<restriction type="sql" 
+			sql="${sql.yearMonthDayOf('cal_date')} &gt;= ${parameters['dateStart']} AND ${sql.yearMonthDayOf('cal_date')} &lt;= ${parameters['dateEnd']}" />
+		<parameter name="dateStart" dataType="text" value="2010-01-01" />
+		<parameter name="dateEnd" dataType="text" value="2010-12-31" />
+		<sortField table="afm_cal_dates" name="cal_date" ascending="true" />
+	</dataSource>
+	
+	<dataSource id="abPmRptEqMaintHistChlineByStdDataAxisDS" type="grouping">
+		<sql dialect="generic">
+			(SELECT 
+				  wrhwr.eq_id ${sql.as} eq_id,
+				  case when wrhwr.cost_total &lt;=0 then 0 else SUM(wrhwr.cost_total) end ${sql.as} month_value
+				  FROM wrhwr JOIN eq on wrhwr.eq_id=eq.eq_id 
+				  WHERE   
+						 wrhwr.status NOT IN ('Rej','Can')  
+						AND ${sql.yearMonthOf("wrhwr.date_completed")}=${parameters['summaryValueForThisGroup']}  
+						AND  ${parameters['parentRestriction']}  
+			  	 group by wrhwr.eq_id ,wrhwr.cost_total 
+				) 
+		</sql>	
+		<table name="wrhwr" role="main"/>
+		<field table="wrhwr" name="eq_id"  dataType="verbatim" groupBy="true"  />
+	        <field table="wrhwr" name="sum_cost_total" formula="sum" baseField="wrhwr.month_value" dataType="number"  size="6" decimals="2"/>
+		
+		<parameter name="summaryValueForThisGroup" dataType="text" value="" />
+		<parameter name="parentRestriction" dataType="verbatim" value=" 1=1 " />
+		
+		<sortField name="eq_id" table="wrhwr" ascending="false"/>
+	</dataSource>
+
+	<panel id="abPmRptEqMaintHistChlineByMonthByEqChart" type="chart" showLegendOnLoad="false" controlType="lineChart" legendLocation="right" showOnLoad="false"  >
+		<groupingAxis table="afm_cal_dates" field="month" dataSource="abPmRptEqMaintHistChlineByStdGroupingAxisDS">
+			<title translatable="true">Date</title>
+		</groupingAxis>
+		<secondaryGroupingAxis table="wrhwr" field="eq_id" dataSource="abPmRptEqMaintHistChlineByStdDataAxisDS" />
+		<dataAxis  table="wrhwr" field="sum_cost_total" dataSource="abPmRptEqMaintHistChlineByStdDataAxisDS">
+		</dataAxis>
+	</panel>	
+
+	<js file="ab-pm-rpt-eq-maint-hist-cht-line-dash.js"/>
+	<js file="ab-bldgops-report-common.js" />
+</view>

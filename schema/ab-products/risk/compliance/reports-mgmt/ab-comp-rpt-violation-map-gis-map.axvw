@@ -1,0 +1,253 @@
+<view version="2.0">
+    <!-- esri js library (required) -->
+    <js url="//js.arcgis.com/3.9/"/>
+    <css url="//js.arcgis.com/3.9/js/esri/css/esri.css" />
+    <!-- ab core map control (required) -->
+    <js file="ab-arcgis-map.js"/>
+    <css file="ab-arcgis-map.css"/>
+    <js file="colorbrewer.js"/>
+
+
+    <js file="ab-comp-gis-map-common.js"/>
+	<js file="ab-comp-rpt-violation-map-gis-map.js"/>
+	<style type="text/css">
+		.x-layer[style]{width: auto !important;}
+	</style>
+
+	<message name="not_geocoded" translatable="true">You have selected at least one item that is not geocoded. Non-geocoded items will not be shown on the map.</message>
+	<message name="makerSize" translatable="true">Marker Size by</message>
+	<message name="makerColor" translatable="true">Marker Color by</message>
+	<message name="makerColorMethod" translatable="true">Marker Color Method</message>
+	<message name="minThreshold" translatable="true">Minimum Threshold</message>
+	<message name="location" translatable="true">Location Level</message>
+	<message name="option_none" translatable="true">None</message>
+	<message name="option_violation_count" translatable="true">Violation Count</message>
+	<message name="option_violation_amount" translatable="true">Violation Cost</message>
+    
+	<message name="option_violation_severity" translatable="true">Violation Severity</message>
+	<message name="option_level_severity" translatable="true">Compliance Level+Severity</message>
+	<message name="option_severity_priority" translatable="true">Severity+Compliance Priority</message>
+	<message name="option_severity_rank" translatable="true">Severity+Regulation Rank</message>
+    <message name="option_level_priority" translatable="true">Level+Priority</message>
+
+	<message name="option_average_value" translatable="true">Average Value</message>
+	<message name="option_highest_count" translatable="true">Highest Count</message>
+	<message name="option_highest_value" translatable="true">Highest Risk</message>
+	<message name="option_lowest_value" translatable="true">Lowest Risk</message>
+
+	<message name="option_country" translatable="true">Country</message>
+	<message name="option_region" translatable="true">Region</message>
+	<message name="option_state" translatable="true">State</message>
+	<message name="option_city" translatable="true">City</message>
+	<message name="option_county" translatable="true">County</message>
+	<message name="option_site" translatable="true">Site</message>
+	<message name="option_property" translatable="true">Property</message>
+	<message name="option_building" translatable="true">Building</message>
+    
+    <message name="restoreText" translatable="true">Restore this view</message>
+    <message name="maximizedText" translatable="true">Maximize this view</message>
+    
+    <message name="colorLegend" translatable="true">Color Legend</message>
+    <message name="color1" translatable="true">1-Bright Red (Highest Risk)</message>
+    <message name="color2" translatable="true">2-Dark Red</message>
+    <message name="color3" translatable="true">3-Orange</message>
+    <message name="color4" translatable="true">4-Yellow</message>
+    <message name="color5" translatable="true">5-Brown</message>
+    <message name="color6" translatable="true">6-Purple</message>
+    <message name="color7" translatable="true">7-Light Blue</message>
+    <message name="color8" translatable="true">8-Blue</message>
+    <message name="color9" translatable="true">9-Green (Lowest Risk)</message>
+    <message name="labelShowDetails" translatable="true">Show Details</message>
+    
+    <message name="LowestRisk" translatable="true">Lowest Risk</message>
+    <message name="LowRisk" translatable="true">Low Risk</message>
+    <message name="MediumRisk" translatable="true">Medium Risk</message>
+    <message name="HighRisk" translatable="true">High Risk</message>
+    <message name="HighestRisk" translatable="true">Highest Risk</message>
+
+	<dataSource id="dsBuilding">
+		<sql dialect="generic">
+			SELECT ${parameters['groupField']} ${sql.as} groupField,
+			${parameters['sizeField']} ${sql.as} sizeField,
+			${parameters['colorField']} ${sql.as} colorField,
+			avg(compliance_locations.lat) ${sql.as} lat,
+			avg(compliance_locations.lon) ${sql.as} lon,
+            ${parameters['violationSeverity']} ${sql.as} violationSeverity,
+			${parameters['complianceLevelField']} ${sql.as} complianceLevelField,
+			${parameters['compliancePriorityField']} ${sql.as} compliancePriorityField,
+            count(distinct regviolation.violation_num) ${sql.as} violation_count,
+			count(distinct regviolation.regulation) ${sql.as} regulation_count,
+			count(distinct regviolation.reg_program) ${sql.as} program_count,
+			count(distinct regviolation.reg_requirement) ${sql.as} regcomp_count,
+            ${parameters['regulationRankField']} ${sql.as} regulationRankField
+			FROM regviolation
+              LEFT OUTER JOIN regulation ON regulation.regulation = regviolation.regulation
+              LEFT OUTER JOIN regprogram ON regprogram.reg_program =  regviolation.reg_program and regprogram.regulation = regviolation.regulation
+              LEFT OUTER JOIN regrequirement on regrequirement.reg_requirement = regviolation.reg_requirement 
+                  and regrequirement.regulation =  regviolation.regulation
+                  and regrequirement.reg_program = regviolation.reg_program
+              LEFT OUTER JOIN compliance_locations on compliance_locations.location_id = regviolation.location_id
+              LEFT OUTER JOIN regcomplevel on regcomplevel.comp_level = regprogram.comp_level
+            where regviolation.location_id IS NOT NULL       
+            and ${parameters["treeConsoleRestriction"]}                           
+			group by ${parameters['groupField']}
+        </sql>
+        <parameter name="groupField" dataType="verbatim" value="compliance_locations.site_id"/>
+        <parameter name="sizeField" dataType="verbatim" value="count(regviolation.violation_num)"/>
+        <parameter name="colorField" dataType="verbatim" value="1"/>
+        <parameter name="violationSeverity" dataType="verbatim" value="1"/>
+        <parameter name="complianceLevelField" dataType="verbatim" value="1"/>
+        <parameter name="compliancePriorityField" dataType="verbatim" value="1"/>
+        <parameter name="regulationRankField" dataType="verbatim" value="1"/>
+        
+        <parameter name="treeConsoleRestriction" dataType="verbatim" value=" 1=1"/>
+        
+		<table name="regviolation" role="main"/>
+		<field name="groupField" dataType="text">
+            <title>Site Code</title>
+        </field>
+		<field name="sizeField" dataType="number" />
+        <field name="colorField" dataType="text"/>
+		<field name="lat" dataType="number" decimals="16"/>
+		<field name="lon" dataType="number" decimals="16"/>
+		
+        <field name="violationSeverity" dataType="text">
+            <title>Violation Severity</title>
+        </field>
+		<field name="complianceLevelField" dataType="text">
+		    <title>Compliance Level</title>
+		</field>
+		<field name="compliancePriorityField" dataType="text">
+		    <title>Compliance Priority</title>
+		</field>
+		<field name="regulationRankField" dataType="text">
+		    <title>Regulation Rank</title>
+		</field>
+		
+        <field name="violation_count" dataType="number" decimals="0">
+            <title>Violations Count</title>
+        </field>
+		<field name="regulation_count" dataType="number" decimals="0">
+		    <title>Regulations Count</title>
+		</field>
+		<field name="program_count" dataType="number" decimals="0">
+		    <title>Programs Count</title>
+		</field>
+		<field name="regcomp_count" dataType="number" decimals="0">
+		    <title>Requirements Count</title>
+		</field>
+	</dataSource>
+
+	<panel type="html" id="htmlMap" dataSource="dsBuilding">
+		<title></title>
+        <action id="basemapLayerMenu" type="menu" imageName="/schema/ab-core/graphics/icons/view/ab-arcgis-basemap-16.png">
+          <title translatable="true">Basemaps</title>
+        </action>
+		<html>
+			<div id="objMap" style="border:1px solid #000;">
+			</div>
+		</html>
+	</panel>
+    
+    <dataSource id="higestCountCalculationDS">
+        <sql dialect="generic">
+            select calcField from 
+              (select top 1 ${parameters['fieldName']} ${sql.as} calcField
+                  FROM regviolation
+                  LEFT OUTER JOIN regulation ON regulation.regulation = regviolation.regulation
+                  LEFT OUTER JOIN regprogram ON regprogram.reg_program =  regviolation.reg_program and regprogram.regulation = regviolation.regulation
+                  LEFT OUTER JOIN regrequirement on regrequirement.reg_requirement = regviolation.reg_requirement 
+                      and regrequirement.regulation =  regviolation.regulation
+                      and regrequirement.reg_program = regviolation.reg_program
+                  LEFT OUTER JOIN compliance_locations on compliance_locations.location_id = regviolation.location_id
+                  LEFT OUTER JOIN regcomplevel on regcomplevel.comp_level = regprogram.comp_level
+                 where ${parameters['locationRestriction']}
+                 group by ${parameters['fieldName']} order by count(*) desc ) a
+        </sql>
+        <sql dialect="oracle">
+            select calcField from 
+              (select ${parameters['fieldName']} ${sql.as} calcField
+                  FROM regviolation
+                  LEFT OUTER JOIN regulation ON regulation.regulation = regviolation.regulation
+                  LEFT OUTER JOIN regprogram ON regprogram.reg_program =  regviolation.reg_program and regprogram.regulation = regviolation.regulation
+                  LEFT OUTER JOIN regrequirement on regrequirement.reg_requirement = regviolation.reg_requirement 
+                      and regrequirement.regulation =  regviolation.regulation
+                      and regrequirement.reg_program = regviolation.reg_program
+                  LEFT OUTER JOIN compliance_locations on compliance_locations.location_id = regviolation.location_id
+                  LEFT OUTER JOIN regcomplevel on regcomplevel.comp_level = regprogram.comp_level
+                 where ${parameters['treeConsoleRestriction']}  and ${parameters['locationRestriction']}
+                 group by ${parameters['fieldName']} order by count(*) desc ) a
+            where rownum = 1
+        </sql>
+        <parameter name="fieldName" dataType="verbatim" value="regulation.reg_rank"/>
+        <parameter name="treeConsoleRestriction" dataType="verbatim" value=" 1=1 "/>
+        <parameter name="locationRestriction" dataType="verbatim" value=" 1=1 "/>
+        
+        <table name="regloc" role="main"/>
+        <field name="calcField" dataType="text"/>
+    </dataSource>
+    
+    <dataSource id="higestAndLowestValueCalculationDS">
+        <sql dialect="generic">
+            select calcField
+             from (select top 1 ${parameters['fieldName']} ${sql.as} calcField
+                  FROM regviolation
+                  LEFT OUTER JOIN regulation ON regulation.regulation = regviolation.regulation
+                  LEFT OUTER JOIN regprogram ON regprogram.reg_program =  regviolation.reg_program and regprogram.regulation = regviolation.regulation
+                  LEFT OUTER JOIN regrequirement on regrequirement.reg_requirement = regviolation.reg_requirement 
+                      and regrequirement.regulation =  regviolation.regulation
+                      and regrequirement.reg_program = regviolation.reg_program
+                  LEFT OUTER JOIN compliance_locations on compliance_locations.location_id = regviolation.location_id
+                  LEFT OUTER JOIN regcomplevel on regcomplevel.comp_level = regprogram.comp_level
+                 where ${parameters['treeConsoleRestriction']}  and ${parameters['locationRestriction']}
+                 group by ${parameters['fieldName']} having 
+                  (100.0 * count(*) / (select count(*)
+                          from regviolation
+                          LEFT OUTER JOIN regulation ON regulation.regulation = regviolation.regulation
+                          LEFT OUTER JOIN regprogram ON regprogram.reg_program =  regviolation.reg_program and regprogram.regulation = regviolation.regulation
+                          LEFT OUTER JOIN regrequirement on regrequirement.reg_requirement = regviolation.reg_requirement 
+                              and regrequirement.regulation =  regviolation.regulation
+                              and regrequirement.reg_program = regviolation.reg_program
+                          LEFT OUTER JOIN compliance_locations on compliance_locations.location_id = regviolation.location_id
+                          LEFT OUTER JOIN regcomplevel on regcomplevel.comp_level = regprogram.comp_level
+                          where ${parameters['treeConsoleRestriction']}  and ${parameters['locationRestriction']})
+                  )> ${parameters['minThreshold']}
+                 order by ${parameters['fieldName']} ${parameters['desc']}) a
+        </sql>
+        <sql dialect="oracle">
+             select calcField
+             from (select ${parameters['fieldName']} ${sql.as} calcField
+                  FROM regviolation
+                  LEFT OUTER JOIN regulation ON regulation.regulation = regviolation.regulation
+                  LEFT OUTER JOIN regprogram ON regprogram.reg_program =  regviolation.reg_program and regprogram.regulation = regviolation.regulation
+                  LEFT OUTER JOIN regrequirement on regrequirement.reg_requirement = regviolation.reg_requirement 
+                      and regrequirement.regulation =  regviolation.regulation
+                      and regrequirement.reg_program = regviolation.reg_program
+                  LEFT OUTER JOIN compliance_locations on compliance_locations.location_id = regviolation.location_id
+                  LEFT OUTER JOIN regcomplevel on regcomplevel.comp_level = regprogram.comp_level
+                 where ${parameters['treeConsoleRestriction']}  and ${parameters['locationRestriction']}
+                 group by ${parameters['fieldName']} having 
+                  (100.0 * count(*) / (select count(*)
+                          from regviolation
+                          LEFT OUTER JOIN regulation ON regulation.regulation = regviolation.regulation
+                          LEFT OUTER JOIN regprogram ON regprogram.reg_program =  regviolation.reg_program and regprogram.regulation = regviolation.regulation
+                          LEFT OUTER JOIN regrequirement on regrequirement.reg_requirement = regviolation.reg_requirement 
+                              and regrequirement.regulation =  regviolation.regulation
+                              and regrequirement.reg_program = regviolation.reg_program
+                          LEFT OUTER JOIN compliance_locations on compliance_locations.location_id = regviolation.location_id
+                          LEFT OUTER JOIN regcomplevel on regcomplevel.comp_level = regprogram.comp_level
+                          where ${parameters['treeConsoleRestriction']}  and ${parameters['locationRestriction']})
+                  )> ${parameters['minThreshold']}
+                 order by ${parameters['fieldName']}  ${parameters['desc']}) a
+             where rownum = 1
+        </sql>
+        <parameter name="fieldName" dataType="verbatim" value="regulation.reg_rank"/>
+        <parameter name="treeConsoleRestriction" dataType="verbatim" value=" 1=1 "/>
+        <parameter name="locationRestriction" dataType="verbatim" value=" 1=1 "/>
+        <parameter name="minThreshold" dataType="verbatim" value=" 0 "/>
+        <parameter name="desc" dataType="verbatim" value=" desc "/>
+        
+        <table name="regloc" role="main"/>
+        <field name="calcField" dataType="text"/>
+    </dataSource>
+</view>

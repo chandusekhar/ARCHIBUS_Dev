@@ -1,0 +1,117 @@
+<view version="2.0">
+<!--  Change Log -->
+<!--  2011/11/23 - EWONG - Removed Com/Clo/FWC status. Added restriction console.  -->
+
+<designInfo type="report" pattern="ab-viewdef-report-drilldown" isAlterable="false"/>
+
+	<title translatable="true">Work Requests by Trade and Building</title>
+
+	<layout file="console-small.axvw" />
+
+	<dataSource id="consoleDS">
+		<table name="wr" role="main" />
+		<field table="wr" name="prob_type" />
+        <field table="wr" name="bl_id" />
+        <field table="wr" name="tr_id" />
+        <field table="wr" name="date_requested" />
+	</dataSource>
+
+	<panel type="console" columns="3" id="requestConsole"
+		dataSource="consoleDS" region="north">
+		<title translatable="true">Filter</title>
+		<action id="filter">
+			<title translatable="true">Show</title>
+			<command type="callFunction"
+				functionName="apply_console_restriction()" />
+		</action>
+		<action id="clear">
+			<title translatable="true">Clear</title>
+			<command type="clearForm"
+				panelId="reportPanel" />
+		</action>
+		<field table="wr" name="tr_id"><title>Work Unit</title></field>
+		<field table="wr" name="bl_id"/>
+		<field table="wr" name="bl_id" alias="wr.zone_id" size="1">
+			<title>Zone</title>
+			<action id="zoneSelVal">
+				<title>...</title>
+				<tooltip>Select Zone</tooltip>
+				<command type="selectValue"
+					fieldNames="wr.zone_id"
+					selectFieldNames="zones.zone_id"
+					visibleFieldNames="zones.zone_id,zones.name" />
+			</action>
+		</field>
+
+		<field table="wr" name="date_requested" alias="wr.date_requested.from" >
+			<title>Date From</title>
+		</field>
+		<field table="wr" name="date_requested" alias="wr.date_requested.to" >
+			<title>To</title>
+		</field>
+	</panel>
+
+	<dataSource id="crossTableDS" type="grouping">
+		<table name="wr" role="main" />
+		<query>
+			<sql dialect="sqlserver">
+			SELECT wr.*, CASE WHEN (status NOT IN ('Com','Clo','FWC') AND DATEDIFF(d, wr.date_requested, GETDATE()) &gt; 30) THEN 1 ELSE NULL END AS overdue, CASE WHEN prob_type = 'PREVENTIVE MAINT' THEN 1 ELSE NULL END AS is_pm, CASE WHEN prob_type = 'PREVENTIVE MAINT' THEN NULL ELSE 1 END AS is_od FROM wr
+			</sql>
+		</query>
+		<!--sortField name="tr_id" table="wr" ascending="true" />
+		<sortField name="bl_id" table="wr" ascending="true" /-->
+
+		<field name="tr_id"  groupBy="true" dataType="text"
+			table="wr">
+			<title translatable="true">Work Unit</title>
+		</field>
+
+		<field name="bl_id"  groupBy="true" dataType="text"
+			table="wr">
+			<title translatable="true">Building</title>
+		</field>
+
+		<field name="wrcnt" baseField="wr.wr_id" dataType="number"
+			 formula="count" decimals="0" >
+			 <title>Total Req.</title>
+		</field>
+
+
+		<field name="wrpm" baseField="wr.is_pm" dataType="number"
+			 formula="sum" decimals="0" >
+			 <title>Prev. Maint.</title>
+		</field>
+
+
+		<field name="wrod" baseField="wr.is_od" dataType="number"
+			 formula="sum" decimals="0" >
+			 <title>On Demand</title>
+		</field>
+
+		<field name="wrover" baseField="wr.overdue" dataType="number"
+			 formula="sum" decimals="0" >
+			 <title>Overdue</title>
+		</field>
+
+		<field name="separate" table="wrcf" formula="max" dataType="text" size="1">
+			<title translatable="true"></title>
+			<sql dialect="sqlserver">' '</sql>
+		</field>
+	</dataSource>
+
+	<panel id="reportPanel" type="crossTable" dataSource="crossTableDS" region="center">
+		<event type="onClickItem">
+			<command type="callFunction" functionName="onCrossTableClick"/>
+		</event>
+		<action id="exportXLS">
+			<title>XLS</title>
+			<command type="exportPanel" outputType="xls" panelId="reportPanel"/>
+		</action>
+		<action id="exportPDF">
+			<title>PDF</title>
+			<command type="exportPanel" outputType="pdf" panelId="reportPanel"/>
+		</action>
+	</panel>
+
+	<js file="uc-ondemand-report-wr-by-tr-by-bl.js" />
+</view>

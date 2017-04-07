@@ -1,0 +1,373 @@
+<view version="2.0">
+	<title translatable="true">Details</title>
+
+	<message name="text_no_image" translatable="true">No Image Available</message>
+    <message name="exchangeRateInstructions" translatable="true">Note: For Lease Costs reporting consistency Lease Costs displayed are based on Total Cost values converted from the budget currency to the display currency using the Exchange Rate Type: Budget Rate. These values may differ from the original cost values displayed on the overview panel depending on user currency and conversion selections.</message>
+    <message name="Budget" translatable="true">Budget Rate</message>
+    <message name="Payment" translatable="true">Payment Rate</message>
+    <message name="total" translatable="true">Total Cost</message>
+    <message name="vat" translatable="true">VAT Only</message>
+    <message name="base" translatable="true">Base Cost</message>
+
+	<dataSource id="abRepmLsadminPrAbstractDetails_ds">
+		<table name="property" role="main"/>
+		<field table="property" name="prop_photo"/>
+		<field table="property" name="pr_id"/>
+		<field table="property" name="ctry_id"/>
+		<field table="property" name="name"/>
+		<field table="property" name="regn_id"/>
+		<field table="property" name="description"/>
+		<field table="property" name="state_id"/>
+		<field name="address" dataType="text">
+            <title>Address</title>
+            <sql dialect="generic">
+                ((CASE WHEN property.address1 IS NULL THEN '' ELSE property.address1 END)
+                    ${sql.concat}(CASE WHEN property.address1 IS NULL OR property.address2 IS NULL THEN '' ELSE ', ' END)
+                   ${sql.concat}(CASE WHEN property.address2 IS NULL THEN '' ELSE property.address2 END))            
+            </sql>
+        </field>
+		<field table="property" name="city_id"/>
+		<field name="status" dataType="text">
+            <title>Status</title>
+            <sql dialect="generic">
+                (CASE
+                    WHEN EXISTS (SELECT 1 FROM ot WHERE ot.pr_id = property.pr_id AND ot.status = 'Owned') THEN ${(parameters['owned'])}
+                    WHEN EXISTS (SELECT 1 FROM ls WHERE  ls.use_as_template = 0 AND ls.pr_id = property.pr_id AND ls.signed = 1 AND (ls.date_end &gt;= ${sql.currentDate} OR ls.date_end IS NULL) AND ls.date_start &lt;= ${sql.currentDate}) THEN ${(parameters['leased'])}
+                    ELSE ${(parameters['neither'])}
+                END)
+            </sql>
+        </field>
+		<field table="property" name="site_id"/>
+		<field table="property" name="zip"/>
+		<field table="property" name="use1"/>
+		<field table="property" name="property_type"/>
+		<field table="property" name="int_dist"/>
+		<field table="property" name="fronts"/>
+		<field table="property" name="air_dist"/>
+		<field table="property" name="contact1"/>
+		<field table="property" name="pct_own"/>
+        <field table="property" name="contact2"/>
+        <field table="property" name="area_manual"/>
+		<field table="property" name="services"/>
+        <field table="property" name="ac_id"/>
+		<field table="property" name="zoning"/>
+		<field table="property" name="qty_occupancy"/>
+        <field table="property" name="qty_headcount"/>
+		<field table="property" name="vicinity"/>
+        <field table="property" name="qty_no_spaces"/>
+		<field table="property" name="comments"/>
+		<field name="date_purchase_ot" dataType="date">
+            <title>Purchase Date</title>
+            <sql dialect="generic">
+                (SELECT ot.date_purchase
+                    FROM ot WHERE 
+                    ot.ot_id = (SELECT MAX(x.ot_id) FROM ot x WHERE x.pr_id = property.pr_id AND x.status = 'Owned'))
+            </sql>
+        </field>
+		<field name="cost_purchase_ot" dataType="number" decimals="2" currency="${project.budgetCurrency.code}">
+            <title>Purchase Cost</title>
+            <sql dialect="generic">
+                 (SELECT ot.cost_purchase * ${parameters['exchange_rate_ot']}
+                    FROM ot WHERE 
+                    ot.ot_id = (SELECT MAX(x.ot_id) FROM ot x WHERE x.pr_id = property.pr_id AND x.status = 'Owned'))
+            </sql>
+        </field>
+		<field table="property" name="date_book_val"/>
+		<field table="property" name="value_book" dataType="number" decimals="2" currency="${project.budgetCurrency.code}">
+            <title>Value - Book</title>
+            <sql dialect="generic">
+                (property.value_book * ${parameters['exchange_rate_book']})
+            </sql>
+        </field>
+		<field table="property" name="date_market_val"/>
+		<field table="property" name="value_market" dataType="number" decimals="2" currency="${project.budgetCurrency.code}">
+            <title>Value - Market</title>
+            <sql dialect="generic">
+                (property.value_market * ${parameters['exchange_rate_book']})
+            </sql>
+        </field>
+        <field name="vf_date_sold" dataType="date">
+            <title>Date Sold</title>
+            <sql dialect="generic">
+                (SELECT ot.date_sold FROM ot
+                WHERE ot.ot_id =
+                    (SELECT MAX(ot_int.ot_id) FROM ot ${sql.as} ot_int
+                    WHERE ot_int.pr_id = property.pr_id AND ot_int.status = 'Disposed' AND ot_int.date_sold IS NOT NULL))  
+            </sql>
+        </field>
+		<field table="property" name="area_bl_est_rentable"/>
+		<field table="property" name="area_lease_meas"/>
+		<field table="property" name="area_bl_rentable"/>
+		<field table="property" name="area_lease_neg"/>
+        <field table="property" name="area_bl_gross_int"/>
+		
+		<parameter name="owned" dataType="text" value="Owned"/>
+		<parameter name="leased" dataType="text" value="Leased"/>
+		<parameter name="neither" dataType="text" value="Neither"/>
+        
+        <parameter name="exchange_rate_ot" dataType="verbatim" value="1"/>
+        <parameter name="exchange_rate_book" dataType="verbatim" value="1"/>
+        <parameter name="exchange_rate_market" dataType="verbatim" value="1"/>
+	</dataSource>
+
+	<panel type="form" id="abRepmLsadminPrAbstractDetails_propPanel" dataSource="abRepmLsadminPrAbstractDetails_ds"
+			columns="3" showOnLoad="false">
+		<title translatable="true">Property Details</title>
+		
+		<action id="paginatedReport">
+			<title translatable="true">Report</title>
+			<command type="callFunction" functionName="onReport"/>
+		</action>
+
+		<field table="property" name="prop_photo" hidden="true" displayField="image_field"/>
+		<field id="image_field" controlType="image" rowspan="15" width="250px"/>
+		<field table="property" name="pr_id" readOnly="true" required="false"/>
+		<field table="property" name="ctry_id" readOnly="true"/>
+		<field table="property" name="name" readOnly="true"/>
+		<field table="property" name="regn_id" readOnly="true"/>
+		<field table="property" name="description" readOnly="true"/>
+		<field table="property" name="state_id" readOnly="true"/>
+		<field name="address" dataType="text" readOnly="true">
+			<title translatable="true">Address</title>
+		</field>
+		<field table="property" name="city_id" readOnly="true"/>
+		<field name="status" dataType="text" readOnly="true">
+			<title translatable="true">Status</title>
+		</field>
+		<field table="property" name="site_id" readOnly="true"/>
+		<field table="property" name="zip" readOnly="true"/>
+		<field table="property" name="use1" readOnly="true"/>
+		<field table="property" name="property_type" readOnly="true"/>
+		<field table="property" name="int_dist" readOnly="true"/>
+		<field table="property" name="fronts" readOnly="true"/>
+		<field table="property" name="air_dist" readOnly="true"/>
+		<field table="property" name="contact1" readOnly="true"/>
+		<field table="property" name="pct_own" readOnly="true"/>
+        
+        <field table="property" name="contact2" readOnly="true"/>
+        <field table="property" name="area_manual" readOnly="true"/>
+        
+		<field table="property" name="services" readOnly="true"/>
+        <field table="property" name="ac_id" readOnly="true"/>
+        
+		<field table="property" name="qty_occupancy" readOnly="true"/>
+        <field table="property" name="zoning" readOnly="true"/>
+        
+        <field table="property" name="qty_headcount" readOnly="true"/>
+		<field table="property" name="vicinity" readOnly="true"/>
+        
+        <field/>
+        <field table="property" name="qty_no_spaces" readOnly="true"/>
+        
+		<field table="property" name="comments" readOnly="true" colspan="2"/>
+	</panel>
+
+	<panel type="form" id="abRepmLsadminPrAbstractDetails_valuePanel" dataSource="abRepmLsadminPrAbstractDetails_ds"
+			columns="2" showOnLoad="false" afterRefresh="formatCurrency">
+		<title translatable="true">Value</title>
+		<field name="date_purchase_ot" dataType="date" readOnly="true">
+			<title translatable="true">Date Purchased</title>
+		</field>
+		<field name="cost_purchase_ot" dataType="number" decimals="2" readOnly="true">
+			<title translatable="true">Purchase Price</title>
+		</field>
+		<field table="property" name="date_book_val" readOnly="true"/>
+		<field table="property" name="value_book" readOnly="true"/>
+		<field table="property" name="date_market_val" readOnly="true"/>
+		<field table="property" name="value_market" readOnly="true"/>
+        <field name="vf_date_sold" dataType="date" readOnly="true">
+            <title translatable="true">Date Sold</title>
+        </field>
+	</panel>
+
+	<panel type="form" id="abRepmLsadminPrAbstractDetails_areasPanel" dataSource="abRepmLsadminPrAbstractDetails_ds"
+			columns="2" showOnLoad="false">
+		<title translatable="true">Areas</title>
+        <field table="property" name="area_bl_gross_int" readOnly="true"/>
+		<field table="property" name="area_lease_meas" readOnly="true"/>
+		<field table="property" name="area_bl_est_rentable" readOnly="true"/>
+		<field table="property" name="area_lease_neg" readOnly="true"/>
+		<field table="property" name="area_bl_rentable" readOnly="true"/>
+	</panel>
+    
+    <dataSource id="abRepmLsadminPrAbstractDetails_costsPanel_ds">
+        <table name="property" role="main"/>
+        <field name="cost_operating_total"/>
+        <field name="date_costs_start"/>
+        <field name="cost_utility_total"/>
+        <field name="date_costs_end"/>
+        <field name="cost_tax_total"/>
+        <field name="date_costs_last_calcd"/>
+        <field name="cost_other_total"/>
+        <field name="net_income" dataType="number" decimals="2" currency="${project.budgetCurrency.code}">
+            <sql dialect="generic">
+                (property.cost_operating_total + property.cost_utility_total + property.cost_tax_total + property.cost_other_total)
+            </sql>
+        </field>
+        <field name="income_total"/>
+        <field name="yearly_net_income" dataType="number" decimals="2" currency="${project.budgetCurrency.code}">
+            <sql dialect="generic">
+                (property.income_total + property.cost_operating_total + property.cost_utility_total + property.cost_tax_total + property.cost_other_total)
+            </sql>
+        </field>
+    </dataSource>
+	<panel type="form" id="abRepmLsadminPrAbstractDetails_costsPanel" dataSource="abRepmLsadminPrAbstractDetails_costsPanel_ds"
+			columns="2" showOnLoad="false" afterRefresh="formatCurrency">
+		<title translatable="true">Costs</title>
+		<field id="vf_cost_operating_total">
+            <title>Expense - Oper. Total</title>
+        </field>
+		<field name="date_costs_start" readOnly="true"/>
+        
+		<field id="vf_cost_utility_total">
+            <title>Expense - Utility Total</title>
+        </field>
+		<field name="date_costs_end" readOnly="true"/>
+        
+		<field id="vf_cost_tax_total">
+            <title>Expense - Tax Total</title>
+        </field>
+		<field name="date_costs_last_calcd" readOnly="true"/>
+        
+		<field id="vf_cost_other_total">
+            <title>Expense - Other Total</title>
+        </field>
+		<field/>
+        
+		<field id="vf_net_income">
+			<title translatable="true">Expense Total</title>
+		</field>
+		<field/>
+        
+		<field id="vf_income_total">
+            <title>Income - Total</title>
+        </field>
+		<field/>
+        
+        <field id="vf_yearly_net_income">
+            <title translatable="true">Net Income</title>
+        </field>
+        <field/>
+	</panel>
+    
+    <dataSource id="abRepmLsadminPrAbstractDetails_dsEval">
+        <table name="property" role="main"/>
+        <!-- need update (tax_clr dba update) -->
+        <field name="value_assessed_prop_tax"/>
+        <field name="tax_rate_prop"/>
+        <field name="value_assessed_school_tax"/>
+        <field name="tax_rate_school"/>
+        <!-- need update -->
+        
+        <field name="value_market"/>
+        <field name="current_yearly_prop_tax" dataType="number" decimals="2" currency="${project.budgetCurrency.code}">
+            <sql dialect="generic">(property.tax_rate_prop * property.value_assessed_prop_tax)</sql>
+        </field>
+        <field name="estimated_yearly_prop_tax" dataType="number" decimals="2" currency="${project.budgetCurrency.code}">
+            <sql dialect="generic">(property.tax_rate_prop * property.value_market)</sql>
+        </field>
+        <field name="reassessments_savings_prop" dataType="number" decimals="2" currency="${project.budgetCurrency.code}">
+            <sql dialect="generic">(property.tax_rate_prop * ( property.value_assessed_prop_tax - property.value_market))</sql>
+        </field>
+        <field name="current_early_scholl_tax" dataType="number" decimals="2" currency="${project.budgetCurrency.code}">
+            <sql dialect="generic">(property.tax_rate_school * property.value_assessed_school_tax)</sql>
+        </field>
+        <field name="estimated_yearly_school_tax" dataType="number" decimals="2" currency="${project.budgetCurrency.code}">
+            <sql dialect="generic">(property.tax_rate_school * property.value_market)</sql>
+        </field>
+        <field name="reassessment_savings_school" dataType="number" decimals="2" currency="${project.budgetCurrency.code}">
+            <sql dialect="generic">(property.tax_rate_school * (property.value_assessed_school_tax - property.value_market ))</sql>
+        </field>
+    </dataSource>
+    
+    <panel type="form" id="abRepmLsadminPrAbstractDetails_taxReasEvalPanel" dataSource="abRepmLsadminPrAbstractDetails_dsEval"
+            columns="2" showOnLoad="false" afterRefresh="formatCurrency">
+        <title translatable="true">Tax Reassessment Evaluation</title>
+        <field name="value_assessed_prop_tax"/>
+        <field name="value_assessed_school_tax"/>
+        <field name="tax_rate_prop"/>
+        <field name="tax_rate_school"/>
+        <field/><field/>
+        <field name="current_yearly_prop_tax" readOnly="true">
+            <title>Current Yearly Property Tax</title>
+        </field>
+        <field name="current_early_scholl_tax" readOnly="true">
+            <title>Current Yearly School Tax</title>
+        </field>
+        <field name="estimated_yearly_prop_tax" readOnly="true">
+            <title>Estimated Yearly Property Tax</title>
+        </field>
+        <field name="estimated_yearly_school_tax" readOnly="true">
+            <title>Estimated Yearly School Tax</title>
+        </field>
+        <field name="reassessments_savings_prop" readOnly="true">
+            <title>Reassessment Savings - Prop</title>
+        </field>
+        <field name="reassessment_savings_school" readOnly="true">
+            <title>Reassessment Savings - School</title>
+        </field>
+    </panel>
+    
+    <dataSource id="abRepmLsadminPrAbstractDetails_dsParcels">
+        <table name="parcel" role="main"/>
+        <field name="parcel_id"/>
+        <field name="name"/>
+        <field name="location"/>
+        <field name="block"/>
+        <field name="lot"/>
+    </dataSource>
+    
+    <panel type="grid" id="abRepmLsadminPrAbstractDetails_parcelsPanel" dataSource="abRepmLsadminPrAbstractDetails_dsParcels"
+             showOnLoad="false">
+        <title>Parcels</title>         
+        <field name="parcel_id"/>
+        <field name="block"/>
+        <field name="lot"/>
+        <field name="name"/>
+        <field name="location" hidden="true"/>
+    </panel>
+    
+    <dataSource id="abRepmLsadminPrAbstractDetails_dsBldgs">
+        <table name="bl" role="main"/>
+        <table name="property" role="standard"/>
+        <field table="property" name="pr_id"/>
+        <field table="bl" name="bl_id"/>
+        <field table="bl" name="area_gross_ext"/>
+        <field table="bl" name="count_occup"/>
+        <field table="bl" name="count_max_occup"/>
+        <field name="occup_rate" dataType="number" decimals="2">
+            <sql dialect="generic">(bl.count_occup / ${sql.replaceZero('bl.count_max_occup')}) * 100</sql>
+        </field>
+    </dataSource>
+    <panel type="grid" id="abRepmLsadminPrAbstractDetails_bldgsPanel" dataSource="abRepmLsadminPrAbstractDetails_dsBldgs"
+             showOnLoad="false">
+        <title translatable="true">Buildings</title>
+        <field table="bl" name="bl_id"/>
+        <field table="bl" name="area_gross_ext"/>
+        <field table="bl" name="count_occup">
+            <title translatable="true">Current Occupancy</title>
+        </field>
+        <field table="bl" name="count_max_occup"/>
+        <field name="occup_rate" dataType="number" decimals="2">
+            <title translatable="true">Occupancy Rate</title>
+        </field>
+
+        <sortField table="bl" name="bl_id" ascending="true"/>
+    </panel>
+
+    
+    <dataSource id="abRepmLsadminPrAbstractDetails_dsAmnts">
+        <table name="prop_amenity" role="main"/>
+        <table name="property" role="standard"/>
+        <field table="property" name="pr_id"/>
+        <field table="prop_amenity" name="amenity_type"/>
+        <field table="prop_amenity" name="comments"/>
+    </dataSource>
+    
+    <panel type="grid" id="abRepmLsadminPrAbstractDetails_amntsPanel" dataSource="abRepmLsadminPrAbstractDetails_dsAmnts" showOnLoad="false">
+        <title translatable="true">Property Amenities</title>
+        <field table="prop_amenity" name="amenity_type"/>
+        <field table="prop_amenity" name="comments"/>
+        <sortField table="prop_amenity" name="amenity_type" ascending="true"/>
+    </panel>
+</view>

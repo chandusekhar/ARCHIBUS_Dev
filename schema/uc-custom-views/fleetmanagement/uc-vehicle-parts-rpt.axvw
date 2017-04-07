@@ -1,0 +1,74 @@
+<view version="2.0">
+<!-- Change Log -->
+<!-- 2016/03/17  -  MSHUSSAI - Created new AXVW file to report on Parts Usage for MOTORPOOL -->
+
+    <title>Parts Usage Report</title>
+
+    <layout>
+        <north initialSize="80"/>
+        <center/>
+    </layout>
+
+    <js file="uc-vehicle-parts-rpt.js" />
+    <js file="uc-common-functions-data.js"/>
+
+    <dataSource id="fleetPartsDS1">
+        <table name="wrpthwrpt" role="main" />
+        <table name="pt" role="standard"/>
+        <field table="wrpthwrpt" name="date_assigned" />        
+    </dataSource>
+
+    <panel type="console" columns="3" id="requestConsole" dataSource="fleetPartsDS1" region="north">
+        <title translatable="true">Filter</title>
+        <action id="filter">
+            <title translatable="true">Show</title>
+            <command type="callFunction"
+                functionName="apply_console_restriction()" />
+        </action>
+        <action id="clear">
+            <title translatable="true">Clear</title>
+        </action>
+	
+        <field table="wrpthwrpt" name="date_assigned" alias="wrpthwrpt.date_assigned.from" >
+            <title>Date Assigned From</title>
+        </field>
+        <field table="wrpthwrpt" name="date_assigned" alias="wrpthwrpt.date_assigned.to" >
+            <title>To</title>
+        </field>
+    </panel>
+
+    <dataSource id="wrpthwrptDS12">
+		<query>
+			<sql dialect="generic">		
+				select wrpthwrpt.part_id,  pt.description, pt.class, sum(qty_actual) as ptqty, sum(cost_actual) as ptcost
+				from wrpthwrpt left join pt on wrpthwrpt.part_id=pt.part_id
+				where pt.class='MOTORPOOL' and ${parameters['consoleRest']} and ${parameters['statusRest']}
+				group by  wrpthwrpt.part_id,  pt.description, pt.class
+				
+			</sql>
+		</query>
+		<table name="wrpthwrpt" role="main"/>
+		<table name="pt" role="standard"/>
+		<field table="wrpthwrpt" name="part_id" />
+		<field table="pt" name="description" />
+		<field table="pt" name="class" />
+		<field table="wrpthwrpt" name="ptqty" dataType="text" />
+		<field table="wrpthwrpt" name="ptcost" dataType="text" />		
+		
+		<parameter name="consoleRest" dataType="verbatim" value="1=1"/>
+		<parameter name="statusRest" dataType="verbatim" value="1=1"/>
+		
+     </dataSource>
+     <panel type="grid" id="reportPanel" dataSource="wrpthwrptDS12" showOnLoad="false" region="center" recordLimit="15000" >
+		<action id="xlsExport">
+            <title>XLS</title>
+            <command type="exportPanel" outputType="xls" panelId="reportPanel"/>
+        </action>              	
+        <field table="wrpthwrpt" name="part_id" ><title>Part Code</title></field>
+		<field table="pt" name="description" />
+		<field table="pt" name="class" />		
+		<field table="wrpthwrpt" name="ptqty" ><title>Part Quantity</title></field>
+		<field table="wrpthwrpt" name="ptcost" ><title>Part Cost</title></field>
+		
+    </panel>
+</view>

@@ -1,0 +1,405 @@
+<view version="2.0">
+  <title translatable="true">Material Inventory Exceptions</title>
+
+    <js file="ab-msds-rpt-inv-excep.js"/>
+    <js file="ab-msds-common.js"/>
+
+    <message name="msg_tier2_notListed" translatable="true">Not Listed</message>
+    <message name="msg_tier2_unknown" translatable="true">Unknown</message>
+    <message name="msg_tier2_hazardous" translatable="true">Hazardous</message>
+    <message name="msg_tier2_extremelyHazardous" translatable="true">Extremely Hazardous</message>
+
+    <panel type="view" id="locDetailDataSourceView" file="ab-msds-locations-ds.axvw"/>
+    <panel type="view" id="locHistoryDataSourceView" file="ab-msds-location-history-ds.axvw"/>
+
+    <dataSource id="abRiskMsdsRptInvStatusDS">
+        <table name="msds_h_location" role="main"/>
+        <table name="msds_data" role="standard"/>
+        <field table="msds_data" name="manufacturer_id"/>
+        <field table="msds_data" name="product_name"/>
+        <field table="msds_h_location" name="date_updated"/>
+        <field table="msds_h_location" name="msds_id" hidden="true"/>
+        <field table="msds_h_location" name="bl_id"/>
+        <field table="msds_h_location" name="fl_id"/>
+        <field table="msds_h_location" name="rm_id"/>
+        <field table="msds_h_location" name="auto_number" hidden="true"/>
+        <field table="msds_h_location" name="site_id"/>
+        <field table="msds_h_location" name="container_code"/>
+        <field table="msds_h_location" name="custodian_id"/>
+        <field table="msds_h_location" name="date_last_inv"/>
+        <field table="msds_h_location" name="container_status"/>        
+        <field table="msds_h_location" name="last_edited_by"/>
+        <field name="tier2" dataType="verbatim">
+            <title translatable="true">Tier2</title>
+            <sql dialect="generic">
+            (select (case                      
+                    when exists (select 1 FROM msds_h_chemical, msds_h_constituent               
+                                  WHERE msds_h_constituent.chemical_id = msds_h_chemical.chemical_id           
+                                     AND msds_h_constituent.msds_id = msds_data.msds_id                  
+                              AND tier2='Extremely Hazardous') then ${parameters['tier2_extremelyHazardous']}                                       
+                    when exists (select 1 FROM msds_h_chemical, msds_h_constituent               
+                                  WHERE msds_h_constituent.chemical_id = msds_h_chemical.chemical_id           
+                                     AND msds_h_constituent.msds_id = msds_data.msds_id                  
+                              AND tier2='Hazardous') then ${parameters['tier2_hazardous']}                           
+                    when exists (select 1 FROM msds_h_chemical, msds_h_constituent               
+                                  WHERE msds_h_constituent.chemical_id = msds_h_chemical.chemical_id           
+                                     AND msds_h_constituent.msds_id = msds_data.msds_id                  
+                              AND tier2='Not Listed') then ${parameters['tier2_notListed']}                                       
+                    else ${parameters['tier2_unknown']}             
+                    end))
+            </sql>
+             <sql dialect="oracle">
+            (select max(case 
+                      when exists (select 1 from msds_h_chemical 
+                            left join msds_h_constituent on msds_h_constituent.chemical_id = msds_h_chemical.chemical_id
+                            left join msds_h_data on msds_h_constituent.msds_id = msds_h_data.msds_id
+                            where msds_h_data.msds_id=msds_h_location.msds_id and tier2='Extremely Hazardous') then ${parameters['tier2_extremelyHazardous']}
+                      when exists (select 1 from msds_h_chemical 
+                            left join msds_h_constituent on msds_h_constituent.chemical_id = msds_h_chemical.chemical_id
+                            left join msds_h_data on msds_h_constituent.msds_id = msds_h_data.msds_id
+                            where msds_h_data.msds_id=msds_h_location.msds_id and tier2='Hazardous') then ${parameters['tier2_hazardous']}
+                      when exists (select 1 from msds_h_chemical 
+                            left join msds_h_constituent on msds_h_constituent.chemical_id = msds_h_chemical.chemical_id
+                            left join msds_h_data on msds_h_constituent.msds_id = msds_h_data.msds_id
+                            where msds_h_data.msds_id=msds_h_location.msds_id and tier2='Not Listed') then ${parameters['tier2_notListed']}
+                      else ${parameters['tier2_unknown']}
+                    end)
+                    from msds_h_chemical 
+                    left join msds_h_constituent on msds_h_constituent.chemical_id = msds_h_chemical.chemical_id
+                    right join msds_h_data on msds_h_constituent.msds_id = msds_h_data.msds_id
+                    where msds_h_data.msds_id=msds_h_location.msds_id
+              )
+             </sql>           
+        </field>        
+        <!-- restriction type="sql" sql="${parameters['selectedExceptionCondition']}"/-->
+        <restriction type="sql" sql="msds_h_location.auto_number${sql.concat}msds_h_location.date_archived${sql.concat}msds_h_location.time_archived IN
+                                    (SELECT hl1.auto_number${sql.concat}hl1.date_archived${sql.concat}hl1.time_archived FROM msds_h_location hl1
+                                     WHERE hl1.date_archived ${sql.concat} hl1.time_archived = 
+                                       (SELECT MAX(hl2.date_archived ${sql.concat} hl2.time_archived) FROM msds_h_location hl2 WHERE hl2.auto_number = hl1.auto_number))
+                                       AND ${parameters['selectedExceptionCondition']}"/>
+        
+        <parameter name="tier2_notListed" dataType="text" value="Not Listed"/>
+        <parameter name="tier2_unknown" dataType="text" value="Unknown"/>
+        <parameter name="tier2_hazardous" dataType="text" value="Hazardous"/>
+        <parameter name="tier2_extremelyHazardous" dataType="text" value="Extremely Hazardous"/>
+        <parameter name="selectedExceptionCondition" dataType="verbatim" value="1=1"/>    
+    </dataSource>
+
+    <panel type="console" columns="3" id="abRiskMsdsInvExcepConsole" dataSource="abRiskMsdsLocHistoryDS" showOnLoad="true" collapsed="false">
+         <title translatable="true">Filter</title>
+         <action id="filter" mainAction="true">
+            <title translatable="true">Show</title>
+        </action>
+        <action id="clear">
+            <title translatable="true">Clear</title>
+            <command type="clearPanel" panelId="abRiskMsdsInvExcepConsole"/>
+        </action>
+        <field table="msds_h_location" name="auto_number" selectValueType="multiple" hidden="true"/>        
+        <field table="msds_h_location" name="site_id" required="false" selectValueType="multiple">
+             <action>
+                <title translatable="false">Site Code</title>
+                <command type="selectValue"
+                    selectValueType="multiple" 
+                    fieldNames="msds_h_location.site_id"
+                    selectFieldNames="site.site_id"
+                    visibleFieldNames="site.site_id,site.name,site.ctry_id,site.state_id,site.city_id"
+                    restriction=" site_id IN (SELECT DISTINCT(site_id) FROM msds_h_location) "
+                    >
+                </command>
+             </action>  
+        </field>     
+        <field table="msds_h_location" name="bl_id" selectValueType="multiple">
+             <action>
+                <title translatable="false">Building Code</title>
+                <command type="selectValue"
+                    selectValueType="multiple" 
+                    fieldNames="msds_h_location.site_id,msds_h_location.bl_id"
+                    selectFieldNames="bl.site_id,bl.bl_id"
+                    visibleFieldNames="bl.bl_id,bl.name,bl.ctry_id,bl.state_id,bl.city_id"
+                    restriction=" bl_id IN (SELECT DISTINCT(bl_id) FROM msds_h_location) "
+                    >
+                </command>
+             </action>  
+        </field>     
+        <field table="msds_h_location" name="fl_id" selectValueType="multiple">
+             <action>
+                <title translatable="false">Floor Code</title>
+                <command type="selectValue"
+                    selectValueType="multiple" 
+                    fieldNames="msds_h_location.bl_id,msds_h_location.fl_id"
+                    selectFieldNames="fl.bl_id,fl.fl_id"
+                    visibleFieldNames="fl.bl_id,fl.fl_id,fl.name"
+                    restriction=" fl_id IN (SELECT DISTINCT(fl_id) FROM msds_h_location) 
+                     and  bl_id IN (SELECT DISTINCT(bl_id) FROM msds_h_location)"
+                    >
+                </command>
+             </action>  
+        </field>             
+        <field table="msds_h_location" name="rm_id" selectValueType="multiple">
+             <action>
+                <title translatable="false">Room Code</title>
+                <command type="selectValue"
+                    selectValueType="multiple" 
+                    fieldNames="msds_h_location.bl_id,msds_h_location.fl_id,msds_h_location.rm_id"
+                    selectFieldNames="rm.bl_id,rm.fl_id,rm.rm_id"
+                    visibleFieldNames="rm.bl_id,rm.fl_id,rm.rm_id,rm.rm_type,rm.rm_use"
+                    restriction=" rm_id IN (SELECT DISTINCT(rm_id) FROM msds_h_location) 
+                     and fl_id IN (SELECT DISTINCT(fl_id) FROM msds_h_location) 
+                     and  bl_id IN (SELECT DISTINCT(bl_id) FROM msds_h_location)"
+                    >
+                </command>
+             </action>   
+        </field>
+        <field table="msds_h_location" name="custodian_id"/>
+        <field table="msds_h_location" name="last_edited_by"/>
+        <field table="msds_h_location" name="date_last_inv">
+            <title translatable="true">Date Last Inventoried Before</title>            
+        </field>
+        <field table="msds_h_location" name="date_updated">
+            <title translatable="true">Date of Last Update Before</title>            
+        </field>
+        <field/>
+        <field id="msdsInvExcep_exceptions" colspan="2">
+            <title translatable="true">Exception Condition</title>
+                <html>
+                    <select id="msdsInvExcep_exceptionSelect" class="inputField_box" onchange="setExceptionAnalysis();">
+                        <option id="msdsInvExcep_exceptionSelect_none" value="none" selected="1">
+                            <span translatable="true"></span>
+                        </option>
+                            <option id="msdsInvExcep_exceptionSelect_missing" value="missingItems">
+                            <span translatable="true">Missing - Items marked as missing during their last inventory check</span>
+                        </option>
+                        <option id="msdsInvExcep_exceptionSelect_newAddition" value="newAdditions">
+                            <span translatable="true">New - Items discovered and added during the last inventory check</span>
+                        </option>
+                        <option id="msdsInvExcep_exceptionSelect_locChange" value="locChange">
+                            <span translatable="true">Location Change - Items found in a different location than previously reported</span>
+                        </option>
+                        <option id="msdsInvExcep_exceptionSelect_disposed" value="disposed">
+                            <span translatable="true">Disposed - Items marked as disposed during their inventory check</span>
+                        </option>
+                        <option id="msdsInvExcep_exceptionSelect_comments" value="commentsChange">
+                            <span translatable="true">Comments - Items whose comments changed during their inventory check</span>
+                        </option>
+                        <option id="msdsInvExcep_exceptionSelect_noCustodian" value="noCustodian">
+                            <span translatable="true">No Custodian - Items not assigned to a custodian</span>
+                        </option>
+                        <option id="msdsInvExcep_exceptionSelect_noCustodian" value="custChange">
+                            <span translatable="true">Custodian Change - Items whose custodian record changed during their inventory check</span>
+                        </option>
+                    </select>
+             </html>
+        </field>
+        <!-- field id="msdsInvExcep_invOnly" colspan="2">
+            <title translatable="true">Inventory Events Only</title>
+            <html>
+                <input id="msdsInvExcep_invOnlyCheck" type="checkbox" value="" checked="true" name="msdsInvExcep_invOnlyCheck"/>
+            </html>
+        </field-->        
+    </panel>
+
+<tabs workflow="enforced" id="tabsMsdsExceptionsRpt" >
+    <tab name="invExcepGrid" selected="true" useFrame="false">
+        <title translatable="true">Material Inventory Status</title>                          
+        <panel type="grid" id="abRiskMsdsInvExcepGrid" dataSource="abRiskMsdsRptInvStatusDS" showOnLoad="false">
+            <title translatable="true">Material Inventory Status</title>        
+            <action id="exportXls">
+                <title translatable="true">XLS</title>
+                <command type="exportPanel" outputType="xls" panelId="abRiskMsdsInvExcepGrid"/>
+            </action>
+            <field table="msds_h_location" name="msds_id" hidden="true"/>
+            <field table="msds_h_location" name="auto_number" hidden="true"/>
+            <field table="msds_h_location" name="date_archived" hidden="true"/>
+            <field table="msds_h_location" name="time_archived" hidden="true"/>
+            <field controlType="button">
+                <title translatable="true">History</title>
+                <command type="selectTabPage" tabPageName="invHistoryGrid"/>
+            </field>
+            <field table="msds_h_location" name="tier2" controlType="link">
+                <title translatable="true">Tier 2 Classification</title>
+              <command type="openDialog" panelId="abRiskMsdsInvExcepDetails"/>
+            </field>
+            <field table="msds_h_location" name="container_status" controlType="link">
+              <command type="openDialog" panelId="abRiskMsdsInvExcepDetails"/>
+            </field>
+            <field table="msds_h_location" name="container_code" controlType="link">
+              <command type="openDialog" panelId="abRiskMsdsInvExcepDetails"/>
+            </field>        
+            <field table="msds_h_location" name="custodian_id" controlType="link">
+              <command type="openDialog" panelId="abRiskMsdsInvExcepDetails"/>
+            </field>
+            <field table="msds_h_location" name="date_last_inv" controlType="link">
+              <command type="openDialog" panelId="abRiskMsdsInvExcepDetails"/>
+            </field>
+            <field table="msds_h_location" name="date_updated" controlType="link">
+              <command type="openDialog" panelId="abRiskMsdsInvExcepDetails"/>
+            </field>        
+            <field table="msds_h_location" name="last_edited_by" controlType="link">
+              <command type="openDialog" panelId="abRiskMsdsInvExcepDetails"/>
+            </field>                
+            <field table="msds_data" name="manufacturer_id" controlType="link">
+              <command type="openDialog" panelId="abRiskMsdsInvExcepDetails"/>
+            </field>
+            <field table="msds_data" name="product_name" controlType="link">
+              <command type="openDialog" panelId="abRiskMsdsInvExcepDetails"/>
+            </field>
+            <sortField table="msds_h_location" name="date_updated" ascending="false"/>
+        </panel>
+
+        <panel type="form" columns="2" id="abRiskMsdsInvExcepDetails" dataSource="abRiskMsdsLocHistoryDS" showOnLoad="false" hidden="true">    
+            <title translatable="true">Inventory Item Details</title>
+            <field table="msds_h_location" name="msds_id" hidden="true"/>
+            <field table="msds_h_location" name="auto_number" hidden="true"/>
+            <field table="msds_h_location" name="date_archived" hidden="true"/>
+            <field table="msds_h_location" name="time_archived" hidden="true"/>
+            <field table="msds_data" name="manufacturer_id" required="false" readOnly="true" colspan="2"/>
+            <field table="msds_data" name="product_name" required="false" readOnly="true" colspan="2"/>
+            <field table="msds_h_location" name="quantity" readOnly="true"/>
+            <field table="msds_h_location" name="quantity_units_type" hidden="true" readOnly="true"/>
+            <field table="msds_h_location" name="quantity_units" readOnly="true"/>
+            <field table="msds_h_location" name="date_start" readOnly="true"/>    
+            <field table="msds_h_location" name="date_end" readOnly="true"/>
+            <field table="msds_h_location" name="custodian_id" readOnly="true"/>
+            <field table="msds_h_location" name="container_status" readOnly="true"/>
+            <field table="msds_h_location" name="container_cat" readOnly="true"/>    
+            <field table="msds_h_location" name="container_type" readOnly="true"/>
+            <field table="msds_h_location" name="container_code" readOnly="true"/>
+            <field table="msds_h_location" name="num_containers" readOnly="true"/>
+            
+            <field table="msds_h_location" name="temperature" readOnly="true"/>    
+            <field table="msds_h_location" name="temperature_units" readOnly="true"/>   
+            <field table="msds_h_location" name="pressure" readOnly="true"/>    
+            <field table="msds_h_location" name="pressure_units" readOnly="true"/>  
+            <field table="msds_h_location" name="pressure_units_type" hidden="true" readOnly="true"/>
+                
+            <field table="msds_h_location" name="evacuation_radius" readOnly="true"/>    
+            <field table="msds_h_location" name="evacuation_radius_units_type" hidden="true" readOnly="true"/>
+            <field table="msds_h_location" name="evacuation_radius_units" readOnly="true"/>
+            <field table="msds_h_location" name="description" colspan="2"/>
+                
+            <field table="msds_h_location" name="site_id" readOnly="true"/>
+            <field/>
+            <field table="msds_h_location" name="bl_id" readOnly="true"/>
+            <field table="msds_h_location" name="fl_id" readOnly="true"/>
+            <field table="msds_h_location" name="rm_id" readOnly="true"/>
+            <field table="msds_h_location" name="eq_id" readOnly="true"/>
+            <field table="msds_h_location" name="aisle_id" readOnly="true"/>
+            <field table="msds_h_location" name="cabinet_id" readOnly="true"/>
+            <field table="msds_h_location" name="shelf_id" readOnly="true"/>
+            <field table="msds_h_location" name="bin_id" readOnly="true"/>
+            
+            <field table="msds_h_location" name="date_updated" readOnly="true"/>
+            <field table="msds_h_location" name="date_last_inv" readOnly="false"/>
+            <field table="msds_h_location" name="last_edited_by" readOnly="true"/>
+            <field/>
+            <!--field table="msds_h_location" name="doc_custody"-->
+            <field table="msds_h_location" name="comments" colspan="2" readOnly="true"/>            
+            <field table="msds_h_location" name="auto_number" hidden="true" readOnly="true"/>    
+        </panel>        
+    </tab>
+    <tab name="invHistoryGrid" selected="false" useFrame="false">
+        <title translatable="true">Material Inventory Record History</title>
+        <panel type="grid" id="abRiskMsdsInvHistoryGrid" dataSource="abRiskMsdsLocHistoryDS" showOnLoad="false">
+            <title translatable="true">Material Inventory Record History</title>   
+            <action id="prevSelect" mainAction="true">
+            <title translatable="true">&lt;&lt; Select</title>
+                <command type="selectTabPage" tabPageName="invExcepGrid" applyParentRestriction="false"/>
+                <!-- command type="callFunction" functionName="clearRestriction"/>
+                <command type="callFunction" functionName="setRestriction"/ -->
+            </action>     
+            <action id="exportXls">
+                <title translatable="true">XLS</title>
+                <command type="exportPanel" outputType="xls" panelId="abRiskMsdsInvExcepGrid"/>
+            </action>            
+            <sortField table="msds_h_location" name="date_updated" ascending="false"/>
+            <sortField table="msds_h_location" name="time_archived" ascending="false"/>
+            <field table="msds_h_location" name="msds_id" hidden="true"/>
+            <field table="msds_h_location" name="auto_number" hidden="true"/>            
+            <field table="msds_h_location" name="date_archived" hidden="true"/>            
+            <field table="msds_h_location" name="tier2" controlType="link">
+                <title translatable="true">Tier 2 Classification</title>
+              <command type="openDialog" panelId="abRiskMsdsInvHistoryDetails"/>
+            </field>
+            <field table="msds_h_location" name="container_status" controlType="link">
+              <command type="openDialog" panelId="abRiskMsdsInvHistoryDetails"/>
+            </field>
+            <field table="msds_h_location" name="container_code" controlType="link">
+              <command type="openDialog" panelId="abRiskMsdsInvHistoryDetails"/>
+            </field>        
+            <field table="msds_h_location" name="custodian_id" controlType="link">
+              <command type="openDialog" panelId="abRiskMsdsInvHistoryDetails"/>
+            </field>
+            <field table="msds_h_location" name="date_last_inv" controlType="link">
+              <command type="openDialog" panelId="abRiskMsdsInvHistoryDetails"/>
+            </field>
+            <field table="msds_h_location" name="date_updated" controlType="link">
+              <command type="openDialog" panelId="abRiskMsdsInvHistoryDetails"/>
+            </field>
+            <field table="msds_h_location" name="time_archived" controlType="link">
+                <title translatable="true">Time Archived</title>
+              <command type="openDialog" panelId="abRiskMsdsInvHistoryDetails"/>
+            </field>        
+            <field table="msds_h_location" name="last_edited_by" controlType="link">
+              <command type="openDialog" panelId="abRiskMsdsInvHistoryDetails"/>
+            </field>                
+            <field table="msds_data" name="manufacturer_id" controlType="link">
+              <command type="openDialog" panelId="abRiskMsdsInvHistoryDetails"/>
+            </field>
+            <field table="msds_data" name="product_name" controlType="link">
+              <command type="openDialog" panelId="abRiskMsdsInvHistoryDetails"/>
+            </field>
+        </panel>
+        
+        <panel type="form" columns="2" id="abRiskMsdsInvHistoryDetails" dataSource="abRiskMsdsLocHistoryDS" showOnLoad="false" hidden="true">    
+            <title translatable="true">Inventory Item History Details</title>
+            <field table="msds_h_location" name="msds_id" hidden="true"/>
+            <field table="msds_h_location" name="auto_number" hidden="true"/>            
+            <field table="msds_h_location" name="date_archived" hidden="true"/>
+            <field table="msds_h_location" name="time_archived" hidden="true"/>
+            <field table="msds_data" name="msds_id" hidden="true"/>
+            <field table="msds_data" name="manufacturer_id" required="false" readOnly="true" colspan="2"/>
+            <field table="msds_data" name="product_name" required="false" readOnly="true" colspan="2"/>
+            <field table="msds_h_location" name="quantity" readOnly="true"/>
+            <field table="msds_h_location" name="quantity_units_type" hidden="true" readOnly="true"/>
+            <field table="msds_h_location" name="quantity_units" readOnly="true"/>
+            <field table="msds_h_location" name="date_start" readOnly="true"/>    
+            <field table="msds_h_location" name="date_end" readOnly="true"/>
+            <field table="msds_h_location" name="custodian_id" readOnly="true"/>
+            <field table="msds_h_location" name="container_status" readOnly="true"/>
+            <field table="msds_h_location" name="container_cat" readOnly="true"/>    
+            <field table="msds_h_location" name="container_type" readOnly="true"/>
+            <field table="msds_h_location" name="container_code" readOnly="true"/>
+            <field table="msds_h_location" name="num_containers" readOnly="true"/>
+            
+            <field table="msds_h_location" name="temperature" readOnly="true"/>    
+            <field table="msds_h_location" name="temperature_units" readOnly="true"/>   
+            <field table="msds_h_location" name="pressure" readOnly="true"/>    
+            <field table="msds_h_location" name="pressure_units" readOnly="true"/>  
+            <field table="msds_h_location" name="pressure_units_type" hidden="true" readOnly="true"/>
+                
+            <field table="msds_h_location" name="evacuation_radius" readOnly="true"/>    
+            <field table="msds_h_location" name="evacuation_radius_units_type" hidden="true" readOnly="true"/>
+            <field table="msds_h_location" name="evacuation_radius_units" readOnly="true"/>
+            <field table="msds_h_location" name="description" colspan="2"/>
+                
+            <field table="msds_h_location" name="bl_id" readOnly="true"/>
+            <field table="msds_h_location" name="fl_id" readOnly="true"/>
+            <field table="msds_h_location" name="rm_id" readOnly="true"/>
+            <field table="msds_h_location" name="eq_id" readOnly="true"/>
+            <field table="msds_h_location" name="aisle_id" readOnly="true"/>
+            <field table="msds_h_location" name="cabinet_id" readOnly="true"/>
+            <field table="msds_h_location" name="shelf_id" readOnly="true"/>
+            <field table="msds_h_location" name="bin_id" readOnly="true"/>
+            
+            <field table="msds_h_location" name="date_updated" readOnly="true"/>
+            <field table="msds_h_location" name="date_last_inv" readOnly="false"/>
+            <field table="msds_h_location" name="last_edited_by" readOnly="true"/>
+            <field/>
+            <!--field table="msds_h_location" name="doc_custody"-->
+            <field table="msds_h_location" name="comments" colspan="2" readOnly="true"/>            
+            <field table="msds_h_location" name="auto_number" hidden="true" readOnly="true"/>    
+        </panel>        
+    </tab>
+</tabs>
+
+</view>

@@ -1,0 +1,906 @@
+<!-- Change Log -->
+<!-- 2010/03/31 - JJYCHAN - ISSUE 30: Made account code description visible -->
+<!-- 2010/03/31 - JJYCHAN - ISSUE 34: Hid paginated report action button -->
+<!-- 2010/04/06 - JJYCHAN - ISSUE 35: changed the Enabled for Create-Subrequest to a binding expr -->
+<!-- 2010/04/07 - EWONG - Added page security javascript. -->
+<!-- 2010/04/07 - EWONG - ISSUE 29: Added onchange event for tr_id and required messages. -->
+<!-- 2010/04/08 - JJYCHAN - ISSUE 67: Added Requestor Info button and dataSources -->
+<!-- 2010/04/13 - JJYCHAN - ISSUE 84: Priority label changed from "Work Request Priority" to "Priority" -->
+<!-- 2010/04/13 - JJYCHAN - ISSUE 85: "Work Request Code" label changed to "Work Request #" -->
+<!-- 2010/04/13 - JJYCHAN - ISSUE 95: Changed "Equipment Code" to "Equipment Barcode" -->
+<!-- 2010/04/15 - EWONG - ISSUE 29: Added a listener for the Select Value to call the onchange event. -->
+<!-- 2010/04/15 - JJYCHAN - ISSUE 59: Added fields for the capture of error reports -->
+<!-- 2010/04/19 - EWONG - ISSUE 83: Added id to the "Auto Select Account" button to allow for enable/disable. -->
+<!-- 2010/05/10 - EWONG - ISSUE:153: Calls the updateAcctDescVehicle function on change of any of the account code fields. -->
+<!-- 2010/05/20 - JJYCHAN - Changed Affiliate to Activity -->
+<!-- 2010/06/01 - JJYCHAN - Added error Account 99 -->
+<!-- 2010/06/18 - JJYCHAN - Date requested made Read Only -->
+<!-- 2010/07/07 - EWONG - ISSUE 231: Added Equipment Information Popup. -->
+<!-- 2010/07/13 - EWONG - ISSUE 240: Fixed a formatting issue when ac description is overly long. -->
+<!-- 2010/08/12 - EWONG - Added 'Create New Request' button (enabled for UC-CSC). -->
+<!-- 2010/08/17 - EWONG - ISSUE 258: Fixed a formatting issue when ac description is overly long. Used a different method -->
+<!--                       the previous method causes unintention formatting side-effects. -->
+<!-- 2010/11/24 - EWONG - 18.2 Upgrade: Removed spaces from the visibleFieldNames in the custom selectValue (causing only first field displayed). -->
+<!-- 2011/01/06 - JJYCHAN - Added Action "Create Records Request" -->
+<!-- 2016/01/14 - MSHUSSAI - WR358933 - Changed the name of the javascript file in order to enable emails on FWC. -->
+
+
+<view version="2.0">
+
+	<js file="uc-common-functions-ui.js" />
+	<js file="uc-common-functions-data.js" />
+	<js file="uc-page-security.js"/>
+	<js file="brg-common.js"/>
+	<js file="brg-common-ui.js"/>
+	<js file="uc-wr-vehicle-manager-details-1-info_3.js" />
+	<script type="text/javascript" src="/resource/uc-psAccountCode.js"></script>
+	<script type="text/javascript" src="/resource/uc-email.js"></script>
+
+	<message name="wrArchivedMessage">The Work Requested has been Archived.</message>
+	<message name="error_invalidAccount">The Account Code entered is invalid. </message>
+	<message name="error_Account1">The Account Business Unit code entered is invalid.</message>
+	<message name="error_Account2">The Account Fund code entered is invalid.</message>
+	<message name="error_Account3">The Account Department Code entered is invalid.</message>
+	<message name="error_Account4">The Account Code Acct entered is invalid.</message>
+	<message name="error_Account5">The Account Program Code entered is invalid.</message>
+	<message name="error_Account6">The Account Internal Code entered is invalid.</message>
+	<message name="error_Account7">The Account Project Code entered is invalid.</message>
+	<message name="error_Account8">The Account Activity Code entered is invalid.</message>
+	<message name="subReqCreated">A sub-request has been successfully created.</message>
+	<message name="error_Account99">There was a problem validating the account code. Please try saving again.</message>
+
+
+	<message name="error_zeroCosts">This Work Request cannot be Completed until all Labor/Material costs are entered or fulfilled.</message>
+	<message name="error_noParts">This Request can not be put on hold for parts if there are no parts requested.</message>
+	<message name="trId_changed">Work Request Status will be reset to Requested due to Work Unit change.</message>
+	<message name="trId_status_invalid">The Work Unit cannot be changed at this Work Request status (%1).</message>
+	<message name="noDateToPerformForPriority">Date to Perform must be specified when setting Priority to Date Specific.</message>
+
+	<dataSource id="ds_ac_check">
+		<table name="ac" role="main" />
+		<field table="ac" name="ac_id" />
+	</dataSource>
+	
+	<!-- DataSource for Auditing any WR changes -->
+	<dataSource id="ds_audit_log_vehicle">
+		<table name="audit_log" role="main"/>
+		<field table="audit_log" name="table_name"/>
+		<field table="audit_log" name="modified_by_username"/>
+		<field table="audit_log" name="modified_on_date"/>
+		<field table="audit_log" name="modified_at_time"/>
+		<field table="audit_log" name="modification_type"/>
+		<field table="audit_log" name="description"/>
+	</dataSource>
+
+
+	<dataSource id="ds_wr_details_vehicle06">
+	
+		<query>
+			<sql dialect="generic">	
+				select wr.wr_id, wr.wo_id, wr.activity_log_id, wr.status, wr.requestor, wr.prob_type, wr.location, wr.description, wr.date_requested, wr.date_assigned, wr.bl_id, wr.fl_id, wr.rm_id, wr.eq_id, wr.ac_id, wr.priority, wr.cf_notes,
+				wr.tr_id, wr.charge_type, wr.block_id, wr.unit_id, wr.cf_id, bl.zone_id, ac.description as acdesc, wo.qty_open_wr, eq.eq_std, wr.cause_type, wr.repair_type, wr.towing, wr.date_est_completion,
+				wr.date_dropoff, wr.time_dropoff, wr.date_pickup, wr.time_pickup, wr.shop_id, wr.budget_owner, wr.po, wr.po_doc, wr.cost_est_total, wr.cost_total, wr.incident_doc, wr.incident_no, wr.ins_no, wr.ins_doc, wr.driver, wr.work_team_id, wr.time_requested, comments_mgr, comments_risk, 
+				(select count(wr_id) from wr wr1 where wr1.wo_id=wr.wo_id and status IN ('FWC', 'Com', 'Rej', 'Exp', 'Can', 'Clo', 'IR', 'IN')) as fwc_count, (select count(wr_id) from wr wr3 where wr3.wo_id=wr.wo_id) as total_count
+				from wr
+					left join bl on wr.bl_id=bl.bl_id
+					left join ac on wr.ac_id=ac.ac_id
+					left join wo on wr.wo_id=wo.wo_id
+					left join eq on wr.eq_id=eq.eq_id
+					
+			</sql>
+		</query>
+		
+		<table name="wr" role="main" />
+		<table name="bl" role="standard"/>
+		<table name="ac" role="standard"/>
+		<table name="wo" role="standard"/>
+		<table name="eq" role="standard"/>
+		
+		<field table="wr" name="wr_id" />
+		<field table="wr" name="wo_id" />
+		<field table="wr" name="activity_log_id" />
+		<field table="wr" name="status" />
+		<field table="wr" name="requestor" />
+		<field table="wr" name="prob_type" />
+		<field table="wr" name="location"/>
+		<field table="wr" name="description" />
+		<field table="wr" name="date_requested" />
+		<field table="wr" name="date_assigned"/>
+		<field table="wr" name="bl_id" />
+		<field table="wr" name="fl_id" />
+		<field table="wr" name="rm_id" />
+		<field table="wr" name="eq_id" />
+		<field table="wr" name="ac_id" />
+		<field table="wr" name="priority" />
+		<field table="wr" name="cf_notes" />
+		<field table="wr" name="tr_id"/>
+		<field table="wr" name="charge_type"/>
+		<field table="wr" name="block_id"/>
+		<field table="wr" name="unit_id"/>
+		<field table="wr" name="cf_id"/>
+		<field table="bl" name="zone_id"/>
+		<field table="ac" name="acdesc" dataType="text" />
+		<field table="wo" name="qty_open_wr"/>
+		<field table="eq" name="eq_std"/>		
+		<field table="wr" name="cause_type"/>
+		<field table="wr" name="repair_type"/>
+		<field table="wr" name="towing"/>
+		<field table="wr" name="date_est_completion"/>
+		<field table="wr" name="date_dropoff"/>
+		<field table="wr" name="time_dropoff"/>
+		<field table="wr" name="date_pickup"/>
+		<field table="wr" name="time_pickup"/>
+		<field table="wr" name="shop_id"/>
+		<field table="wr" name="budget_owner"/>
+		<field table="wr" name="po"/>
+		<field table="wr" name="po_doc"/>
+		<field table="wr" name="cost_est_total"/>
+		<field table="wr" name="cost_total"/>
+		<field table="wr" name="incident_no"/>
+		<field table="wr" name="incident_doc"/>
+		<field table="wr" name="ins_no"/>
+		<field table="wr" name="ins_doc"/>
+		<field table="wr" name="driver"/>
+		<field table="wr" name="comments_mgr"/>
+		<field table="wr" name="comments_risk"/>
+		<field table="wr" name="work_team_id"/>
+		<field table="wr" name="time_requested"/>
+		<field table="wr" name="fwc_count" dataType="number" decimals="0" size="10"/>
+		<field table="wr" name="total_count" dataType="number" decimals="0" size="10"/>
+	</dataSource>
+
+	<!--dataSource id="ds_docs">
+		<table name="uc_docs_extension" role="main"/>
+		<table name="afm_tbls" role="standard"/>
+		<field table="uc_docs_extension" name="table_name"/>
+		<field table="afm_tbls" name="title"/>
+		<field table="uc_docs_extension" name="pkey"/>
+		<field table="uc_docs_extension" name="doc_type_code"/>
+		<field table="uc_docs_extension" name="doc_name"/>
+		<field table="uc_docs_extension" name="created_by"/>
+		<field table="uc_docs_extension" name="date_created"/>
+		<field table="uc_docs_extension" name="modified_by"/>
+		<field table="uc_docs_extension" name="date_modified"/>
+		<field table="uc_docs_extension" name="description"/>
+		<field table="uc_docs_extension" name="uc_docs_extension_id"/>
+		<parameter name="clientRestriction" dataType="verbatim" value=""/>
+		<restriction type="sql" sql="1=1 ${parameters['clientRestriction']}"/>
+	</dataSource-->
+
+	<panel type="form" id="nav_details_info_vehicle" dataSource="ds_wr_details_vehicle06" columns="3" showOnLoad="false" labelsPosition="top">
+		<title translatable="true">Work Request</title>
+
+		<action id="createRecordsReqVehicle" hidden="${infoTabControllerVehicle.enablecreateRecordsReqVehicleBtn()}">
+			<title>Create Records WR</title>
+			<command type="openDialog" viewName="uc-wr-create-records-req.axvw" applyParentRestriction="false" newRecord="true" closeButton="false"/>
+		</action>
+
+		<action id="createNewReqVehicle" hidden="${infoTabControllerVehicle.enablecreateNewReqVehicleBtn()}">
+			<title>Create New WR</title>
+			<command type="openDialog" viewName="uc-wr-create-main.axvw" applyParentRestriction="false"/>
+		</action>
+
+		<action id="pageReportVehicle" hidden="true">
+			<title>Paginated Report</title>
+			<command type="callFunction" functionName="infoTabControllerVehicle.openPaginatedReport()" />
+		</action>
+
+		<!--action id="emailWr" >
+			<title>Email WR</title>
+			<command type="callFunction" functionName="emailRequest"/>
+		</action-->
+
+		<!-- Print the Request for Craftspeople -->
+		<action id="printCFVehicle">
+			<title>Print WR</title>
+			<command type="callFunction" functionName="openPrintWindow"/>
+		</action>
+
+		<action id="createSubReqVehicle" enabled="${infoTabControllerVehicle.refreshcreateSubReqVehicleBtn()}">
+			<title>Create Sub WR</title>
+			<command type="callFunction" functionName="infoTabControllerVehicle.createSubReqVehicle()" />
+		</action>
+
+		<action id="reportErrorVehicle">
+			<title>Report Error</title>
+			<!--command type="openDialog" panelId="errorReportPanelVehicle" applyParentRestriction="true" newRecord="true" closeButton="false"/-->
+			<!--command type="callFunction" functionName="fillErrorInfo" /-->
+			<command type="openDialog" viewName="uc-wr-error-report.axvw" applyParentRestriction="false" newRecord="true" closeButton="false"/>
+		</action>
+
+		<action id="saveVehicle" imageName="/schema/ab-core/graphics/save.gif">
+			<title>Save</title>
+			<tooltip>Save Changes</tooltip>
+			<command type="callFunction" functionName="infoTabControllerVehicle.checkAcctAndSaveVehicle()" />
+			<!--command type="saveForm"/-->
+			<!--command type="callFunction" functionName="afterSaveWorkflow" /-->
+		</action>
+
+
+		<field table="wr" name="wr_id" ><title>Work Request #</title></field>
+		<field table="wr" name="eq_id" rowspan="2">
+			<title>Vehicle Barcode</title>
+			<action>
+				<title>...</title>
+				<tooltip>Select Vehicle</tooltip>
+				<command type="selectValue"
+					fieldNames="wr.eq_id,vehicle_id"
+					selectFieldNames="vehicle.eq_id,vehicle.vehicle_id"
+					visibleFieldNames="vehicle.vehicle_id,vehicle.eq_id,vehicle.mfr_id,vehicle.model_id,vehicle.occ"
+					applyFilter="false"/>
+			</action>
+			<action>
+				<title>Info</title>
+				<command type="callFunction" functionName="infoTabControllerVehicle.openeqInfoVehicleVehicle();"/>
+			</action>
+		</field>
+		
+		<field table="wr" name="work_team_id"/>
+		
+		<field table="wr" name="status" alias="wr.status.display" />
+		<!---->
+		
+		<field table="wr" name="tr_id" onchange="infoTabControllerVehicle.onTradeChangedVehicle()" >
+			<title>Work Unit</title>
+			<action id="wrkUnitSelVal">
+				<title>...</title>
+				<tooltip>Select Value</tooltip>
+				<command type="selectValue"
+					fieldNames="wr.tr_id"
+					selectFieldNames="tr.tr_id"
+					visibleFieldNames="tr.tr_id,tr.description"
+					actionListener="onTradeSelect"/>
+			</action>
+		</field>
+		
+		<field table="wr" name="requestor">
+			<action id="selectReq">
+				<title>...</title>
+				<tooltip>Select Requestor</tooltip>
+				<command type="selectValue"
+					fieldNames="wr.requestor"
+					selectFieldNames="em.em_id"
+					visibleFieldNames="em.em_id,em.name_last,em.name_first,em.phone,em.email"/>
+			</action>
+			<action>
+				<title>Info</title>
+				<command type="openDialog" panelId="requestorInfoVehicle" closeButton="true" height="400"/>
+			</action>
+		</field>
+		<field table="wr" name="location"><title>Vehicle Location</title></field>
+		<field table="wr" name="prob_type" />
+
+		
+		<field table="wr" name="date_requested" readOnly="true"><title>Date Requested</title></field>
+		<field table="wr" name="towing"/>
+		
+		<field table="wr" name="cause_type"/>
+		
+		<!--<field table="wr" name="priority"><title>Priority</title></field>-->
+		<field table="wr" name="shop_id"/>
+		
+		<field table="wr" name="repair_type"/>
+		<field/>
+		<field table="wr" name="priority" ><title>Priority</title>
+			<action>
+				<title>Info</title>
+				<command type="openDialog" panelId="priorityInfo" closeButton="true" width="390" height="255"/>
+			</action>
+		</field>
+		
+		<field table="wr" name="date_assigned"/>
+		<field/>
+		<field table="wr" name="date_dropoff"/>
+		<field table="wr" name="date_pickup"/>
+		
+		<!--field table="wr" name="date_est_completion"/-->
+		<field/>
+		<field table="wr" name="time_dropoff"/>
+		<field table="wr" name="time_pickup"/>
+		<field/>
+		
+		
+		<field table="wr" name="status" hidden="true" ><title>STATUS</title></field>
+		<field table="bl" name="zone_id" alias="bl.zone_id.display" required="false" readOnly="true" hidden="true"/>
+		<field table="wr" name="bl_id" required="false" hidden="true"/>
+		<field table="wr" name="fl_id" hidden="true"/>
+		<field table="wr" name="rm_id" hidden="true"/>
+		<!--colspan=number of panel colums-->
+		<field colspan="3">
+			  <html>
+				<!--Keep Name and ID as sectionLabels this is used by the JS-->
+				<div class="x-toolbar x-small-editor panelToolbar " name="sectionLabels" id="sectionLabels" style="width: 100%">
+				  <table cellspacing="0">
+					<tbody>
+					  <tr>
+						<td style="background-color: transparent;border:none;height:auto;padding:0">
+				<!--Change Section Title here-->
+						  <span class="ytb-text" id="sectionLabels_title">Billing Details</span>
+						</td>
+						<td style="width: 100%; background-color: transparent;border:none;height:auto;padding:0" id="ext-gen253">
+						  <div class="ytb-spacer" id="ext-gen54"></div>
+						</td>
+
+				<!--You can add one or more buttons with the following code.  Note change FunctionName() and ButtonTitle-->
+						<!--
+						<td style="background-color: transparent;border:none;height:auto;padding:0">
+						  <table cellspacing="0" cellpadding="0" border="0" class="x-btn-wrap x-btn " style="width: auto;">
+							<tbody>
+							  <tr>
+								<td class="x-btn-left" style="background-color: transparent;border:none;height:auto;padding:0">
+								  <i></i>
+								</td>
+								<td class="x-btn-center" style="background-color: transparent;border:none;height:auto;padding:0">
+								  <em unselectable="on">
+									<button type="button" class="x-btn-text" onclick="FunctionName()">ButtonTitle</button>
+								  </em>
+								</td>
+								<td class="x-btn-right" style="background-color: transparent;border:none;height:auto;padding:0">
+								  <i></i>
+								</td>
+							  </tr>
+							</tbody>
+						  </table>
+						</td>
+						-->
+						<!--End of button code-->
+
+					  </tr>
+					</tbody>
+				  </table>
+				</div>
+			  </html>
+		</field>
+
+		<field table="wr" name="budget_owner" required="false">
+			<action id="selectBo">
+				<title>...</title>
+				<tooltip>Select Budget Owner</tooltip>
+				<command type="selectValue"
+					fieldNames="wr.budget_owner"
+					selectFieldNames="em.em_id"
+					visibleFieldNames="em.em_id,em.name_last,em.name_first,em.phone,em.email" />
+			</action>
+			<action>
+				<title>Info</title>
+				<command type="openDialog" panelId="boInfoVehicle" closeButton="true" height="400"/>
+			</action>
+		</field>
+		<field table="wr" name="po" required="false" readOnly="false"/>
+		<field table="wr" name="po_doc"/>
+		
+		<field table="wr" name="cost_est_total" readOnly="true"/>
+		<field table="wr" name="cost_total" readOnly="true"/>
+		<field/>
+		
+		<field table="wr" name="charge_type" onchange="charge_type_change()"/>
+		<!--field table="wr" name="block_id" />
+		<field table="wr" name="unit_id" /-->
+		<field/><field/>
+		
+
+		<!-- On Form Search Button -->
+		<field colspan="3" hidden="false">
+			<html>
+				<body>
+					<input type="button" id="autoSelAcctBtnVehicle" value="Auto-select Account" onclick="infoTabControllerVehicle.openAccountSelectVehicle()"/>
+				</body>
+			</html>
+		</field>
+
+
+
+		<field alias="account_code_fld" colspan="3">
+			<title>Account Code</title>
+			<html>
+				<table border="0" style="margin-left:-4" cellpadding="0" cellspacing="0">
+					<tr>
+						<td>Bus. Unit<br/><input type="text" name="ac_id_part1" id="ac_id_part1" maxlength="5" size="4" onChange="afm_form_values_changed=true;infoTabControllerVehicle.updateAcctDescVehicle();"/></td>
+						<td>Fund<br/><input type="text" id="ac_id_part2" maxlength="2" size="2" onChange="afm_form_values_changed=true;infoTabControllerVehicle.updateAcctDescVehicle();"/></td>
+						<td>Dept<br/><input type="text" id="ac_id_part3" maxlength="5" size="4" onChange="afm_form_values_changed=true;infoTabControllerVehicle.updateAcctDescVehicle();"/></td>
+						<td>Acct<br/><input type="text" id="ac_id_part4" maxlength="8" size="8" onChange="afm_form_values_changed=true;infoTabControllerVehicle.updateAcctDescVehicle();"/></td>
+						<td>Program<br/><input type="text" id="ac_id_part5" maxlength="8" size="8" onChange="afm_form_values_changed=true;infoTabControllerVehicle.updateAcctDescVehicle();"/></td>
+						<td>Internal<br/><input type="text" id="ac_id_part6" maxlength="10" size="10" onChange="afm_form_values_changed=true;infoTabControllerVehicle.updateAcctDescVehicle();"/></td>
+						<td>Proj<br/><input type="text" id="ac_id_part7" maxlength="10" size="10" onChange="afm_form_values_changed=true;infoTabControllerVehicle.updateAcctDescVehicle();"/></td>
+						<td>Activity<br/><input type="text" id="ac_id_part8" maxlength="8" size="8" onChange="afm_form_values_changed=true;infoTabControllerVehicle.updateAcctDescVehicle();"/></td>
+					</tr>
+				</table>
+			</html>
+		</field>
+
+		<field table="wr" name="ac_id" hidden="true" readOnly="true" showLabel="false" colspan="3" style="border: 0"><title>Account Code (to be hidden):</title></field>
+		<field table="ac" name="acdesc" required="false" colspan="3" rowspan="1" showSelectValueAction="false" readOnly="true" hidden="false" style="border: 0;"><title>Account Description</title></field>
+	
+		<!--colspan=number of panel colums-->
+		<field colspan="3">
+			  <html>
+				<!--Keep Name and ID as sectionLabels this is used by the JS-->
+				<div class="x-toolbar x-small-editor panelToolbar " name="sectionLabels" id="sectionLabels" style="width: 100%">
+				  <table cellspacing="0">
+					<tbody>
+					  <tr>
+						<td style="background-color: transparent;border:none;height:auto;padding:0">
+				<!--Change Section Title here-->
+						  <span class="ytb-text" id="sectionLabels_title">Accident Details</span>
+						</td>
+						<td style="width: 100%; background-color: transparent;border:none;height:auto;padding:0" id="ext-gen253">
+						  <div class="ytb-spacer" id="ext-gen54"></div>
+						</td>
+
+				<!--You can add one or more buttons with the following code.  Note change FunctionName() and ButtonTitle-->
+						<!--
+						<td style="background-color: transparent;border:none;height:auto;padding:0">
+						  <table cellspacing="0" cellpadding="0" border="0" class="x-btn-wrap x-btn " style="width: auto;">
+							<tbody>
+							  <tr>
+								<td class="x-btn-left" style="background-color: transparent;border:none;height:auto;padding:0">
+								  <i></i>
+								</td>
+								<td class="x-btn-center" style="background-color: transparent;border:none;height:auto;padding:0">
+								  <em unselectable="on">
+									<button type="button" class="x-btn-text" onclick="FunctionName()">ButtonTitle</button>
+								  </em>
+								</td>
+								<td class="x-btn-right" style="background-color: transparent;border:none;height:auto;padding:0">
+								  <i></i>
+								</td>
+							  </tr>
+							</tbody>
+						  </table>
+						</td>
+						-->
+						<!--End of button code-->
+
+					  </tr>
+					</tbody>
+				  </table>
+				</div>
+			  </html>
+		</field>
+		
+		<field table="wr" name="driver" required="false" rowspan="2">
+			<action id="selectDvr">
+				<title>...</title>
+				<tooltip>Select Driver</tooltip>
+				<command type="selectValue"
+					fieldNames="wr.driver"
+					selectFieldNames="em.em_id"
+					visibleFieldNames="em.em_id,em.name_last,em.name_first,em.phone,em.email" />
+			</action>
+			<action>
+				<title>Info</title>
+				<command type="openDialog" panelId="dvrInfoVehicle" closeButton="true" height="400" width="600"/>
+			</action>
+		</field>
+		<field table="wr" name="incident_no" required="false" readOnly="false"/>
+		<field table="wr" name="incident_doc"/>
+		
+		
+		<field table="wr" name="ins_no" required="false" readOnly="false"/>
+		<field table="wr" name="ins_doc"/>
+		
+		<!--colspan=number of panel colums-->
+		<field colspan="3">
+			  <html>
+				<!--Keep Name and ID as sectionLabels this is used by the JS-->
+				<div class="x-toolbar x-small-editor panelToolbar " name="sectionLabels" id="sectionLabels" style="width: 100%">
+				  <table cellspacing="0">
+					<tbody>
+					  <tr>
+						<td style="background-color: transparent;border:none;height:auto;padding:0">
+				<!--Change Section Title here-->
+						  <span class="ytb-text" id="sectionLabels_title">Comments</span>
+						</td>
+						<td style="width: 100%; background-color: transparent;border:none;height:auto;padding:0" id="ext-gen253">
+						  <div class="ytb-spacer" id="ext-gen54"></div>
+						</td>
+
+				<!--You can add one or more buttons with the following code.  Note change FunctionName() and ButtonTitle-->
+						<!--
+						<td style="background-color: transparent;border:none;height:auto;padding:0">
+						  <table cellspacing="0" cellpadding="0" border="0" class="x-btn-wrap x-btn " style="width: auto;">
+							<tbody>
+							  <tr>
+								<td class="x-btn-left" style="background-color: transparent;border:none;height:auto;padding:0">
+								  <i></i>
+								</td>
+								<td class="x-btn-center" style="background-color: transparent;border:none;height:auto;padding:0">
+								  <em unselectable="on">
+									<button type="button" class="x-btn-text" onclick="FunctionName()">ButtonTitle</button>
+								  </em>
+								</td>
+								<td class="x-btn-right" style="background-color: transparent;border:none;height:auto;padding:0">
+								  <i></i>
+								</td>
+							  </tr>
+							</tbody>
+						  </table>
+						</td>
+						-->
+						<!--End of button code-->
+
+					  </tr>
+					</tbody>
+				  </table>
+				</div>
+			  </html>
+		</field>
+		
+		
+		<field table="wr" name="description" colspan="3" readOnly="true" />
+		<field colspan="3">
+			<title>Requestor Comments</title>
+			<html>
+				<ui>
+					<textarea wrap="PHYSICAL" name="wr.description.old" id="wr.description.old" style="height:100;width:800" class="defaulteditform_textareaabdata_readonly"></textarea>
+				</ui>
+			</html>
+		</field>
+		
+		<field table="wr" name="comments_mgr" colspan="3" hidden="true"/>
+		<field colspan="1">
+			<title>Add Fleet Manager comments</title>
+			<html>
+				<ui>
+					<textarea wrap="PHYSICAL" name="wr.comments_mgr.new" id="wr.comments_mgr.new" style="height:100;width:200" class="defaulteditform_textareaabdata"></textarea>
+				</ui>
+			</html>
+		</field>
+		<field colspan="2">
+			<title>Fleet Manager Comments</title>
+			<html>
+				<ui>
+					<textarea wrap="PHYSICAL" name="wr.comments_mgr.old" id="wr.comments_mgr.old" style="height:100;width:600" class="defaulteditform_textareaabdata_readonly"></textarea>
+				</ui>
+			</html>
+		</field>
+		
+		<field table="wr" name="cf_notes" colspan="3" hidden="true"/>
+		<field colspan="1">
+			<title>Add Maintenance Coordinator comments</title>
+			<html>
+				<ui>
+					<textarea wrap="PHYSICAL" name="wr.cf_notes.new" id="wr.cf_notes.new" style="height:100;width:200" class="defaulteditform_textareaabdata"></textarea>
+				</ui>
+			</html>
+		</field>
+		<field colspan="2">
+			<title>Fleet Maintenance Coordinator Comments</title>
+			<html>
+				<ui>
+					<textarea wrap="PHYSICAL" name="wr.cf_notes.old" id="wr.cf_notes.old" style="height:100;width:600" class="defaulteditform_textareaabdata_readonly"></textarea>
+				</ui>
+			</html>
+		</field>
+		
+		<field table="wr" name="comments_risk" colspan="3" hidden="true"/>
+		<field colspan="1">
+			<title>Add Risk comments</title>
+			<html>
+				<ui>
+					<textarea wrap="PHYSICAL" name="wr.comments_risk.new" id="wr.comments_risk.new" style="height:100;width:200" class="defaulteditform_textareaabdata"></textarea>
+				</ui>
+			</html>
+		</field>
+		<field colspan="2">
+			<title>Risk Comments</title>
+			<html>
+				<ui>
+					<textarea wrap="PHYSICAL" name="wr.comments_risk.old" id="wr.comments_risk.old" style="height:100;width:600" class="defaulteditform_textareaabdata_readonly"></textarea>
+				</ui>
+			</html>
+		</field>
+		
+		<field table="wr" name="wo_id" hidden="true" />
+	</panel>
+	
+	<!-- *********************** DOCUMENTS GRID************************** -->		
+	<!--panel type="view" id="a" file="uc-document-grid-nolayout.axvw"/-->
+	<!--panel type="grid" id="eq_docs" selectionEnabled="true" showOnLoad="false" dataSource="ds_docs">
+		<title translatable="true">Documents</title>
+
+		<field id="doc_download" controlType="button" enabled="${record['uc_docs_extension.doc_name']!=''}" onclick="grid_onShow">
+			<title translatable="true">View</title>
+		</field>			
+		
+		<field table="uc_docs_extension" name="doc_type_code"/>
+		<field table="uc_docs_extension" name="doc_name"/>
+		<field table="uc_docs_extension" name="table_name" hidden="true"/>
+		<field table="afm_tbls" name="title"/>
+		<field table="uc_docs_extension" name="created_by"/>
+		<field table="uc_docs_extension" name="date_created"/>
+		<field table="uc_docs_extension" name="description"/>
+		<field table="uc_docs_extension" name="uc_docs_extension_id" hidden="true"/>
+		<field table="uc_docs_extension" name="date_modified" hidden="true"/>
+		<field table="uc_docs_extension" name="modified_by" hidden="true" value="${user.employee.id}"/>
+		<field table="uc_docs_extension" name="pkey" hidden="true"/>
+
+		<sortField name="date_created" table="uc_docs_extension" ascending="false"/>
+		<sortField name="doc_type_code" table="uc_docs_extension" ascending="true"/>
+	</panel-->
+
+
+	<!-- ******************************************************** -->
+	<!-- Report Equipment Error                                   -->
+	<!-- ******************************************************** -->
+
+	<dataSource id="errorDs1Vehicle">
+		<table name="uc_eq_error_report" role="main"/>
+		<field table="uc_eq_error_report" name="wr_id"/>
+		<!--field table="uc_eq_error_report" name="eq_id"/-->
+		<field table="uc_eq_error_report" name="error_type"/>
+		<field table="uc_eq_error_report" name="description"/>
+		<field table="uc_eq_error_report" name="user_name"/>
+		<field table="uc_eq_error_report" name="date_reported"/>
+
+	</dataSource>
+
+	<panel type="form" id="errorReportPanelVehicle" dataSource="errorDs1Vehicle" labelsPosition="top" showOnLoad="false">
+		<title>Report Data Error</title>
+		<action id="save" imageName="/schema/ab-core/graphics/save.gif">
+			<title>Send</title>
+			<tooltip>Send Error</tooltip>
+			<command type="saveForm"/>
+
+			<command type="closeDialog"/>
+		</action>
+		<action id="errorCancel">
+			<title>Cancel</title>
+			<tooltip>Cancel Changes</tooltip>
+			<command type="closeDialog" />
+		</action>
+
+		<field table="uc_eq_error_report" name="wr_id"/>
+		<!--field table="uc_eq_error_report" name="eq_id" readOnly="true"/-->
+		<field table="uc_eq_error_report" name="error_type"/>
+		<field table="uc_eq_error_report" name="description" rowspan="3"/>
+		<field table="uc_eq_error_report" name="user_name" hidden="true"/>
+		<field table="uc_eq_error_report" name="date_reported" hidden="true"/>
+	</panel>
+
+	<!-- ****************************************************** -->
+	<!-- Show Requestor Information								-->
+	<!-- ****************************************************** -->
+
+	<dataSource id="reqInfoVehicle_dsVehicle">
+		<table name="wr" role="main"/>
+
+		<field table="wr" name="requestor"/>
+		<field table="wr" name="phone"/>
+	</dataSource>
+	<dataSource id="em_dsVehicle">
+		<table name="em" role="main"/>
+		<table name="dv" role="standard"/>
+		<table name="dp" role="standard"/>
+		<field table="em" name="em_id"/>
+		<field table="em" name="name_first"/>
+		<field table="em" name="name_last"/>
+		<field table="em" name="email"/>
+		<field table="em" name="phone"/>
+		<field table="em" name="dp_id"/>
+		<field table="em" name="dv_id"/>
+		<field table="dp" name="name"/>
+		<field table="dv" name="name"/>
+	</dataSource>
+
+	<panel type="form" id="requestorInfoVehicle" dataSource="reqInfoVehicle_dsVehicle" showOnLoad="false">
+		<title>Requestor Info</title>
+
+		<field table="wr" name="requestor" readOnly="true"/>
+
+
+		<field alias="name_first" ><title>First Name:</title></field>
+		<field alias="name_last" ><title>Last Name:</title></field>
+		<field alias="email" ><title>Email:</title></field>
+		<field table="wr" name="phone" readOnly="true"><title>Phone:</title></field>
+		<field alias="dv_id" ><title>Division:</title></field>
+		<field alias="dp_id" ><title>Department:</title></field>
+
+
+
+	</panel>
+	
+	<dataSource id="dvrInfoVehicle_dsVehicle">
+		<table name="wr" role="main"/>
+
+		<field table="wr" name="driver"/>
+	</dataSource>
+	<dataSource id="em_dsDvrVehicle">
+		<table name="em" role="main"/>
+		<table name="dv" role="standard"/>
+		<table name="dp" role="standard"/>
+		<field table="em" name="em_id"/>
+		<field table="em" name="name_first"/>
+		<field table="em" name="name_last"/>
+		<field table="em" name="email"/>
+		<field table="em" name="phone"/>
+		<field table="em" name="dp_id"/>
+		<field table="em" name="dv_id"/>
+		<field table="dp" name="name"/>
+		<field table="dv" name="name"/>
+	</dataSource>
+
+	<panel type="form" id="dvrInfoVehicle" dataSource="dvrInfoVehicle_dsVehicle" showOnLoad="false">
+		<title>Driver Info</title>
+
+		<field table="wr" name="driver" readOnly="true"/>
+
+
+		<field alias="name_first" ><title>First Name:</title></field>
+		<field alias="name_last" ><title>Last Name:</title></field>
+		<field alias="email" ><title>Email:</title></field>
+		<field alias="phone" readOnly="true"><title>Phone:</title></field>
+		<field alias="dv_id" ><title>Division:</title></field>
+		<field alias="dp_id" ><title>Department:</title></field>
+
+
+
+	</panel>
+	
+	<dataSource id="boInfoVehicle_dsVehicle">
+		<table name="wr" role="main"/>
+
+		<field table="wr" name="budget_owner"/>
+	</dataSource>
+	<dataSource id="em_dsBoVehicle">
+		<table name="em" role="main"/>
+		<table name="dv" role="standard"/>
+		<table name="dp" role="standard"/>
+		<field table="em" name="em_id"/>
+		<field table="em" name="name_first"/>
+		<field table="em" name="name_last"/>
+		<field table="em" name="email"/>
+		<field table="em" name="phone"/>
+		<field table="em" name="dp_id"/>
+		<field table="em" name="dv_id"/>
+		<field table="dp" name="name"/>
+		<field table="dv" name="name"/>
+	</dataSource>
+
+	<panel type="form" id="boInfoVehicle" dataSource="boInfoVehicle_dsVehicle" showOnLoad="false">
+		<title>Budget Owner Info</title>
+
+		<field table="wr" name="budget_owner" readOnly="true"/>
+
+		<field alias="name_first" ><title>First Name:</title></field>
+		<field alias="name_last" ><title>Last Name:</title></field>
+		<field alias="email" ><title>Email:</title></field>
+		<field alias="phone" readOnly="true"><title>Phone:</title></field>
+		<field alias="dv_id" ><title>Division:</title></field>
+		<field alias="dp_id" ><title>Department:</title></field>
+
+	</panel>
+
+	<!-- ****************************************************** -->
+	<!-- Show Priority Information								-->
+	<!-- ****************************************************** -->
+
+	<panel type="html" id="priorityInfo" showOnLoad="false">
+		<title>Priority SLA Details</title>
+		<html>
+		<h6 align="left"><span style="font-weight:normal">1-Emergency/Safety - Immediate / Same day Response</span></h6>
+		<h6 align="left"><span style="font-weight:normal">2-High - Up to 48 Hours Response</span></h6>
+		<h6 align="left"><span style="font-weight:normal">3-Medium - Up to 10 Days Response</span></h6>
+		<h6 align="left"><span style="font-weight:normal">4-Low - Up to 30 Days Response</span></h6>
+		<h6 align="left"><span style="font-weight:normal">5-Scheduled - Date Sensitive</span></h6>
+		</html>
+	</panel>
+	
+	<!-- ****************************************************** -->
+	<!-- Show Equipment Information		    					-->
+	<!-- ****************************************************** -->
+
+	<dataSource id="equipInfo_ds3Vehicle">
+		<table name="vehicle" role="main"/>
+		<field table="vehicle" name="vehicle_id"/>
+		<field table="vehicle" name="eq_id"/>
+		<field table="vehicle" name="condition"/>
+		<field table="vehicle" name="dv_id"/>
+		<field table="vehicle" name="dp_id"/>
+		<field table="vehicle" name="mfr_id"/>
+		<field table="vehicle" name="model_id"/>
+		<field table="vehicle" name="loc_vehicle"/>
+		<field table="vehicle" name="meter"/>
+		<field table="vehicle" name="model_year"/>
+		<field table="vehicle" name="org_contact"/>
+		<field table="vehicle" name="org_admin"/>
+		<field table="vehicle" name="budget_owner"/>
+	</dataSource>
+
+	<panel type="form" id="eqInfoVehicle" dataSource="equipInfo_ds3Vehicle" showOnLoad="false">
+		<title>Vehicle Info</title>
+		<field table="vehicle" name="vehicle_id" readOnly="true" required="false"/>
+		<field table="vehicle" name="eq_id" readOnly="true" required="false" hidden="true"/>
+		<field table="vehicle" name="condition" readOnly="true" required="false" hidden="true"/>
+		<field table="vehicle" name="dv_id" readOnly="true" required="false" hidden="true"/>
+		<field table="vehicle" name="dp_id" readOnly="true" required="false"/>
+		<field table="vehicle" name="mfr_id" readOnly="true" required="false"/>
+		<field table="vehicle" name="model_id" readOnly="true" required="false"/>
+		<field table="vehicle" name="model_year" readOnly="true" required="false"/>
+		<field table="vehicle" name="org_contact" readOnly="false" enabled="false">
+			<action>
+				<title>...</title>
+			</action>
+			<action onclick="javascript:window.location=
+								'mailto:' + View.getControl('','eqInfoVehicle').getFieldValue('vehicle.org_contact') +  
+								'?subject=Regarding unit ' + View.getControl('','eqInfoVehicle').getFieldValue('vehicle.vehicle_id')" 
+								enabled="true">
+				<title>Email</title>
+			</action>
+			<action onclick="javascript:window.location=
+								'mailto:' + View.getControl('','eqInfoVehicle').getFieldValue('vehicle.org_contact') +  
+								'?subject=Vehicle maintenance on your unit ' + 
+								View.getControl('','eqInfoVehicle').getFieldValue('vehicle.vehicle_id') + 
+								'&amp;body=Hello. It shows in our records that your vehicle is due for maintenance. 
+								Please contact motor pool and let us know when a good time to get this completed. 
+								Please advise us if any other issues need to be addressed with this vehicle.
+								 If you have any further questions or concerns, please feel free to contact the Motor Pool at
+								 motorpool@ucalgary.ca or 403-220-5601.'"
+					enabled="true">
+				<title>M</title>
+			</action>
+		</field>
+		<field table="vehicle" name="org_admin">
+			<action>
+				<title>...</title>
+			</action>
+			<action onclick="javascript:window.location=
+								'mailto:' + View.getControl('','eqInfoVehicle').getFieldValue('vehicle.org_admin') +  
+								'?subject=Regarding unit ' + View.getControl('','eqInfoVehicle').getFieldValue('vehicle.vehicle_id')" 
+								enabled="true">
+				<title>Email</title>
+			</action>
+			<action onclick="javascript:window.location=
+								'mailto:' + View.getControl('','eqInfoVehicle').getFieldValue('vehicle.org_admin') +  
+								'?subject=Vehicle maintenance on your unit ' + 
+								View.getControl('','eqInfoVehicle').getFieldValue('vehicle.vehicle_id') + 
+								'&amp;body=Hello. It shows in our records that your vehicle is due for maintenance. 
+								Please contact motor pool and let us know when a good time to get this completed. 
+								Please advise us if any other issues need to be addressed with this vehicle.
+								 If you have any further questions or concerns, please feel free to contact the Motor Pool at
+								 motorpool@ucalgary.ca or 403-220-5601.'"
+					enabled="true">
+				<title>M</title>
+			</action>
+		</field>
+		<field table="vehicle" name="budget_owner">
+			<action>
+				<title>...</title>
+			</action>
+			<action onclick="javascript:window.location=
+								'mailto:' + View.getControl('','eqInfoVehicle').getFieldValue('vehicle.budget_owner') +  
+								'?subject=Regarding unit ' + View.getControl('','eqInfoVehicle').getFieldValue('vehicle.vehicle_id')" 
+								enabled="true">
+				<title>Email</title>
+			</action>
+			<action onclick="javascript:
+								window.location=
+								'mailto:' + View.getControl('','eqInfoVehicle').getFieldValue('vehicle.budget_owner') +  
+								'?subject=Vehicle maintenance on your unit ' + 
+								View.getControl('','eqInfoVehicle').getFieldValue('vehicle.vehicle_id') + 
+								'&amp;body=Hello. It shows in our records that your vehicle is due for maintenance. 
+								Please contact motor pool and let us know when a good time to get this completed. 
+								Please advise us if any other issues need to be addressed with this vehicle.
+								 If you have any further questions or concerns, please feel free to contact the Motor Pool at
+								 motorpool@ucalgary.ca or 403-220-5601.'"
+					enabled="true">
+				<title>M</title>
+			</action>
+			<!--action onclick="javascript:
+								window.location=
+								'mailto:' + View.getControl('','eqInfoVehicle').getFieldValue('vehicle.budget_owner') +  
+								'?subject=Vehicle maintenance on your unit ' + 
+								View.getControl('','eqInfoVehicle').getFieldValue('vehicle.vehicle_id') + 
+								'&body=Hello.%0D%0AIt shows in our records that your vehicle is due for maintenance. 
+								Please contact motor pool and let us know when a good time to get this completed. 
+								Please advise us if any other issues need to be addressed with this vehicle.
+								 If you have any further questions or concerns, please feel free to contact the Motor Pool at
+								 motorpool@ucalgary.ca or 403-220-5601.'"
+					enabled="true">
+				<title>M</title>
+			</action-->		
+		</field>
+		<field table="vehicle" readOnly="true" required="false" name="loc_vehicle"/>
+		<field table="vehicle" readOnly="true" required="false" name="meter"/>
+	</panel>
+</view>

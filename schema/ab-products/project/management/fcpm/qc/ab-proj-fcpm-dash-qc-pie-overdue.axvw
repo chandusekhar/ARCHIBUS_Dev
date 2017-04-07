@@ -1,0 +1,66 @@
+<view version="2.0" >
+    <message name="pastDueSummary">Past Due</message>
+    <message name="timelySummary">On-Time</message>
+    <message name="unscheduledSummary">Unscheduled</message>
+    <message name="noValueSummary">Unknown</message>
+    <js file="ab-proj-fcpm-dash-qc-pie-overdue.js"/>
+    
+ 	<dataSource type="grouping" id="projFcpmDashQcPieOverdue_ds0" applyVpaRestrictions="false">
+        <table name="project" role="main"/>
+        <sql dialect="generic">
+        	SELECT project_id,
+					(CASE 
+					WHEN (status NOT IN ('Approved') AND (date_target_end - date_end &gt; 30)) THEN ${parameters['pastDue']} 
+					WHEN (status NOT IN ('Approved') AND (date_target_end - date_end &lt; 30)) THEN ${parameters['timely']} 
+					WHEN status IN ('Approved') THEN ${parameters['unscheduled']}
+					ELSE ${parameters['noValue']} 
+					END) ${sql.as} status_group 
+					FROM project 
+					WHERE project.is_template = 0 
+					AND (project.proj_mgr = '${user.employee.id}' OR project.apprv_mgr1 = '${user.employee.id}') 
+					AND ((status = 'Closed' AND (${sql.daysBeforeCurrentDate('project.date_target_end')} &lt; 365 OR ${sql.daysBeforeCurrentDate('project.date_end')} &lt; 365) )
+					OR status IN ('Approved','Issued-In Process','Issued-On Hold','Issued-Stopped','Completed-Pending', 'Completed-Not Ver', 'Completed-Verified')) 
+                    AND ${sql.getVpaRestrictionForTable('project')}	
+				</sql>
+        <field table="project" name="status_group" groupBy="true" dataType="text"> 
+        	<title translatable="true">Project Status</title>
+        </field>
+        <field table="project" name="project_count" baseField="project.project_id" formula="count" dataType="number" decimals="0"> 
+        	<title translatable="true">Project Count</title>
+        </field>
+        <parameter name="pastDue" dataType="text" value=""/>
+        <parameter name="timely" dataType="text" value=""/>
+        <parameter name="unscheduled" dataType="text" value=""/>
+        <parameter name="noValue" dataType="text" value=""/>
+    </dataSource>
+    
+    
+		<panel 	id="projFcpmDashQcPieOverdue_chart" 
+    		type="chart" 
+    		controlType="pieChart" 
+    		dataSource="projFcpmDashQcPieOverdue_ds0" 
+    		showLegendOnLoad="false"
+    		showLegendAsPopUp="false" 
+    		legendLocation="right"
+    		showDataTips="true" 
+    		backgroundColor="0xFFFFFF" 
+    		fillType="solid">
+        <title translatable="true">My Projects - Overdue - On-Time</title>
+        <action type="menu" id="projFcpmDashQcPieOverdue_toolsMenu" imageName="/schema/ab-core/graphics/icons/view/export.png">
+            <action id="exportDOCX">
+				      <title>Export to DOCX</title>
+				      <command type="exportPanel" outputType="docx" panelId="projFcpmDashQcPieOverdue_chart"/>
+				    </action> 
+        </action>
+        <event type="onClickItem">
+            <command type="callFunction" functionName="selectPieOverdue"/>
+        </event> 
+         
+        <groupingAxis dataSource="projFcpmDashQcPieOverdue_ds0" table="project" field="status_group" labelRotation="45">
+            <title translatable="true">Status</title>
+        </groupingAxis>
+        <dataAxis dataSource="projFcpmDashQcPieOverdue_ds0" table="project" field="project_count" labelPosition="callout">
+            <title translatable="true">Count</title>
+        </dataAxis>
+    </panel>
+</view>

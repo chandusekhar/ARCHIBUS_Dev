@@ -1,0 +1,279 @@
+<view version="2.0">
+    <js file="ab-cb-assess-samples.js"/>
+    <js file="ab-cb-track-common.js"/>
+    <js file="ab-cb-select-values-common.js"/>
+    
+    <!--  Messages -->
+    <message name="msg_field_greater_or_equal_than" translatable="true">{0} must be greater or equal than {1}</message>
+    <message name="msg_field_smaller_or_equal_than" translatable="true">{0} must be smaller or equal than {1}</message>
+    <message name="err_copy_as_new" translatable="true">You must save the record first.</message>
+    <message name="msg_save_sample_and_lab_results" translatable="true">Sample and Lab Results copied and saved, the Sample Code and/or Prefix values should be changed.</message>
+    <message name="detailsTitle" translatable="true">Details</message> 
+     
+    <!-- Layout -->
+    <layout type="borderLayout" id="mainLayout">
+        <north initialSize="35%" split="true"/>
+        <center/>
+        <south initialSize="25%"/>
+    </layout>
+    <layout type="borderLayout" id="nestedSouth" containingLayout="mainLayout" region="south">
+        <west initialSize="40%"/>
+        <center/>
+    </layout>
+    
+    <!--  Samples list -->
+    <dataSource id="abCbAssessSamples_ds">
+        <table name="cb_samples" role="main"/>
+        <table name="activity_log" role="standard"/>
+        <field name="sample_id" table="cb_samples"/>
+        <field name="activity_log_id" table="cb_samples"/>
+        <field name="date_collected" table="cb_samples"/>
+        <field name="analysis_requested" table="cb_samples"/>
+        <field name="requested_by" table="cb_samples"/>
+        <field name="sample_code" table="cb_samples"/>
+        <field name="sample_desc" table="cb_samples"/>
+        <field name="lab_id" table="cb_samples"/>
+        <field name="lab_log_num" table="cb_samples"/>
+        <field name="date_received" table="cb_samples"/>
+        <field name="date_analysis" table="cb_samples"/>
+        <field name="analyst_name" table="cb_samples"/>
+        <field name="sample_prefix_num" table="cb_samples"/>
+        <field name="sample_archive" table="cb_samples"/>
+        <field name="sample_type" table="cb_samples"/>
+        <field name="sample_doc" table="cb_samples"/>
+        <field name="sample_loc" table="cb_samples"/>
+        <field name="sample_loc_code" table="cb_samples"/>
+        <field name="vf_lab_result_no" dataType="number" decimals="0">
+            <sql dialect="generic">
+                (SELECT count(cb_sample_result.result_id) FROM cb_sample_result WHERE cb_sample_result.sample_id = cb_samples.sample_id)
+            </sql>
+        </field>
+        <field name="project_id" table="activity_log"/>
+    </dataSource>
+    
+    <panel type="grid" id="abCbAssessSamplesList" dataSource="abCbAssessSamples_ds" showOnLoad="false" layout="mainLayout" region="north">
+        <instructions>&#160;</instructions>
+        <sortField table="cb_samples" name="sample_id" ascending="true"/>
+        <title translatable="true">Material Samples</title>
+        <action id="new" hidden="${abCbAssesssSamplesHideForWorker}">
+            <title translatable="true">Add New</title>
+        </action>
+        <field id="edit" controlType="button">
+            <title translatable="true">Edit</title>
+            <command type="showPanel" panelId="abCbAssessSampleForm"/> 
+            <command type="showPanel" panelId="abCbAssessSamplesResultList"/> 
+            <command type="showPanel" panelId="abCbAssessSamplesResultForm" show="false"/> 
+        </field>
+        <field name="vf_lab_result_no" dataType="number" decimals="0">
+            <title translatable="true"># Lab Results</title>
+        </field>
+        
+        <field name="date_collected"/>
+        <field name="sample_code"/>
+        <field name="sample_desc"/>
+        <field name="sample_loc_code"/>
+        <field name="sample_loc"/>
+        <field name="sample_prefix_num"/>
+        <field name="sample_type"/>
+        <field name="sample_archive"/>
+        <field name="analysis_requested"/>
+        <field name="requested_by"/>
+        <field name="lab_id"/>
+        <field name="lab_log_num"/>
+        <field name="date_received"/>
+        <field name="date_analysis"/>
+        <field name="analyst_name"/>
+        
+        <field name="sample_id" hidden="true"/>
+        <field name="activity_log_id" hidden="true"/>
+    </panel>
+    
+    <!--  Add /Edit sample form -->
+    <panel type="form" id="abCbAssessSampleForm" dataSource="abCbAssessSamples_ds" showOnLoad="false" columns="2" layout="mainLayout" region="center">
+        <title translatable="true">Add/Edit Material Sample</title>
+        <action id="copyToOther" enabled="${!panel.newRecord}" hidden="${abCbAssesssSamplesHideForWorker}">
+            <title>Copy To Other Assessments</title>
+        </action>
+        <action id="copyWithResults" enabled="${!panel.newRecord}" hidden="${abCbAssesssSamplesHideForWorker}">
+            <title translatable="true">Copy With Results</title>
+        </action>
+        <action id="copyAsNew" enabled="${!panel.newRecord}" hidden="${abCbAssesssSamplesHideForWorker}">
+            <title translatable="true">Copy As New</title>
+        </action>
+        <action id="saveAndNew" hidden="${abCbAssesssSamplesHideForWorker}">
+            <title translatable="true">Save and Add New</title>
+            <command type="callFunction" functionName="validateForm"/>
+            <command type="saveForm"/>
+            <command type="callFunction" functionName="refreshMainList"/>
+            <command type="showPanel" panelId="abCbAssessSamplesList" applyParentRestriction="false"/>
+            <command type="showPanel" panelId="abCbAssessSampleForm" newRecord="true"/> 
+            <command type="showPanel" panelId="abCbAssessSamplesResultList" show="false"/> 
+            <command type="showPanel" panelId="abCbAssessSamplesResultForm" show="false"/>
+        </action>
+        <action id="save" hidden="${abCbAssesssSamplesHideForWorker}">
+            <title translatable="true">Save</title>
+            <command type="callFunction" functionName="validateForm"/>
+            <command type="saveForm"/>
+            <command type="callFunction" functionName="refreshMainList"/>
+            <command type="showPanel" panelId="abCbAssessSamplesList" applyParentRestriction="false"/> 
+            <command type="showPanel" panelId="abCbAssessSamplesResultList"/> 
+            <command type="showPanel" panelId="abCbAssessSamplesResultForm" show="false"/>
+        </action>
+        <action id="delete" enabled="${!panel.newRecord}" hidden="${abCbAssesssSamplesHideForWorker}">
+            <title translatable="true">Delete</title>
+            <command type="deleteRecord"/>
+            <command type="callFunction" functionName="refreshMainList"/>
+            <command type="showPanel" panelId="abCbAssessSamplesList" applyParentRestriction="false"/> 
+            <command type="showPanel" panelId="abCbAssessSampleForm" show="false"/> 
+            <command type="showPanel" panelId="abCbAssessSamplesResultList" show="false"/> 
+            <command type="showPanel" panelId="abCbAssessSamplesResultForm" show="false"/>
+        </action>
+        <action id="cancel" hidden="${abCbAssesssSamplesHideForWorker}">
+            <title translatable="true">Cancel</title>
+            <command type="showPanel" panelId="abCbAssessSampleForm" show="false"/> 
+            <command type="showPanel" panelId="abCbAssessSamplesResultList" show="false"/> 
+            <command type="showPanel" panelId="abCbAssessSamplesResultForm" show="false"/>
+        </action>
+        <field name="analysis_requested" readOnly="${abCbAssesssSamplesHideForWorker}"/>
+        <field name="requested_by" readOnly="${abCbAssesssSamplesHideForWorker}"/>
+        <field name="date_collected" readOnly="${abCbAssesssSamplesHideForWorker}"/>
+        <field name="sample_code" readOnly="${abCbAssesssSamplesHideForWorker}"/>
+        <field name="sample_desc" readOnly="${abCbAssesssSamplesHideForWorker}"/>
+        <field name="sample_doc" readOnly="${abCbAssesssSamplesHideForWorker}"/>
+        <field name="lab_id" readOnly="${abCbAssesssSamplesHideForWorker}">
+            <action hidden="${abCbAssesssSamplesHideForWorker}">
+                <title translatable="false">...</title>
+                <tooltip>Select Value</tooltip>
+                <command type="callFunction" functionName="selectValue_LabId('abCbAssessSampleForm', 'cb_samples.lab_id', abCbAssessSampleCtrl.projProbType, 'grid')"/>
+            </action>
+        </field>
+        <field name="lab_log_num" readOnly="${abCbAssesssSamplesHideForWorker}"/>
+        <field name="date_received" readOnly="${abCbAssesssSamplesHideForWorker}"/>
+        <field name="date_analysis" readOnly="${abCbAssesssSamplesHideForWorker}"/>
+        <field name="analyst_name" readOnly="${abCbAssesssSamplesHideForWorker}"/>
+        <field name="sample_prefix_num" readOnly="${abCbAssesssSamplesHideForWorker}"/>
+        <field name="sample_loc" readOnly="${abCbAssesssSamplesHideForWorker}"/>
+        <field name="sample_loc_code" readOnly="${abCbAssesssSamplesHideForWorker}"/>
+        <field name="sample_archive" readOnly="${abCbAssesssSamplesHideForWorker}"/>
+        <field name="sample_type" readOnly="${abCbAssesssSamplesHideForWorker}"/>
+        <field name="sample_id" hidden="true"/>
+        <field name="activity_log_id" hidden="true"/>
+    </panel>
+    
+    <!-- Lab results -->
+    <dataSource id="abCbAssessSamplesResult_ds">
+        <table name="cb_sample_result" role="main"/>
+        <table name="cb_sample_comp" role="standard"/>
+        <table name="cb_samples" role="standard"/>
+        <field table="cb_sample_result" name="result_id"/>
+        <field table="cb_sample_result" name="sample_id"/>
+        <field table="cb_sample_result" name="sample_comp_id"/>
+        <field table="cb_sample_result" name="cb_units_id"/>
+        <field table="cb_sample_result" name="qualifier"/>
+        <field table="cb_sample_result" name="result_1"/>
+        <field table="cb_sample_result" name="result_2"/>
+        <field table="cb_sample_comp" name="is_hazard"/>
+        <field table="cb_sample_comp" name="cas_num"/>
+        <field table="cb_samples" name="sample_prefix_num"/>
+        <field table="cb_samples" name="sample_code"/>
+    </dataSource>
+    
+    <panel type="grid" id="abCbAssessSamplesResultList" dataSource="abCbAssessSamplesResult_ds" showOnLoad="false" layout="nestedSouth" region="west">
+        <title translatable="true">Material Sample Lab Results</title>
+        <action id="new" hidden="${abCbAssesssSamplesHideForWorker}">
+            <title translatable="true">Add New</title>
+            <command type="showPanel" panelId="abCbAssessSamplesResultForm" newRecord="true"/>
+        </action>
+        <field table="cb_sample_result" name="sample_comp_id" controlType="link">
+            <title translatable="true">Composition</title>
+            <command type="showPanel" panelId="abCbAssessSamplesResultForm"/>
+        </field>
+        <field table="cb_sample_comp" name="is_hazard" controlType="link">
+            <title translatable="true">Is Hazard?</title>
+            <command type="showPanel" panelId="abCbAssessSamplesResultForm"/>
+        </field>
+        <field table="cb_sample_result" name="qualifier" controlType="link">
+            <command type="showPanel" panelId="abCbAssessSamplesResultForm"/>
+        </field>
+        <field table="cb_sample_result" name="result_1" controlType="link">
+            <command type="showPanel" panelId="abCbAssessSamplesResultForm"/>
+        </field>
+        <field table="cb_sample_result" name="cb_units_id" controlType="link">
+            <command type="showPanel" panelId="abCbAssessSamplesResultForm"/>
+        </field>
+        <field table="cb_sample_result" name="result_2" controlType="link">
+            <command type="showPanel" panelId="abCbAssessSamplesResultForm"/>
+        </field>
+        <field table="cb_sample_comp" name="cas_num" controlType="link">
+            <command type="showPanel" panelId="abCbAssessSamplesResultForm"/>
+        </field>
+        
+        <field table="cb_sample_result" name="sample_id" hidden="true"/>
+        <field table="cb_sample_result" name="result_id" hidden="true"/>
+    </panel>
+    
+    <panel type="form" id="abCbAssessSamplesResultForm" dataSource="abCbAssessSamplesResult_ds" columns="2" showOnLoad="false" layout="nestedSouth" region="center">
+    	<title translatable="true">Add/Edit Lab Result</title>
+        <action id="copyAsNew" enabled="${!panel.newRecord}" hidden="${abCbAssesssSamplesHideForWorker}">
+            <title translatable="true">Copy As New</title>
+        </action>
+        <action id="saveAndNew" hidden="${abCbAssesssSamplesHideForWorker}">
+            <title translatable="true">Save and Add New</title>
+            <command type="saveForm"/>
+            <command type="callFunction" functionName="refreshMainList"/>
+            <command type="showPanel" panelId="abCbAssessSamplesResultList" applyParentRestriction="false"/>
+            <command type="showPanel" panelId="abCbAssessSamplesResultForm" newRecord="true"/>
+        </action>
+        <action id="save" hidden="${abCbAssesssSamplesHideForWorker}">
+            <title translatable="true">Save</title>
+            <command type="saveForm"/>
+            <command type="callFunction" functionName="refreshMainList"/>
+            <command type="showPanel" panelId="abCbAssessSamplesResultList" applyParentRestriction="false"/>
+        </action>
+        <action id="delete" enabled="${!panel.newRecord}" hidden="${abCbAssesssSamplesHideForWorker}">
+            <title translatable="true">Delete</title>
+            <command type="deleteRecord"/>
+            <command type="callFunction" functionName="refreshMainList"/>
+            <command type="showPanel" panelId="abCbAssessSamplesResultList" applyParentRestriction="false"/>
+            <command type="showPanel" panelId="abCbAssessSamplesResultForm" show="false"/>
+        </action>
+        <action id="cancel" hidden="${abCbAssesssSamplesHideForWorker}">
+            <title translatable="true">Cancel</title>
+            <command type="showPanel" panelId="abCbAssessSamplesResultForm" show="false"/>
+        </action>
+        
+        <field table="cb_sample_result" name="sample_comp_id" onchange="afterSelectSampleCompId('cb_sample_result.sample_comp_id', abCbAssessSampleCtrl.abCbAssessSamplesResultForm.getFieldValue('cb_sample_result.sample_comp_id'), '')" readOnly="${abCbAssesssSamplesHideForWorker}">
+            <title translatable="true">Composition</title>
+            <action hidden="${abCbAssesssSamplesHideForWorker}">
+                <title translatable="false">...</title>
+                <tooltip>Select Value</tooltip>
+                <command type="callFunction" functionName="selectValue_SampleCompId('abCbAssessSamplesResultForm', 'cb_sample_result.sample_comp_id', abCbAssessSampleCtrl.projProbType, 'grid')"/>
+            </action>
+        </field>
+        <field table="cb_sample_comp" name="cas_num" readOnly="true" required="false"/>
+        
+        <field table="cb_sample_result" name="qualifier" readOnly="${abCbAssesssSamplesHideForWorker}"/>
+        <field table="cb_sample_comp" name="is_hazard" readOnly="true"  required="false">
+            <title translatable="true">Is Hazard?</title>
+        </field>
+        
+        <field table="cb_sample_result" name="result_1" readOnly="${abCbAssesssSamplesHideForWorker}"/>
+        <field table="cb_samples" name="sample_code" readOnly="true" required="false"/>
+
+        <field table="cb_sample_result" name="result_2" readOnly="${abCbAssesssSamplesHideForWorker}"/>
+        <field table="cb_samples" name="sample_prefix_num" readOnly="true" required="false">
+            <title translatable="true">Sample Prefix #</title>
+        </field>
+        <field table="cb_sample_result" name="cb_units_id" readOnly="${abCbAssesssSamplesHideForWorker}">
+            <title translatable="true">Units</title>
+            <action hidden="${abCbAssesssSamplesHideForWorker}">
+                <title translatable="false">...</title>
+                <tooltip>Select Value</tooltip>
+                <command type="callFunction" functionName="selectValue_CbUnitsId('abCbAssessSamplesResultForm', 'cb_sample_result.cb_units_id', abCbAssessSampleCtrl.projProbType, 'grid')"/>
+            </action>
+        </field>
+        
+        <field table="cb_sample_result" name="sample_id" hidden="true"/>
+        <field table="cb_sample_result" name="result_id" hidden="true"/>
+    </panel>
+</view>

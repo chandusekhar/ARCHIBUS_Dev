@@ -1,0 +1,203 @@
+<view version="2.0">
+<!-- Change Log -->
+<!-- 2012/06/27 - ASO - WR172752 - Added wr.act_labor_hours in wrlist_ds and wrListPanel -->
+<!-- 2012/06/27 - ASO - WR172913 - show completed work request -->
+<!-- 2012/09/05 - Always sort by WR descending -->
+<!-- 2016/03/21 - MSHUSSAI - Added the ability to search by Building Zones -->
+	
+	<!--<layout file="console-small.axvw" />-->
+
+	<layout>
+        <north initialSize="135"/>
+        <center/>
+    </layout>
+	
+	<title>Project Listing</title>
+
+	<js file="uc-proj-quick-manage13.js"/>
+	<js file="uc-common-functions-data.js"/>
+
+	<dataSource id="console_ds5">
+		<table name="project" role="main"/>
+		<table name="em" role="standard"/>
+		<table name="bl" role="standard"/>
+		<field table="project" name="project_id"/>
+		<field table="project" name="int_num"/>
+		<field table="project" name="proj_mgr"/>
+		<field table="project" name="proj_phase"/>
+		<field table="project" name="program_id"/>
+		<field table="project" name="project_cat_id"/>
+		<field table="project" name="bl_id"/>
+		<field table="project" name="status"/>
+		<field table="project" name="cfi_num"/>
+		<field table="project" name="incl_noncfi"/>
+		<field table="em" name="company"/>
+		<field table="bl" name="zone_id"/>
+	</dataSource>
+
+	<!-- *********************** CONSOLE ******************************* -->
+  <panel type="console" id="consolePanel" dataSource="console_ds5" showOnLoad="true"  columns="3" region="north">
+    <title translatable="true">Filter</title>
+
+    <action id="show">
+      <title translatable="true">Show</title>
+    </action>
+
+    <action id="clear">
+      <title translatable="true">Clear</title>
+    </action>
+
+    <field table="project" name="int_num">
+    </field>
+    <field table="project" name="project_id" selectValueType="grid" >
+      <action>
+        <title>...</title>
+        <tooltip>Select Project</tooltip>
+        <command type="selectValue"
+          fieldNames="project.project_id"
+          selectFieldNames="project.project_id"
+          visibleFieldNames="project.project_id, project.proj_phase, project.int_num"
+          restriction="project.status NOT IN ('Requested-Rejected','Approved-Cancelled','Completed-Verified')"
+						 />
+      </action>
+    </field>
+
+    <field table="project" name="proj_mgr" value="${user.name}" >
+      <action>
+        <title>...</title>
+        <tooltip>Select Project Manager</tooltip>
+        <command type="selectValue"
+        fieldNames="project.proj_mgr"
+        selectFieldNames="em.em_id"
+        visibleFieldNames="em.em_std, em.em_id, em.name_first, em.name_last, em.company"
+        restriction="em.em_std='PROJECT-MGR'"/>
+      </action>
+    </field>
+
+    <field table="project" name="proj_phase" selectValueType="multiple"/>
+    <field table="project" name="program_id" selectValueType="multiple"/>
+    <field table="project" name="project_cat_id" selectValueType="multiple"/>
+
+    <field table="project" name="bl_id" selectValueType="multiple"/>
+
+    <field table="em" name="company"/>
+    <field table="bl" name="zone_id"/>
+
+    <field>
+      <title>Show Archived</title>
+      <html>
+        <input type="checkbox" name="showArchived" id="showArchived" />
+      </html>
+    </field>
+	<field table="project" name="cfi_num"/>
+	<field table="project" name="incl_noncfi"/>
+  </panel>
+
+  <dataSource id="projlist_ds15">
+    <query>
+      <sql dialect = "generic">
+        SELECT p.project_id, p.proj_mgr, p.int_num, int_key, p.status, p.cost_budget, p.proj_phase,
+        p.date_target_end, p.program_id, p.alert_level, p.pct_const_comp, p.project_cat_id, p.bl_id,
+        p.date_end, p.date_created, p.proj_acct, p.summary, p.description, p.scope, p.cost_likely,
+        isnull(abs(p.adw_afe_value),0)  AS  adw_afe_value,
+		isnull(abs(other_funding.other_amount),0) AS funding_adjustments,
+        isnull(p.adw_committed_value, 0)  AS  adw_committed_value,
+        isnull(p.adw_actuals_paid, 0)  AS  adw_actuals_paid,
+        isnull(p.adw_journal_value, 0)  AS  adw_journal_value,
+        isnull(p.adw_actuals_unposted, 0)  AS  adw_actuals_unposted,
+        (isnull(abs(p.adw_afe_value),0) - isnull(p.adw_committed_value,0)-isnull(p.adw_journal_value,0))  AS  balance,
+		p.incl_noncfi, cfi_num
+        FROM project p
+			LEFT JOIN (select project_id, sum(amount_total) as other_amount from uc_proj_funding_other group by uc_proj_funding_other.project_id) other_funding on p.project_id=other_funding.project_id
+        WHERE
+			p.project_type NOT IN ('ASSESSMENT - HAZMAT') AND
+        ${parameters['consoleRest']}
+      </sql>
+    </query>
+    <table name="project" role="main"/>
+
+    <field table="project" name="project_id"/>
+    <field table="project" name="program_id"/>
+    <field table="project" name="proj_mgr"/>
+    <field table="project" name="int_num"/>
+    <field table="project" name="int_key"/>
+    <field table="project" name="status"/>
+    <field table="project" name="cost_budget"/>
+    <field table="project" name="proj_phase"/>
+    <field table="project" name="date_target_end"/>
+    <field table="project" name="alert_level"/>
+    <field table="project" name="pct_const_comp"/>
+    <field table="project" name="adw_afe_value"/>
+    <field table="project" name="adw_committed_value"/>
+    <field table="project" name="adw_actuals_paid"/>
+    <field table="project" name="adw_journal_value"/>
+    <field table="project" name="adw_actuals_unposted"/>
+    <field table="project" name="project_cat_id"/>
+    <field table="project" name="bl_id"/>
+    <field table="project" name="date_end"/>
+    <field table="project" name="date_created"/>
+    <field table="project" name="proj_acct"/>
+    <field table="project" name="summary"/>
+    <field table="project" name="description"/>
+    <field table="project" name="scope"/>
+	<field table="project" name="funding_adjustments" dataType="number" size="16" decimals="2"/>
+	<field table="project" name="cost_likely"/>
+			<field table="project" name="cfi_num"/>
+		<field table="project" name="incl_noncfi"/>
+
+    <parameter name="consoleRest" dataType="verbatim" value="1=1"/>
+  </dataSource>
+
+	<!-- ***************************** PROJECT LIST GRID ************************* -->
+	<panel type="grid" id="projListPanel" dataSource="projlist_ds15" showOnLoad="false" region="center" >
+		<title>Projects (All values w/ RGST)</title>
+		<action id="exportXLS">
+            <title>XLS</title>
+            <command type="exportPanel" outputType="xls" panelId="projListPanel"/>
+        </action>
+		<field controlType="button">
+			<command type="openDialog" viewName="uc-proj-quick-details2.axvw"/>
+			<title>Details</title>
+		</field>
+		<field table="project" name="int_num"/>
+		<field table="project" name="project_id"/>
+		<field table="project" name="proj_phase"/>
+		<field table="project" name="program_id"/>
+		<field table="project" name="project_cat_id"/>
+		<field table="project" name="proj_mgr"/>
+		<field table="project" name="status" hidden="true"><title>Status/Alerts</title></field>
+		<field table="project" name="pct_const_comp"><title>Percent Constr. Complete</title></field>
+		<field table="project" name="cost_likely"><title>Forecasted Total Cost at Completion</title></field>
+		<field table="project" name="alert_level" hidden="true"/>
+		<field table="project" name="date_target_end"><title>Date - Target Substantial Completion</title></field>
+		<field table="project" name="cost_budget" hidden="true"/>
+		<field table="project" name="adw_afe_value"><title>Total AFE/Budget Value (A)</title></field>
+		<field table="project" name="funding_adjustments" dataType="number" size="16" decimals="2"><title>Funding Adjustments</title></field>
+		<!--field table="project" name="cost_afe" dataType="number" decimals="2"><title>Total AFE/Budget Value</title></field-->
+		<field table="project" name="adw_committed_value"><title>Total PO/Commitment Value (B)</title></field>
+		<!--field table="project" name="PO_Val" dataType="number" size="26" decimals="2">
+			<title translatable="true">Total PO/Commitment Value</title>
+		</field-->
+		<field table="project" name="adw_actuals_paid"><title>Actuals Invoices Paid (C)</title></field>
+		<field table="project" name="adw_actuals_unposted" ><title>Invoices Not Yet Paid</title></field>
+		<field table="project" name="adw_journal_value"><title>Journal Entry Charges (D)</title></field>
+		<!--field table="project" name="Actual" dataType="number" size="26" decimals="2">
+			<title translatable="true">Actuals Paid</title>
+		</field-->
+		<field table="project" name="balance" dataType="number" size="26" decimals="2">
+			<title translatable="true">Uncommitted Value (A-B-D)</title>
+		</field>
+		<field table="project" name="bl_id"/>
+    <field table="project" name="date_end">
+      <title>Date - Actual Substantial Completion</title>
+    </field>
+    <field table="project" name="date_created"/>
+    <field table="project" name="proj_acct"/>
+    <field table="project" name="summary"/>
+    <field table="project" name="description"/>
+    <field table="project" name="scope"/>
+				<field table="project" name="cfi_num"/>
+		<field table="project" name="incl_noncfi"/>
+		<sortField name="int_num" table="project" ascending="true"/>
+	</panel>
+</view>

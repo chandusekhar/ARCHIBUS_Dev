@@ -1,0 +1,122 @@
+<view version="2.0">
+    <title translatable="true">Work Restrictions by Location</title>
+    
+    <message translatable="true" name="workRestrictionsPanelTitle">Work Restrictions by Location</message>
+    <message translatable="true" name="activeRestrictionsPanelTitle">Active Work Restrictions by Location</message>
+    <message translatable="true" name="seeOnlyButtonTitle">See Active Restrictions Only</message>
+    <message translatable="true" name="seeAllButtonTitle">See all Restrictions</message>
+    
+    <layout type="borderLayout" id="mainLayout">
+        <west id="treeLayout" autoScroll="true" split="true" initialSize="30%"/>
+        <center id="tabsLayout" autoScroll="true"/>
+    </layout>
+    
+    <js file="ab-ehs-rpt-restrictions-by-location.js"/>
+    
+    <dataSource id="abEhsRptRestrictionsByLocation_pr_treeDs">
+        <table name="property" role="main"/>
+        <field name="pr_id"/>
+        <field name="description"/>
+        <sortField name="pr_id"/>
+        
+        <restriction type="sql"
+            sql="EXISTS(SELECT bl.pr_id FROM bl, ehs_restrictions, em
+                        WHERE bl.bl_id=em.bl_id AND em.em_id = ehs_restrictions.em_id 
+                        AND bl.pr_id = property.pr_id)"/>
+    </dataSource>
+    
+    <dataSource id="abEhsRptRestrictionsByLocation_bl_treeDs">
+        <table name="bl" role="main"/>
+        <field name="bl_id"/>
+        <field name="name"/>
+        <sortField name="bl_id"/>
+        
+        <restriction type="sql"
+            sql="EXISTS(SELECT em.bl_id FROM ehs_restrictions, em
+                        WHERE em.em_id = ehs_restrictions.em_id AND em.bl_id=bl.bl_id)"/>
+        
+    </dataSource>
+    
+    <panel type="tree" id="abEhsRptRestrictionsByLocation_pr_tree" dataSource="abEhsRptRestrictionsByLocation_pr_treeDs" region="west">
+        <title translatable="true">Select Location</title>
+        <event type="onClickNode">
+            <command type="callFunction" functionName="abEhsRptRestrictionsByLocationCtrl.abEhsRptRestrictionsByLocation_showGrid(this)"/>
+        </event>
+        <panel type="tree" id="abEhsRptRestrictionsByLocation_bl_tree" dataSource="abEhsRptRestrictionsByLocation_bl_treeDs">
+            <event type="onClickNode">
+                <command type="callFunction" functionName="abEhsRptRestrictionsByLocationCtrl.abEhsRptRestrictionsByLocation_showGrid(this)"/>
+            </event>
+        </panel>
+    </panel>
+    
+    <dataSource id="abEhsRptRestrictionsByLocation_restrDs">
+        <table name="ehs_restrictions" role="main"/>
+        <table name="em" role="standard"/>
+        <field table="ehs_restrictions" name="restriction_id"/>
+        <field table="ehs_restrictions" name="em_id"/>
+        <field table="em" name="dp_id"/>
+        <field table="ehs_restrictions" name="restriction_type_id"/>
+        <field table="ehs_restrictions" name="restriction_category_id"/>
+        <field table="ehs_restrictions" name="restriction_class"/>
+        <field table="ehs_restrictions" name="date_start"/>
+        <field table="ehs_restrictions" name="date_end"/>
+        <field name="lost_work_days_auto" dataType="text">
+            <sql dialect="generic">
+                (CASE lost_work_days WHEN 0 
+                    THEN (SELECT COUNT(cal_date) FROM afm_cal_dates WHERE 
+                            day_type = 'Workday' AND 
+                            date_start &lt;= cal_date AND 
+                            cal_date &lt;= CASE WHEN date_end IS NULL THEN ${sql.currentDate} ELSE date_end END) 
+                    ELSE lost_work_days
+                END)
+            </sql>
+        </field>
+        <field table="ehs_restrictions" name="description"/>
+        <field table="em" name="bl_id"/>
+        <field name="vf_pr_id" dataType="text">
+            <title translatable="true">Property Code</title>
+            <sql dialect="generic">
+                (SELECT pr_id FROM bl WHERE bl_id=em.bl_id)
+            </sql>
+        </field>
+        <restriction type="sql" sql="${parameters['activeRestriction']}"/>
+        
+        <parameter name="activeRestriction" dataType="verbatim" value=""/>
+    </dataSource>
+    
+    <panel type="grid" id="abEhsRptRestrictionsByLocation_restr" dataSource="abEhsRptRestrictionsByLocation_restrDs" region="center" showOnLoad="false">
+
+        <sortField table="ehs_restrictions" name="em_id"/>
+        <sortField table="ehs_restrictions" name="restriction_category_id"/>
+        <sortField table="ehs_restrictions" name="restriction_type_id"/>
+        <sortField table="ehs_restrictions" name="date_start"/>
+        <sortField table="ehs_restrictions" name="date_end"/>
+        
+        <action id="see"></action>
+        <action id="exportDOCX">
+            <title translatable="true">DOCX</title>
+            <command type="exportPanel" outputType="docx" panelId="abEhsRptRestrictionsByLocation_restr" printRestriction="true" orientation="landscape"/>
+        </action>
+        <action id="exportXLS">
+            <title translatable="true">XLS</title>
+            <command type="exportPanel" outputType="xls" panelId="abEhsRptRestrictionsByLocation_restr"/>
+        </action>
+        <field table="ehs_restrictions" name="restriction_id"/>
+        <field table="ehs_restrictions" name="em_id"/>
+        <field table="em" name="dp_id"/>
+        <field table="ehs_restrictions" name="restriction_type_id"/>
+        <field table="ehs_restrictions" name="restriction_category_id"/>
+        <field table="ehs_restrictions" name="restriction_class"/>
+        <field table="ehs_restrictions" name="date_start"/>
+        <field table="ehs_restrictions" name="date_end"/>
+        <field table="ehs_restrictions" name="lost_work_days_auto">
+            <title>Lost Work (Days)</title>
+        </field>
+        <field table="ehs_restrictions" name="description"/>
+        
+        <field name="vf_pr_id" dataType="text" hidden="true">
+            <title translatable="true">Property Code</title>
+        </field>
+    </panel>
+
+</view>

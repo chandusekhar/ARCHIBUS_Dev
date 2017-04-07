@@ -1,0 +1,85 @@
+<view version="2.0">
+    <designInfo type="paginated" pattern="ab-viewdef-paginated-highlight-restriction" isAlterable="true"/>
+    <title translatable="true">Highlight Room for Employee</title>
+    <report orientation="landscape"/>
+    
+    <dataSource id="ds_ab-sp-loc-em_drawing_rmHighlight">
+        <table name="rm" role="main"/>
+        <table name="dp" role="standard"/>
+        <field table="rm" name="bl_id"/>
+        <field table="rm" name="fl_id"/>
+        <field table="rm" name="rm_id"/>
+        <field table="rm" name="dwgname"/>
+        <field table="dp" name="hpattern_acad" dataType="text" legendKey="true">
+            <sql dialect="generic">
+            (case when 
+                ( exists( select 1 from rmpct where   rmpct.bl_id = rm.bl_id and rmpct.fl_id = rm.fl_id and rmpct.rm_id = rm.rm_id  and rmpct.primary_em =1 and rmpct.em_id IS NOT NULL and rmpct.status=1 and (rmpct.date_start IS NULL OR rmpct.date_start &lt;=${parameters['dateParameter']}) 
+                AND (rmpct.date_end IS NULL OR rmpct.date_end &gt;= ${parameters['dateParameter']})
+                  ${parameters['existsBlflrm']}
+                  )
+                    
+                )then '14 0 4 16776960' 
+              
+                else '14 0 1 255' end 
+            )  
+            </sql>
+        </field>
+        <parameter name="existsBlflrm" dataType="verbatim" value=""/>
+        <parameter name="dateParameter" dataType="date" value="1900-01-01"/>
+        
+        <restriction type="sql" sql="exists(select 1 from rmpct where rmpct.em_id is not null and rmpct.status=1 and (rmpct.date_start IS NULL OR rmpct.date_start &lt;= ${parameters['dateParameter']}) 
+        AND (rmpct.date_end IS NULL OR rmpct.date_end &gt;= ${parameters['dateParameter']}) and  rmpct.bl_id = rm.bl_id and rmpct.fl_id = rm.fl_id and rmpct.rm_id = rm.rm_id   ${parameters['existsBlflrm']})"/>
+    </dataSource>
+    
+    <dataSource id="ds_ab-sp-loc-em_drawing_rmLabel">
+        <sql dialect="generic">
+          select bl_id,fl_id,rm_id,dv_id,dp_id,(select rm.dwgname from rm where rm.bl_id=rmpct.bl_id and rm.fl_id=rmpct.fl_id and rm.rm_id=rmpct.rm_id) ${sql.as} dwgname ,em_id ${sql.as} org_id 
+          from rmpct where rmpct.status=1 and rmpct.em_id IS NOT NULL 
+        </sql>
+        <table name="rm" role="main"/>
+        <field name="bl_id" hidden="true"/>
+        <field name="fl_id" hidden="true"/>
+        <field name="rm_id"/>
+    </dataSource>
+    
+    
+    <dataSource id="ds_ab-sp-loc-em_grid_em_details">
+        <table name="rmpct" role="main"/>
+        <table name="rm" role="standard"/>
+        <table name="em" role="standard"/>
+        <field table="rmpct" name="em_id"/>
+        <field table="rmpct" name="bl_id"/>
+        <field table="rmpct" name="fl_id"/>
+        <field table="rmpct" name="rm_id"/>
+        <field table="em" name="phone"/>
+        <field table="em" name="email"/>
+        <field table="rmpct" name="dv_id"/>
+        <field table="rmpct" name="dp_id"/>
+        <field table="rmpct" name="primary_em"/>
+        <field table="rmpct" name="date_start"/>
+        <restriction type="sql" sql="rmpct.em_id IS NOT NULL and rmpct.status=1 and (rmpct.date_start IS NULL OR rmpct.date_start &lt;=${parameters['dateParameter']}) 
+        AND (rmpct.date_end IS NULL OR rmpct.date_end &gt;= ${parameters['dateParameter']})
+          ${parameters['existsBlflrm']}"/>
+        <parameter name="existsBlflrm" dataType="verbatim" value=""/>
+        <parameter name="dateParameter" dataType="date" value="1900-01-01"/>
+    </dataSource>
+    
+    <panel type="drawing" id="locateEmployee_cadPanel" 
+     highlightDataSource="ds_ab-sp-loc-em_drawing_rmHighlight"
+     labelsDataSource="ds_ab-sp-loc-em_drawing_rmLabel" 
+     highlightType="restriction">
+    </panel>
+    
+    <panel type="grid" id="empDetails" dataSource="ds_ab-sp-loc-em_grid_em_details" format="table" role="data">
+        <title translatable="true">Employees Details</title>
+		<field table="rmpct" name="em_id"/>
+		<field table="rmpct" name="bl_id"/>
+		<field table="rmpct" name="fl_id"/>
+		<field table="rmpct" name="rm_id"/>
+		<field table="em" name="phone"/>
+		<field table="em" name="email"/>
+		<field table="rmpct" name="dv_id"/>
+		<field table="rmpct" name="dp_id"/>
+    </panel>
+    
+</view>

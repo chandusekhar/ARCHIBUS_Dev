@@ -1,0 +1,118 @@
+<view version="2.0" showLoadProgress="true">
+    <js file="ab-proj-fcpm-dash-qc-alerts.js"/>    
+    <message name="projectPastDue">Project Past Due</message>
+    <message name="maxContingency">Maximum Contingency</message>
+    <message name="chgOrder">Change Request</message>
+    
+    <dataSource id="projFcpmDashQcAlerts_msgs_ds" applyVpaRestrictions="false">
+        <table name="project" role="main"/> 
+        <field name="alert_id" dataType="text" > 
+            <title>ID</title> 
+        </field>
+        <field name="alert_msg" dataType="text"> 
+            <title>Alert Type</title> 
+        </field> 
+        <field name="project_id" dataType="text"/>
+        <field name="date_end" dataType="date"/> 
+        <field name="date_target_end" dataType="date"/> 
+        <field name="days_overdue" table="project" dataType="number" decimals="0"/>
+        <sortField name="alert_id"/>
+        <sortField name="days_overdue" table="project" ascending="false"/>
+        <sortField name="project_id" table="project" />
+        <sql dialect="generic">
+        SELECT project_id, date_end, date_target_end, 0 ${sql.as} days_overdue, 
+        NULL ${sql.as} alert_id, '' ${sql.as} alert_msg
+        FROM
+        project LEFT OUTER JOIN bl ON bl.bl_id = project.bl_id
+        WHERE ${sql.vpaRestriction}
+        UNION
+        (SELECT project.project_id, project.date_end, project.date_target_end, 
+        ${sql.daysBetween('project.date_end','project.date_target_end')} ${sql.as} days_overdue,
+        1 ${sql.as} alert_id,
+        ${parameters['projectPastDue']} ${sql.as} alert_msg
+        FROM
+        project LEFT OUTER JOIN bl ON bl.bl_id = project.bl_id
+        WHERE date_target_end - date_end &gt; 30
+        	AND project.is_template = 0
+					AND (project.proj_mgr = '${user.employee.id}' OR project.apprv_mgr1 = '${user.employee.id}') 
+					AND project.status IN ('Approved','Issued-In Process','Issued-On Hold','Issued-Stopped','Completed-Pending', 'Completed-Not Ver', 'Completed-Verified')
+        	AND ${parameters['projRestriction']} AND ${sql.vpaRestriction})
+        	
+        UNION
+        (SELECT project.project_id, project.date_end, project.date_target_end, 
+        ${sql.daysBetween('project.date_end','project.date_target_end')} ${sql.as} days_overdue,
+        3 ${sql.as} alert_id,
+        ${parameters['chgOrder']} ${sql.as} alert_msg
+        FROM
+        project LEFT OUTER JOIN bl ON bl.bl_id = project.bl_id
+        WHERE EXISTS (SELECT 1 FROM activity_log WHERE activity_type = 'PROJECT - CHANGE ORDER' AND activity_log.status = 'REQUESTED' AND activity_log.project_id = project.project_id)
+        	AND project.is_template = 0
+					AND (project.proj_mgr = '${user.employee.id}' OR project.apprv_mgr1 = '${user.employee.id}') 
+					AND project.status IN ('Approved','Issued-In Process','Issued-On Hold','Issued-Stopped','Completed-Pending', 'Completed-Not Ver', 'Completed-Verified')
+        	AND ${parameters['projRestriction']} AND ${sql.vpaRestriction})
+        	
+        UNION
+        (SELECT project.project_id, project.date_end, project.date_target_end,
+        ${sql.daysBetween('project.date_end','project.date_target_end')} ${sql.as} days_overdue,
+        2 ${sql.as} alert_id,
+        ${parameters['maxContingency']} ${sql.as} alert_msg
+        FROM
+        project LEFT OUTER JOIN bl ON bl.bl_id = project.bl_id
+        WHERE EXISTS (SELECT 1 FROM (SELECT work_pkg_bids.status, work_pkg_bids.project_id, work_pkg_bids.cost_contract, 
+        		(SELECT SUM(activity_log.cost_est_design_exp + activity_log.cost_est_design_cap) 
+        				FROM activity_log 
+        				WHERE activity_log.activity_type='PROJECT - CHANGE ORDER' 
+        				AND activity_log.status NOT IN('CREATED','REQUESTED','REJECTED','CANCELLED')
+        				AND activity_log.project_id = work_pkg_bids.project_id AND activity_log.work_pkg_id = work_pkg_bids.work_pkg_id
+        				) ${sql.as} cost_changes 
+        			FROM work_pkg_bids) ${sql.as} work_pkg_bids 
+        		WHERE (cost_contract + cost_changes) &gt; 1.2 * cost_contract
+        		AND work_pkg_bids.status IN ('Contract Signed', 'In Process', 'In Process-On Hold', 'Completed', 'Completed and Verified', 'Paid in Full') 
+        		AND work_pkg_bids.project_id = project.project_id)
+        	AND project.is_template = 0
+					AND (project.proj_mgr = '${user.employee.id}' OR project.apprv_mgr1 = '${user.employee.id}') 
+					AND project.status IN ('Approved','Issued-In Process','Issued-On Hold','Issued-Stopped','Completed-Pending', 'Completed-Not Ver', 'Completed-Verified')
+        	AND ${parameters['projRestriction']} AND ${sql.vpaRestriction})
+        </sql>
+        <restriction type="sql" sql="alert_id IS NOT NULL"/>
+        <parameter name="projRestriction" dataType="verbatim" value="1=1"/>
+        <parameter name="projectPastDue" dataType="text" value="message"/>
+        <parameter name="maxContingency" dataType="text" value="message"/>
+        <parameter name="chgOrder" dataType="text" value="message"/>
+    </dataSource>
+    
+    <panel type="grid" id="projFcpmDashQcAlerts_msgs" showIndexAndFilterOnLoad="false" dataSource="projFcpmDashQcAlerts_msgs_ds" showOnLoad="true">
+				<title>Alerts for Open Projects</title>
+				<sortField name="alert_id"/>
+				<sortField name="days_overdue" table="project" ascending="false"/>
+        <sortField name="project_id" table="project" />
+        <action type="menu" id="projFcpmDashQcAlerts_toolsMenu" imageName="/schema/ab-core/graphics/icons/view/export.png">
+            <action id="exportDOCX">
+				      <title>Export to DOCX</title>
+				      <command type="exportPanel" outputType="docx" orientation="landscape" panelId="projFcpmDashQcAlerts_msgs"/>
+				    </action> 
+				    <action id="exportXLS">
+				      <title>Export to XLS</title>
+				      <command type="exportPanel" outputType="xls" panelId="projFcpmDashQcAlerts_msgs"/>
+				    </action>
+        </action>
+				<field name="alert_id" table="project" hidden="true"/>
+        <field name="alert_msg" dataType="text" controlType="link"> 
+            <title>Alert Type</title> 
+            <command type="callFunction" functionName="projFcpmDashQcAlertsController.projFcpmDashQcAlerts_msgs_select(this)"/>
+        </field> 
+        <field name="project_id" dataType="text" controlType="link"> 
+            <title>Project Code</title> 
+            <command type="callFunction" functionName="projFcpmDashQcAlertsController.projFcpmDashQcAlerts_msgs_select(this)"/>
+        </field>
+        <field name="date_end" dataType="date" controlType="link"> 
+            <title>End Date</title> 
+            <command type="callFunction" functionName="projFcpmDashQcAlertsController.projFcpmDashQcAlerts_msgs_select(this)"/>
+        </field> 
+        <field name="date_target_end" dataType="date" controlType="link"> 
+            <title>Target Completion</title> 
+            <command type="callFunction" functionName="projFcpmDashQcAlertsController.projFcpmDashQcAlerts_msgs_select(this)"/>
+        </field>
+        <field name="days_overdue" dataType="number" table="project" decimals="0" hidden="false"/>  
+    </panel>
+</view>

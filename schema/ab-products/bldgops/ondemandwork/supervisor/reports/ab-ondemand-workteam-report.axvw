@@ -1,0 +1,125 @@
+<view version="2.0">
+	<layout file="console-small.axvw" />
+
+	<js file="ab-ondemand-workteam-report.js" />
+	<js file="ab-ondemand-common.js" />
+
+	<title translatable="true">Work Team Performance Reports</title>
+	<message name="selectTitle" translatable="true">-select-</message>
+
+	<dataSource id="consoleDS">
+		<table name="hwr" role="main" />
+		<table name="site" role="standard" />
+
+		<field table="hwr" name="wr_id" />
+		<field table="site" name="site_id" />
+	</dataSource>
+
+	<dataSource id="crossTableDS" type="grouping">
+		<sql dialect="generic">
+          	SELECT wr_id, work_team_id,status,
+	            site_id, date_requested,cost_var, month,cost_est_total,cost_total,
+	            escalated_response,escalated_completion,
+	            case when escalated_response = 0 then 1
+	            		else null
+	            end as responseOnTime,
+	            case when escalated_completion = 0 then 1 
+	            		else null
+	            end as completionOnTime,
+	            case when cost_est_total >= cost_total then 1
+	            		else null
+	            end as completeEstCost,
+	            case when cost_est_total >= cost_total and escalated_completion = 0 then 1
+	            		else null
+	            end as completeOnTimeEstCost,
+	            case when status IN ('Com','Clo') and escalated_completion = 1 and request_params_updated = 1 then 1 else null 
+	            end as completedLateChanges
+            FROM hwr_month
+            WHERE status NOT IN ('Rej','Can') AND work_team_id IN (SELECT work_team_id FROM cf WHERE email = ${sql.literal(user.email)} AND is_supervisor = 1)
+        </sql>
+
+		<table name="hwr_month" role="main" />
+		<sortField name="work_team_id" ascending="true" />
+		<sortField name="month" ascending="true" />
+		
+		<field name="work_team_id" baseField="hwr_month.work_team_id" groupBy="true">
+			<title translatable="true">Work Team</title>
+		</field>
+		
+		<field name="month" baseField="hwr_month.month" groupBy="true">
+			<title translatable="true">Month</title>
+		</field>
+ 
+		<field name="Count" formula="count" dataType="number"
+			 baseField="hwr_month.wr_id" decimals="0">
+			<title translatable="true">Number of Requests</title>
+		</field>
+		<field name="Actual_Cost" formula="sum" dataType="number"
+			 baseField="hwr_month.cost_total" decimals="2">
+			<title translatable="true">Actual Cost</title>
+		</field>
+		
+		<field name="Estimated_Cost" formula="sum" dataType="number"
+			 baseField="hwr_month.cost_est_total" decimals="2">
+			<title translatable="true">Estimated Cost</title>
+		</field>
+		<field name="Cost_Variance" formula="sum" dataType="number"
+			 baseField="hwr_month.cost_var" size="6" decimals="2">
+			<title translatable="true">Cost Variance</title>
+		</field>
+		<field name="responseOnTime" formula="count"  dataType="number"
+			baseField="hwr_month.responseOnTime" size="5" decimals="0">
+			<title translatable="true"># Response on Time</title>
+		</field>
+		<field name="completionOnTime" formula="count"  dataType="number"
+			baseField="hwr_month.completionOnTime" size="5" decimals="0">
+			<title translatable="true"># Completion on Time</title>
+		</field>
+		<field name="completedLateChanges" formula="count"  dataType="number"
+            baseField="hwr_month.completedLateChanges" size="5" decimals="0">
+            <title translatable="true"># Completion Late with Changes</title>
+        </field>
+		<field name="completeEstCost" formula="count"  dataType="number"
+			baseField="hwr_month.completeEstCost" size="5" decimals="0">
+			<title translatable="true">
+				# Complete within Estimated Cost
+			</title>
+		</field>
+		<field name="completeOnTimeEstCost" formula="count"
+			baseField="hwr_month.completeOnTimeEstCost" size="5" dataType="number" 
+			decimals="0">
+			<title translatable="true">
+				# Complete On Time within Estimated Cost
+			</title>
+		</field>
+	</dataSource>
+	
+	<panel type="console" columns="2" id="requestConsole"
+		dataSource="consoleDS" region="north">
+		<title translatable="true">Filter</title>
+		<action id="filter">
+			<title translatable="true">Show</title>
+		</action>
+		<action id="clear">
+			<title translatable="true">Clear</title>
+		</action>
+
+		<field>
+			<title translatable="true">Site Code</title>
+			<html>
+				<select id="site.site_id" name="site.site_id"></select>
+			</html>
+		</field>
+		<field>
+			<title translatable="true">Year</title>
+			<html>
+				<select id="selectYear" name="selectYear"></select>
+			</html>
+		</field>
+		<field table="hwr" name="wr_id" hidden="true" />
+	</panel>
+
+	<panel id="reportPanel" type="crossTable"
+		dataSource="crossTableDS" showOnLoad="false">
+	</panel>
+</view>

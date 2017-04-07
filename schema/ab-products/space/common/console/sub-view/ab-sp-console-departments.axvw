@@ -1,0 +1,597 @@
+<!-- Department filter and tree. -->
+
+<view version="2.0">
+     <js file="ab-sp-console-departments.js"/> 
+    <message name="addDv" translatable="true">Add Division</message>
+    <message name="addDp" translatable="true">Add Department</message>
+    <message name="editDv" translatable="true">Edit Division</message>
+    <message name="editDp" translatable="true">Edit Department</message>
+
+   <dataSource id="divisionDS" applyVpaRestrictions="false">
+        <sql dialect="generic">
+               SELECT 
+                    dv_hpattern_acad,
+                    dv_name,
+                    dv_id,
+                    (CASE WHEN 
+                      (SELECT SUM(rm.area) 
+                        FROM dv 
+                        RIGHT OUTER JOIN rm ON rm.dv_id = dv.dv_id
+                         WHERE ( (${parameters['dp_id']} AND ${parameters['dv_id']} ) AND (${parameters['organizationUnassigned']}))
+                         AND ${parameters['bl_id']} AND ${parameters['fl_id']} AND ${parameters['rm_id']} AND ((${parameters['rm_cat']}
+                         AND ${parameters['rm_type']} ) AND (${parameters['typeUnassigned']})) AND ${parameters['occupancy']} AND ${sql.vpaRestriction}
+                         AND (rm.rm_cat IS NULL OR EXISTS (SELECT 1 FROM rmcat WHERE
+                        rm.rm_cat= rmcat.rm_cat AND rmcat.used_in_calcs IN ('all_totals', 'dp_comn_ocup_totals')))
+                        AND rm.dp_id is null AND rm.dv_id is null AND ${parameters['teamRmRestriction']} )
+                      IS NULL THEN 0 ELSE  
+                         (SELECT SUM(rm.area) 
+                            FROM dv 
+                            RIGHT OUTER JOIN rm ON rm.dv_id = dv.dv_id
+                             WHERE ( (${parameters['dp_id']} AND ${parameters['dv_id']} ) AND (${parameters['organizationUnassigned']}))
+                         AND ${parameters['bl_id']} AND ${parameters['fl_id']} AND ${parameters['rm_id']} AND ((${parameters['rm_cat']}
+                         AND ${parameters['rm_type']} ) AND (${parameters['typeUnassigned']})) AND ${parameters['occupancy']} AND ${sql.vpaRestriction}
+                             AND (rm.rm_cat IS NULL OR EXISTS (SELECT 1 FROM rmcat WHERE
+                            rm.rm_cat= rmcat.rm_cat AND rmcat.used_in_calcs IN ('all_totals', 'dp_comn_ocup_totals')))
+                            AND rm.dp_id is null AND rm.dv_id is null AND ${parameters['teamRmRestriction']} )
+                      END )
+                     ${sql.as} total_area,
+                     total_count,
+                     (
+                       CASE WHEN (SELECT sum(rm.area) FROM rm LEFT OUTER JOIN dv ON rm.dv_id = dv.dv_id WHERE ( (${parameters['dp_id']} AND ${parameters['dv_id']} ) AND (${parameters['organizationUnassigned']}))
+                         AND ${parameters['bl_id']} AND ${parameters['fl_id']} AND ${parameters['rm_id']} AND ((${parameters['rm_cat']}
+                         AND ${parameters['rm_type']} ) AND (${parameters['typeUnassigned']})) AND ${parameters['occupancy']} AND ${sql.vpaRestriction} AND ${parameters['teamRmRestriction']} )=0 
+                       THEN 0 ELSE  
+                       (SELECT  sum(rm.area)
+                            FROM dv 
+                            RIGHT OUTER JOIN rm ON rm.dv_id = dv.dv_id
+                             WHERE ( (${parameters['dp_id']} AND ${parameters['dv_id']} ) AND (${parameters['organizationUnassigned']}))
+                         AND ${parameters['bl_id']} AND ${parameters['fl_id']} AND ${parameters['rm_id']} AND ((${parameters['rm_cat']}
+                         AND ${parameters['rm_type']} ) AND (${parameters['typeUnassigned']})) AND ${parameters['occupancy']} AND ${sql.vpaRestriction}
+                             AND (rm.rm_cat IS NULL OR EXISTS (SELECT 1 FROM rmcat WHERE
+                             rm.rm_cat=rmcat.rm_cat AND rmcat.used_in_calcs IN ('all_totals', 'dp_comn_ocup_totals')))
+                            AND rm.dp_id is null AND rm.dv_id is null  AND ${parameters['teamRmRestriction']} )/
+                        (SELECT sum(rm.area) FROM rm LEFT OUTER JOIN dv ON rm.dv_id = dv.dv_id 
+                             WHERE ( (${parameters['dp_id']} AND ${parameters['dv_id']} ) AND (${parameters['organizationUnassigned']}))
+                         AND ${parameters['bl_id']} AND ${parameters['fl_id']} AND ${parameters['rm_id']} AND ((${parameters['rm_cat']}
+                         AND ${parameters['rm_type']} ) AND (${parameters['typeUnassigned']})) AND ${parameters['occupancy']} AND ${sql.vpaRestriction}  AND ${parameters['teamRmRestriction']} AND (rm.rm_cat IS NULL OR EXISTS (SELECT 1 FROM rmcat WHERE
+                                rm.rm_cat= rmcat.rm_cat AND rmcat.used_in_calcs IN ('all_totals', 'dp_comn_ocup_totals')))
+                         )
+                        END 
+                       ) * 100 ${sql.as} pec_of_total_area 
+                  FROM 
+                (SELECT
+                    '' ${sql.as} dv_hpattern_acad,
+                    '' ${sql.as} dv_name,
+                    '' ${sql.as}  dv_id,
+                    COUNT(distinct rm.bl_id ${sql.concat} rm.fl_id ${sql.concat} rm.rm_id) ${sql.as} total_count
+                  FROM dv 
+                    RIGHT OUTER JOIN rm ON rm.dv_id = dv.dv_id
+                    WHERE ( (${parameters['dp_id']} AND ${parameters['dv_id']} ) AND (${parameters['organizationUnassigned']}))
+                         AND ${parameters['bl_id']} AND ${parameters['fl_id']} AND ${parameters['rm_id']} AND ((${parameters['rm_cat']}
+                         AND ${parameters['rm_type']} ) AND (${parameters['typeUnassigned']})) AND ${parameters['occupancy']} AND ${sql.vpaRestriction} 
+						AND rm.dp_id is null AND rm.dv_id is null   
+						AND ${parameters['teamRmRestriction']} 
+                ) ${sql.as} wraped_dv WHERE total_count !=0 
+            UNION 
+                SELECT wraped_dv.dv_hpattern_acad,
+                   wraped_dv.dv_name,
+                   wraped_dv.dv_id,
+                     (CASE WHEN 
+                       (SELECT  SUM(rm.area) 
+                        FROM dv 
+                        RIGHT OUTER JOIN rm ON rm.dv_id = dv.dv_id
+                         WHERE ( (${parameters['dp_id']} AND ${parameters['dv_id']} ) AND (${parameters['organizationUnassigned']}))
+                         AND ${parameters['bl_id']} AND ${parameters['fl_id']} AND ${parameters['rm_id']} AND ((${parameters['rm_cat']}
+                         AND ${parameters['rm_type']} ) AND (${parameters['typeUnassigned']})) AND ${parameters['occupancy']} AND ${sql.vpaRestriction}  AND ${parameters['teamRmRestriction']} 
+                         AND (rm.rm_cat IS NULL OR EXISTS (SELECT 1 FROM rmcat WHERE
+                        rm.rm_cat= rmcat.rm_cat AND rmcat.used_in_calcs IN ('all_totals', 'dp_comn_ocup_totals')))
+                        AND wraped_dv.dv_id = dv.dv_id 
+                         GROUP BY dv.dv_id, dv.name )
+                      IS NULL THEN 0 ELSE 
+                          (SELECT  SUM(rm.area) 
+                            FROM dv 
+                            RIGHT OUTER JOIN rm ON rm.dv_id = dv.dv_id
+                             WHERE ( (${parameters['dp_id']} AND ${parameters['dv_id']} ) AND (${parameters['organizationUnassigned']}))
+                         AND ${parameters['bl_id']} AND ${parameters['fl_id']} AND ${parameters['rm_id']} AND ((${parameters['rm_cat']}
+                         AND ${parameters['rm_type']} ) AND (${parameters['typeUnassigned']})) AND ${parameters['occupancy']} AND ${sql.vpaRestriction}  AND ${parameters['teamRmRestriction']} 
+                             AND (rm.rm_cat IS NULL OR EXISTS (SELECT 1 FROM rmcat WHERE
+                            rm.rm_cat= rmcat.rm_cat AND rmcat.used_in_calcs IN ('all_totals', 'dp_comn_ocup_totals')))
+                            AND wraped_dv.dv_id = dv.dv_id 
+                         GROUP BY dv.dv_id, dv.name )
+                      END )      
+                         ${sql.as} total_area,
+                       wraped_dv.total_count,
+                         (
+                         
+                           CASE WHEN (SELECT sum(rm.area) FROM rm LEFT OUTER JOIN dv ON rm.dv_id = dv.dv_id WHERE ( (${parameters['dp_id']} AND ${parameters['dv_id']} ) AND (${parameters['organizationUnassigned']}))
+                         AND ${parameters['bl_id']} AND ${parameters['fl_id']} AND ${parameters['rm_id']} AND ((${parameters['rm_cat']}
+                         AND ${parameters['rm_type']} ) AND (${parameters['typeUnassigned']})) AND ${parameters['occupancy']} AND ${sql.vpaRestriction}  AND ${parameters['teamRmRestriction']})=0 
+                           THEN 0 ELSE 
+                              (SELECT  sum(rm.area)
+                                FROM dv 
+                                RIGHT OUTER JOIN rm ON rm.dv_id = dv.dv_id
+                                 WHERE ( (${parameters['dp_id']} AND ${parameters['dv_id']} ) AND (${parameters['organizationUnassigned']}))
+                         AND ${parameters['bl_id']} AND ${parameters['fl_id']} AND ${parameters['rm_id']} AND ((${parameters['rm_cat']}
+                         AND ${parameters['rm_type']} ) AND (${parameters['typeUnassigned']})) AND ${parameters['occupancy']} AND ${sql.vpaRestriction}  AND ${parameters['teamRmRestriction']} 
+                                 AND (rm.rm_cat IS NULL OR EXISTS (SELECT 1 FROM rmcat WHERE
+                                rm.rm_cat= rmcat.rm_cat AND rmcat.used_in_calcs IN ('all_totals', 'dp_comn_ocup_totals')))
+                                AND wraped_dv.dv_id = dv.dv_id 
+                                 GROUP BY dv.dv_id, dv.name )/
+                                (SELECT sum(rm.area) FROM rm LEFT OUTER JOIN dv ON rm.dv_id = dv.dv_id 
+                                 WHERE ${parameters['dp_id']} AND ( (${parameters['dp_id']} AND ${parameters['dv_id']} ) AND (${parameters['organizationUnassigned']}))
+                         AND ${parameters['bl_id']} AND ${parameters['fl_id']} AND ${parameters['rm_id']} AND ((${parameters['rm_cat']}
+                         AND ${parameters['rm_type']} ) AND (${parameters['typeUnassigned']})) AND ${parameters['occupancy']} AND ${sql.vpaRestriction}  AND ${parameters['teamRmRestriction']} 
+						 AND (rm.rm_cat IS NULL OR EXISTS (SELECT 1 FROM rmcat WHERE
+                                rm.rm_cat= rmcat.rm_cat AND rmcat.used_in_calcs IN ('all_totals', 'dp_comn_ocup_totals'))) 
+                                 )
+                             END 
+                         ) * 100 ${sql.as} pec_of_total_area 
+                    FROM
+                    (SELECT
+                    min(dv.hpattern_acad) ${sql.as} dv_hpattern_acad,
+                    dv.name ${sql.as} dv_name,
+                    dv.dv_id ${sql.as} dv_id,
+                    COUNT(distinct rm.bl_id ${sql.concat} rm.fl_id ${sql.concat} rm.rm_id) ${sql.as} total_count
+                    FROM dv 
+                    LEFT OUTER JOIN rm ON rm.dv_id = dv.dv_id
+                      WHERE ( (${parameters['dp_id']} AND ${parameters['dv_id']} ) AND (${parameters['organizationUnassigned']}))
+                         AND ${parameters['bl_id']} AND ${parameters['fl_id']} AND ${parameters['rm_id']} AND ((${parameters['rm_cat']}
+                         AND ${parameters['rm_type']} ) AND (${parameters['typeUnassigned']})) AND ${parameters['occupancy']} AND ${sql.vpaRestriction}  AND ${parameters['teamRmRestriction']} 
+                    GROUP BY dv.dv_id, dv.name) 
+                     ${sql.as} wraped_dv
+                   
+        </sql>
+        <table name="rm" role="main"/>
+
+        <field table="rm" name="dv_id" dataType="text"/>
+        <field table="rm" name="dv_name" dataType="text">
+            <title>Division Name</title>
+        </field>
+        <field table="rm" name="total_area" dataType="number" size="8" decimals="2" showTotals="true" numericFormat="area">
+            <title>Total Area ${user.areaUnits.title}</title>
+        </field>
+        <field table="rm" name="total_count" baseField="rm.rm_id"  dataType="integer">
+            <title>Room Count</title>
+        </field>
+        <field table="rm" name="dv_hpattern_acad" baseField="rm.dv_hpattern_acad" dataType="text">
+            <title>Legend</title>
+        </field>
+        <field table="rm" name="pec_of_total_area" dataType="number" size="8" decimals="2">
+            <title>% of Total Area</title>
+        </field>
+
+        <sortField table="rm" name="dv_id"/>
+        <sortField table="rm" name="dv_name"/>
+        
+<!--         <parameter name="commonParameters" dataType="verbatim" value="2=2"/> -->
+        <parameter name="dv_id" dataType="verbatim" value="1=1"/>
+        <parameter name="dp_id" dataType="verbatim" value="1=1"/>
+        <parameter name="bl_id" dataType="verbatim" value="1=1"/>
+        <parameter name="fl_id" dataType="verbatim" value="1=1"/>
+        <parameter name="rm_id" dataType="verbatim" value="1=1"/>
+        <parameter name="rm_cat" dataType="verbatim" value="1=1"/>
+        <parameter name="rm_type" dataType="verbatim" value="1=1"/>
+        <parameter name="occupancy" dataType="verbatim" value="1=1"/>
+        <parameter name="organizationUnassigned" dataType="verbatim" value="1=1"/>
+        <parameter name="typeUnassigned" dataType="verbatim" value="1=1"/>
+        <parameter name="totalArea" dataType="verbatim" value="1=1"/>
+        <parameter name="teamRmRestriction" dataType="verbatim" value="6=6"/>
+    </dataSource>
+    
+    <dataSource id="departmentDS" applyVpaRestrictions="false">
+        <sql dialect="generic">
+             SELECT * FROM 
+                (SELECT
+                    '' ${sql.as} hpattern_acad,
+                    '' ${sql.as} dp_name,
+                     dv.dv_id ${sql.as}  dv_id,
+                    ''  ${sql.as} dp_id,
+                    (CASE WHEN 
+                        (SELECT 
+                        SUM(rm.area) 
+                          FROM dp
+                            RIGHT OUTER JOIN rm ON rm.dv_id = dp.dv_id and rm.dp_id = dp.dp_id 
+                             WHERE ( (${parameters['dp_id']} AND ${parameters['dv_id']} ) AND (${parameters['organizationUnassigned']}))
+                         AND ${parameters['bl_id']} AND ${parameters['fl_id']} AND ${parameters['rm_id']} AND ((${parameters['rm_cat']}
+                         AND ${parameters['rm_type']} ) AND (${parameters['typeUnassigned']})) AND ${parameters['occupancy']} AND ${sql.vpaRestriction}  AND ${parameters['teamRmRestriction']} 
+                            AND (rm.rm_cat IS NULL OR EXISTS (SELECT 1 FROM rmcat WHERE
+                            rm.rm_cat= rmcat.rm_cat AND rmcat.used_in_calcs IN ('all_totals', 'dp_comn_ocup_totals')))
+                            AND ${parameters['dvIdClauseTbRm']}  
+                            AND rm.dp_id is null )  
+                        IS NULL THEN 0 ELSE 
+                          (SELECT 
+                            SUM(rm.area) 
+                              FROM dp
+                                RIGHT OUTER JOIN rm ON rm.dv_id = dp.dv_id and rm.dp_id = dp.dp_id 
+                                 WHERE ( (${parameters['dp_id']} AND ${parameters['dv_id']} ) AND (${parameters['organizationUnassigned']}))
+                         AND ${parameters['bl_id']} AND ${parameters['fl_id']} AND ${parameters['rm_id']} AND ((${parameters['rm_cat']}
+                         AND ${parameters['rm_type']} ) AND (${parameters['typeUnassigned']})) AND ${parameters['occupancy']} AND ${sql.vpaRestriction}  AND ${parameters['teamRmRestriction']} 
+                                AND (rm.rm_cat IS NULL OR EXISTS (SELECT 1 FROM rmcat WHERE
+                                rm.rm_cat= rmcat.rm_cat AND rmcat.used_in_calcs IN ('all_totals', 'dp_comn_ocup_totals')))
+                                AND ${parameters['dvIdClauseTbRm']}  
+                                AND rm.dp_id is null )  
+                        END ) 
+                      ${sql.as} total_area, 
+                        (SELECT
+                         COUNT(distinct rm.bl_id ${sql.concat} rm.fl_id ${sql.concat} rm.rm_id) 
+                      FROM dp
+                        RIGHT OUTER JOIN rm ON rm.dv_id = dp.dv_id and rm.dp_id = dp.dp_id 
+                        WHERE ( (${parameters['dp_id']} AND ${parameters['dv_id']} ) AND (${parameters['organizationUnassigned']}))
+                         AND ${parameters['bl_id']} AND ${parameters['fl_id']} AND ${parameters['rm_id']} AND ((${parameters['rm_cat']}
+                         AND ${parameters['rm_type']} ) AND (${parameters['typeUnassigned']})) AND ${parameters['occupancy']} AND ${sql.vpaRestriction}  AND ${parameters['teamRmRestriction']} 
+                        AND ${parameters['dvIdClauseTbRm']}  
+                        AND rm.dp_id is null ) ${sql.as} total_count,
+                         (
+                           CASE WHEN (SELECT sum(rm.area) FROM rm LEFT OUTER JOIN dv ON rm.dv_id = dv.dv_id WHERE ( (${parameters['dp_id']} AND ${parameters['dv_id']} ) AND (${parameters['organizationUnassigned']}))
+                         AND ${parameters['bl_id']} AND ${parameters['fl_id']} AND ${parameters['rm_id']} AND ((${parameters['rm_cat']}
+                         AND ${parameters['rm_type']} ) AND (${parameters['typeUnassigned']})) AND ${parameters['occupancy']} AND ${sql.vpaRestriction}  AND ${parameters['teamRmRestriction']})=0 
+                           THEN 0 ELSE  
+                             (SELECT 
+                                sum(rm.area) 
+                              FROM dp
+                                RIGHT OUTER JOIN rm ON rm.dv_id = dp.dv_id and rm.dp_id = dp.dp_id 
+                                 WHERE ( (${parameters['dp_id']} AND ${parameters['dv_id']} ) AND (${parameters['organizationUnassigned']}))
+                         AND ${parameters['bl_id']} AND ${parameters['fl_id']} AND ${parameters['rm_id']} AND ((${parameters['rm_cat']}
+                         AND ${parameters['rm_type']} ) AND (${parameters['typeUnassigned']})) AND ${parameters['occupancy']} AND ${sql.vpaRestriction} AND ${parameters['teamRmRestriction']} 
+                                AND (rm.rm_cat IS NULL OR EXISTS (SELECT 1 FROM rmcat WHERE
+                                rm.rm_cat= rmcat.rm_cat AND rmcat.used_in_calcs IN ('all_totals', 'dp_comn_ocup_totals')))
+                                AND ${parameters['dvIdClauseTbRm']}  
+                                AND rm.dp_id is null )/
+                            (SELECT sum(rm.area) FROM rm LEFT OUTER JOIN dv ON rm.dv_id = dv.dv_id 
+                                 WHERE ( (${parameters['dp_id']} AND ${parameters['dv_id']} ) AND (${parameters['organizationUnassigned']}))
+                         AND ${parameters['bl_id']} AND ${parameters['fl_id']} AND ${parameters['rm_id']} AND ((${parameters['rm_cat']}
+                         AND ${parameters['rm_type']} ) AND (${parameters['typeUnassigned']})) AND ${parameters['occupancy']} AND ${sql.vpaRestriction}  AND ${parameters['teamRmRestriction']} 
+						 AND (rm.rm_cat IS NULL OR EXISTS (SELECT 1 FROM rmcat WHERE
+                                rm.rm_cat= rmcat.rm_cat AND rmcat.used_in_calcs IN ('all_totals', 'dp_comn_ocup_totals')))
+                             )
+                          END 
+                         ) * 100  ${sql.as} pec_of_total_area 
+                    FROM dv 
+                    LEFT OUTER JOIN rm on rm.dv_id = dv.dv_id 
+                     where ${parameters['dvIdClause']} 
+                    AND ${sql.vpaRestriction} 
+                ) ${sql.as} wraped_dp WHERE total_count !=0  
+            UNION 
+              SELECT  
+                wraped_dp.hpattern_acad,
+                wraped_dp.dp_name,
+                wraped_dp.dv_id,
+                wraped_dp.dp_id,
+               (CASE WHEN
+                      (SELECT
+                        sum(rm.area) ${sql.as} area
+                        FROM dp
+                        RIGHT OUTER JOIN rm ON rm.dv_id = dp.dv_id and rm.dp_id = dp.dp_id 
+                             WHERE ( (${parameters['dp_id']} AND ${parameters['dv_id']} ) AND (${parameters['organizationUnassigned']}))
+                         AND ${parameters['bl_id']} AND ${parameters['fl_id']} AND ${parameters['rm_id']} AND ((${parameters['rm_cat']}
+                         AND ${parameters['rm_type']} ) AND (${parameters['typeUnassigned']})) AND ${parameters['occupancy']} AND ${sql.vpaRestriction} AND ${parameters['teamRmRestriction']} 
+                        AND wraped_dp.dp_id = dp.dp_id and wraped_dp.dv_id = dp.dv_id  
+                         AND (rm.rm_cat IS NULL OR EXISTS (SELECT 1 FROM rmcat WHERE
+                        rm.rm_cat= rmcat.rm_cat AND rmcat.used_in_calcs IN ('all_totals', 'dp_comn_ocup_totals'))) 
+                        GROUP BY dp.dv_id,dp.dp_id,dp.name,dp.hpattern_acad 
+                        )
+                   IS NULL THEN 0 ELSE 
+                      (SELECT
+                        sum(rm.area) ${sql.as} area
+                        FROM dp
+                        RIGHT OUTER JOIN rm ON rm.dv_id = dp.dv_id and rm.dp_id = dp.dp_id 
+                        WHERE ( (${parameters['dp_id']} AND ${parameters['dv_id']} ) AND (${parameters['organizationUnassigned']}))
+                         AND ${parameters['bl_id']} AND ${parameters['fl_id']} AND ${parameters['rm_id']} AND ((${parameters['rm_cat']}
+                         AND ${parameters['rm_type']} ) AND (${parameters['typeUnassigned']})) AND ${parameters['occupancy']} AND ${sql.vpaRestriction} AND ${parameters['teamRmRestriction']} 
+                        AND wraped_dp.dp_id = dp.dp_id and wraped_dp.dv_id = dp.dv_id  
+                         AND (rm.rm_cat IS NULL OR EXISTS (SELECT 1 FROM rmcat WHERE
+                        rm.rm_cat= rmcat.rm_cat AND rmcat.used_in_calcs IN ('all_totals', 'dp_comn_ocup_totals'))) 
+                        GROUP BY dp.dv_id,dp.dp_id,dp.name,dp.hpattern_acad 
+                        )
+                      END )  
+                     ${sql.as} total_area,
+                wraped_dp.total_count,
+                (
+                   
+                       CASE WHEN (SELECT sum(rm.area) FROM rm LEFT OUTER JOIN dv ON rm.dv_id = dv.dv_id WHERE ( (${parameters['dp_id']} AND ${parameters['dv_id']} ) AND (${parameters['organizationUnassigned']}))
+                         AND ${parameters['bl_id']} AND ${parameters['fl_id']} AND ${parameters['rm_id']} AND ((${parameters['rm_cat']}
+                         AND ${parameters['rm_type']} ) AND (${parameters['typeUnassigned']})) AND ${parameters['occupancy']} AND ${sql.vpaRestriction} AND ${parameters['teamRmRestriction']} )=0
+                       THEN 0 ELSE  
+                        (SELECT
+                            sum(rm.area) ${sql.as} area
+                            FROM dp
+                            RIGHT OUTER JOIN rm ON rm.dv_id = dp.dv_id and rm.dp_id = dp.dp_id 
+                            WHERE ( (${parameters['dp_id']} AND ${parameters['dv_id']} ) AND (${parameters['organizationUnassigned']}))
+                         AND ${parameters['bl_id']} AND ${parameters['fl_id']} AND ${parameters['rm_id']} AND ((${parameters['rm_cat']}
+                         AND ${parameters['rm_type']} ) AND (${parameters['typeUnassigned']})) AND ${parameters['occupancy']} AND ${sql.vpaRestriction} AND ${parameters['teamRmRestriction']} 
+                            AND wraped_dp.dp_id = dp.dp_id and wraped_dp.dv_id = dp.dv_id  
+                             AND (rm.rm_cat IS NULL OR EXISTS (SELECT 1 FROM rmcat WHERE
+                            rm.rm_cat= rmcat.rm_cat AND rmcat.used_in_calcs IN ('all_totals', 'dp_comn_ocup_totals'))) 
+                            GROUP BY dp.dv_id,dp.dp_id,dp.name,dp.hpattern_acad 
+                            )/
+                           (SELECT sum(rm.area) FROM rm LEFT OUTER JOIN dv ON rm.dv_id = dv.dv_id 
+                             WHERE ( (${parameters['dp_id']} AND ${parameters['dv_id']} ) AND (${parameters['organizationUnassigned']}))
+                         AND ${parameters['bl_id']} AND ${parameters['fl_id']} AND ${parameters['rm_id']} AND ((${parameters['rm_cat']}
+                         AND ${parameters['rm_type']} ) AND (${parameters['typeUnassigned']})) AND ${parameters['occupancy']} AND ${sql.vpaRestriction}   AND ${parameters['teamRmRestriction']} 
+						 AND (rm.rm_cat IS NULL OR EXISTS (SELECT 1 FROM rmcat WHERE
+                                rm.rm_cat= rmcat.rm_cat AND rmcat.used_in_calcs IN ('all_totals', 'dp_comn_ocup_totals')))
+                         )
+                        END 
+                     ) * 100  ${sql.as} pec_of_total_area 
+                 FROM 
+                   (SELECT
+                    dp.hpattern_acad ${sql.as} hpattern_acad,
+                    dp.name ${sql.as} dp_name,
+                    dp.dv_id ${sql.as} dv_id,
+                    dp.dp_id ${sql.as} dp_id,
+                    COUNT(distinct rm.bl_id ${sql.concat} rm.fl_id ${sql.concat} rm.rm_id) ${sql.as} total_count
+                    FROM dp
+                    LEFT OUTER JOIN rm ON rm.dv_id = dp.dv_id and rm.dp_id = dp.dp_id 
+                      WHERE ( (${parameters['dp_id']} AND ${parameters['dv_id']} ) AND (${parameters['organizationUnassigned']}))
+                         AND ${parameters['bl_id']} AND ${parameters['fl_id']} AND ${parameters['rm_id']} AND ((${parameters['rm_cat']}
+                         AND ${parameters['rm_type']} ) AND (${parameters['typeUnassigned']})) AND ${parameters['occupancy']} AND ${sql.vpaRestriction}  AND ${parameters['teamRmRestriction']} 
+                    GROUP BY dp.dv_id,dp.dp_id,dp.name,dp.hpattern_acad 
+                    ) ${sql.as} wraped_dp 
+        </sql>
+
+        <table name="rm" role="main"/>
+
+        <field table="rm" name="dv_id" dataType="text"/>
+        <field table="rm" name="dp_id" dataType="text"/>
+        <field table="rm" name="dp_name" dataType="text">
+            <title>Name</title>
+        </field>
+        <field table="rm" name="total_area" dataType="number" size="8" decimals="2" numericFormat="area">
+            <title>Total Area ${user.areaUnits.title}</title>
+        </field>
+        <field table="rm" name="total_count" baseField="rm.rm_id"  dataType="integer">
+            <title>Room Count</title>
+        </field>
+        <field table="rm" name="hpattern_acad" dataType="text">
+            <title>Legend</title>
+        </field>
+        <field table="rm" name="pec_of_total_area" dataType="number" size="8" decimals="2">
+            <title>% of Total Area</title>
+        </field>
+        
+        <sortField table="rm" name="dv_id"/>
+        <sortField table="rm" name="dp_id"/>
+        <sortField table="rm" name="dp_name"/>
+        <sortField table="rm" name="hpattern_acad"/>
+        
+<!--         <parameter name="commonParameters" dataType="verbatim" value="2=2"/> -->
+        <parameter name="dv_id" dataType="verbatim" value="1=1"/>
+        <parameter name="dp_id" dataType="verbatim" value="1=1"/>
+        <parameter name="bl_id" dataType="verbatim" value="1=1"/>
+        <parameter name="fl_id" dataType="verbatim" value="1=1"/>
+        <parameter name="rm_id" dataType="verbatim" value="1=1"/>
+        <parameter name="rm_cat" dataType="verbatim" value="1=1"/>
+        <parameter name="rm_type" dataType="verbatim" value="1=1"/>
+        <parameter name="occupancy" dataType="verbatim" value="1=1"/>
+        <parameter name="organizationUnassigned" dataType="verbatim" value="1=1"/>
+        <parameter name="typeUnassigned" dataType="verbatim" value="1=1"/>
+        <parameter name="dvIdClause" dataType="verbatim" value="1=1"/>
+        <parameter name="dvIdClauseTbRm" dataType="verbatim" value="1=1"/>
+        <parameter name="totalArea" dataType="verbatim" value="1=1"/>
+        <parameter name="teamRmRestriction" dataType="verbatim" value="6=6"/>
+    </dataSource>
+    
+
+    <panel type="tree" controlType="table" id="departmentTree" dataSource="divisionDS" showOnLoad="false">
+        <action id="departmentMenu" type="menu" enabled="${user.isMemberOfGroup('SPACE-CONSOLE-ALL-ACCESS')}">
+            <title>Add New</title>
+            <action id="addDivision">
+                <title>Division</title>
+                <command type="openDialog" panelId="edit_dv_detail" width="800" height="250" newRecord="true" closeButton="false">
+                     <title>Add Division</title>
+                </command>
+            </action>
+            <action id="addDepartment">
+                <title>Department</title>
+                <command type="openDialog" panelId="edit_dp_detail" width="800" height="250" newRecord="true" closeButton="false">
+                     <title>Add Department</title>
+                </command>
+            </action>
+        </action>
+        <action type="menu" id="exportDepartmentMenu"   imageName="/schema/ab-core/graphics/icons/view/export.png">
+            <title></title>
+            <action id="exportDepartmentDOCX">
+                <title>Export to DOCX</title>
+                <command type="callFunction" functionName="exportDepartmentTreeToDOCX()"/>
+            </action>
+            <action id="exportDepartmentXLS">
+                <title>Export to XLS</title>
+                <command type="callFunction" functionName="exportDepartmentTreeToXLS()"/>
+            </action>
+        </action>
+        <action type="menu" id="departmentToolsMenu" imageName="/schema/ab-core/graphics/icons/view/gear.png">
+            <title></title>
+            <action id="selectFieldsDepartment">
+                <title>Select Fields</title>
+                <command type="selectFields" panelId="departmentTree"/>
+            </action>
+        </action>
+
+        <field table="rm" name="dv_id" legendKey="true">
+            <title>Division/Department</title>
+        </field>
+        <field table="rm" name="dv_name">
+            <title>Name</title>
+        </field>
+        
+        <field table="rm" name="total_area" baseField="rm.area" dataType="number" size="8" decimals="2" showTotals="true">
+            <title>Total Area ${user.areaUnits.title}</title>
+        </field>
+        <field table="rm" name="total_count" dataType="integer">
+            <title>Room Count</title>
+        </field>
+        <field table="rm" name="dv_hpattern_acad" controlType="color">
+            <title>Legend</title>
+        </field>
+
+        <field id="assignDivision" controlType="button" hidden="${!user.isMemberOfGroup('SPACE-CONSOLE-ALL-ACCESS')}" enabled="${user.isMemberOfGroup('SPACE-CONSOLE-ALL-ACCESS')}">
+            <title>Assign</title>
+        </field>
+        <field table="rm" name="pec_of_total_area" dataType="number" size="8" decimals="2" hidden="true">
+            <title>% of Total Area</title>
+        </field>
+        
+        <field id="editDivision" controlType="image" hidden="${!user.isMemberOfGroup('SPACE-CONSOLE-ALL-ACCESS')}" imageName="pencil.png" enabled="${user.isMemberOfGroup('SPACE-CONSOLE-ALL-ACCESS')}">
+            <title>Edit</title>
+        </field>
+        
+        <event type="onClickNode">
+            <command type="callFunction" functionName="filterDrawingByDivision"/>
+        </event>
+
+        <panel type="tree" controlType="table" id="departmentTreeLevel" dataSource="departmentDS" showLabels="false">
+            <field table="rm" name="dp_id" legendKey="true"/>
+            <field table="rm" name="dp_name">
+                <title>Department Name</title>
+            </field>
+            <field table="rm" name="total_area" baseField="rm.area" dataType="number" size="8" decimals="2">
+                <title>Total Area ${user.areaUnits.title}</title>
+            </field>
+            <field table="rm" name="total_count" dataType="integer">
+                <title>Room Count</title>
+            </field>
+            <field table="rm" name="hpattern_acad" controlType="color" >
+				<title>Legend</title>
+			</field>
+            <field id="assignDepartment" controlType="button" hidden="${!user.isMemberOfGroup('SPACE-CONSOLE-ALL-ACCESS')}" enabled="${user.isMemberOfGroup('SPACE-CONSOLE-ALL-ACCESS')}">
+                <title>Assign</title>
+            </field>
+            <field table="rm" name="pec_of_total_area" dataType="number" size="8" decimals="2" hidden="true">
+                <title>% of Total Area</title>
+            </field>
+            <field id="editDepartment" controlType="image" imageName="pencil.png" hidden="${!user.isMemberOfGroup('SPACE-CONSOLE-ALL-ACCESS')}" enabled="${user.isMemberOfGroup('SPACE-CONSOLE-ALL-ACCESS')}">
+                <title>Edit</title>
+            </field>
+            <event type="onClickNode">
+                <command type="callFunction" functionName="filterDrawingByDepartment"/>
+            </event>
+        </panel>
+    </panel>
+
+    <dataSource id="departmentPendingAssignmentsDS">
+        <table name="rm" role="main"/>
+        <table name="dv" role="standard"/>
+        <table name="dp" role="standard"/>
+        <field name="dv_id"/>
+        <field name="dp_id"/>
+        <field name="bl_id"/>
+        <field name="fl_id"/>
+        <field name="rm_id"/>
+        <field table="dv" name="dv_id"/>
+        <field table="dp" name="dp_id"/>
+        <field table="dv" name="name"/>
+        <field table="dp" name="name"/>
+    </dataSource>
+
+    <panel type="grid" id="departmentPendingAssignments" dataSource="departmentPendingAssignmentsDS" showOnLoad="false" hidden="true"
+           controlType="reportGrid" sortEnabled="false" buttonsPosition="footer">
+        <action id="commitDepartmentPendingAssignments" mainAction="true" enabled="${user.isMemberOfGroup('SPACE-CONSOLE-ALL-ACCESS')}">
+            <title>Commit Assignments</title>
+            <command type="closeDialog"/>
+        </action>
+        <action id="cancelDepartmentPendingAssignments">
+            <title>Cancel Assignments</title>
+            <command type="closeDialog"/>
+        </action>
+        <action id="hideDepartmentPendingAssignments">
+            <title>Close</title>
+            <command type="closeDialog"/>
+        </action>
+
+        <field name="bl_id"/>
+        <field name="fl_id"/>
+        <field name="rm_id"/>
+        <field table="dv" name="dv_id" hidden="true"/>
+        <field table="dp" name="dp_id" hidden="true"/>
+        <field table="dv" name="name" hidden="true"/>
+        <field table="dp" name="name" hidden="true"/>
+        <field name="from">
+            <title>From</title>
+        </field>
+        <field name="to">
+            <title>To</title>
+        </field>
+        <field id="removePendingAssignment" controlType="image" imageName="delete.gif">
+        </field>
+    </panel>
+
+<!-- below were pop-up panel or datasource when you click 'add new' or 'edit' row -->
+
+    <dataSource id="editDivisionDS">
+        <table name="dv" role="main"/>
+        <field table="dv" name="dv_id"/>
+        <field table="dv" name="name"/>
+        <field table="dv" name="head"/>
+        <field table="dv" name="bu_id"/>
+        <field table="dv" name="hpattern_acad"/>
+    </dataSource>
+
+    <dataSource id="editDepartmentDS">
+        <table name="dp" role="main"/>
+        <field name="dv_id"/>
+        <field name="dp_id"/>
+        <field name="name"/>
+        <field name="head"/>
+        <field name="hpattern_acad"/>
+    </dataSource>
+
+    
+    <panel type="form" id="edit_dv_detail" dataSource="editDivisionDS" showOnLoad="false" hidden="true" buttonsPosition="footer">
+        <action id="save" enabled="${user.isMemberOfGroup('SPACE-CONSOLE-ALL-ACCESS')}">
+            <title>Save</title>
+            <command type="saveForm"/>
+            <command type="closeDialog"/>
+            <command type="showPanel" panelId="departmentTree" applyParentRestriction="false"/>
+        </action>
+        <action id="delete" enabled="${user.isMemberOfGroup('SPACE-CONSOLE-ALL-ACCESS') &amp;&amp; !panel.newRecord}">
+            <title translatable="true">Delete</title>
+            <command type="deleteRecord"/>
+            <command type="closeDialog"/>
+            <command type="showPanel" panelId="departmentTree" applyParentRestriction="false"/>
+        </action>
+        <action id="cancel">
+            <title translatable="true">Cancel</title>
+            <command type="closeDialog"/>
+        </action>
+        <field table="dv" name="bu_id"/>
+        <field table="dv" name="dv_id"/>
+        <field table="dv" name="name"/>
+        <field table="dv" name="head"/>
+        <field table="dv" name="hpattern_acad" readOnly="false">
+            <action id="openDivisionHpattern">
+                <title>...</title>
+                <command type="callFunction" functionName="abSpConsole_openHpatternDialog('edit_dv_detail', 'dv.hpattern_acad')"/>
+            </action>
+        </field>
+    </panel>
+
+    <panel type="form" id="edit_dp_detail" dataSource="editDepartmentDS" showOnLoad="false" hidden="true" buttonsPosition="footer">
+        <action id="save"  enabled="${user.isMemberOfGroup('SPACE-CONSOLE-ALL-ACCESS')}">
+            <title>Save</title>
+            <command type="saveForm"/>
+            <command type="closeDialog"/>
+            <command type="showPanel" panelId="departmentTree" applyParentRestriction="false"/>
+        </action>
+        <action id="delete" enabled="${user.isMemberOfGroup('SPACE-CONSOLE-ALL-ACCESS') &amp;&amp; !panel.newRecord}">
+            <title translatable="true">Delete</title>
+            <command type="deleteRecord"/>
+            <command type="closeDialog"/>
+            <command type="showPanel" panelId="departmentTree" applyParentRestriction="false"/>
+        </action>
+        <action id="cancel">
+            <title translatable="true">Cancel</title>
+            <command type="closeDialog"/>
+        </action>
+
+        <field name="dv_id"/>
+        <field name="dp_id"/>
+        <field name="name"/>
+        <field name="head"/>
+        <field table="dp" name="hpattern_acad" readOnly="false">
+             <action id="openDepartmentHpattern">
+                <title>...</title>
+                <command type="callFunction" functionName="abSpConsole_openHpatternDialog('edit_dp_detail', 'dp.hpattern_acad')"/>
+            </action>
+        </field>
+    </panel>
+</view>

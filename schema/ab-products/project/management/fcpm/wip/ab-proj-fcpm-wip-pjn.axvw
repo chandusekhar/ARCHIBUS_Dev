@@ -1,0 +1,289 @@
+<view version="2.0">
+		<message name="mo1">January</message>
+    <message name="mo2">February</message>
+    <message name="mo3">March</message>
+    <message name="mo4">April</message>
+    <message name="mo5">May</message>
+    <message name="mo6">June</message>
+    <message name="mo7">July</message>
+    <message name="mo8">August</message>
+    <message name="mo9">September</message>
+    <message name="mo10">October</message>
+    <message name="mo11">November</message>
+    <message name="mo12">December</message>
+    <message name="onlyTwelveMo">First twelve months shown.</message>
+    <message name="recalcPjn">Would you like to recalculate the Cost Projection for {0} based upon the Contract dates and the current Revised Contract Cost?</message>
+    <js file="ab-proj-fcpm-wip-pjn.js"/>
+    
+    <dataSource id="projFcpmWipPjnDs0">
+    		<table name="work_pkgs" role="main"/>
+    		<sql dialect="generic">
+    				SELECT work_pkgs.wbs_id, work_pkgs.project_id, work_pkgs.work_pkg_id, cost_forecast, (${sql.isNull('cost_contract',0)}+${sql.isNull('apprv_cost_change_orders',0)}) ${sql.as} revised_cost,
+						${sql.isNull('contract_amount.date_contract_start','work_pkgs.date_est_start')} ${sql.as} date_start, 
+    				CASE WHEN contract_amount.date_contract_end IS NULL THEN
+    				(CASE WHEN work_pkgs.date_est_end &lt; ${sql.isNull('contract_amount.date_contract_start','work_pkgs.date_est_start')}
+    				THEN ${sql.isNull('contract_amount.date_contract_start','work_pkgs.date_est_start')}
+    				ELSE work_pkgs.date_est_end END)
+    				ELSE contract_amount.date_contract_end END ${sql.as} date_end,
+    				${sql.isNull('yearMonth1.cost_yearMonth1', 0)} ${sql.as} cost_yearMonth1, ${sql.isNull('yearMonth2.cost_yearMonth2', 0)} ${sql.as} cost_yearMonth2, 
+    				${sql.isNull('yearMonth3.cost_yearMonth3', 0)} ${sql.as} cost_yearMonth3, ${sql.isNull('yearMonth4.cost_yearMonth4', 0)} ${sql.as} cost_yearMonth4,${sql.isNull('yearMonth5.cost_yearMonth5', 0)} ${sql.as} cost_yearMonth5, 
+    				${sql.isNull('yearMonth6.cost_yearMonth6', 0)} ${sql.as} cost_yearMonth6, ${sql.isNull('yearMonth7.cost_yearMonth7', 0)} ${sql.as} cost_yearMonth7,
+    				${sql.isNull('yearMonth8.cost_yearMonth8', 0)} ${sql.as} cost_yearMonth8, ${sql.isNull('yearMonth9.cost_yearMonth9', 0)} ${sql.as} cost_yearMonth9,
+    				${sql.isNull('yearMonth10.cost_yearMonth10', 0)} ${sql.as} cost_yearMonth10, 
+    				${sql.isNull('yearMonth11.cost_yearMonth11', 0)} ${sql.as} cost_yearMonth11, ${sql.isNull('yearMonth12.cost_yearMonth12', 0)} ${sql.as} cost_yearMonth12,
+    				(cost_yearMonth1+cost_yearMonth2+cost_yearMonth3+cost_yearMonth4+cost_yearMonth5+cost_yearMonth6+cost_yearMonth7+cost_yearMonth8+cost_yearMonth9+cost_yearMonth10+cost_yearMonth11+cost_yearMonth12) ${sql.as} tot_projected_cost
+    				FROM work_pkgs
+    				LEFT OUTER JOIN 
+		            (SELECT work_pkg_bids.work_pkg_id, work_pkg_bids.project_id, work_pkg_bids.cost_contract, work_pkg_bids.date_contract_start, work_pkg_bids.date_contract_end
+		            FROM work_pkg_bids 
+		            WHERE work_pkg_bids.status IN ( 'Contract Signed', 'In Process', 'In Process-On Hold', 'Completed', 'Completed and Verified', 'Paid in Full')) 
+		            ${sql.as} contract_amount
+		        ON (work_pkgs.project_id = contract_amount.project_id AND work_pkgs.work_pkg_id = contract_amount.work_pkg_id ) 
+		        LEFT OUTER JOIN
+		            (SELECT activity_log.work_pkg_id, activity_log.project_id, SUM(cost_est_design_exp + cost_est_design_cap) ${sql.as} apprv_cost_change_orders 
+		            FROM activity_log 
+		            WHERE activity_log.activity_type LIKE 'PROJECT - CHANGE ORDER' AND activity_log.status NOT IN('CREATED','REQUESTED','REJECTED','CANCELLED') GROUP BY activity_log.project_id, activity_log.work_pkg_id ) ${sql.as} apprv_change_orders 
+		        ON (work_pkgs.project_id = apprv_change_orders.project_id AND work_pkgs.work_pkg_id = apprv_change_orders.work_pkg_id)
+    				LEFT OUTER JOIN
+    				    (SELECT proj_forecast_item.project_id, proj_forecast_item.work_pkg_id, SUM(cost_forecast) ${sql.as} cost_forecast
+    				    FROM proj_forecast_item
+    				    WHERE proj_forecast_id LIKE ${parameters['proj_forecast_id']}
+                GROUP BY proj_forecast_item.project_id, proj_forecast_item.work_pkg_id) ${sql.as} forecast
+    				ON (forecast.project_id = work_pkgs.project_id AND forecast.work_pkg_id = work_pkgs.work_pkg_id)
+    				LEFT OUTER JOIN
+    				    (SELECT proj_forecast_item.project_id, proj_forecast_item.work_pkg_id, SUM(cost_forecast) ${sql.as} cost_yearMonth1
+    				    FROM proj_forecast_item
+    				    WHERE proj_forecast_id LIKE ${parameters['proj_forecast_id']}
+    				    AND (${sql.yearMonthOf('proj_forecast_item.date_forecast')} = ${parameters['yearMonth1']})
+                GROUP BY proj_forecast_item.project_id, proj_forecast_item.work_pkg_id) ${sql.as} yearMonth1
+    				ON (yearMonth1.project_id = work_pkgs.project_id AND yearMonth1.work_pkg_id = work_pkgs.work_pkg_id)
+    				LEFT OUTER JOIN
+    				    (SELECT proj_forecast_item.project_id, proj_forecast_item.work_pkg_id, SUM(cost_forecast) ${sql.as} cost_yearMonth2
+    				    FROM proj_forecast_item
+    				    WHERE proj_forecast_id LIKE ${parameters['proj_forecast_id']}
+    				    AND (${sql.yearMonthOf('proj_forecast_item.date_forecast')} = ${parameters['yearMonth2']})
+                GROUP BY proj_forecast_item.project_id, proj_forecast_item.work_pkg_id) ${sql.as} yearMonth2
+    				ON (yearMonth2.project_id = work_pkgs.project_id AND yearMonth2.work_pkg_id = work_pkgs.work_pkg_id)
+    				LEFT OUTER JOIN
+    				    (SELECT proj_forecast_item.project_id, proj_forecast_item.work_pkg_id, SUM(cost_forecast) ${sql.as} cost_yearMonth3
+    				    FROM proj_forecast_item
+    				    WHERE proj_forecast_id LIKE ${parameters['proj_forecast_id']}
+    				    AND (${sql.yearMonthOf('proj_forecast_item.date_forecast')} = ${parameters['yearMonth3']})
+                GROUP BY proj_forecast_item.project_id, proj_forecast_item.work_pkg_id) ${sql.as} yearMonth3
+    				ON (yearMonth3.project_id = work_pkgs.project_id AND yearMonth3.work_pkg_id = work_pkgs.work_pkg_id)
+    				LEFT OUTER JOIN
+    				    (SELECT proj_forecast_item.project_id, proj_forecast_item.work_pkg_id, SUM(cost_forecast) ${sql.as} cost_yearMonth4
+    				    FROM proj_forecast_item
+    				    WHERE proj_forecast_id LIKE ${parameters['proj_forecast_id']}
+    				    AND (${sql.yearMonthOf('proj_forecast_item.date_forecast')} = ${parameters['yearMonth4']})
+                GROUP BY proj_forecast_item.project_id, proj_forecast_item.work_pkg_id) ${sql.as} yearMonth4
+    				ON (yearMonth4.project_id = work_pkgs.project_id AND yearMonth4.work_pkg_id = work_pkgs.work_pkg_id)
+    				LEFT OUTER JOIN
+    				    (SELECT proj_forecast_item.project_id, proj_forecast_item.work_pkg_id, SUM(cost_forecast) ${sql.as} cost_yearMonth5
+    				    FROM proj_forecast_item
+    				    WHERE proj_forecast_id LIKE ${parameters['proj_forecast_id']}
+    				    AND (${sql.yearMonthOf('proj_forecast_item.date_forecast')} = ${parameters['yearMonth5']})
+                GROUP BY proj_forecast_item.project_id, proj_forecast_item.work_pkg_id) ${sql.as} yearMonth5
+    				ON (yearMonth5.project_id = work_pkgs.project_id AND yearMonth5.work_pkg_id = work_pkgs.work_pkg_id)
+    				LEFT OUTER JOIN
+    				    (SELECT proj_forecast_item.project_id, proj_forecast_item.work_pkg_id, SUM(cost_forecast) ${sql.as} cost_yearMonth6
+    				    FROM proj_forecast_item
+    				    WHERE proj_forecast_id LIKE ${parameters['proj_forecast_id']}
+    				    AND (${sql.yearMonthOf('proj_forecast_item.date_forecast')} = ${parameters['yearMonth6']})
+                GROUP BY proj_forecast_item.project_id, proj_forecast_item.work_pkg_id) ${sql.as} yearMonth6
+    				ON (yearMonth6.project_id = work_pkgs.project_id AND yearMonth6.work_pkg_id = work_pkgs.work_pkg_id)
+    				LEFT OUTER JOIN
+    				    (SELECT proj_forecast_item.project_id, proj_forecast_item.work_pkg_id, SUM(cost_forecast) ${sql.as} cost_yearMonth7
+    				    FROM proj_forecast_item
+    				    WHERE proj_forecast_id LIKE ${parameters['proj_forecast_id']}
+    				    AND (${sql.yearMonthOf('proj_forecast_item.date_forecast')} = ${parameters['yearMonth7']})
+                GROUP BY proj_forecast_item.project_id, proj_forecast_item.work_pkg_id) ${sql.as} yearMonth7
+    				ON (yearMonth7.project_id = work_pkgs.project_id AND yearMonth7.work_pkg_id = work_pkgs.work_pkg_id)
+    				LEFT OUTER JOIN
+    				    (SELECT proj_forecast_item.project_id, proj_forecast_item.work_pkg_id, SUM(cost_forecast) ${sql.as} cost_yearMonth8
+    				    FROM proj_forecast_item
+    				    WHERE proj_forecast_id LIKE ${parameters['proj_forecast_id']}
+    				    AND (${sql.yearMonthOf('proj_forecast_item.date_forecast')} = ${parameters['yearMonth8']})
+                GROUP BY proj_forecast_item.project_id, proj_forecast_item.work_pkg_id) ${sql.as} yearMonth8
+    				ON (yearMonth8.project_id = work_pkgs.project_id AND yearMonth8.work_pkg_id = work_pkgs.work_pkg_id)
+    				LEFT OUTER JOIN
+    				    (SELECT proj_forecast_item.project_id, proj_forecast_item.work_pkg_id, SUM(cost_forecast) ${sql.as} cost_yearMonth9
+    				    FROM proj_forecast_item
+    				    WHERE proj_forecast_id LIKE ${parameters['proj_forecast_id']}
+    				    AND (${sql.yearMonthOf('proj_forecast_item.date_forecast')} = ${parameters['yearMonth9']})
+                GROUP BY proj_forecast_item.project_id, proj_forecast_item.work_pkg_id) ${sql.as} yearMonth9
+    				ON (yearMonth9.project_id = work_pkgs.project_id AND yearMonth9.work_pkg_id = work_pkgs.work_pkg_id)
+    				LEFT OUTER JOIN
+    				    (SELECT proj_forecast_item.project_id, proj_forecast_item.work_pkg_id, SUM(cost_forecast) ${sql.as} cost_yearMonth10
+    				    FROM proj_forecast_item
+    				    WHERE proj_forecast_id LIKE ${parameters['proj_forecast_id']}
+    				    AND (${sql.yearMonthOf('proj_forecast_item.date_forecast')} = ${parameters['yearMonth10']})
+                GROUP BY proj_forecast_item.project_id, proj_forecast_item.work_pkg_id) ${sql.as} yearMonth10
+    				ON (yearMonth10.project_id = work_pkgs.project_id AND yearMonth10.work_pkg_id = work_pkgs.work_pkg_id)
+    				LEFT OUTER JOIN
+    				    (SELECT proj_forecast_item.project_id, proj_forecast_item.work_pkg_id, SUM(cost_forecast) ${sql.as} cost_yearMonth11
+    				    FROM proj_forecast_item
+    				    WHERE proj_forecast_id LIKE ${parameters['proj_forecast_id']}
+    				    AND (${sql.yearMonthOf('proj_forecast_item.date_forecast')} = ${parameters['yearMonth11']})
+                GROUP BY proj_forecast_item.project_id, proj_forecast_item.work_pkg_id) ${sql.as} yearMonth11
+    				ON (yearMonth11.project_id = work_pkgs.project_id AND yearMonth11.work_pkg_id = work_pkgs.work_pkg_id)
+    				LEFT OUTER JOIN
+    				    (SELECT proj_forecast_item.project_id, proj_forecast_item.work_pkg_id, SUM(cost_forecast) ${sql.as} cost_yearMonth12
+    				    FROM proj_forecast_item
+    				    WHERE proj_forecast_id LIKE ${parameters['proj_forecast_id']}
+    				    AND (${sql.yearMonthOf('proj_forecast_item.date_forecast')} = ${parameters['yearMonth12']})
+                GROUP BY proj_forecast_item.project_id, proj_forecast_item.work_pkg_id) ${sql.as} yearMonth12
+    				ON (yearMonth12.project_id = work_pkgs.project_id AND yearMonth12.work_pkg_id = work_pkgs.work_pkg_id)
+    		</sql>
+    		<field name="wbs_id" table="work_pkgs" dataType="text">
+    				<title>WBS Code</title>
+    		</field>
+    		<field name="work_pkg_id" table="work_pkgs" dataType="text"/>
+    		<field name="cost_forecast" table="work_pkgs" dataType="number" size="20" decimals="0" showTotals="true">
+        		<title>Amount Projected</title>
+        </field>
+        <field name="revised_cost" table="work_pkgs" dataType="number" size="20" decimals="0" showTotals="true">
+        		<title>Revised Contract</title>
+        </field> 
+        <field name="date_start" table="work_pkgs" dataType="date" />
+        <field name="date_end" table="work_pkgs" dataType="date" />
+    		<field name="tot_projected_cost" dataType="number" size="20" decimals="0" showTotals="true">
+    				<title>Amount Projected</title>
+    		</field>
+    		<field name="cost_yearMonth1" dataType="number" size="20" decimals="0" showTotals="true" >
+    				<title></title>
+    		</field>
+    		<field name="cost_yearMonth2" dataType="number" size="20" decimals="0" showTotals="true" >
+    				<title></title>
+    		</field>
+    		<field name="cost_yearMonth3" dataType="number" size="20" decimals="0" showTotals="true" >
+    				<title></title>
+    		</field>
+    		<field name="cost_yearMonth4" dataType="number" size="20" decimals="0" showTotals="true" >
+    				<title></title>
+    		</field>
+    		<field name="cost_yearMonth5" dataType="number" size="20" decimals="0" showTotals="true" >
+    				<title></title>
+    		</field>
+    		<field name="cost_yearMonth6" dataType="number" size="20" decimals="0" showTotals="true" >
+    				<title></title>
+    		</field>
+    		<field name="cost_yearMonth7" dataType="number" size="20" decimals="0" showTotals="true" >
+    				<title></title>
+    		</field>
+    		<field name="cost_yearMonth8" dataType="number" size="20" decimals="0" showTotals="true" >
+    				<title></title>
+    		</field>
+    		<field name="cost_yearMonth9" dataType="number" size="20" decimals="0" showTotals="true" >
+    				<title></title>
+    		</field>
+    		<field name="cost_yearMonth10" dataType="number" size="20" decimals="0" showTotals="true" >
+    				<title></title>
+    		</field>
+    		<field name="cost_yearMonth11" dataType="number" size="20" decimals="0" showTotals="true" >
+    				<title></title>
+    		</field>
+    		<field name="cost_yearMonth12" dataType="number" size="20" decimals="0" showTotals="true" >
+    				<title></title>
+    		</field>
+    		<sortField name="work_pkg_id" table="work_pkgs"/>
+    		<parameter name="yearMonth1" dataType="text" value="2013-01"/>
+				<parameter name="yearMonth2" dataType="text" value="2013-02"/>
+				<parameter name="yearMonth3" dataType="text" value="2013-03"/>
+				<parameter name="yearMonth4" dataType="text" value="2013-04"/>
+				<parameter name="yearMonth5" dataType="text" value="2013-05"/>
+				<parameter name="yearMonth6" dataType="text" value="2013-06"/>
+				<parameter name="yearMonth7" dataType="text" value="2013-07"/>
+				<parameter name="yearMonth8" dataType="text" value="2013-08"/>
+				<parameter name="yearMonth9" dataType="text" value="2013-09"/>
+				<parameter name="yearMonth10" dataType="text" value="2013-10"/>
+				<parameter name="yearMonth11" dataType="text" value="2013-11"/>
+				<parameter name="yearMonth12" dataType="text" value="2013-12"/>
+				<parameter name="proj_forecast_id" dataType="text" value="%"/>
+    </dataSource>
+    
+    <panel id="projFcpmWipPjnGrid" type="grid" showIndexAndFilterOnLoad="true" dataSource="projFcpmWipPjnDs0" showOnLoad="false">
+    		<title>WIP Projection</title>
+    		<action type="menu" id="projFcpmWipPjn_toolsMenu" imageName="/schema/ab-core/graphics/icons/view/export.png">
+            <tooltip>Tools</tooltip>
+            <action id="exportDOCX">
+                <title>Export to DOCX</title>
+                <command type="exportPanel" outputType="docx" orientation="landscape" panelId="projFcpmWipPjnGrid"/>
+            </action>
+            <action id="exportXLS">
+                <title>Export to XLS</title>
+                <command type="exportPanel" outputType="xls" panelId="projFcpmWipPjnGrid"/>
+            </action>
+        </action>
+        <sortField name="wbs_id" table="work_pkgs" ascending="true"/>
+        <sortField name="work_pkg_id" table="work_pkgs" ascending="true"/>
+        <field name="work_pkg_id" table="work_pkgs" dataType="text" controlType="link">
+        		<command type="callFunction" functionName="projFcpmWipPjnController.openPjnItems(this)"/>
+        </field>
+    		<field name="revised_cost" table="work_pkgs" dataType="number" size="20" decimals="0" showTotals="true" controlType="link">
+        		<title>Revised Contract</title>
+        		<command type="callFunction" functionName="projFcpmWipPjnController.openPjnItems(this)"/>
+        </field> 
+        <field name="date_start" table="work_pkgs" dataType="date" controlType="link">
+        		<title>Date - Start</title>
+        		<command type="callFunction" functionName="projFcpmWipPjnController.openPjnItems(this)"/>
+        </field>
+        <field name="date_end" table="work_pkgs" dataType="date"  controlType="link">
+        		<title>Date - End</title>
+        		<command type="callFunction" functionName="projFcpmWipPjnController.openPjnItems(this)"/>
+        </field>
+    		<field name="cost_forecast" dataType="number" size="20" decimals="0" showTotals="true" controlType="link">
+    				<title>Amount Projected</title>
+    				<command type="callFunction" functionName="projFcpmWipPjnController.openPjnItems(this)"/>
+    		</field>
+    		<field name="cost_yearMonth1" dataType="number" size="20" decimals="0" showTotals="true" controlType="link" >
+    				<title></title>
+    				<command type="callFunction" functionName="projFcpmWipPjnController.openPjnItems(this)"/>
+    		</field>
+    		<field name="cost_yearMonth2" dataType="number" size="20" decimals="0" showTotals="true"  controlType="link" >
+    				<title></title>
+    				<command type="callFunction" functionName="projFcpmWipPjnController.openPjnItems(this)"/>
+    		</field>
+    		<field name="cost_yearMonth3" dataType="number" size="20" decimals="0" showTotals="true"  controlType="link" >
+    				<title></title>
+    				<command type="callFunction" functionName="projFcpmWipPjnController.openPjnItems(this)"/>
+    		</field>
+    		<field name="cost_yearMonth4" dataType="number" size="20" decimals="0" showTotals="true"  controlType="link" >
+    				<title></title>
+    				<command type="callFunction" functionName="projFcpmWipPjnController.openPjnItems(this)"/>
+    		</field>
+    		<field name="cost_yearMonth5" dataType="number" size="20" decimals="0" showTotals="true"  controlType="link" >
+    				<title></title>
+    				<command type="callFunction" functionName="projFcpmWipPjnController.openPjnItems(this)"/>
+    		</field>
+    		<field name="cost_yearMonth6" dataType="number" size="20" decimals="0" showTotals="true"  controlType="link" >
+    				<title></title>
+    				<command type="callFunction" functionName="projFcpmWipPjnController.openPjnItems(this)"/>
+    		</field>
+    		<field name="cost_yearMonth7" dataType="number" size="20" decimals="0" showTotals="true"  controlType="link" >
+    				<title></title>
+    				<command type="callFunction" functionName="projFcpmWipPjnController.openPjnItems(this)"/>
+    		</field>
+    		<field name="cost_yearMonth8" dataType="number" size="20" decimals="0" showTotals="true"  controlType="link" >
+    				<title></title>
+    				<command type="callFunction" functionName="projFcpmWipPjnController.openPjnItems(this)"/>
+    		</field>
+    		<field name="cost_yearMonth9" dataType="number" size="20" decimals="0" showTotals="true"  controlType="link" >
+    				<title></title>
+    				<command type="callFunction" functionName="projFcpmWipPjnController.openPjnItems(this)"/>
+    		</field>
+    		<field name="cost_yearMonth10" dataType="number" size="20" decimals="0" showTotals="true"  controlType="link" >
+    				<title></title>
+    				<command type="callFunction" functionName="projFcpmWipPjnController.openPjnItems(this)"/>
+    		</field>
+    		<field name="cost_yearMonth11" dataType="number" size="20" decimals="0" showTotals="true"  controlType="link" >
+    				<title></title>
+    				<command type="callFunction" functionName="projFcpmWipPjnController.openPjnItems(this)"/>
+    		</field>
+    		<field name="cost_yearMonth12" dataType="number" size="20" decimals="0" showTotals="true"  controlType="link" >
+    				<title></title>
+    				<command type="callFunction" functionName="projFcpmWipPjnController.openPjnItems(this)"/>
+    		</field>
+    </panel>
+   
+</view>

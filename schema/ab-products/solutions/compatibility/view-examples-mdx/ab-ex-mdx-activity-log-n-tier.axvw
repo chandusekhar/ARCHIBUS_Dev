@@ -1,0 +1,81 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<afmXmlView>
+    <title translatable="false">Activity Log by CSI Category</title>
+
+    <!-- defaultActions is "false" since you can't drill-down to the same view in non-summarized
+    form without getting a correlation error. -->
+    <afmTableGroup type="report" format="table" defaultActions="false">
+
+        <title translatable="false">This view illustrates summarizing by one tier of an unlimited-tier hierarchy.</title>
+
+        <dataSource>
+            <database>
+                <tables>
+                    <table name="activity_log" role="main"/>
+                    <table name="csi" role="csi"/>
+                </tables>
+                <sort><order>
+                        <field name="hierarchy_ids" table="csi" ascending="true"/>
+                </order></sort>
+                <fields>
+                    <field name="activity_log_id" table="activity_log"/>
+                </fields>
+            </database>
+            <mdx>
+                <preferences dimensions="1" maxDimensions="1" format="table">
+                    <query>
+					<!-- activity_log items are assigned to CSI categories (e.g. 15000, 16770, etc.).
+					Each CSI category has a hierarchy_ids field that encodes where it is in the
+					hierarchy (e.g. "02827", "Gate Operators", "0|02000|02800|02827|").
+
+					This query joins activity_log and the csi table on the csi_id column and selects
+					a substring of the hierarchy_ids column that includes data from the desired hierarchy
+					level and all of the levels below it using a substring search on the | delimiter
+					character.  The query also pulls out the csi.description to show the CSI category's
+					title.
+					-->
+                        <sql dialect="generic">
+                            SELECT
+                                activity_log.bl_id,
+                                activity_log.activity_log_id,
+                                csi.description
+                             FROM
+                               (SELECT
+                                    activity_log_id,
+                                    bl_id,
+                                    substring(hierarchy_ids, 1,
+                                        (charindex('|', hierarchy_ids) +
+                                         charindex('|', substring(hierarchy_ids, charindex('|', hierarchy_ids) + 1, 12))))
+                                    AS hierarchy_ids
+                                 FROM
+                                    activity_log LEFT OUTER JOIN csi ON activity_log.csi_id = csi.csi_id)
+                                AS activity_log
+                                LEFT OUTER JOIN csi ON activity_log.hierarchy_ids = csi.hierarchy_ids
+                        </sql>
+                        <sql dialect="oracle">
+                             
+SELECT activity_log.activity_log_id, csi.description
+FROM
+	(SELECT activity_log_id, 
+		substr(hierarchy_ids, 1, (instr('|', hierarchy_ids) + instr('|', substr(hierarchy_ids, instr('|', hierarchy_ids) + 1)))) hierarchy_ids
+        FROM activity_log, csi
+	WHERE activity_log.csi_id = csi.csi_id(+)) activity_log, csi 
+where   activity_log.hierarchy_ids = csi.hierarchy_ids(+)
+                        </sql>
+                    </query>
+                    <dimensions>
+                        <dimension name="Category" column="description" hasAll="false">
+                            <title translatable="false">Category</title>
+                            <allMemberTitle translatable="false">Categories</allMemberTitle>
+			</dimension>
+                    </dimensions>
+                    <measures>
+                        <measure name="Number of records" aggregator="count" column="activity_log_id">
+                            <title translatable="false">Number of records</title>
+			</measure>
+                    </measures>
+                </preferences>
+            </mdx>
+        </dataSource>
+    </afmTableGroup>
+</afmXmlView>

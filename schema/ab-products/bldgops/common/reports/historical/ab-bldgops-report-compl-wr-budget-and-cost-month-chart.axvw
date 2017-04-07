@@ -1,0 +1,167 @@
+<view version="2.0">
+	<message name="blTitle" translatable="true">Building Code</message>
+	<message name="activeWorkCosts" translatable="true">Actual Work Costs</message>
+	<message name="budgetedCosts" translatable="true">Budgeted Costs</message>
+	<message name="variance" translatable="true">Variance</message>
+	<dataSource id="comAfmScmprefDS">
+		<table name="afm_scmpref" />
+		<field name="fiscalyear_startmonth" />
+		<field name="fiscalyear_startday" />
+	</dataSource>
+	
+	<dataSource id="abBldgopsReportComplWrBudgetAndCostByMonthChartGroupingAxisDS" type="grouping" applyVpaRestrictions="false">
+		<table name="afm_cal_dates"  role="main"/>
+        <table name="bl" role="standard"/>
+		<field name="month" groupBy="true" dataType="text" formula="month" baseField="afm_cal_dates.cal_date">
+			<title translatable="true">Month</title>
+		</field>
+		<restriction type="sql" 
+			sql="${sql.yearMonthOf('cal_date')} &gt;= ${parameters['monthStart']}
+				 AND ${sql.yearMonthOf('cal_date')} &lt;= ${parameters['monthEnd']} 
+				 AND EXISTS(SELECT 1 FROM wrhwr left outer  join bl on wrhwr.bl_id=bl.bl_id WHERE ${parameters['planConsolePara']} 
+				 AND ${sql.yearMonthOf('afm_cal_dates.cal_date')} = ${sql.yearMonthOf('wrhwr.date_completed')} and ${sql.getVpaRestrictionForTable('bl')}  ) " />
+		<parameter name="monthStart" dataType="text" value="2010-01" />
+		<parameter name="monthEnd" dataType="text" value="2010-12" />
+		<parameter name="planConsolePara" dataType="verbatim" value="1=1"/>
+		<sortField table="afm_cal_dates" name="cal_date" ascending="true" />
+	</dataSource>
+	
+	<dataSource id="abBldgopsReportComplWrBudgetAndCostByMonthChartDataAxisDS" type="grouping" applyVpaRestrictions="false">
+		<!--Get cost value by month of summaryValueForThisGroup ,the value was caculated by four causes as below -->
+		<sql dialect="generic">
+			(SELECT 
+				  ${parameters['activeWorkCosts']} ${sql.as} plan_budget,
+				  SUM(wrhwr.cost_total) ${sql.as} month_value
+				  FROM wrhwr left outer  join bl on wrhwr.bl_id=bl.bl_id
+				  WHERE  ${parameters['planConsolePara']} AND ${sql.yearMonthOf("wrhwr.date_completed")}=${parameters['summaryValueForThisGroup']}  
+				  and ${sql.getVpaRestrictionForTable('bl')} 	
+				 ) 
+			  
+		 	UNION ALL
+			
+			(SELECT 
+				 ${parameters['budgetedCosts']} ${sql.as} plan_budget,
+				 SUM(budget_item.month_exp)  ${sql.as} month_value
+			  FROM budget_item LEFT OUTER JOIN bl ON bl.bl_id=budget_item.bl_id 
+			  WHERE ${parameters['budgetConsolePara']} 
+					AND EXISTS (select 1 from wrhwr where ${parameters['planConsolePara']} 
+												and  ${sql.yearMonthOf("wrhwr.date_completed")}=${parameters['summaryValueForThisGroup']}
+							) 
+				        AND ( budget_item.date_start is not null and budget_item.date_end is not null  
+							and ${sql.yearMonthOf("budget_item.date_start")} &lt;=${parameters['summaryValueForThisGroup']} 
+							and  ${sql.yearMonthOf('budget_item.date_end')} &gt;=${parameters['summaryValueForThisGroup']}
+						 or  budget_item.date_start is null and budget_item.date_end is null 
+						 or  budget_item.date_start is null and ${sql.yearMonthOf('budget_item.date_end')} &gt;=${parameters['summaryValueForThisGroup']} 
+						 or  budget_item.date_end is null  and ${sql.yearMonthOf("budget_item.date_start")} &lt;=${parameters['summaryValueForThisGroup']} 
+					)
+                    
+                    AND ${sql.getVpaRestrictionForTable('bl')} 
+			) 
+		</sql>	
+		<table name="budget_item" role="main"/>
+        <table name="bl" role="standard"/>
+		<field name="plan_budget"  dataType="verbatim" groupBy="true"  />
+		<field name="month_value"  dataType="number" decimals="2"  groupBy="true" />
+		<parameter name="summaryValueForThisGroup" dataType="text" value="" />
+		
+		<parameter name="planConsolePara" dataType="verbatim" value="1=1"/>
+		<parameter name="budgetConsolePara" dataType="verbatim" value="1=1"/>
+		<parameter name="activeWorkCosts" dataType="text" value=""/>
+		<parameter name="budgetedCosts" dataType="text" value=""/>
+	</dataSource>
+
+	<panel id="abBldgopsReportComplWrBudgetAndCostByMonthChart"
+		type="chart"
+		dataSource="abBldgopsReportComplWrBudgetAndCostByMonthChartDataAxisDS" 
+		controlType="columnChart" 
+		showOnLoad="false"
+		showLegendOnLoad="false"
+		showLegendAsPopUp="false"
+		legendLocation="right"
+		showDataTips="true"
+		fillType="linearGradient"
+		percentGradientChange="0.5"
+		percentTransparency="1.0">
+
+		<title translatable="true">Actual Work and Budgeted Costs by Month</title>
+		<action id="report"  imageName="/schema/ab-system/graphics/ab-icon-report.gif">
+ 			<tooltip  translatable="true">Report</tooltip>
+		</action>
+		<action id="exportDOCX">
+			<title translatable="true">DOC</title>
+			<command type="exportPanel" outputType="docx" panelId="abBldgopsReportComplWrBudgetAndCostByMonthChart"/>
+	    </action>  
+		<event type="onClickItem">                 
+			<command type="callFunction" functionName="onComplMonthBarChartClick"/>
+		</event>
+		<groupingAxis table="afm_cal_dates" field="month" dataSource="abBldgopsReportComplWrBudgetAndCostByMonthChartGroupingAxisDS">
+			<title translatable="true">Month</title>
+		</groupingAxis>
+		<secondaryGroupingAxis table="budget_item" field="plan_budget" dataSource="abBldgopsReportComplWrBudgetAndCostByMonthChartDataAxisDS" />
+		<dataAxis table="budget_item" field="month_value" dataSource="abBldgopsReportComplWrBudgetAndCostByMonthChartDataAxisDS">
+		</dataAxis>
+	</panel>
+	
+	
+	<dataSource id="abBldgopsReportComplWrBudgetAndCostByMonthCrossTableDS" type="grouping" applyVpaRestrictions="false">
+		<sql dialect="generic">
+			select 
+				a.month,  
+				( select sum(wrhwr.cost_total) from wrhwr left outer  join bl on wrhwr.bl_id=bl.bl_id
+                where ${parameters['planConsolePara']} and ${sql.getVpaRestrictionForTable('bl')} AND ${sql.yearMonthOf("wrhwr.date_completed")}=a.month ) ${sql.as}  cw,
+				( SELECT SUM(budget_item.month_exp) FROM budget_item  LEFT OUTER JOIN bl ON bl.bl_id=budget_item.bl_id  
+												WHERE  ${parameters['budgetConsolePara']} and ${sql.getVpaRestrictionForTable('bl')} AND
+													       ( budget_item.date_start is not null AND budget_item.date_end is not null  
+														AND ${sql.yearMonthOf("budget_item.date_end")} &gt;=a.month 
+														AND ${sql.yearMonthOf("budget_item.date_start")} &lt;=a.month 
+														OR  budget_item.date_start is null AND budget_item.date_end is null 
+														OR  budget_item.date_start is null AND ${sql.yearMonthOf('budget_item.date_end')} &gt;=a.month  
+														OR  budget_item.date_end is null  AND ${sql.yearMonthOf("budget_item.date_start")} &lt;=a.month  )
+				) ${sql.as}  budget ,
+				( 
+				  ( SELECT SUM(budget_item.month_exp) FROM budget_item  LEFT OUTER JOIN bl ON bl.bl_id=budget_item.bl_id  
+												WHERE  ${parameters['budgetConsolePara']} and ${sql.getVpaRestrictionForTable('bl')} AND
+													       ( budget_item.date_start is not null AND budget_item.date_end is not null  
+														AND ${sql.yearMonthOf("budget_item.date_end")} &gt;=a.month 
+														AND ${sql.yearMonthOf("budget_item.date_start")} &lt;=a.month 
+														OR  budget_item.date_start is null AND budget_item.date_end is null 
+														OR  budget_item.date_start is null AND ${sql.yearMonthOf('budget_item.date_end')} &gt;=a.month  
+														OR  budget_item.date_end is null  AND ${sql.yearMonthOf("budget_item.date_start")} &lt;=a.month  )
+				   ) - 
+				  ( select sum(wrhwr.cost_total) from wrhwr left outer  join bl on wrhwr.bl_id=bl.bl_id where ${parameters['planConsolePara']} and ${sql.getVpaRestrictionForTable('bl')} AND  ${sql.yearMonthOf("wrhwr.date_completed")}=a.month ) 
+				) ${sql.as}  variance 
+			from (
+				select  distinct ${sql.yearMonthOf("b.cal_date")} ${sql.as} month
+					from afm_cal_dates ${sql.as}  b
+				where	${sql.yearMonthOf("b.cal_date")}&gt;= ${parameters['monthStart']}  
+						AND ${sql.yearMonthOf("b.cal_date")} &lt;=  ${parameters['monthEnd']}  
+				) ${sql.as}  a
+			
+		</sql>
+		<table name="afm_cal_dates" role="main"/>
+		<field name="month"  dataType="text"  baseField="afm_cal_dates.cal_date" groupBy="true">
+			<title translatable="true">Month</title>
+		</field>
+		<field name="actualCost" formula="avg" baseField="afm_cal_dates.cw" dataType="number" decimals="0" showTotals="false">
+			<title translatable="true">Actual Work Costs</title>
+		</field>
+		<field name="budget" formula="avg" baseField="afm_cal_dates.budget" dataType="number" decimals="0" showTotals="false">
+			<title translatable="true">Budgeted Costs</title>
+		</field>
+		<field name="variance" formula="avg" baseField="afm_cal_dates.variance" dataType="number" decimals="0" showTotals="false">
+			<title translatable="true">Variance</title>
+		</field>
+		<parameter name="monthStart" dataType="text" value="2010-01"/>
+		<parameter name="monthEnd" dataType="text" value="2010-12"/>
+		<parameter name="planConsolePara" dataType="verbatim" value="1=1"/>
+		<parameter name="budgetConsolePara" dataType="verbatim" value="1=1"/>
+		
+	</dataSource>
+	
+	<panel type="crossTable" id="abBldgopsReportComplWrBudgetAndCostByMonthCrossTable" dataSource="abBldgopsReportComplWrBudgetAndCostByMonthCrossTableDS" showOnLoad="false">
+		<title translatable="true">Actual Work and Budgeted Costs by Month</title>
+	</panel>
+	
+	<js file="ab-bldgops-report-compl-wr-budget-and-cost-month-chart.js"/>
+	<js file="ab-bldgops-report-common.js"/>
+</view>

@@ -1,0 +1,103 @@
+<view version="2.0">
+    <!-- leaflet js library -->
+    <css url="//cdn.jsdelivr.net/leaflet/0.7.3/leaflet.css" />
+    <js  url="//cdn.jsdelivr.net/leaflet/0.7.3/leaflet.js" />
+    <!-- leaflet clusters -->
+    <js  file="leaflet-markercluster.js"/> 
+    <css file="leaflet-MarkerCluster.Default.css" />
+    <css file="leaflet-MarkerCluster.css" />
+    <!-- esri leaflet -->
+    <js url="//cdn.jsdelivr.net/leaflet.esri/1.0.0-rc.8/esri-leaflet.js" />
+    <!-- ab leaflet map -->
+    <js  file="ab-leaflet-map.js"/>
+    <css file="ab-leaflet-map.css"/>
+
+    <js file="colorbrewer.js"/>
+
+    <js file="ab-bldgops-find-parts-map-tab.js"/>
+    <message name="selectLinkTitle" translatable="true">Select</message>
+    <message name="mapUnavailableLabel" translatable="true">Unavailable</message>
+    <message name="mapPartlyAvailableLabel" translatable="true">Partially Available</message>
+    <message name="mapAvailableLabel" translatable="true">Available</message>
+    <message name="workRequestLabel" translatable="true">Work Request</message>
+    <!-- Warehouse Map DataSource -->
+    <dataSource id="ptStoreLocMapDS">
+        <table name="pt_store_loc" role="main"/>
+        <table name="bl" role="standard"/>
+        <field table="pt_store_loc" name="pt_store_loc_id"/>
+        <field table="pt_store_loc" name="pt_store_loc_name"/>
+        <field table="pt_store_loc" name="site_id"/>
+        <field name="qtyOnHand" dataType="number" decimals="2">
+            <title translatable="true">Quantity Available</title>
+            <sql dialect="generic">
+                (
+                    select quantityShow 
+                    from
+                    (
+                    select bl_id,max(QuantityAvaliable) ${sql.as} quantityShow
+                    from
+                    (
+                    select
+                    pt_store_loc_id,pt_store_loc_name,site_id,bl_id,
+                    (select ${sql.isNull("sum(qty_on_hand)","0")} from pt_store_loc_pt where pt_store_loc_pt.pt_store_loc_id=pt_store_loc.pt_store_loc_id and ${parameters['partRes']})  ${sql.as} QuantityAvaliable
+                    from pt_store_loc
+                    ) B
+                    group by bl_id
+                    ) C
+                
+                    where C.bl_id=pt_store_loc.bl_id
+                )
+            </sql>
+        </field>
+        <field name="qtyOnHandToShow" dataType="number" decimals="2">
+            <title translatable="true">Quantity Available</title>
+            <sql dialect="generic">
+                (select isnull(sum(qty_on_hand),0) from pt_store_loc_pt where pt_store_loc_pt.pt_store_loc_id=pt_store_loc.pt_store_loc_id and ${parameters['partRes']})
+            </sql>
+            <sql dialect="oracle">
+                (select nvl(sum(qty_on_hand),0) from pt_store_loc_pt where pt_store_loc_pt.pt_store_loc_id=pt_store_loc.pt_store_loc_id and ${parameters['partRes']})
+            </sql>
+        </field>
+        <field table="pt_store_loc" name="bl_id"/>
+        
+        <field table="bl" name="lat"/>
+        <field table="bl" name="lon"/>
+        <parameter name="partRes" dataType="verbatim" value="1=1"/>
+        <restriction type="sql" sql="bl.lon is not null and bl.lat is not null"/>
+    </dataSource>
+    
+    <dataSource id="storeLocMapDs">
+        <table name="pt_store_loc" role="main"/>
+        <table name="bl" role="standard"/>
+        <field table="pt_store_loc" name="pt_store_loc_id"/>
+        <field table="pt_store_loc" name="pt_store_loc_name"/>
+        <field table="pt_store_loc" name="pt_store_loc_desc"/>
+        <field table="pt_store_loc" name="site_id"/>
+        <field table="pt_store_loc" name="bl_id"/>
+        <field table="bl" name="lat"/>
+        <field table="bl" name="lon"/>
+        <field table="pt_store_loc" name="fl_id"/>
+        <field table="pt_store_loc" name="rm_id"/>
+        <restriction type="sql" sql="bl.lon is not null and bl.lat is not null"/>
+    </dataSource>
+    
+    <dataSource id="workRequestDS">
+        <table name="wr" role="main"/>
+        <table name="bl" role="standard"/>
+        <field table="wr" name="wr_id"/>
+        <field table="wr" name="bl_id"/>
+        <field table="wr" name="fl_id"/>
+        <field table="wr" name="rm_id"/>
+        <field table="bl" name="lat"/>
+        <field table="bl" name="lon"/>
+        <restriction type="sql" sql="bl.lon is not null and bl.lat is not null"/>
+    </dataSource>
+
+    <panel type="html" id="mapPanel">
+          <title translatable="true">Map</title>
+          
+          <html>
+               <div id="mapDiv"></div>
+          </html>
+    </panel>    
+</view>

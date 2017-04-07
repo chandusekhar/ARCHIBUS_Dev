@@ -1,0 +1,192 @@
+<view version="2.0">
+    <layout id="main">
+        <north id="filterPosition" initialSize="13%" split="true"/>
+        <west initialSize="30%" split="true"/>
+        <center/>
+    </layout>
+    
+    <layout id="nested_west" containingLayout="main" region="west">
+        <north id="treePositon" initialSize="40%" split="true"/>
+        <center id="assignPosition"/>
+    </layout>
+    
+    <layout id="nested_center" containingLayout="main" region="center">
+        <center id="dwgPosition"/>
+        <south  id="assignmentsPosition"  initialSize="20%" split="true"/>
+    </layout>
+    
+    <title translatable="true">Assign Divisions and Departments to Rooms</title>
+    
+    <message name="selectFloor" translatable="true">Please select a floor</message>
+    <message name="selectDp" translatable="true">Please select a Department</message>
+    <message name="selectRm" translatable="true">Please select a room to assign %s to</message>
+    <message name="noFloorSelected" translatable="true">Please select floor first</message>
+    <message name="confirmMessage" translatable="true">Switching floors will cause all changes to be lost.  Do you wish to continue?</message>
+    
+    <dataSource id="ds_ab-sp-asgn-dv-dp-to-rm_console_rm">
+        <table name="rm" role="main"/>
+        <field table="rm" name="bl_id"/>
+        <field table="rm" name="dv_id"/>
+        <field table="rm" name="dp_id"/>
+    </dataSource>
+    
+    <dataSource id="ds_ab-sp-asgn-dv-dp-to-rm_tree_bl">
+        <table name="bl" role="main"/>
+        <field table="bl" name="bl_id"/>
+		<restriction type="sql" sql="EXISTS (SELECT 1 FROM rm left join rmcat on rmcat.rm_cat=rm.rm_cat WHERE rm.dwgname IS NOT NULL AND rm.bl_id=bl.bl_id and rmcat.supercat!='VERT')"/>
+        <sortField table="bl" name="bl_id" ascending="true"/>
+    </dataSource>
+    
+    <dataSource id="ds_ab-sp-asgn-dv-dp-to-rm_tree_fl">
+       <sql dialect="generic">
+            SELECT
+            rm.bl_id ${sql.as} bl_id,
+            rm.fl_id ${sql.as} fl_id,
+            rm.dwgname ${sql.as} dwgname
+            FROM rm left join rmcat on rmcat.rm_cat=rm.rm_cat WHERE rm.dwgname IS NOT NULL  and rmcat.supercat!='VERT' GROUP BY rm.bl_id,rm.fl_id,rm.dwgname
+        </sql>
+        <table name="fl" role="main"/>
+        <field name="fl_id"/>
+        <field name="dwgname"/>
+        <sortField table="fl" name="fl_id" ascending="true"/>
+    </dataSource>
+    
+    <dataSource id="ds_ab-sp-asgn-dv-dp-to-rm_tree_dv">
+        <table name="dv" role="main"/>
+        <field name="dv_id"/>
+        <field name="name"/>
+		<parameter name="dvRes" dataType="verbatim" value=" IS NOT NULL"/>
+		<parameter name="dpRes" dataType="verbatim" value=" IS NOT NULL"/>
+        <restriction type="sql" sql="dv.dv_id ${parameters['dvRes']} 
+		AND EXISTS (SELECT 1 FROM dp WHERE dp.dv_id = dv.dv_id
+		AND dp.dp_id ${parameters['dpRes']})"/>
+        <sortField table="dv" name="dv_id" ascending="true"/>
+    </dataSource>
+    
+    <dataSource id="ds_ab-sp-asgn-dv-dp-to-rm_tree_dp">
+        <table name="dp" role="main"/>
+        <field name="dp_id"/>
+        <field name="name"/>
+        <field name="hpattern_acad"/>
+		<parameter name="dvRes" dataType="verbatim" value=" IS NOT NULL"/>
+        <parameter name="dpRes" dataType="verbatim" value=" IS NOT NULL"/>
+        <restriction type="sql" sql="dp.dv_id ${parameters['dvRes']} AND dp.dp_id ${parameters['dpRes']}"/>
+        <sortField table="dp" name="dp_id" ascending="true"/>
+    </dataSource>
+    
+    <dataSource id="ds_ab-sp-asgn-dv-dp-to-rm_drawing_rmHighlight">
+        <table name="rm" role="main"/>
+        <table name="rmcat" role="standard"/>
+        <table name="dp" role="standard"/>
+        <field table="rm" name="bl_id"/>
+        <field table="rm" name="fl_id"/>
+        <field table="rm" name="rm_id"/>
+        <field table="rm" name="rm_type"/>
+        <field table="dp" name="dv_id"/>
+        <field table="dp" name="dp_id" legendKey="true"/>
+        <field table="dp" name="hpattern_acad"/>
+        <field table="rmcat" name="occupiable"/>
+        <restriction type="sql" sql="rmcat.supercat!='VERT'"/>
+    </dataSource>
+    
+    <dataSource id="ds_ab-sp-asgn-dv-dp-to-rm_drawing_rmLabel">
+        <table name="rm" role="main"/>
+        <field name="bl_id" hidden="true"/>
+        <field name="fl_id" hidden="true"/>
+        <field name="rm_id"/>
+        <field name="dv_id"/>
+        <field name="dp_id"/>
+    </dataSource>
+    
+    <dataSource id="ds_ab-sp-asgn-dv-dp-to-rm_grid_rm">
+        <table name="rm" role="main"/>
+    </dataSource>
+    
+    <dataSource id="ds_ab-sp-asgn-dv-dp-to-rm_dp">
+        <table name="dp" role="main"/>
+        <field table="dp" name="dv_id"/>
+        <field table="dp" name="dp_id"/>
+        <field table="dp" name="hpattern_acad"/>
+    </dataSource>
+    
+    <panel type="console" id="abSpAsgnDvDpToRm_filterConsole" columns="3" dataSource="ds_ab-sp-asgn-dv-dp-to-rm_console_rm" layoutRegion="filterPosition">
+        <title translatable="true">Filter</title>
+        <action id="showTree">
+            <title translatable="true">Show</title>
+        </action>
+        <action id="clear">
+            <title translatable="true">Clear</title>
+            <command type="clearPanel" panelId="abSpAsgnDvDpToRm_filterConsole"/>
+        </action>
+    </panel>
+    
+    <panel type="tree" id="abSpAsgnDvDpToRm_blTree" dataSource="ds_ab-sp-asgn-dv-dp-to-rm_tree_bl" layoutRegion="treePositon">
+        <title translatable="true">Select Floor</title>
+        <panel type="tree" id="abSpAsgnDvDpToRm_flTree" dataSource="ds_ab-sp-asgn-dv-dp-to-rm_tree_fl">
+            <event type="onClickNode">
+                <command type="callFunction" functionName="onFlTreeClick"/>
+            </event>
+        </panel>
+    </panel>
+    
+    <panel type="tree" id="abSpAsgnDvDpToRm_dvTree" dataSource="ds_ab-sp-asgn-dv-dp-to-rm_tree_dv" layoutRegion="assignPosition">
+        <title translatable="true">Select Division and Department</title>
+        <panel type="tree" id="abSpAsgnDvDpToRm_dpTree" dataSource="ds_ab-sp-asgn-dv-dp-to-rm_tree_dp">
+            <event type="onClickNode">
+                <command type="callFunction" functionName="onDpTreeClick"/>
+            </event>
+        </panel>
+    </panel>
+    
+    <panel type="drawing" id="abSpAsgnDvDpToRm_drawingPanel" layoutRegion="dwgPosition" multiple="false" selectionMode="1" assignMode="2"
+     highlightDataSource="ds_ab-sp-asgn-dv-dp-to-rm_drawing_rmHighlight"
+     labelsDataSource="ds_ab-sp-asgn-dv-dp-to-rm_drawing_rmLabel">
+        <title></title>
+    </panel>
+    
+    <panel type="grid" id="abSpAsgnDvDpToRm_dpAssignGrid" dataSource="ds_ab-sp-asgn-dv-dp-to-rm_grid_rm" layoutRegion="assignmentsPosition" showOnLoad="false" showIndexAndFilterOnLoad="false">
+        <title translatable="true">Assignments</title>
+        <action id="save">
+            <title translatable="true">Save</title>
+            <command type="callFunction" functionName="saveAllChanges"/>
+        </action>
+        <action id="revert">
+            <title translatable="true">Revert All</title>
+            <command type="callFunction" functionName="resetAssignmentCtrls"/>
+        </action>
+        <field table="composite" name="loc">
+            <title translatable="true">Location</title>
+        </field>
+        <field table="rm" name="dv_id">
+            <title translatable="true">Division Code</title>
+        </field>
+        <field table="rm" name="dv_name">
+            <title translatable="true">Division Name</title>
+        </field>
+        <field table="rm" name="dp_id">
+            <title translatable="true">Department Code</title>
+        </field>
+        <field table="rm" name="dp_name">
+            <title translatable="true">Department Name</title>
+        </field>
+		<field table="rm" name="bl_id" hidden="true"/>
+		<field table="rm" name="fl_id" hidden="true"/>
+		<field table="rm" name="rm_id" hidden="true"/>
+    </panel>
+    
+    <dataSource id="ds_ab-sp-rm_occupiable" >
+        <table name="rm" role="main"/>
+        <table name="rmcat" role="standard"/>
+        <field table="rm" name="bl_id"/>
+        <field table="rm" name="fl_id"/>
+        <field table="rm" name="rm_id"/>
+        <field table="rm" name="area"/>
+        <field table="rm" name="cap_em"/>
+        <field table="rm" name="count_em"/>
+        <field table="rmcat" name="occupiable"/>
+        <field table="rmcat" name="supercat"/>
+    </dataSource>
+    
+    <js file="ab-sp-asgn-dv-dp-to-rm.js"/>
+    <js file="ab-sp-common.js"/>
+</view>

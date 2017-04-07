@@ -1,0 +1,163 @@
+<view version="2.0">
+	<js file="ab-msds-rpt-map-loc-tab.js"/>
+
+	<message name="error_noselection" translatable="true">You must first make a selection</message>
+	
+	<dataSource id="dsMSDSLocations">
+		<sql dialect="generic">
+			select a.site_id ${sql.as} site_id , a.bl_id ${sql.as} bl_id, a.fl_id ${sql.as} fl_id, a.rm_id ${sql.as} rm_id, a.eq_id ${sql.as} eq_id,
+			(select count(msds_id) from ${parameters['locationSqlView']} ${parameters['where']}) ${sql.as} msds_num,
+			(select case when sum(${parameters['massQuantity']}) IS NULL THEN 0 ELSE sum(${parameters['massQuantity']}) END 
+			from ${parameters['locationSqlView']} ${parameters['where']} AND msds_location.quantity_units_type='MSDS - MASS' ) ${sql.as} solid_quantity,
+			
+			(select case when sum(${parameters['volumeQuantity']}) IS NULL THEN 0 ELSE sum(${parameters['volumeQuantity']}) END 
+			from ${parameters['locationSqlView']} ${parameters['where']} AND msds_location.quantity_units_type='MSDS - VOLUME' ) ${sql.as} volume_quantity
+			from (select distinct bl.site_id, msds_location.bl_id, (case when msds_location.fl_id is null then ' ' else msds_location.fl_id end) ${sql.as} fl_id, (case when msds_location.rm_id is null then ' ' else msds_location.rm_id end) ${sql.as} rm_id, (case when msds_location.eq_id is null then ' ' else msds_location.eq_id end) ${sql.as} eq_id from ${parameters['locationSqlView']}
+            )  ${sql.as} a 
+		</sql>
+		
+		<sql dialect="sqlserver">
+			select a.site_id ${sql.as} site_id , a.bl_id ${sql.as} bl_id, a.fl_id ${sql.as} fl_id, a.rm_id ${sql.as} rm_id, a.eq_id ${sql.as} eq_id,
+			(select count(msds_id) from ${parameters['locationSqlView']} ${parameters['where']}) ${sql.as} msds_num,
+			(select case when sum(${parameters['quantityMSSQL']}) IS NULL THEN 0 ELSE sum(${parameters['quantityMSSQL']}) END 
+			from ${parameters['locationSqlView']} ${parameters['crossApplyMass']} ${parameters['where']} AND msds_location.quantity_units_type='MSDS - MASS' ) ${sql.as} solid_quantity,
+			
+			(select case when sum(${parameters['quantityMSSQL']}) IS NULL THEN 0 ELSE sum(${parameters['quantityMSSQL']}) END 
+			from ${parameters['locationSqlView']} ${parameters['crossApplyVolume']} ${parameters['where']} AND msds_location.quantity_units_type='MSDS - VOLUME' ) ${sql.as} volume_quantity
+
+			from (select distinct bl.site_id, msds_location.bl_id,(case when msds_location.fl_id is null then ' ' else msds_location.fl_id end) ${sql.as} fl_id,(case when msds_location.rm_id is null then ' ' else msds_location.rm_id end) ${sql.as} rm_id,(case when msds_location.eq_id is null then ' ' else msds_location.eq_id end) ${sql.as} eq_id from ${parameters['locationSqlView']}
+			)  ${sql.as} a 
+		</sql>
+
+		<table name="msds_location" role="main"/>
+		<field name="site_id" dataType="text"/>
+		<field name="bl_id" dataType="text"/>
+		<field name="fl_id" dataType="text"/>
+		<field name="rm_id" dataType="text"/>
+		<field name="eq_id" dataType="text"/>
+		<field name="msds_num" dataType="number" decimals="0"/>
+		<field name="solid_quantity" dataType="number" decimals="4">
+		   <title translatable="true">Total Mass</title>
+		</field>
+		
+		<field name="volume_quantity" dataType="number" decimals="4">
+		   <title translatable="true">Total Volume</title>
+		</field>
+
+		<parameter name="locationSqlView" dataType="verbatim" value=" msds_location left join bl on msds_location.bl_id=bl.bl_id"/>		
+        <parameter name="where" dataType="verbatim" value=" where bl.site_id = a.site_id and msds_location.bl_id = a.bl_id and (case when msds_location.fl_id is null then ' ' else msds_location.fl_id end)= a.fl_id and (case when msds_location.rm_id is null then ' ' else msds_location.rm_id end)= a.rm_id and (case when msds_location.eq_id is null then ' ' else msds_location.eq_id end)= a.eq_id"/>
+	    <parameter name="massQuantity" dataType="verbatim" value=" (msds_location.quantity * 
+			           (case when (select bill_unit.conversion_factor from bill_unit where bill_unit.bill_unit_id 
+			               = msds_location.quantity_units and bill_unit.bill_type_id = 'MSDS - MASS') IS NULL THEN 0 
+			            ELSE (select bill_unit.conversion_factor from bill_unit where bill_unit.bill_unit_id 
+			               = msds_location.quantity_units and bill_unit.bill_type_id = 'MSDS - MASS') END)
+			       / (select bill_unit.conversion_factor from bill_unit where bill_unit.is_dflt=1 and bill_unit.bill_type_id = 'MSDS - MASS'))"/>
+		<parameter name="volumeQuantity" dataType="verbatim" value=" (msds_location.quantity * 
+			           (case when (select bill_unit.conversion_factor from bill_unit where bill_unit.bill_unit_id 
+			               = msds_location.quantity_units and bill_unit.bill_type_id = 'MSDS - VOLUME') IS NULL THEN 0 
+			            ELSE (select bill_unit.conversion_factor from bill_unit where bill_unit.bill_unit_id 
+			               = msds_location.quantity_units and bill_unit.bill_type_id = 'MSDS - VOLUME') END)
+			       / (select bill_unit.conversion_factor from bill_unit where bill_unit.is_dflt=1 and bill_unit.bill_type_id = 'MSDS - VOLUME'))"/>
+		<parameter name="quantityMSSQL" dataType="verbatim" value=" (msds_location.quantity
+			          * (case when billUnit.conversion_factor IS NULL THEN 0  ELSE billUnit.conversion_factor END)
+			         / defaultBillUnit.conversion_factor )"/>
+		<parameter name="crossApplyMass" dataType="verbatim" value=" cross apply (select bill_unit.conversion_factor from bill_unit where bill_unit.bill_unit_id  = msds_location.quantity_units and bill_unit.bill_type_id = 'MSDS - MASS') billUnit
+		 cross apply (select bill_unit.conversion_factor from bill_unit where bill_unit.is_dflt=1 and bill_unit.bill_type_id = 'MSDS - MASS') defaultBillUnit "/>
+		<parameter name="crossApplyVolume" dataType="verbatim" value=" cross apply (select bill_unit.conversion_factor from bill_unit where bill_unit.bill_unit_id  = msds_location.quantity_units and bill_unit.bill_type_id = 'MSDS - VOLUME') billUnit
+		 cross apply (select bill_unit.conversion_factor from bill_unit where bill_unit.is_dflt=1 and bill_unit.bill_type_id = 'MSDS - VOLUME') defaultBillUnit "/>		         		       	       
+	</dataSource>
+
+	<panel type="grid" id="msds_location_grid" dataSource="dsMSDSLocations" showOnLoad="false">
+		<title translatable="true">Material Locations</title>
+		<action id="XLS">
+			<title>XLS</title>
+			<command type="exportPanel" outputType="xls" panelId="msds_location_grid"/>
+		</action>
+		<action id="pdf">
+			<title>PDF</title>
+			<command type="exportPanel" outputType="pdf" panelId="msds_location_grid"/>
+		</action>
+		<field name="site_id" controlType="link" onclick="selectMSDSLocation">
+			<title translatable="true">Site Code</title>
+		</field>
+		<field name="bl_id" controlType="link" onclick="selectMSDSLocation"/>
+		<field name="fl_id" controlType="link" onclick="selectMSDSLocation"/>
+		<field name="rm_id" controlType="link" onclick="selectMSDSLocation"/>
+		<field name="eq_id" controlType="link" onclick="selectMSDSLocation"/>
+		<field name="msds_num" controlType="link" onclick="selectMSDSLocation">
+			<title translatable="true">Number of Materials</title>
+		</field>
+		<field name="solid_quantity" dataType="number" decimals="4" controlType="link" onclick="selectMSDSLocation">
+		   <title translatable="true">Total Mass</title>
+		</field>	
+		
+		<field name="volume_quantity" dataType="number" decimals="4" controlType="link" onclick="selectMSDSLocation">
+		   <title translatable="true">Total Volume</title>
+		</field>
+        <sortField name="site_id" ascending="true"/>
+        <sortField name="bl_id" ascending="true"/>
+        <sortField name="fl_id" ascending="true"/>
+        <sortField name="rm_id" ascending="true"/>
+        <sortField name="eq_id" ascending="true"/>
+        
+	</panel>
+
+	<dataSource id="abRiskMsdsDefMsdsLocDataDS">
+        <table name="msds_location" role="main"/>
+        <table name="msds_data" role="standard"/>
+
+        <field table="msds_location" name="quantity" />
+        <field table="msds_location" name="quantity_units" />
+		<field table="msds_location" name="quantity_units_type" hidden="true"/>
+        <field table="msds_data" name="ghs_id" />
+        <field table="msds_data" name="manufacturer_id" />
+        
+        <field table="msds_data" name="product_name" />
+        <field table="msds_data" name="product_code" />
+        <field table="msds_data" name="chemical_name" />
+        
+        <field table="msds_location" name="site_id"  />
+        <field table="msds_location" name="bl_id"  />
+        <field table="msds_location" name="fl_id"  />
+        <field table="msds_location" name="rm_id"  />
+        <field table="msds_location" name="msds_id"  />
+	
+	    <field table="msds_location" name="auto_number"/>
+        <field table="msds_data" name="distributor_id"/>
+        <field table="msds_data" name="preparer_id"/>
+        
+        <field table="msds_data" name="date_replaced"/>
+        <field table="msds_data" name="url"/>
+	</dataSource>
+
+	<panel type="grid" id="msds_grid" dataSource="abRiskMsdsDefMsdsLocDataDS" showOnLoad="false">
+		<title translatable="true">Containers and Materials</title>
+		<action id="XLS">
+			<title>XLS</title>
+			<command type="exportPanel" outputType="xls" panelId="msds_grid"/>
+		</action>
+		<action id="pdf">
+			<title>PDF</title>
+			<command type="exportPanel" outputType="pdf" panelId="msds_grid"/>
+		</action>
+		<field table="msds_location" name="quantity" controlType="link" onclick="selectMSDS"/>
+		<field table="msds_location" name="quantity_units" controlType="link" onclick="selectMSDS"/>
+		<field table="msds_location" name="quantity_units_type" hidden="true"/>
+		<field table="msds_data" name="ghs_id" controlType="link" onclick="selectMSDS"/>
+		<field table="msds_data" name="manufacturer_id" controlType="link" onclick="selectMSDS"/>
+		<field table="msds_data" name="product_name" controlType="link" onclick="selectMSDS"/>
+		<field table="msds_data" name="product_code" controlType="link" onclick="selectMSDS"/>
+		<field table="msds_data" name="chemical_name" controlType="link" onclick="selectMSDS"/>
+		<field table="msds_location" name="msds_id" hidden="true"/>
+	</panel>
+	
+	<dataSource id="unitDS">
+        <table name="bill_unit" role="main" />
+        <table name="bill_type" role="standard" />
+        <field table="bill_unit" name="bill_type_id" />
+        <field table="bill_type" name="activity_id" />
+        <field table="bill_unit" name="bill_unit_id" />
+        <field table="bill_unit" name="is_dflt" />
+        <restriction type="sql" sql="bill_unit.is_dflt =1 and bill_type.activity_id = 'AbRiskMSDS'"/>
+    </dataSource>
+</view>

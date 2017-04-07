@@ -1,0 +1,222 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<afmXmlView>
+
+	<preferences>
+        <viewTitleBar show="false"/>
+    </preferences>
+    <title translatable="true">View Compare Annual Project Costs to Budget</title>
+
+    <afmTableGroup type="report" format="table" defaultActions="false">
+        <title translatable="true">View Compare Annual Costs to Budget</title>
+	
+        <dataSource>
+            <database>
+                <tables>
+                    <table name="brg_project_view" role="main"/>
+                    <table name="bl" role="standard"/>
+					<table name="program" role="standard"/>
+                </tables>
+                <sort>
+                    <order>
+                  		<field name="project_id" table="brg_project_view" ascending="true" unique="true"/>
+					</order>
+                </sort>		
+				<fields>
+					<field name="project_id" table="brg_project_view"/>
+				</fields>
+            </database>
+            <mdx>				
+                <preferences dimensions="2" format="table">
+				  <query>
+						                    
+       	<sql dialect="generic">
+       	
+            SELECT bl.state_id, bl.city_id, project.site_id, project.bl_id,
+				project.dv_id, project.dp_id, program.program_type, program.program_id, 
+				project.project_type, project.project_id, project.proj_mgr, project.status, 
+				project.is_template,    			
+				CASE WHEN (baseline_estimate IS NULL) THEN 0 ELSE baseline_estimate END baseline_estimate, 
+				CASE WHEN (design_estimate IS NULL) THEN 0 ELSE design_estimate END design_estimate, 
+				CASE WHEN (actual_costs IS NULL) THEN 0 ELSE actual_costs END actual_costs, 
+				CASE WHEN (funding_allocation IS NULL) THEN 0 ELSE funding_allocation END funding_allocation, 
+				years_and_ids.years AS all_years
+
+            FROM
+                (   SELECT activity_log.project_id, YEAR(date_started) AS years
+					FROM activity_log
+					WHERE YEAR(date_started) IS NOT NULL AND activity_log.status IN ('REQUESTED','BUDGETED','PLANNED','SCHEDULED','IN PROGRESS','IN PROCESS-H','STOPPED','COMPLETED','COMPLETED-V','CLOS')																
+					GROUP BY activity_log.project_id, YEAR(date_started) 
+                UNION
+                    SELECT activity_log.project_id, YEAR(date_scheduled) AS years
+					FROM activity_log
+					WHERE YEAR(date_scheduled) IS NOT NULL AND activity_log.status IN ('REQUESTED','BUDGETED','PLANNED','SCHEDULED','IN PROGRESS','IN PROCESS-H','STOPPED','COMPLETED','COMPLETED-V','CLOS')											
+					GROUP BY activity_log.project_id, YEAR(date_scheduled)
+                UNION
+                    SELECT activity_log.project_id, YEAR(date_planned_for) AS years
+					FROM activity_log
+					WHERE YEAR(date_planned_for) IS NOT NULL AND activity_log.status IN ('REQUESTED','BUDGETED','PLANNED','SCHEDULED','IN PROGRESS','IN PROCESS-H','STOPPED','COMPLETED','COMPLETED-V','CLOSED')							
+            		GROUP BY activity_log.project_id, YEAR(date_planned_for)
+                UNION
+                    SELECT projfunds.project_id, fiscal_year AS years 
+					FROM projfunds
+					WHERE fiscal_year IS NOT NULL
+ 					GROUP BY projfunds.project_id, fiscal_year
+                ) AS years_and_ids
+                
+                LEFT OUTER JOIN (
+                    SELECT activity_log.project_id, SUM(cost_estimated + cost_est_cap) AS baseline_estimate, YEAR(date_planned_for) AS years
+					FROM activity_log
+					WHERE activity_log.status IN ('REQUESTED','BUDGETED','PLANNED','SCHEDULED','IN PROGRESS','IN PROCESS-H','STOPPED','COMPLETED','COMPLETED-V','CLOSED')						
+					GROUP BY activity_log.project_id, YEAR(date_planned_for)                            
+                ) AS alog1
+                ON alog1.project_id = years_and_ids.project_id AND alog1.years = years_and_ids.years  
+
+                LEFT OUTER JOIN (             
+                    SELECT activity_log.project_id, SUM(cost_est_design_exp + cost_est_design_cap) AS design_estimate, YEAR(date_scheduled) AS years
+					FROM activity_log
+					WHERE activity_log.status IN ('REQUESTED','BUDGETED','PLANNED','SCHEDULED','IN PROGRESS','IN PROCESS-H','STOPPED','COMPLETED','COMPLETED-V','CLOSED')											
+					GROUP BY activity_log.project_id, YEAR(date_scheduled)               
+                ) AS alog2
+                 ON alog2.project_id = years_and_ids.project_id AND alog2.years = years_and_ids.years 
+ 
+                LEFT OUTER JOIN (             
+                    SELECT activity_log.project_id, SUM(cost_act_cap + cost_actual) AS actual_costs, YEAR(date_started) AS years
+					FROM activity_log
+					WHERE activity_log.status IN ('IN PROGRESS','IN PROCESS-H','STOPPED','COMPLETED','COMPLETED-V','CLOSED')											
+					GROUP BY activity_log.project_id, YEAR(date_started)               
+                ) AS alog3
+                ON alog3.project_id = years_and_ids.project_id AND alog3.years = years_and_ids.years 
+
+                LEFT OUTER JOIN (             
+                    SELECT projfunds.project_id, SUM (amount_cap + amount_exp) AS funding_allocation, fiscal_year AS years 
+					FROM projfunds  
+					GROUP BY projfunds.project_id, fiscal_year
+                ) AS alog4
+                ON alog4.project_id = years_and_ids.project_id AND alog4.years = years_and_ids.years
+
+                RIGHT OUTER JOIN 
+                project
+                ON project.project_id = years_and_ids.project_id
+
+               	LEFT OUTER JOIN 
+                bl
+            	ON bl.bl_id = project.bl_id
+
+            	LEFT OUTER JOIN
+           		program
+            	ON program.program_id = project.program_id
+
+
+			</sql>
+			<sql dialect="oracle">
+			SELECT  bl.state_id, bl.city_id, project.site_id, project.bl_id,
+				project.dv_id, project.dp_id, program.program_type, program.program_id, 
+				project.project_type, project.project_id, project.proj_mgr, project.status, 
+				project.is_template,    			
+				CASE WHEN (baseline_estimate IS NULL) THEN 0 ELSE baseline_estimate END baseline_estimate, 
+				CASE WHEN (design_estimate IS NULL) THEN 0 ELSE design_estimate END design_estimate, 
+				CASE WHEN (actual_costs IS NULL) THEN 0 ELSE actual_costs END actual_costs, 
+				CASE WHEN (funding_allocation IS NULL) THEN 0 ELSE funding_allocation END funding_allocation, 
+				CASE WHEN (years_and_ids.this_year = -1 OR years_and_ids.this_year IS NULL) THEN '-' 
+					ELSE TO_CHAR(years_and_ids.this_year) END all_years
+
+            FROM
+                (   SELECT activity_log.project_id, project.bl_id, project.program_id, TO_NUMBER(SUBSTR(TO_CHAR(date_started,'YYYY-MM-DD'),1,4)) AS this_year
+					FROM activity_log, project
+					WHERE activity_log.project_id = project.project_id AND activity_log.status IN ('REQUESTED','BUDGETED','PLANNED','SCHEDULED','IN PROGRESS','IN PROCESS-H','STOPPED','COMPLETED','COMPLETED-V','CLOS')	
+                UNION
+                    SELECT activity_log.project_id, project.bl_id, project.program_id, TO_NUMBER(SUBSTR(TO_CHAR(date_scheduled,'YYYY-MM-DD'),1,4)) AS this_year
+					FROM activity_log, project
+					WHERE activity_log.project_id = project.project_id AND activity_log.status IN ('REQUESTED','BUDGETED','PLANNED','SCHEDULED','IN PROGRESS','IN PROCESS-H','STOPPED','COMPLETED','COMPLETED-V','CLOS')											
+                UNION
+                    SELECT activity_log.project_id, project.bl_id, project.program_id, TO_NUMBER(SUBSTR(TO_CHAR(date_planned_for,'YYYY-MM-DD'),1,4)) AS this_year
+					FROM activity_log, project
+					WHERE activity_log.project_id = project.project_id AND activity_log.status IN ('REQUESTED','BUDGETED','PLANNED','SCHEDULED','IN PROGRESS','IN PROCESS-H','STOPPED','COMPLETED','COMPLETED-V','CLOSED')							
+                UNION
+                    SELECT projfunds.project_id, project.bl_id, project.program_id, fiscal_year AS this_year 
+					FROM projfunds, project
+                                        WHERE projfunds.project_id = project.project_id
+                UNION
+                    SELECT project.project_id, project.bl_id, project.program_id, -1 AS this_year
+                    FROM project
+                ) years_and_ids,
+                
+                (
+                    SELECT activity_log.project_id, SUM(cost_estimated + cost_est_cap) AS baseline_estimate, CASE WHEN TO_NUMBER(SUBSTR(TO_CHAR(date_planned_for,'YYYY-MM-DD'),1,4)) IS NULL THEN -1 ELSE TO_NUMBER(SUBSTR(TO_CHAR(date_planned_for,'YYYY-MM-DD'),1,4)) END AS this_year
+					FROM activity_log
+					WHERE activity_log.status IN ('REQUESTED','BUDGETED','PLANNED','SCHEDULED','IN PROGRESS','IN PROCESS-H','STOPPED','COMPLETED','COMPLETED-V','CLOSED')						
+					GROUP BY activity_log.project_id, SUBSTR(TO_CHAR(date_planned_for,'YYYY-MM-DD'),1,4)                            
+                ) alog1,
+                
+
+                (             
+                    SELECT activity_log.project_id, SUM(cost_est_design_exp + cost_est_design_cap) AS design_estimate, CASE WHEN TO_NUMBER(SUBSTR(TO_CHAR(date_scheduled,'YYYY-MM-DD'),1,4)) IS NULL THEN -1 ELSE TO_NUMBER(SUBSTR(TO_CHAR(date_scheduled,'YYYY-MM-DD'),1,4)) END this_year
+					FROM activity_log
+					WHERE activity_log.status IN ('REQUESTED','BUDGETED','PLANNED','SCHEDULED','IN PROGRESS','IN PROCESS-H','STOPPED','COMPLETED','COMPLETED-V','CLOSED')											
+					GROUP BY activity_log.project_id, SUBSTR(TO_CHAR(date_scheduled,'YYYY-MM-DD'),1,4)               
+                ) alog2,
+                 
+ 
+                (             
+                    SELECT activity_log.project_id, SUM(cost_act_cap + cost_actual) AS actual_costs, CASE WHEN TO_NUMBER(SUBSTR(TO_CHAR(date_started,'YYYY-MM-DD'),1,4)) IS NULL THEN -1 ELSE TO_NUMBER(SUBSTR(TO_CHAR(date_started,'YYYY-MM-DD'),1,4)) END this_year
+					FROM activity_log
+					WHERE activity_log.status IN ('IN PROGRESS','IN PROCESS-H','STOPPED','COMPLETED','COMPLETED-V','CLOSED')											
+					GROUP BY activity_log.project_id, SUBSTR(TO_CHAR(date_started,'YYYY-MM-DD'),1,4)               
+                ) alog3,
+                 
+
+                (             
+                    SELECT projfunds.project_id, SUM (amount_cap + amount_exp) AS funding_allocation, CASE WHEN fiscal_year IS NULL THEN -1 ELSE fiscal_year END this_year 
+					FROM projfunds  
+					GROUP BY projfunds.project_id, fiscal_year
+                ) alog4,
+                project,
+                bl,
+                program
+                              
+                WHERE 
+                	alog1.project_id(+) = years_and_ids.project_id AND alog1.this_year(+) = years_and_ids.this_year AND  
+                	alog2.project_id(+) = years_and_ids.project_id AND alog2.this_year(+) = years_and_ids.this_year AND 
+                	alog3.project_id(+) = years_and_ids.project_id AND alog3.this_year(+) = years_and_ids.this_year AND
+                	alog4.project_id(+) = years_and_ids.project_id AND alog4.this_year(+) = years_and_ids.this_year AND
+					years_and_ids.project_id = project.project_id(+) AND
+                    years_and_ids.bl_id = bl.bl_id(+) AND
+                    years_and_ids.program_id = program.program_id(+)
+                        
+
+                
+				</sql>			                                      
+            </query> 
+                    
+            <dimensions>
+                <dimension name="Project Name" table="brg_project_view" column="project_id" hasAll="true">
+					<title translatable="true">Project Name</title>
+					<allMemberTitle translatable="true">Project Names</allMemberTitle>
+				</dimension> 
+				<dimension name="Year" table="" column="all_years" hasAll="true">
+					<title translatable="true">Year</title>
+					<allMemberTitle translatable="true">Years</allMemberTitle>
+				</dimension> 
+           </dimensions>              
+                      
+            <measures>
+                <measure name="Baseline Estimate" aggregator="sum" column="baseline_estimate" type="calculated">
+				<title translatable="true">Baseline Estimate</title>
+				</measure>
+                <measure name="Design Estimate" aggregator="sum" column="design_estimate" type="calculated">
+				<title translatable="true">Design Estimate</title>
+				</measure>
+				<measure name="Actual Costs" aggregator="sum" column="actual_costs" type="calculated" >
+				<title translatable="true">Actual Costs</title>
+				</measure>
+				<!--measure name="Funding Allocation" aggregator="sum" column="funding_allocation" type="calculated" >
+				<title translatable="true">Funding Allocation</title>
+				</measure-->
+	        </measures>
+
+                </preferences>
+            </mdx>
+        </dataSource>
+    </afmTableGroup>
+		
+</afmXmlView>

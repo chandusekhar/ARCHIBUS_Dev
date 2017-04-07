@@ -1,0 +1,103 @@
+<view version="2.0">
+
+    <!-- Drawing panel -->
+    <dataSource id="abCbRptHazBlMapDrilldown_highlightDs" type="DrawingControlHighlight">
+         <title>Rooms with Assessments</title>
+	     <table name="rm" role="main"/>
+	     <field name="bl_id" table="rm" legendKey="true"/>
+	     <field name="fl_id" table="rm"/> 
+	     <field name="rm_id" table="rm"/>
+          <restriction type="sql"
+                    sql="EXISTS (SELECT 1 FROM activity_log WHERE activity_log.bl_id = rm.bl_id 
+                                 AND activity_log.fl_id = rm.fl_id AND activity_log.rm_id = rm.rm_id
+                                 AND activity_log.activity_type = 'ASSESSMENT - HAZMAT' AND activity_log.project_id IS NOT NULL
+                                 AND ${parameters['consoleRestriction']})"/>
+        <parameter name="consoleRestriction" dataType="verbatim" value="1=1"/>
+    </dataSource>
+
+    <dataSource id="abCbRptHazBlMapDrilldown_highlightProjDs" type="DrawingControlHighlight">
+         <title>Projects</title>
+	     <table name="rm" role="main"/>
+	     <field name="bl_id" table="rm"/>
+	     <field name="fl_id" table="rm"/> 
+	     <field name="rm_id" table="rm"/>
+	     <field name="project_id" table="rm" dataType="text" legendKey="true">
+             <title translatable="true">Project Code</title>
+            <sql dialect="generic">
+               (CASE WHEN 
+                  (SELECT COUNT(DISTINCT activity_log.project_id) FROM activity_log WHERE activity_log.bl_id = rm.bl_id 
+                                 AND activity_log.fl_id = rm.fl_id AND activity_log.rm_id = rm.rm_id
+                                 AND activity_log.activity_type = 'ASSESSMENT - HAZMAT' AND activity_log.project_id IS NOT NULL
+                                 AND ${parameters['consoleRestriction']})>1 THEN 'MULTIPLE'
+                ELSE (SELECT DISTINCT activity_log.project_id FROM activity_log WHERE activity_log.bl_id = rm.bl_id 
+                                 AND activity_log.fl_id = rm.fl_id AND activity_log.rm_id = rm.rm_id
+                                 AND activity_log.activity_type = 'ASSESSMENT - HAZMAT' AND activity_log.project_id IS NOT NULL
+                                 AND ${parameters['consoleRestriction']})
+                END)
+            </sql>
+         </field>
+          <restriction type="sql"
+                    sql="EXISTS (SELECT 1 FROM activity_log WHERE activity_log.bl_id = rm.bl_id 
+                                 AND activity_log.fl_id = rm.fl_id AND activity_log.rm_id = rm.rm_id
+                                 AND activity_log.activity_type = 'ASSESSMENT - HAZMAT' AND activity_log.project_id IS NOT NULL
+                                 AND ${parameters['consoleRestriction']})"/>
+        <parameter name="consoleRestriction" dataType="verbatim" value="1=1"/>
+    </dataSource>
+    
+    <dataSource id="abCbRptHazBlMapDrilldown_highlightRankDs" type="DrawingControlHighlight">
+         <title>Hazard Rank</title>
+         <sql>
+            SELECT bl_id, fl_id, rm_id, dv_id, hpattern_acad, dwgname
+            FROM (
+                SELECT rm.bl_id, rm.fl_id, rm.rm_id, cb_hazard_rank.hcm_haz_rank_id ${sql.as} dv_id, cb_hazard_rank.hpattern_acad,  rm.dwgname,
+                       row_number() over(PARTITION BY rm.bl_id, rm.fl_id, rm.rm_id ORDER BY cb_hazard_rank.level_number DESC) rn
+                FROM activity_log, cb_hazard_rank, rm   
+                WHERE activity_log.hcm_haz_rank_id = cb_hazard_rank.hcm_haz_rank_id            
+                      AND activity_log.bl_id = rm.bl_id AND activity_log.fl_id = rm.fl_id AND activity_log.rm_id = rm.rm_id
+                      AND activity_log.activity_type = 'ASSESSMENT - HAZMAT'
+                      AND ${parameters['consoleRestriction']} ) ${sql.as} tbl
+            WHERE rn = 1                
+         </sql>
+         
+	     <table name="rm" role="main"/>
+	     <table name="dv" role="standard"/>
+	     <field name="bl_id" table="rm"/>
+	     <field name="fl_id" table="rm"/> 
+	     <field name="rm_id" table="rm"/>
+	     <field name="dv_id" table="rm" legendKey="true">
+             <title translatable="true">Hazard Rank</title>
+         </field>
+	     <field name="hpattern_acad" table="dv"/>
+         
+        <parameter name="consoleRestriction" dataType="verbatim" value="1=1"/>
+    </dataSource>
+
+    <dataSource id="abCbRptHazBlMapDrilldown_highlightRatingDs" type="DrawingControlHighlight">
+         <title>Hazard Rating</title>         
+         <sql>
+            SELECT bl_id, fl_id, rm_id, dv_id, hpattern_acad, dwgname
+            FROM (
+                SELECT rm.bl_id, rm.fl_id, rm.rm_id, cb_hazard_rating.hcm_haz_rating_id ${sql.as} dv_id, cb_hazard_rating.hpattern_acad, rm.dwgname,
+                       row_number() over(PARTITION BY rm.bl_id, rm.fl_id, rm.rm_id ORDER BY cb_hazard_rating.level_number DESC) rn
+                FROM activity_log, cb_hazard_rating, rm   
+                WHERE activity_log.hcm_haz_rating_id = cb_hazard_rating.hcm_haz_rating_id            
+                      AND activity_log.bl_id = rm.bl_id AND activity_log.fl_id = rm.fl_id AND activity_log.rm_id = rm.rm_id
+                      AND activity_log.activity_type = 'ASSESSMENT - HAZMAT'
+                      AND ${parameters['consoleRestriction']} ) ${sql.as} tbl
+            WHERE rn = 1                
+         </sql>
+         
+	     <table name="rm" role="main"/>
+	     <table name="dv" role="standard"/>
+	     <field name="bl_id" table="rm"/>
+	     <field name="fl_id" table="rm"/> 
+	     <field name="rm_id" table="rm"/>
+	     <field name="dv_id" table="rm" legendKey="true">
+             <title translatable="true">Hazard Rating</title>
+         </field>
+	     <field name="hpattern_acad" table="dv"/>
+         
+        <parameter name="consoleRestriction" dataType="verbatim" value="1=1"/>
+    </dataSource>
+
+</view>

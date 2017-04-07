@@ -1,0 +1,136 @@
+<view version="2.0">
+		<message name="error_no_floor_area">The floor has either not been assigned a Floor Area or its leases are no longer active for the selected start date.  See Floor Details in the Allocation Events > Locations tab.</message>
+		<message name="requiredField">Required field</message>
+		<message name="pctFloorExceedsHundred">% of Floor exceeds 120%</message>
+		<message name="groupName">Group Name</message>
+		<message name="buildings">Buildings</message>
+		<message name="floors">Floors</message>
+		<message name="formMissingValues">One or more fields contain incorrect or missing values. Form was not saved. Please correct values and save again.</message>
+		<message name="endBeforeStart">Invalid date input.  End date cannot precede start date.</message>
+		<message name="overAllocInstrucSu">{0} {1} is overallocated.  On {2}, total group allocations are {3}.  Total available leased suite area is {4}.</message>
+		<message name="overAllocInstrucFl">{0} {1} is overallocated.  On {2}, total group allocations are {3}.  Available floor area is {4}.</message>
+		<message name="viewFloorDetails">View Floor Details in the Allocation Events &gt; Locations tab.</message>
+		<js file="ab-alloc-wiz-common-pf.js"/>
+		
+		<dataSource id="allocWizCommon_ds0">
+				<table name="gp" role="main"/>
+				<table name="bl" role="standard"/>
+				<field table="bl" name="site_id"/>
+				<field table="gp" name="bl_id"/>
+				<field table="gp" name="fl_id"/>
+				<field table="gp" name="planning_bu_id"/>
+				<field table="gp" name="dv_id"/>
+				<field table="gp" name="dp_id"/>
+				<field table="gp" name="gp_id"/>
+				<field table="gp" name="name"/>
+				<field table="gp" name="area" showTotals="true" />
+				<field table="gp" name="count_em" showTotals="true"/>
+				<field table="gp" name="date_start"/>
+				<field table="gp" name="date_end"/>
+				<field table="gp" name="pct_floor"/>
+				<field table="gp" name="area_manual" showTotals="true"/>
+				<field table="gp" name="ls_id"/>
+				<field table="gp" name="description"/>
+				<field table="gp" name="portfolio_scenario_id"/>
+				<field table="gp" name="option1"/>
+				<field table="gp" name="is_available"/>
+		</dataSource>
+		
+		<!-- 	Data source is used by GroupSpaceAllocationHandlers-getOverAllocJSON
+					to find overallocations on a specified review date
+					for a specific building and floor in a scenario
+					where group areas exceed either the available floor area or available leased suite areas, if existing. -->
+                
+		<dataSource id="allocWizCommon_ds1" applyVpaRestrictions="false">
+				<table name="gp" role="main"/>				
+				<sql dialect="generic">
+						SELECT  ${parameters['dateReview']} ${sql.as} date_review, gp.portfolio_scenario_id, gp.bl_id, gp.fl_id, 
+								SUM(CASE WHEN gp.area = 0 THEN gp.area_manual ELSE gp.area END) ${sql.as} gp_area,
+								MIN(CASE WHEN fl.area_usable = 0 THEN fl.area_manual ELSE fl.area_usable END) - MIN(CASE WHEN unavailable.area IS NULL THEN 0 ELSE unavailable.area END) ${sql.as} fl_area, 
+								CASE WHEN MIN(suite.su_area) IS NULL THEN 0 ELSE (MIN(suite.su_area) - MIN(CASE WHEN unavailable.area IS NULL THEN 0 ELSE unavailable.area END)) END ${sql.as} su_area, 
+								CASE WHEN NOT EXISTS(SELECT 1 FROM su WHERE su.bl_id = gp.bl_id AND su.fl_id = gp.fl_id AND EXISTS(SELECT 1 FROM ls WHERE ls.ls_id = su.ls_id AND ls.use_as_template = 0)) 
+                THEN 0 ELSE 1 END ${sql.as} su_exists,
+								CASE WHEN (SUM(CASE WHEN gp.area = 0 THEN gp.area_manual ELSE gp.area END) 
+						     	&gt; (CASE WHEN NOT EXISTS(SELECT 1 FROM su WHERE su.bl_id = gp.bl_id AND su.fl_id = gp.fl_id AND EXISTS(SELECT 1 FROM ls WHERE ls.ls_id = su.ls_id AND ls.use_as_template = 0)) 
+						     	THEN (MIN(CASE WHEN fl.area_usable = 0 THEN fl.area_manual ELSE fl.area_usable END) - MIN(CASE WHEN unavailable.area IS NULL THEN 0 ELSE unavailable.area END))
+						     	ELSE (CASE WHEN MIN(suite.su_area) IS NULL THEN 0 ELSE (MIN(suite.su_area) - MIN(CASE WHEN unavailable.area IS NULL THEN 0 ELSE unavailable.area END)) END) END)) 
+						     	THEN '1' ELSE '0' END ${sql.as} option1
+						FROM gp 
+						LEFT OUTER JOIN fl
+								ON (fl.bl_id = gp.bl_id AND fl.fl_id = gp.fl_id)
+						LEFT OUTER JOIN (SELECT su.bl_id, su.fl_id, SUM(CASE WHEN su.area_usable=0 THEN su.area_manual ELSE su.area_usable END) ${sql.as} su_area 
+								FROM su WHERE EXISTS(SELECT 1 FROM ls WHERE ls.ls_id = su.ls_id AND ls.use_as_template = 0 AND 
+								((CASE WHEN ls.date_move IS NULL THEN ls.date_start ELSE ls.date_move END) &lt;= ${parameters['dateReview']} OR (CASE WHEN ls.date_move IS NULL THEN ls.date_start ELSE ls.date_move END) IS NULL) AND 
+								(ls.date_end &gt;= ${parameters['dateReview']} OR ls.date_end IS NULL)) 
+								GROUP BY su.bl_id, su.fl_id) ${sql.as} suite
+								ON (gp.bl_id = suite.bl_id AND gp.fl_id = suite.fl_id)
+						LEFT OUTER JOIN (SELECT gp.portfolio_scenario_id, gp.bl_id, gp.fl_id, SUM(CASE WHEN gp.area = 0 THEN gp.area_manual ELSE gp.area END) ${sql.as} area
+                FROM gp WHERE gp.is_available = 0
+                AND gp.date_start &lt;= ${parameters['dateReview']} AND (gp.date_end IS NULL OR gp.date_end &gt;= ${parameters['dateReview']})
+                GROUP BY gp.portfolio_scenario_id, gp.bl_id, gp.fl_id) ${sql.as} unavailable
+                ON (gp.portfolio_scenario_id = unavailable.portfolio_scenario_id AND gp.bl_id = unavailable.bl_id AND gp.fl_id = unavailable.fl_id)
+						WHERE gp.date_start &lt;= ${parameters['dateReview']} AND (gp.date_end IS NULL OR gp.date_end &gt;= ${parameters['dateReview']})
+								AND gp.portfolio_scenario_id IS NOT NULL AND gp.is_available = 1
+						GROUP BY gp.portfolio_scenario_id, gp.bl_id, gp.fl_id
+				</sql>
+				<field name="option1" />
+				<field name="date_review" dataType="text" />
+				<field name="su_exists" dataType="number" decimals="0" />
+				<field name="su_area" dataType="number" decimals="2" />
+				<field name="gp_area" dataType="number" decimals="2" />
+				<field name="fl_area" dataType="number" decimals="2" />
+				<parameter name="dateReview" dataType="date" value="2014-01-01"/>
+		</dataSource>
+		
+		<!-- 	Data source is used by GroupSpaceAllocationHandlers-getOverAllocJSON
+					to find dates when allocation changes or lease terminations take place
+					to check for overallocation on these dates -->
+					
+		<dataSource id="allocWizCommon_ds2" applyVpaRestrictions="false">
+				<table name="gp" role="main"/>
+				<sql dialect="generic">
+				SELECT bl_id, fl_id, portfolio_scenario_id,
+				date_start
+				FROM gp
+				UNION ( SELECT bl_id, fl_id, portfolio_scenario_id,
+				${sql.dateAdd('day', 1, 'gp.date_end')} ${sql.as} date_start
+				FROM gp WHERE ls_id IS NOT NULL AND gp.date_end IS NOT NULL)				
+				</sql>
+				<field table="gp" name="bl_id"/>
+				<field table="gp" name="fl_id"/>
+				<field table="gp" name="portfolio_scenario_id"/>				
+				<field table="gp" name="date_start" dataType="date"/>
+		</dataSource>
+		
+		<dataSource id="allocWizCommon_dsFl">
+        <table name="fl" role="main"/>
+        <sql dialect="generic">
+        		SELECT ${parameters['dateReview']} ${sql.as} date_review, fl.bl_id, fl.fl_id,
+								CASE WHEN NOT EXISTS(SELECT 1 FROM su WHERE su.bl_id = fl.bl_id AND su.fl_id = fl.fl_id AND EXISTS(SELECT 1 FROM ls WHERE ls.ls_id = su.ls_id AND ls.use_as_template = 0)) 
+                THEN (CASE WHEN fl.area_usable = 0 THEN fl.area_manual ELSE fl.area_usable END) ELSE (CASE WHEN suite.su_area IS NULL THEN 0 ELSE suite.su_area END) END ${sql.as} area_usable
+						FROM fl
+						LEFT OUTER JOIN (SELECT su.bl_id, su.fl_id, SUM(CASE WHEN su.area_usable=0 THEN su.area_manual ELSE su.area_usable END) ${sql.as} su_area 
+								FROM su WHERE EXISTS(SELECT 1 FROM ls WHERE ls.ls_id = su.ls_id AND ls.use_as_template = 0 AND 
+								((CASE WHEN ls.date_move IS NULL THEN ls.date_start ELSE ls.date_move END) &lt;= ${parameters['dateReview']} OR (CASE WHEN ls.date_move IS NULL THEN ls.date_start ELSE ls.date_move END) IS NULL) AND 
+								(ls.date_end &gt;= ${parameters['dateReview']} OR ls.date_end IS NULL)) 
+								GROUP BY su.bl_id, su.fl_id) ${sql.as} suite
+								ON (fl.bl_id = suite.bl_id AND fl.fl_id = suite.fl_id)
+        </sql>
+        <field table="fl" name="bl_id"/>
+        <field table="fl" name="fl_id"/>
+        <field table="fl" name="area_usable" dataType="number" decimals="2">
+        		<title>Floor Area</title>
+    		</field>
+    		<parameter name="dateReview" dataType="date" value="2014-01-01"/>
+    </dataSource>
+    
+    <dataSource id="allocWizCommon_dsStdArea">
+				<table name="fl" role="main"/>
+				<field name="bl_id"/>
+				<field name="fl_id"/>
+				<field table="fl" name="std_area" dataType="number" decimals="2">
+						<sql dialect="generic">CASE WHEN fl.std_area_per_em &gt; 0 THEN fl.std_area_per_em 
+					ELSE (SELECT bl.std_area_per_em FROM bl WHERE fl.bl_id = bl.bl_id) END</sql>
+				</field>
+		</dataSource>
+</view>

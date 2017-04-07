@@ -1,0 +1,322 @@
+<view version="2.0">
+    <message name="printPdf" translatable="true">Please select a waste manifest.</message>
+    <message name="noRecordSelected" translatable="true">Please make selection first</message>
+    <message name="instructionMess1" translatable="true">Color Key:</message>
+    <message name="instructionRed1" translatable="true">Deadline for contacting waste facility or submitting exception report has passed:</message>
+    <message name="instructionRed2" translatable="true">Waste facility contact required within {0}, {1}, or {2} days from  shipment for Large,  Small, or Other quantity generators, respectively</message>
+    <message name="instructionRed3" translatable="true">OR Exception report required within {3}, {4}, or {5} days from shipment for Large,  Small, or Other quantity generators, respectively</message>
+    <message name="instructionOrange1" translatable="true">Waste facility was contacted, awaiting response:</message>
+    <message name="instructionOrange2" translatable="true">Manifest not returned from waste facility within {0}, {1}, or {2} days from  shipment for Large,  Small, or Other quantity generators, respectively</message>
+    <message name="instructionYellow1" translatable="true">Time for contacting waste facility is close:</message>
+    <message name="instructionYellow2" translatable="true">Manifest not returned. Time elapsed since shipment is within {6}% of deadline for receipt or waste facility contact</message>
+    <message name="instructionMess4" translatable="true">NO HIGHLIGHT: Manifests that have not yet been signed and returned, but are still far from the deadline</message>
+    
+    <message name="sucessAddWaste" translatable="true">Waste record(s) were successfully updated.</message>
+    <message name="checkRecord" translatable="true">Please check waste records.</message>
+    <message name="errorAddWaste" translatable="true">There was an error trying to associate the selected wastes to the manifest, all waste records must be assigned to the same generator.</message>
+    <message name="validateMessage" translatable="true">Please select a valid</message>
+    <message name="fieldNoNull" translatable="true">Units Type and Units cannot be empty.</message>
+    <message name="checkGenId" translatable="true">All waste records associated to a waste manifest must belong to the same generator.</message>
+    
+    <message name="blIdMsg" translatable="true">Building Code</message>
+    <message name="dpIdMsg" translatable="true">Department Code</message>
+    <message name="dvIdMsg" translatable="true">Division Code</message>
+    <message name="eqIdMsg" translatable="true">Equipment Code</message>
+    <message name="flIdMsg" translatable="true">Floor Code</message>
+    
+    <message name="prIdMsg" translatable="true">Property Code</message>
+    <message name="rmIdMsg" translatable="true">Room Code</message>
+    <message name="siteIdMsg" translatable="true">Site Code</message>
+    <message name="emIdMsg" translatable="true">Employee Name</message>
+    <message name="contactIdMsg" translatable="true">Contact Code</message>
+    
+    <message name="quantityMsg" translatable="true">Quantity</message>
+    <message name="numContainerMsg" translatable="true">Number of Containers</message>
+    <message name="minusNotAllowed" translatable="true">cannot be minus.</message>
+    <message name="and" translatable="true">and</message>
+    <message name="transporterCode" translatable="true">Transporter Code</message>
+    <message name="companyName" translatable="true">Transporter Name</message>
+    <message name="phoneNumber" translatable="true">Phone Number</message>
+    
+    <message name="blankWarning" translatable="true">Please note some fields are empty in the generated manifest:{0}.</message>
+    <message name="sucessGenerate" translatable="true">Selected Waste Manifests generated.</message>
+    <message name="errorGenerate" translatable="true">There was an error trying to generate selected waste manifests.</message>
+    <message name="checkGenId" translatable="true">There was an error trying to generate the manifest for its associated wastes, all waste records must be assigned to the same generator. Please, do the required changes and then try to generate the manifest again.</message>
+    <layout id="main">
+        <north id="north" initialSize="80" split="true"/>
+        <center id="center"/>
+        <south id="south" initialSize="400" split="true"/>
+    </layout>
+
+    <js file="ab-waste-track-manifests.js" />
+    <js file="ab-waste-common.js" />
+    
+    <title translatable="true">Track Waste Manifests</title>
+
+    <dataSource id="abWasteDefMainfestsConsoleDs">
+        <table name="waste_manifests" role="main" />
+        <table name="waste_facilities" role="standard" />
+        <table name="waste_generators" role="standard" />
+        <field table="waste_manifests" name="manifest_number" />
+        <field table="waste_facilities" name="facility_name" />
+        <field table="waste_generators" name="generator_id" />
+    </dataSource>
+
+    <panel type="console" id="abWasteDefMainfestsConsole" columns="3" layoutRegion="north" dataSource="abWasteDefMainfestsConsoleDs" showOnLoad="true">
+        <title translatable="true">Filter</title>
+        <action id="show">
+            <title translatable="true">Show</title>
+        </action>
+        <action id="clear">
+            <title translatable="true">Clear</title>
+        </action>
+        <field table="waste_manifests" name="manifest_number" required="false" />
+        <field table="waste_facilities" name="facility_name" required="false" >
+            <action>
+                <title>...</title>
+                <command 
+                         type="selectValue"
+                         fieldNames="waste_facilities.facility_name"
+                         selectFieldNames="waste_facilities.facility_name"
+                         visibleFieldNames="waste_facilities.facility_id,waste_facilities.facility_name,waste_facilities.vn_id"
+                         applyFilter="false">
+                         
+                </command>
+            </action> 
+        </field>  
+        <field table="waste_generators" name="generator_id" required="false" />
+    </panel>
+
+    <dataSource id="abWasteDefMainfestsGridDs">
+     <sql dialect="generic">
+	     select waste_manifests.manifest_number,waste_manifests.manifest_reference_num, waste_manifests.facility_id,waste_manifests.date_shipped, waste_manifests.date_received, waste_manifests.date_facility_contact,
+		case when EXISTS ( SELECT 1 FROM waste_out   WHERE waste_out.manifest_number=waste_manifests.manifest_number and waste_out.generator_id is not null)  
+		then ( select MAX(waste_generators.type) FROM waste_out LEFT OUTER JOIN waste_generators ON  waste_generators.generator_id= waste_out.generator_id where  waste_out.manifest_number= waste_manifests.manifest_number)  
+		else null 
+		end ${sql.as}  waste_generator_type,
+                ${sql.daysBeforeCurrentDate('waste_manifests.date_shipped')}  ${sql.as}  date_ship_offset 
+	      from waste_manifests LEFT OUTER JOIN waste_facilities on waste_manifests.facility_id=waste_facilities.facility_id
+	     where ${parameters['conRes']} AND waste_manifests.date_received IS NULL AND waste_manifests.date_exception IS NULL AND EXISTS ( SELECT 1 FROM waste_out LEFT OUTER JOIN waste_profiles ON  waste_out.waste_profile=waste_profiles.waste_profile  WHERE waste_out.manifest_number=waste_manifests.manifest_number AND waste_profiles.waste_type='H') 
+        </sql>
+        <table name="waste_manifests" role="main" />
+        <field table="waste_manifests" name="manifest_number" />
+        <field table="waste_manifests" name="manifest_reference_num" />
+        <field table="waste_manifests" name="facility_id" />
+        <field table="waste_manifests" name="date_shipped" />
+        <field table="waste_manifests" name="date_received" />
+        <field table="waste_manifests" name="date_facility_contact" />
+        <field table="waste_manifests" name="date_ship_offset" baseField="waste_manifests.date_ship_offset" dataType="integer" />
+        <field table="waste_manifests" name="waste_generator_type" baseField="waste_manifests.waste_generator_type" dataType="text" />
+        <parameter name="conRes" dataType="verbatim" value=" 1=1 "/>
+    </dataSource>
+    <panel type="grid" layoutRegion="center" id="abWasteDefMainfestsGrid" multipleSelectionEnabled="true"  dataSource="abWasteDefMainfestsGridDs" showOnLoad="true">
+        <title translatable="true">Waste Manifest Tracking Log</title>
+        <action id="exportPDF">
+		<title translatable="true">PDF</title>
+		<command type="callFunction" functionName="setManifestExportRestriction"/>
+		<command type="exportPanel" outputType="pdf" panelId="abWasteDefMainfestsExportGrid" show="false"/>
+        </action>
+        <action id="generateManifestsPdf">
+            <title translatable="true">Generate Selected Manifest(s)</title>
+        </action>
+        <sortField name="date_shipped" table="waste_manifests" ascending="true"/>
+        <field table="waste_manifests" name="manifest_number" controlType="link">
+            <command type="callFunction" functionName="clickManifest"/>
+        </field>
+        <field table="waste_manifests" name="manifest_reference_num" controlType="link">
+            <command type="callFunction" functionName="clickManifest"/>
+        </field>
+        <field table="waste_manifests" name="date_shipped" controlType="link">
+            <command type="callFunction" functionName="clickManifest"/>
+        </field>
+        <field table="waste_manifests" name="date_received" controlType="link">
+            <command type="callFunction" functionName="clickManifest"/>
+        </field>
+        <field table="waste_manifests" name="date_facility_contact" controlType="link">
+            <command type="callFunction" functionName="clickManifest"/>
+        </field>
+        <field table="waste_manifests" name="date_ship_offset"  dataType="integer" hidden="true"/>
+        <field table="waste_manifests" name="waste_generator_type"  dataType="text" hidden="true"/>
+    </panel>
+
+    <panel type="grid"  id="abWasteDefMainfestsExportGrid" dataSource="abWasteDefMainfestsGridDs" showOnLoad="false">
+        <title translatable="true">Waste Manifest Tracking Log</title>
+        <sortField name="date_shipped" table="waste_manifests" ascending="true"/>
+        <field table="waste_manifests" name="manifest_number"/>
+        <field table="waste_manifests" name="manifest_reference_num"/>
+        <field table="waste_manifests" name="date_shipped" />
+        <field table="waste_manifests" name="date_received" />
+        <field table="waste_manifests" name="date_facility_contact" />
+    </panel>
+
+    <dataSource id="abWasteDefMainfestsFormDs">
+        <table name="waste_manifests" role="main" />
+        <table name="waste_facilities" role="standard" />
+        <field table="waste_manifests" name="manifest_number" />
+        <field table="waste_manifests" name="signed_by" />
+        <field table="waste_manifests" name="manifest_reference_num" />
+        <field table="waste_manifests" name="port" />
+        <field table="waste_facilities" name="facility_id" />
+        <field table="waste_manifests" name="date_received" />
+        <field table="waste_manifests" name="facility_id" />
+        <field table="waste_manifests" name="international_shipments" />
+        <field table="waste_facilities" name="facility_name" />
+        <field table="waste_manifests" name="discrepancy_full_rejection" />
+        <field table="waste_facilities" name="vn_id" />
+        <field table="waste_manifests" name="discrepancy_partial_rejection" />
+        <field table="waste_manifests" name="sign_facility" />
+        <field table="waste_manifests" name="discrepancy_type" />
+        <field table="waste_manifests" name="date_shipped" />
+        <field table="waste_manifests" name="discrepancy_qty" />
+        <field table="waste_manifests" name="date_country_departure" />
+        <field table="waste_manifests" name="discrepancy_residue" />
+        <field table="waste_manifests" name="date_acceptance" />
+        <field table="waste_manifests" name="facility_id_alt" />
+        <field table="waste_manifests" name="transporter_id" />
+        <field table="waste_manifests" name="date_alternate_facility" />
+        <field table="waste_manifests" name="date_transporter" />
+        <field table="waste_manifests" name="date_shipped_alt" />
+        <field table="waste_manifests" name="sign_transporter" />
+        <field table="waste_manifests" name="sign_alternate_facility" />
+        <field table="waste_manifests" name="transporter_id_2" />
+        <field table="waste_manifests" name="date_facility_contact" />
+        <field table="waste_manifests" name="date_transporter_2" />
+        <field table="waste_manifests" name="date_exception" />
+        <field table="waste_manifests" name="sign_transporter_2" />
+        <field table="waste_manifests" name="handling_instructions" />
+        <field table="waste_manifests" name="facility_contact_notes" />
+        <field table="waste_manifests" name="exception_notes" />
+        <field table="waste_manifests" name="doc" />
+    </dataSource>
+    
+    <panel type="form" columns="2" id="abWasteDefMainfestsForm" dataSource="abWasteDefMainfestsFormDs"
+        layoutRegion="south" showOnLoad="false" >
+        <title translatable="true">Edit Waste Manifest</title>
+        <action id="save">
+            <title translatable="true">Save</title>
+        </action>
+        <action>
+            <title translatable="true">Cancel</title>
+            <command type="showPanel" panelId="abWasteDefMainfestsForm" show="false" />
+        </action>
+        <field table="waste_manifests" name="manifest_number" readOnly="true"/>
+        <field table="waste_manifests" name="signed_by" readOnly="true"/>
+        <field table="waste_manifests" name="manifest_reference_num" readOnly="true"/>
+        <field table="waste_manifests" name="port" readOnly="true"/>
+        <field id="generator_id" dataType="text" >
+            <title translatable="true">Generator Code</title>
+             <action>
+                <title>...</title>
+                <command 
+                         type="selectValue"
+                         fieldNames="generator_id"
+                         selectFieldNames="waste_generators.generator_id"
+                         visibleFieldNames="waste_generators.generator_id"
+                         applyFilter="false">
+                </command>
+                
+            </action> 
+        </field>
+        <field table="waste_manifests" name="date_received" readOnly="true"/>
+        <field table="waste_manifests" name="facility_id" readOnly="true">
+           <action>
+                <title>...</title>
+                <command 
+                         type="selectValue"
+                         fieldNames="waste_manifests.facility_id,waste_facilities.facility_name,waste_facilities.vn_id"
+                         selectFieldNames="waste_facilities.facility_id,waste_facilities.facility_name,waste_facilities.vn_id"
+                         visibleFieldNames="waste_facilities.facility_id,waste_facilities.facility_name,waste_facilities.vn_id"
+                         restriction="waste_facilities.status='A'" 
+                         applyFilter="false">
+                         <title translatable="true">Facility Code</title>
+                </command>
+                
+            </action> 
+        </field>
+        <field table="waste_manifests" name="international_shipments" readOnly="true"/>
+        
+        <field table="waste_facilities" name="facility_name"  required="false" readOnly="true"/>
+        <field table="waste_manifests" name="discrepancy_full_rejection"  readOnly="true"/>
+        <field table="waste_facilities" name="vn_id"  required="false" readOnly="true" showSelectValueAction="false"/>
+        <field table="waste_manifests" name="discrepancy_partial_rejection"  readOnly="true"/>
+        <field table="waste_manifests" name="sign_facility"  readOnly="true"/>
+        <field table="waste_manifests" name="discrepancy_type"  readOnly="true"/>
+        <field table="waste_manifests" name="date_shipped" readOnly="true" />
+        <field table="waste_manifests" name="discrepancy_qty"  readOnly="true"/>
+        <field table="waste_manifests" name="date_country_departure" readOnly="false" />
+        <field table="waste_manifests" name="discrepancy_residue" readOnly="true" />
+        <field table="waste_manifests" name="date_acceptance" readOnly="false"/>
+        <field table="waste_manifests" name="facility_id_alt" readOnly="true">
+            <action>
+                <title></title>
+                <command type="selectValue" 
+                    fieldNames="waste_manifests.facility_id_alt" 
+                    selectFieldNames="waste_facilities.facility_id" 
+                    visibleFieldNames="waste_facilities.facility_id,waste_facilities.facility_name,waste_facilities.vn_id" 
+                    restriction="waste_facilities.status='A' ">
+                    <title>Facility Code Alt</title>
+                </command>
+            </action>
+        </field>
+        <field table="waste_manifests" name="transporter_id" readOnly="true" >
+            <action>
+                <title>...</title>
+                <command 
+                         type="selectValue"
+                         fieldNames="waste_manifests.transporter_id"
+                         selectFieldNames="vn.vn_id"
+                         visibleFieldNames="vn.vn_id,vn.company" 
+                         restriction="vn.vendor_type = 'WstTr' and is_active='1'">
+                </command>
+            </action> 
+        </field>
+        <field table="waste_manifests" name="date_alternate_facility"  readOnly="false"/>
+        <field table="waste_manifests" name="date_transporter" readOnly="false" />
+        <field table="waste_manifests" name="date_shipped_alt"  readOnly="true"/>
+        <field table="waste_manifests" name="sign_transporter"  readOnly="false"/>
+        <field table="waste_manifests" name="sign_alternate_facility" readOnly="true">
+            <title translatable="true">Signing for Facility Alt</title>
+        </field>
+        <field table="waste_manifests" name="transporter_id_2" readOnly="false">
+            <action >
+             <title>...</title>
+             <tooltip translatable="true">Select Value</tooltip>
+                <command type="callFunction" functionName="selectValueTransporterIsActive('abWasteDefMainfestsForm','waste_manifests.transporter_id_2')"/>
+            </action> 
+        </field>
+        <field table="waste_manifests" name="date_facility_contact" readOnly="false" />
+        <field table="waste_manifests" name="date_transporter_2" readOnly="false" />
+        <field table="waste_manifests" name="date_exception"  readOnly="false"/>
+        <field table="waste_manifests" name="sign_transporter_2"  readOnly="false"/>
+        <field table="waste_manifests" name="doc" />
+        <field table="waste_manifests" name="handling_instructions" colspan="2" readOnly="true"/>
+        <field table="waste_manifests" name="facility_contact_notes" colspan="2" readOnly="false"/>
+        <field table="waste_manifests" name="exception_notes" colspan="2" readOnly="false"/>
+    </panel>
+    
+    <dataSource id="abWasteDefMainfestsType">
+        <table name="bill_type" />
+        <field table="bill_type" name="bill_type_id"/>
+        <field table="bill_type" name="activity_id"/>
+        <restriction type="sql" sql="activity_id='AbRiskWasteMgmt' and bill_type_id not like 'REPORTS%'" />
+    </dataSource>
+    <dataSource id="abWasteDefMainfestsUnit">
+        <table name="bill_unit" />
+        <field table="bill_unit" name="bill_unit_id"/>
+        <field table="bill_unit" name="bill_type_id"/>
+        <field table="bill_unit" name="is_dflt"/>
+    </dataSource>
+    <dataSource id="afmFieldsDS">
+        <table name="afm_flds" />
+        <field table="afm_flds" name="table_name"/>
+        <field table="afm_flds" name="field_name"/>
+        <field table="afm_flds" name="validate_data"/>
+    </dataSource>
+    <dataSource id="abWasteDefMainfestsWasteOut">
+        <table name="waste_out" />
+        <field table="waste_out" name="generator_id"/>
+        <field table="waste_out" name="manifest_number"/>
+        <field table="waste_out" name="waste_id"/>
+    </dataSource>
+
+</view>

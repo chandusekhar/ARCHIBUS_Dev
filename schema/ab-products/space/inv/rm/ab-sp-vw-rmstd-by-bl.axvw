@@ -1,0 +1,83 @@
+<view version="2.0">
+    <designInfo type="edit" pattern="ab-viewdef-editform-drilldown" isAlterable="false"/>
+    <message name="setTitleForRmstd" translatable="true">Room Standards for Building:</message>
+    <message name="dateRange" translatable="true">for Date Range [{0}] to [{1}]</message>
+    
+    <layout type="borderLayout" id="mainLayout">
+        <west initialSize="40%" split="true"/>
+        <center autoScroll="true"/>
+    </layout>
+    
+    <title translatable="true">View Room Standards by Building</title>
+    <dataSource id="ab-sp-vw-rmstd-by-bl_grid_bl">
+        <table name="bl" role="main"/>
+        <field table="bl" name="bl_id"/>
+        <field table="bl" name="name"/>
+        <field table="bl" name="area_usable"/>
+        <field table="bl" name="area_rm"/>
+        <restriction type="sql" sql="bl.bl_id in (select rm.bl_id from rm where rm.bl_id=bl.bl_id and rm.rm_std is not null)"/>
+    </dataSource>
+    
+    <dataSource id="ab-sp-vw-rmstd-by-bl_grid_rmstd" type="grouping">
+        <table name="rm" role="main"/>
+        <table name="rmstd" role="standard"/>
+        <field table="rm" name="bl_id" groupBy="true"/>
+        <field table="rmstd" name="rm_std" groupBy="true"/>
+        <field name="tot_count" formula="count" baseField="rm.rm_id" dataType="number" decimals="0"/>
+        <field name="tot_area" formula="sum" baseField="rm.area" dataType="number" decimals="2"/>
+        <field name="area_avg" formula="avg" baseField="rm.area" dataType="number" decimals="2"/>
+        <field name="pct_rm" baseField="bl.area_rm" dataType="number" decimals="2">
+            <sql dialect="generic">CASE WHEN AVG(bl.area_rm) =0 THEN 0 ELSE 100*SUM(rm.area)/AVG(bl.area_rm) END</sql>
+        </field>
+        
+        <field table="rmstd" name="doc_block" groupBy="true"/>
+        <field table="rmstd" name="doc_graphic" groupBy="true"/>
+        <restriction type="sql" sql="rm.rm_std is not null"/>
+    </dataSource>
+    
+    <panel type="grid" id="blPanel" dataSource="ab-sp-vw-rmstd-by-bl_grid_bl" layout="mainLayout" region="west" recordLimit="0">
+        <title translatable="true">Select Building</title>
+        <sortField name="bl_id" table="bl" ascending="true"/>
+        <field name="bl_id" table="bl" controlType="link">
+            <command type="showPanel" panelId="rmstdPanel"/>
+        </field>
+        <field name="name" table="bl" controlType="link">
+            <command type="showPanel" panelId="rmstdPanel"/>
+        </field>
+        <field name="area_usable" table="bl" controlType="link">
+            <command type="showPanel" panelId="rmstdPanel"/>
+        </field>
+        <field name="area_rm" table="bl" controlType="link">
+            <command type="showPanel" panelId="rmstdPanel"/>
+        </field>
+    </panel>
+    
+    <panel type="grid" controlType="reportGrid" id="rmstdPanel" showOnLoad="false" dataSource="ab-sp-vw-rmstd-by-bl_grid_rmstd" layout="mainLayout" region="center" recordLimit="0">
+        <title translatable="true">Room Standards</title>
+        <sortField name="rm_std" table="rmstd" ascending="true"/>
+        <field table="rmstd" name="rm_std"/>
+        <field name="tot_count" dataType="number" decimals="0">
+            <title translatable="true">Total Count</title>
+        </field>
+        <field name="tot_area" dataType="number" decimals="2">
+            <title translatable="true">Total Area</title>
+        </field>
+        <field name="area_avg" dataType="number" decimals="2">
+            <title translatable="true">Average Area</title>
+        </field>
+        <field name="pct_rm" dataType="number" decimals="2">
+            <title translatable="true">Percentage of Usable Area</title>
+        </field>
+       
+        <field id="showDoc1" controlType="button" onclick="onSelectDocumentRowForBlock" enabled="${record['rmstd.doc_block'] != ''}">
+            <title translatable="true">View Room Std. Layout Graphic Doc</title>
+        </field>
+        <field id="showDoc2" controlType="button" onclick="onSelectDocumentRowForGraphic" enabled="${record['rmstd.doc_graphic'] != ''}">
+            <title translatable="true">View Room Std.Graphic Doc.</title>
+        </field>
+    </panel>
+
+ 
+    <js file="ab-sp-common.js"/>
+    <js file="ab-sp-vw-rmstd-by-bl.js"/>
+</view>

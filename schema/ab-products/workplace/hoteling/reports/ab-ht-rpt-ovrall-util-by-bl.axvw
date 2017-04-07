@@ -1,0 +1,71 @@
+<view version="2.0">
+    <title translatable="true">Room Utilization by Building</title>
+    <layout type="borderLayout" id="mainLayout">
+        <north split="true" initialSize="66"/>
+        <center/>
+    </layout>
+
+    <dataSource id="blFilter_ds">
+        <table name="bl" role="main"/>
+        <field name="site_id"/> 
+        <field name="bl_id"/> 
+    </dataSource>
+
+    <panel id="blFilterConsole" type="console"  columns="2" dataSource="blFilter_ds"  layout="mainLayout" region="north">
+        <title translatable="true">Filter</title>
+	<action>
+            <title translatable="true">Update Area Totals</title>
+			<command type="openDialog" viewName="ab-sp-upd-area-tots-space-time.axvw" applyParentRestriction="false"/>
+        </action>
+        <action id="search">
+            <title translatable="true">Show</title>
+        </action>
+        <action id="clear">
+            <title translatable="true">Clear</title>
+        </action>
+        <field table="bl" name="site_id"/>
+        <field table="bl" name="bl_id"/>
+  </panel>
+    
+  <dataSource id="bl1dBar_ds" type="grouping">
+        <table name="rm" role="main"/>
+        <field table="rm" name="bl_id"  groupBy="true"/>
+        <field name="rm_id"/>
+        <field name="hotelable"/>
+        <field name="utilizeRate" formula="sum" baseField="rm.area_rm" dataType="number" size="6" decimals="2">
+           <title translatable="true">Utilization Rate</title>
+           <sql dialect="generic">
+               CASE WHEN SUM(rm.area)&lt;=0 THEN 0 ELSE  SUM(rm.area_alloc)/SUM(rm.area)  END
+            </sql>
+        </field> 
+	<parameter name="siteId" dataType="verbatim" value=""/>
+	<parameter name="blId" dataType="verbatim" value=""/>
+	<restriction type="sql" sql="  exists ( SELECT 1 FROM bl WHERE bl.bl_id = rm.bl_id AND bl.site_id ${parameters['siteId']} )
+							AND rm.bl_id ${parameters['blId']}"/>
+   </dataSource>
+   <panel 	id="rmUtilizationBlChart" 
+    		type="chart" 
+    		controlType="columnChart" 
+    		showOnLoad="false" 
+    		dataSource="bl1dBar_ds" 
+    		showLegendOnLoad="true"
+    		showLegendAsPopUp="false" 
+    		legendLocation="right"
+    		showDataTips="true" 
+    		backgroundColor="0xc6e2ff" 
+    		fillColor="0xff0000"
+		layout="mainLayout" region="center"
+    		fillType="solid">
+        <title translatable="true">Room Utilization Bar Chart by Building</title>
+	<event type="onClickItem">                 
+		<command type="callFunction" functionName="onBlBarChartClick"/>
+        </event>
+        <groupingAxis table="rm" field="bl_id" dataSource="bl1dBar_ds" showLabel="true" labelRotation="45">
+            <title translatable="true">Buildings</title>
+        </groupingAxis>
+        <dataAxis table="rm" field="utilizeRate" dataSource="bl1dBar_ds" showLabel="true">
+            <title translatable="true">Utilization Rate</title>
+        </dataAxis>
+    </panel>
+    <js file="ab-ht-rpt-ovrall-util-by-bl.js"/>
+</view>

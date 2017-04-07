@@ -1,0 +1,182 @@
+<view version="2.0">
+	<designInfo type="report" pattern="ab-viewdef-report-drilldown-two-level-horizontal" isAlterable="false"/>
+    <message name="floorPanelTitle" translatable="true">Floors of Building Code:</message>
+    <message name="roomFloorPanelTitle" translatable="true">Rooms and Groups of Floor Code:</message>
+    <layout type="borderLayout" id="mainLayout">
+        <north autoScroll="true" split="true" initialSize="30%"/>
+        <center autoScroll="true"/>
+    </layout>
+    <layout type="borderLayout" id="centerLayout" containingLayout="mainLayout" region="center">
+        <north autoScroll="true" split="true" initialSize="30%"/>
+        <center autoScroll="true"/>
+    </layout>
+    <title translatable="true">View Remaining Area</title>
+    
+    <dataSource id="ds_ab-sp-vw-area-remain_grid_bl">
+        <table name="bl" role="main"/>
+        <field table="bl" name="bl_id"/>
+        <field table="bl" name="area_gross_int"/>
+        <field table="bl" name="area_rm"/>
+        <field table="bl" name="area_remain"/>
+        <field table="bl" name="area_vert_pen"/>
+        <field table="bl" name="area_serv"/>
+        <field table="bl" name="area_gp"/>
+        <restriction type="sql" sql=" EXISTS (SELECT 1 FROM rm LEFT JOIN rmcat ON rm.rm_cat=rmcat.rm_cat 
+										 WHERE ( ( rm.rm_cat IS NULL ) OR (rmcat.used_in_calcs IN ('all_totals', 'rm_totals')) ) AND rm.bl_id = bl.bl_id
+								  ) 
+						      OR EXISTS (SELECT 1 FROM gp WHERE gp.bl_id = bl.bl_id and  gp.portfolio_scenario_id IS NULL)"/>
+    </dataSource>
+    
+    <dataSource id="ds_ab-sp-vw-area-remain_grid_fl">
+        <table name="fl" role="main"/>
+        <field table="fl" name="bl_id"/>
+        <field table="fl" name="fl_id"/>
+        <field table="fl" name="area_gross_int"/>
+        <field table="fl" name="area_rm"/>
+        <field table="fl" name="area_gp"/>
+        <field table="fl" name="area_vert_pen"/>
+        <field table="fl" name="area_serv"/>
+        <field table="fl" name="area_remain"/>
+        <field table="fl" name="prorate_remain"/>
+        <restriction type="sql" sql=" EXISTS (SELECT 1 FROM rm LEFT JOIN rmcat 
+										 ON rm.rm_cat=rmcat.rm_cat 
+										 WHERE rm.bl_id = fl.bl_id AND rm.fl_id = fl.fl_id 
+											     AND( ( rm.rm_cat IS NULL) OR (rmcat.used_in_calcs IN ('all_totals', 'rm_totals')) )
+								  )
+						     OR EXISTS(SELECT 1 FROM gp WHERE gp.bl_id= fl.bl_id AND gp.fl_id= fl.fl_id and  gp.portfolio_scenario_id IS NULL)"/>
+    </dataSource>
+    
+    <dataSource id="ds_ab-sp-vw-area-remain_grid_rm_gp">
+        <sql dialect="generic">
+            (SELECT bl_id ${sql.as} bl_id,
+			        fl_id ${sql.as} fl_id,
+					rm_id ${sql.as} rmid, 
+					NULL ${sql.as} gpid,
+					rm.dv_id ${sql.as} dv_id,
+					rm.dp_id ${sql.as} dp_id,
+					NULL ${sql.as} num,
+					rm.rm_std ${sql.as} std,
+					rm.prorate ${sql.as} prorate,
+					rm.rm_cat ${sql.as} rmcat,
+					rm_type ${sql.as} rmtype,
+					rm.area ${sql.as} area
+            FROM rm WHERE rm.rm_cat IS NULL OR EXISTS(SELECT 1 FROM rmcat WHERE 
+			        rmcat.used_in_calcs IN ('all_totals', 'dp_comn_ocup_totals') AND rmcat.rm_cat = rm.rm_cat))
+            UNION ALL
+            (SELECT bl_id ${sql.as} bl_id,
+			        fl_id ${sql.as} fl_id,
+					'' ${sql.as} rmid,
+					gp_id ${sql.as} gpid,
+					dv_id ${sql.as} dv_id,
+					dp_id ${sql.as} dp_id,
+					gp_num ${sql.as} num,
+					gp_std ${sql.as} std,
+					prorate ${sql.as} prorate,
+					'' ${sql.as} rmcat,
+					'' ${sql.as} rmtype,
+					area ${sql.as} area
+            FROM gp where  gp.portfolio_scenario_id IS NULL)
+        </sql>
+        <table name="rm" role="main"/>
+        <field table="rm" name="bl_id" dataType="text" hidden="true"/>
+        <field table="rm" name="fl_id" dataType="text" hidden="true"/>
+        <field table="rm" name="rmid" dataType="text"/>
+        <field table="rm" name="gpid" dataType="number" decimals="0"/>
+        <field table="rm" name="dv_id" dataType="text"/>
+        <field table="rm" name="dp_id" dataType="text"/>
+        <field table="rm" name="num" dataType="text"/>
+        <field table="rm" name="std" dataType="text"/>
+        <field table="rm" name="prorate" dataType="text"/>
+        <field table="rm" name="rmcat" dataType="text"/>
+        <field table="rm" name="rmtype" dataType="text"/>
+        <field table="rm" name="area" dataType="number" decimals="2"/>
+    </dataSource>
+    
+    <panel type="grid" id="buildingsGrid" dataSource="ds_ab-sp-vw-area-remain_grid_bl" layout="mainLayout" region="north">
+        <title translatable="true">Select Building</title>
+        <sortField table="bl" name="bl_id" ascending="true"/>
+		<action>
+            <title translatable="true">Paginated Report</title>
+            <command type="openDialog" viewName="ab-paginated-report-job.axvw?viewName=ab-sp-vw-area-remain-prnt.axvw"/>
+        </action>
+        <field table="bl" name="bl_id" controlType="link">
+            <command type="showPanel" panelId="floorsGrid"/>
+        </field>
+        <field table="bl" name="area_gross_int" controlType="link">
+            <command type="showPanel" panelId="floorsGrid"/>
+        </field>
+        <field table="bl" name="area_rm" controlType="link">
+            <command type="showPanel" panelId="floorsGrid"/>
+        </field>
+        <field table="bl" name="area_remain" controlType="link">
+            <command type="showPanel" panelId="floorsGrid"/>
+        </field>
+        <field table="bl" name="area_vert_pen" controlType="link">
+            <command type="showPanel" panelId="floorsGrid"/>
+        </field>
+        <field table="bl" name="area_serv" controlType="link">
+            <command type="showPanel" panelId="floorsGrid"/>
+        </field>
+        <field table="bl" name="area_gp" controlType="link">
+            <command type="showPanel" panelId="floorsGrid"/>
+        </field>
+    </panel>
+    <panel type="grid" id="floorsGrid" dataSource="ds_ab-sp-vw-area-remain_grid_fl" showOnLoad="false" layout="centerLayout" region="north">
+        <title translatable="true">Select Floor</title>
+		<sortField table="fl" name="fl_id" ascending="true"/>
+		<field table="fl" name="bl_id" hidden="true"/>
+        <field table="fl" name="fl_id" controlType="link">
+            <command type="showPanel" panelId="roomsGrid"/>
+        </field>
+        <field table="fl" name="area_gross_int" controlType="link">
+            <command type="showPanel" panelId="roomsGrid"/>
+        </field>
+        <field table="fl" name="area_rm" controlType="link">
+            <command type="showPanel" panelId="roomsGrid"/>
+        </field>
+        <field table="fl" name="area_remain" controlType="link">
+            <command type="showPanel" panelId="roomsGrid"/>
+        </field>
+        <field table="fl" name="prorate_remain" controlType="link">
+            <command type="showPanel" panelId="roomsGrid"/>
+        </field>
+        <field table="fl" name="area_vert_pen" controlType="link">
+            <command type="showPanel" panelId="roomsGrid"/>
+        </field>
+        <field table="fl" name="area_serv" controlType="link">
+            <command type="showPanel" panelId="roomsGrid"/>
+        </field>
+        <field table="fl" name="area_gp" controlType="link">
+            <command type="showPanel" panelId="roomsGrid"/>
+        </field>
+    </panel>
+    <panel type="grid" id="roomsGrid" controlType="reportGrid" dataSource="ds_ab-sp-vw-area-remain_grid_rm_gp" showOnLoad="false" layout="centerLayout" region="center">
+        <title translatable="true">Rooms and Groups</title>
+		<sortField table="rm" name="rmid" ascending="true"/>
+		<field table="rm" name="rmid" dataType="text">
+            <title translatable="true">Room Code</title>
+        </field>
+        <field table="rm" name="gpid" dataType="number" decimals="0">
+            <title translatable="true">Group Code</title>
+        </field>
+        <field table="rm" name="dv_id" dataType="text"/>
+        <field table="rm" name="dp_id" dataType="text"/>
+        <field table="rm" name="num" dataType="text">
+            <title translatable="true">Group Number</title>
+        </field>
+        <field table="rm" name="std" dataType="text">
+            <title translatable="true">Room(Group) Standard</title>
+        </field>
+        <field table="rm" name="prorate" dataType="text"/>
+        <field table="rm" name="rmcat" dataType="text">
+            <title translatable="true">Room Category</title>
+        </field>
+        <field table="rm" name="rmtype" dataType="text">
+            <title translatable="true">Room Type</title>
+        </field>
+        <field table="rm" name="area" dataType="number" decimals="2">
+        	<title translatable="true">Area</title>
+		</field>	
+    </panel>
+    <js file="ab-sp-vw-area-remain.js"/>
+</view>

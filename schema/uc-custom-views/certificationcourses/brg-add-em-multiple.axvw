@@ -1,0 +1,176 @@
+<view version="2.0">
+
+	<message name="add" translatable="true">Add</message>
+	<message name="clear" translatable="true">Clear</message>
+
+	<layout type="borderLayout" id="mainLayout">
+       <north autoScroll="true" id="parentNorth" initialSize="280" />
+	   <center id="parentCenter"  autoScroll="true"/>
+    </layout>
+
+    <title translatable="true">Certification Course Listing</title>
+    <js file="brg-add-em-multiple.js"/>
+
+	<dataSource id="certificationsDs" distinct="true">
+        <table name="UC_certifications" role="main"/>
+		<table name="UC_courses" role="standard"/>
+		<table name="em" role="standard"/>
+		 <field table="UC_certifications" name="em_id"/>
+		 <field table="em" name="name_first"/>
+		<field table="em" name="name_last"/>
+        <field table="UC_certifications" name="cert_name"/>
+        <field table="UC_certifications" name="course_id"/>
+		<field table="UC_certifications" name="course_name"/>
+		<field table="UC_courses" name="category_id"/>
+		<field table="UC_courses" name="course_name"/>
+		<field table="UC_certifications" name="start_date"/>
+		<field table="UC_certifications" name="expiry_date"/>
+		<field table="UC_certifications" name="doc"/>
+		<!--restriction type="sql" sql="UC_certifications.em_id = '${user.employee.id}'" /-->
+    </dataSource>
+
+
+
+    <dataSource id="abProbtypeEdit_ds_1">
+        <table name="UC_certifications" role="main"/>
+		<table name="em" role="standard"/>
+		<table name="UC_courses" role="standard"/>
+        <field table="UC_certifications" name="cert_name"/>
+        <field table="UC_certifications" name="course_id">
+		</field>
+		<field table="UC_courses" name="course_name"/>
+		<field table="UC_certifications" name="course_name"/>
+		<field table="UC_courses" name="category_id"/>
+		<field table="UC_courses" name="type" value="-"/>
+		<field table="UC_certifications" name="start_date"/>
+		<field table="UC_certifications" name="expiry_date"/>
+		<field table="UC_certifications" name="description"/>
+		<field table="UC_certifications" name="date_renew"/>
+		<field table="UC_certifications" name="cert_number"/>
+		<field table="UC_certifications" name="doc"/>
+		<field table="UC_certifications" name="em_id"/>
+		 <field table="em" name="name_first"/>
+		<field table="em" name="name_last"/>
+    </dataSource>
+
+    <panel type="form" id="detailsPanel" dataSource="abProbtypeEdit_ds_1" showOnLoad="true" labelsPosition="left" columns="2" layoutRegion="parentNorth" newRecord="true">
+	    <title translatable="true">Add or Edit Certification</title>
+
+        <action id="renew" hidden="true">
+            <title translatable="true">Renew</title>
+        </action>
+
+		<action id="newSave" hidden="true">
+            <title translatable="true">Save-New</title>
+        </action>
+        <action id="save">
+            <title translatable="true">Save</title>
+			<!--command type="callFunction" functionName="theController.addEmployeeToCert(this)"/-->
+            <!--command type="saveForm"/-->
+            <!--command type="showPanel" panelId="treePanelActive" applyParentRestriction="false"/-->
+			<!--command type="showPanel" panelId="treePanelExpired" applyParentRestriction="false"/-->
+        </action>
+
+        <field table="UC_courses" name="category_id" readOnly="${record['UC_certifications.course_id']!=''}" onchange="theController.onChangeCategory(1)" required="false">
+		    <action>
+				<title>...</title>
+				<command type="callFunction" functionName="theController.selectCategory(this)"/>
+			</action>
+		</field>
+		<field table="UC_certifications" name="start_date" readOnly="${!panel.newRecord}"/>
+		<field table="UC_courses" name="type" readOnly="${record['UC_certifications.course_id']!=''}" onchange="theController.onChangeCategory(2)" value="-"  required="false"/>
+		<field table="UC_certifications" name="expiry_date"/>
+		<field table="UC_certifications" name="course_id" onchange = "theController.onChangeCourseId()" readOnly="${record['UC_certifications.course_id']!=''}">
+		    <action>
+				<title>...</title>
+				<command type="callFunction" functionName="theController.selectCourses(this)"/>
+			</action>
+		</field>
+		<field table="UC_certifications" name="date_renew"/>
+		<field table="UC_courses" name="course_name" readOnly="false" hidden="true"/>
+		<field table="UC_certifications" name="course_name" readOnly="${record['UC_courses.category_id'] !=''}" required="true" onchange="theController.onChangeCourseName()"/>  <!-- Q from F: Why do we need the course name in both tables? -->
+		<field table="UC_certifications" name="cert_number"/>
+		<field table="UC_certifications" name="doc" hidden="false"/>
+ 		<field/>
+		<field table="UC_certifications" name="description" colspan="2"/>
+        <field table="UC_certifications" name="em_id" hidden="true" required="false" value="${user.employee.id}"/>
+    </panel>
+
+	<dataSource id="selectEms_ds8">
+		<table name="em" role="main" />
+		<field table="em" name="em_id" />
+		<field table="em" name="name_last"/>
+		<field table="em" name="name_first"/>
+		<field name="emdoc" dataType="text">
+			<sql dialect="generic">
+				(select top 1 doc from UC_certifications c where c.em_id = em.em_id and ${parameters['paramCourse']} order by isnull(expiry_date,start_date) desc)
+			</sql>
+		</field>
+		<field name="emcourse_id" dataType="text">
+			<sql dialect="generic">
+				(select top 1 course_id from UC_certifications c where c.em_id = em.em_id and ${parameters['paramCourse']} order by isnull(expiry_date,start_date) desc)
+			</sql>
+		</field>
+		<field name="emstartdate" dataType="date">
+			<sql dialect="generic">
+				(select top 1 start_date from UC_certifications c where c.em_id = em.em_id and ${parameters['paramCourse']} order by isnull(expiry_date,start_date) desc)
+			</sql>
+		</field>
+		<parameter name="paramCourse" dataType="verbatim" value="c.course_id='' and c.start_date=''"/>
+
+
+	</dataSource>
+
+
+	<panel type="grid" id="detailsPanel2" dataSource="selectEms_ds8" showOnLoad="true" layoutRegion="parentCenter" multipleSelectionEnabled="true" >
+		<sortField name="name_last" table="em" />
+		<sortField name="name_first" table="em" />
+		<action id="addEm" onclick="addEm_func()">
+			<title>Add Employees to List</title>
+		</action>
+		<action id="deleteEm" onclick="deleteEm_func()">
+			<title>Remove Employees from List </title>
+		</action>
+		<action id="delete" hidden="true" >
+			<title>Delete Employees Certificates</title>
+		</action>
+		<field name="emdoc" dataType="text" hidden="true"/>
+		<field name="emcourse_id" dataType="text" hidden="true"/>
+		<field name="emstartdate" dataType="date" hidden="true"/>
+		<field table="em" name="em_id" hidden="true"/>
+		<field table="em" name="name_last"/>
+		<field table="em" name="name_first"/>
+		<field controlType="button" id="addDoc" enabled="${record['em.emcourse_id'] &amp;&amp; record['em.emcourse_id'] != '' &amp;&amp; !panel.newRecord}"  onclick="loadNewDoc">
+         	 <title translatable="true">Add Course Doc</title>
+        </field>
+		<field controlType="button" id="viewDoc" enabled="${record['em.emdoc'] &amp;&amp; record['em.emdoc'] != '' &amp;&amp; !panel.newRecord}"  onclick="showDoc">
+         	 <title translatable="true">Show Course Doc</title>
+         </field>
+	</panel>
+
+	<dataSource id="selectEms_ds1">
+		<table name="em" role="main" />
+		<field table="em" name="em_id"/>
+		<field table="em" name="name_last"/>
+		<field table="em" name="name_first"/>
+	</dataSource>
+
+	<panel type="grid" id="formSelectValueMultiple_grid" dataSource="selectEms_ds1" recordLimit="200" multipleSelectionEnabled="true" showOnLoad="false" hidden="true">
+		<action id="addSelected">
+			<title>Add Selected</title>
+		</action>
+
+	</panel>
+	<panel type="grid" id="docPanel" dataSource="abProbtypeEdit_ds_1" showOnLoad="true"  hidden="true">
+
+		<field table="UC_certifications" name="start_date"/>
+
+		<field table="UC_certifications" name="course_id" />
+
+		<field table="UC_certifications" name="doc" />
+
+        <field table="UC_certifications" name="em_id" hidden="true"/>
+		<field table="em" name="name_first"/>
+		<field table="em" name="name_last"/>
+    </panel>
+</view>

@@ -1,0 +1,97 @@
+<view version="2.0">
+	<js file="ab-rplm-lsadmin-owned-land-details-report.js"/>
+	<layout id="main">
+		<west id="west" initialSize="20%" />
+		<center id="center"/>
+	</layout>
+	<dataSource id="dsCtry" applyVpaRestrictions="false">
+		<sql dialect="generic">
+			SELECT 
+				ctry.ctry_id AS ctry_id,
+				ctry.name AS name
+			FROM ctry
+			WHERE EXISTS(SELECT 1 FROM property WHERE property.ctry_id = ctry.ctry_id  
+				AND property.property_type = 'Land' AND ${sql.getVpaRestrictionForTable('property')} AND
+			(EXISTS(SELECT 1 FROM ot WHERE ot.pr_id = property.pr_id ${parameters['subquery']}) OR 
+			EXISTS (SELECT 1 FROM ls WHERE ls.pr_id = property.pr_id ${parameters['subquery']})))
+		</sql>
+		<table name="ctry" role="main"/>
+        <table name="property" role="standard"/>
+		<field table="ctry" name="ctry_id"/>
+		<field table="ctry" name="name"/>
+        <parameter name="subquery" dataType="verbatim" value=""/>
+		<sortField table="ctry" name="ctry_id" ascending="true"/>
+	</dataSource>
+	<dataSource id="dsCity" applyVpaRestrictions="false">
+		<sql dialect="generic">
+			SELECT 
+				city.state_id as state_id,	
+				city.city_id as city_id,
+				city.name as name,
+				city.ctry_id as ctry_id
+			FROM city
+			WHERE EXISTS(SELECT 1 FROM property WHERE property.state_id= city.state_id AND property.city_id = city.city_id AND 
+				property.property_type = 'Land' AND ${sql.getVpaRestrictionForTable('property')} AND
+			(EXISTS(SELECT 1 FROM ot WHERE ot.pr_id = property.pr_id ${parameters['subquery']}) OR 
+				EXISTS(SELECT 1 FROM ls WHERE ls.pr_id = property.pr_id ${parameters['subquery']}))) 
+		</sql>
+		<table name="city" role="main"/>
+        <table name="property" role="standard"/>
+		<field table="city" name="state_id"/>
+		<field table="city" name="city_id"/>
+		<field table="city" name="name"/>
+        <parameter name="subquery" dataType="verbatim" value=""/>
+		<sortField table="city" name="city_id" ascending="true"/>
+	</dataSource>
+	<dataSource id="dsLand">
+		<sql dialect="generic">
+			SELECT 
+				property.pr_id, 
+				property.name,
+				property.city_id,
+				property.state_id,
+                property.site_id
+			FROM property
+			WHERE property.property_type = 'Land' AND (EXISTS(SELECT 1 FROM ot WHERE ot.pr_id = property.pr_id ${parameters['subquery']})
+				OR EXISTS(SELECT 1 FROM ls WHERE ls.pr_id = property.pr_id ${parameters['subquery']}))
+		</sql>
+		<table name="property" role="main"/>
+		<field table="property" name="pr_id"/>
+		<field table="property" name="name"/>
+        <parameter name="subquery" dataType="verbatim" value=""/>
+		<sortField table="property" name="pr_id" ascending="true"/>
+	</dataSource>
+	<panel type="tree" id="treeCtry" layoutRegion="west" dataSource="dsCtry">
+        <action id="search">
+            <title translatable="true">Search</title>
+            <command type="openDialog" panelId="formSearch" width="300" height="200"/>
+        </action>
+        <action id="show_all">
+            <title translatable="true">Show All</title>
+        </action>
+		<panel type="tree" id="treeCity" dataSource="dsCity"/>
+		<panel type="tree" id="treeLand" dataSource="dsLand">
+			<event type="onClickNode">
+				<command type="callFunction" functionName="showDetails"/>
+			</event>
+		</panel>
+	</panel>
+    <dataSource id="dsSearch">
+        <table name="property" role="main"/>
+        <field table="property" name="pr_id"/>
+        <parameter name="property_id" dataType="text" value=""/>
+        <restriction type="sql" sql="property.pr_id = ${parameters['property_id']}"/>
+    </dataSource>
+    <panel type="form" id="formSearch" hidden="true" showOnLoad="false" layoutRegion="west" dataSource="dsSearch">
+        <action id="save">
+            <title translatable="true">Show</title>
+            <command type="closeDialog"/>
+        </action>
+        <action id="cancel">
+            <title translatable="true">Cancel</title>
+            <command type="closeDialog"/>
+        </action>
+        <field table="property" name="pr_id"/>
+    </panel>
+	<panel type="view" id="reportPanel" file="ab-rplm-lsadmin-owned-land-details-report-report.axvw" layoutRegion="center" useFrame="true"/>
+</view>

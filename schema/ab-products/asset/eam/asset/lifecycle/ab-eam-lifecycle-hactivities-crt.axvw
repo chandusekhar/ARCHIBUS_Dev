@@ -1,0 +1,81 @@
+<view version="2.0">
+    <js file="ab-eam-lifecycle-hactivities-crt.js"/>
+    <!-- translatable messages -->
+    <message name="labelActivityType_project_action" translatable="true">Project Actions</message>
+    <message name="labelActivityType_assessment" translatable="true">Assessments</message>
+    <message name="labelActivityType_sustainability_assessment" translatable="true">Sustainability Assessments</message>
+    <message name="labelActivityType_commissioning" translatable="true">Commissioning</message>
+    <message name="labelActivityType_empty" translatable="true">Other</message>
+    <message name="labelActivityType_work_request" translatable="true">Work Request</message>
+    <message name="labelActivityType_sd_furniture" translatable="true">Service Desk Furniture</message>
+    <message name="labelActivityType_sd_group_move" translatable="true">Service Desk Group Move</message>
+    <message name="labelActivityType_sd_individual_move" translatable="true">Service Desk Individual Move</message>
+    
+    <panel type="html" id="abEamLifecycleCrtActivitiesRefresh" dataSource="none" showOnLoad="false" hidden="true">
+        <html></html>
+    </panel>
+    
+    <dataSource id="abEamLifecycleHActivitiesCrt_ds" type="grouping">
+        <sql dialect="generic">
+            SELECT 
+                (CASE 
+                    WHEN (hactivity_log.project_id IS NOT NULL AND project.project_type NOT IN ('ASSESSMENT', 'ASSESSMENT - ENVIRONMENTAL', 'ASSESSMENT - HAZMAT', 'COMMISSIONING') AND project.status NOT IN ('Completed', 'Completed-Verified','Closed'))
+                        THEN 'project_action'
+                    WHEN (hactivity_log.project_id IS NOT NULL AND project.project_type IN ('ASSESSMENT - ENVIRONMENTAL', 'ASSESSMENT - HAZMAT') AND project.status NOT IN ('Completed', 'Completed-Verified','Closed'))
+                        THEN 'sustainability_assessment'
+                    WHEN (hactivity_log.project_id IS NOT NULL AND project.project_type='ASSESSMENT' AND project.status NOT IN ('Completed', 'Completed-Verified','Closed'))
+                        THEN 'assessment'
+                    WHEN (hactivity_log.project_id IS NOT NULL AND project.project_type='COMMISSIONING' AND project.status NOT IN ('Completed', 'Completed-Verified','Closed'))
+                        THEN 'commissioning'
+                    WHEN (hactivity_log.activity_type='SERVICE DESK - FURNITURE' AND hactivity_log.wr_id IS NULL)
+                        THEN 'sd_furniture'
+                    WHEN (hactivity_log.activity_type='SERVICE DESK - GROUP MOVE' AND hactivity_log.wr_id IS NULL)
+                        THEN 'sd_group_move'
+                    WHEN (hactivity_log.activity_type='SERVICE DESK - INDIVIDUAL MOVE' AND hactivity_log.wr_id IS NULL)
+                        THEN 'sd_individual_move'
+                    ELSE ''    
+                END) ${sql.as} activity_type,
+                hactivity_log.activity_log_id${sql.concat}'' ${sql.as} item_id,
+                hactivity_log.bl_id ${sql.as} bl_id,
+                hactivity_log.pr_id ${sql.as} pr_id,
+                hactivity_log.eq_id ${sql.as} eq_id,
+                hactivity_log.ta_id ${sql.as} ta_id
+            FROM hactivity_log
+                LEFT OUTER JOIN project ON project.is_template = 0 AND hactivity_log.project_id = project.project_id
+                WHERE hactivity_log.activity_type NOT IN ('SERVICE DESK - MAINTENANCE') AND hactivity_log.status IN ('COMPLETED', 'COMPLETED-V', 'CLOSED')
+            UNION 
+            SELECT 
+                'work_request' ${sql.as} activity_type,
+                wrhwr.wr_id${sql.concat}'' ${sql.as} item_id,
+                wrhwr.bl_id ${sql.as} bl_id,
+                NULL ${sql.as} pr_id,
+                wrhwr.eq_id ${sql.as} eq_id,
+                NULL ${sql.as} ta_id
+            FROM wrhwr
+            WHERE wrhwr.status IN ('Com','Clo','Rej','S','Can')
+        </sql>
+        <table name="hactivity_log"/>
+        <field name="activity_type" dataType="text" groupBy="true">
+            <title>Transaction Type</title>
+        </field>
+        <field name="activities_count" dataType="number" size="9" decimals="0">
+            <title>Count</title>
+            <sql dialect="generic">
+                (COUNT(hactivity_log.item_id))
+            </sql>
+        </field>
+        <parameter name="actionStatusRestriction" dataType="verbatim" value="1=1"/>
+        <parameter name="sqlRestriction" dataType="verbatim" value="1=1"/>
+        <restriction type="sql" sql="${parameters['sqlRestriction']}"/>
+    </dataSource>
+
+    <panel type="crossTable" id="abEamLifecycleHActivitiesCrt_form" dataSource="abEamLifecycleHActivitiesCrt_ds" showOnLoad="false">
+         <title>Count by Transaction Type</title>
+         
+         <!-- Drill-down action. -->
+         <event type="onClickItem">
+            <command type="callFunction" functionName="onDrillDown"/>
+         </event>
+    </panel>
+    
+</view>

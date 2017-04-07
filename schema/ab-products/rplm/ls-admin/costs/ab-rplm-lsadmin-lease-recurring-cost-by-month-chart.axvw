@@ -1,0 +1,45 @@
+<view version="2.0">
+	
+	<dataSource id="dsChartGroupingAxis" type="grouping">
+		<table name="afm_cal_dates" />
+		<field name="month" groupBy="true" dataType="text" formula="month" baseField="afm_cal_dates.cal_date">
+			<title>Date</title>
+		</field>
+		<parameter name="monthStart" dataType="text" value="2008-01-01" />
+		<parameter name="monthEnd" dataType="text" value="2008-12-01" />
+		<restriction type="sql" 
+			sql="${sql.yearMonthOf('cal_date')} &gt;= ${sql.yearMonthOf(parameters['monthStart'])} AND ${sql.yearMonthOf('cal_date')} &lt;= ${sql.yearMonthOf(parameters['monthEnd'])}" />
+		<sortField table="afm_cal_dates" name="cal_date" ascending="true" />
+	</dataSource>
+	
+	<dataSource id="dsChartDataAxis" type="grouping">
+		<table name="ls" role="main" />
+		<table name="cost_tran_recur" role="main" />
+		<field name="net_income" dataType="number" size="20" decimals="2">
+			<title>Net Lease Income</title>
+			<sql dialect="generic">
+				SUM(( 
+					SELECT SUM(amount_income-amount_expense) 
+					FROM cost_tran_recur 
+					WHERE cost_tran_recur.ls_id = ls.ls_id 
+				)) 
+			</sql>
+		</field>
+		<field name="ls_id" table="ls" groupBy="true" />
+		<parameter name="summaryValueForThisGroup" dataType="text" value="" />
+		<restriction type="sql"
+			sql="${sql.yearMonthOf('ls.date_start')} &lt;= ${parameters['summaryValueForThisGroup']} AND ${sql.yearMonthOf('ls.date_end')} &gt;= ${parameters['summaryValueForThisGroup']}" />
+	</dataSource>
+	
+	<panel id="chartRecurCostsByLease" type="chart" controlType="columnChart" legendLocation="right" dataSource="dsChartDataAxis">
+		<title translatable="true">Recurring Costs by Lease</title>
+		<groupingAxis table="afm_cal_dates" field="month" dataSource="dsChartGroupingAxis">
+			<title>Date</title>
+		</groupingAxis>
+		<secondaryGroupingAxis table="ls" field="ls_id" dataSource="dsChartDataAxis" />
+		<dataAxis table="cost_tran_recur" field="net_income" dataSource="dsChartDataAxis">
+			<title>Net Lease Income</title>
+		</dataAxis>
+	</panel>
+	
+</view>

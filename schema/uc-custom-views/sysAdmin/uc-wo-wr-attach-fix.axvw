@@ -1,0 +1,149 @@
+<view version="2.0">
+    <designInfo type="edit" pattern="ab-viewdef-editform-drilldown" isAlterable="true"/>
+    <layout id="main">
+		<west id="row1col1" initialSize="30%" split="true" />
+		<center />
+	</layout>
+
+	<layout id="nested_center" containingLayout="main" region="center">
+		<north id="row1col2" initialSize="25%" split="true" />
+		<center id="row2col2" />
+	</layout>
+
+    <title translatable="true">Work Order Attachment Fixer</title>
+
+	  
+	  
+	  
+	  
+	  
+	<dataSource id="wr_list_ds10">
+		<query>
+			<sql dialect = "generic">
+				SELECT wr.wr_id, wr.wo_id, wr.description as wr_desc, wr_1.description, wo.description as wo_desc
+				FROM (wr LEFT JOIN wr AS wr_1 ON wr.wo_id = wr_1.wo_id) INNER JOIN wo ON wr.wo_id = wo.wo_id
+				WHERE 
+					(
+						 (wr.description) Not Like ('%REASON FOR SUB-REQUEST%')
+						 AND (wr.description) not like ('%Additional Sub Request%')
+						 AND (wr_1.description) Not Like ('%REASON FOR SUB-REQUEST%')
+						 AND (wr_1.description) NOT LIKE ('%Additional Sub Request%')
+						 AND  (wr_1.description) &lt;&gt; (wr.description)
+					)
+			</sql>
+
+			<table name="wr" role="main"/>
+			<table name="wo" role="standard"/>
+			
+			<field table="wr" name="wr_id"/>
+			<field table="wr" name="wo_id"/>
+			<field table="wr" name="description"/>
+			<field table="wo" name="description"/>
+
+			<!--parameter name="consoleRest" dataType="verbatim" value="1=1"/-->
+		</query>
+	</dataSource>
+	  
+    <panel type="grid" id="ucWoWrAttachFix_treePanel" dataSource="wr_list_ds10" showOnLoad="true" selectionEnabled="true" layoutRegion="row1col1">
+        <title translatable="true">Work Requests</title>
+        <action id="ucWoWrAttachFix_addNew">
+            <title translatable="true">Add New</title>
+            <command type="showPanel" panelId="ucWoWrAttachFix_detailsPanel" newRecord="true"/>
+
+        </action>
+        <action id="ucWoWrAttachFix_refresh">
+            <title translatable="true">Refresh</title>
+            <command type="showPanel" panelId="ucWoWrAttachFix_treePanel"/>
+            <command type="showPanel" panelId="wo_list_panel"/>
+
+        </action>    
+        <field name="wr_id" table="wr" controlType="link">
+            <command type="showPanel" panelId="ucWoWrAttachFix_detailsPanel"/>
+            <command type="showPanel" panelId="wo_list_panel"/>
+
+        </field>
+        <field name="wo_id" table="wr" controlType="link">
+            <command type="showPanel" panelId="ucWoWrAttachFix_detailsPanel"/>
+            <command type="showPanel" panelId="wo_list_panel"/>
+
+        </field>
+        <field name="description" table="wr" controlType="link">
+            <command type="showPanel" panelId="ucWoWrAttachFix_detailsPanel"/>
+            <command type="showPanel" panelId="wo_list_panel"/>
+
+        </field>
+        <indexField table="wr" name="wr_id"/>
+    </panel>
+    
+    <dataSource id="details_ds4">
+        <table name="wr" role="main"/>
+		<table name="wo" role="standard"/>
+        <field table="wr" name="wr_id"/>
+        <field table="wr" name="wo_id"/>
+		<field table="wr" name="description"/>
+		<field table="wo" name="description"/>
+    </dataSource>
+      
+    <panel type="form" id="ucWoWrAttachFix_detailsPanel" dataSource="details_ds4" showOnLoad="false" labelsPosition="top" columns="2" layoutRegion="row1col2">
+        <title translatable="true">Work Requests</title>        
+        <action id="ucWoWrAttachFix_save">
+            <title translatable="true">Save</title>
+            <command type="saveForm"/>
+            <command type="showPanel" panelId="ucWoWrAttachFix_treePanel" applyParentRestriction="false"/>
+        </action>
+        <action id="ucWoWrAttachFix_delete">
+            <title translatable="true">Delete</title>
+            <command type="deleteRecord"/>
+            <command type="showPanel" panelId="ucWoWrAttachFix_detailsPanel" show="false"/>
+            <command type="showPanel" panelId="ucWoWrAttachFix_treePanel" applyParentRestriction="false"/>
+        </action>
+        <action id="ucWoWrAttachFix_cancel">
+            <title translatable="true">Cancel</title>
+            <command type="showPanel" panelId="ucWoWrAttachFix_detailsPanel" show="false"/>
+        </action>    
+        <field name="wr_id" table="wr"/>
+        <field name="wo_id" table="wr" readOnly="false" enabled="true"/>
+		<field table="wr" name="description" readOnly="true" rowspan="4"><title>Request Description</title></field>
+		<field table="wo" name="description" readOnly="true" rowspan="4"><title>Work Order Description</title></field>
+    </panel>
+	
+	
+	
+	<dataSource id="neighborWo_ds18">
+		<query>
+			<sql dialect = "generic">
+				SELECT wr.wr_id, wo2.wo_id as wo_id, wo2.description as description, wo2.qty_open_wr as qty_open_wr
+				FROM wr left join wo wo2 ON wr.wo_id-1=wo2.wo_id
+				UNION
+				SELECT wr.wr_id, wo1.wo_id as wo_id, wo1.description as description, wo1.qty_open_wr as  qty_open_wr
+				FROM wr left join wo wo1 ON wr.wo_id=wo1.wo_id
+				UNION
+				SELECT wr.wr_id, wo3.wo_id as wo_id, wo3.description as description, wo3.qty_open_wr as  qty_open_wr
+				FROM wr left join wo wo3 ON wr.wo_id+1=wo3.wo_id
+			</sql>
+			
+			<table name="wr" role="main"/>
+			<table name="wo" role="standard"/>
+			
+			<field table="wr" name="wo_id"/>
+			<field table="wr" name="wr_id"/>
+			<field table="wo" name="description"/>
+			<field table="wo" name="wo_id"/>
+			<field table="wo" name="qty_open_wr"/>
+			
+			
+		</query>
+	</dataSource>
+	
+	<panel type="grid" id="wo_list_panel" dataSource="neighborWo_ds18" showOnLoad="false" layoutRegion="row2col2" useParentRestriction="false">
+		<title>Other Possible Work Orders</title>
+			<field table="wo" name="wo_id"/>
+			<field table="wo" name="description"/>
+			<field table="wo" name="qty_open_wr"/>
+
+	</panel>
+	
+	
+	
+	
+</view>

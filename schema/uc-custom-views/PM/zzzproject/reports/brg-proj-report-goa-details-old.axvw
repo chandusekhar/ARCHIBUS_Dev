@@ -1,0 +1,122 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<afmXmlView>
+	<title translatable="true">GOA Report</title>
+	<preferences>
+		<viewTitleBar show="false"/>
+		<pdfButton show="true" style="landscape"/>
+	</preferences>
+
+	<afmTableGroup type="report" format="column" defaultActions="false" isRegularView="true" column="2" showGrid="false">  
+		<dataSource>
+			<database>
+			<tables>
+				<table name="project" role="main"/>
+				<table name="program" role="standard"/>
+			</tables>   
+			<sort>
+			<order>
+				<field name="project_id" table="project" ascending="true"/>
+			</order>
+			</sort>
+			<fields>
+				<field name="project_id" table="project" required="false" />
+				<field name="int_num" table="project" required="false" />
+				<field name="proj_mgr" table="project" required="false" />
+				<field name="project_type" table="project" required="false" />
+				<field name="program_type" table="program" required="false" />
+				
+				<field name="area_affected" table="project" required="false" />
+				<field name="cost_budget" table="project" required="false" />
+				<field name="date_start" table="project" required="false" />
+				<field name="date_end" table="project" required="false" />
+				
+				<field name="description" table="project" required="false" />
+			</fields>
+			</database>
+		</dataSource>
+
+		<afmTableGroup type="report" format="table" defaultActions="true">
+			<title translatable="true">Costs</title>
+			<dataSource>
+				<database>
+					<tables>
+						<table name="activity_log" role="main" />
+						<table name="project_program" role="standard" />
+					</tables>
+					<fields>
+						<field name="action_title" table="activity_log"/>
+						<field name="activity_log_id" table="activity_log"/>
+						<field name="activity_type" table="activity_log" unique="false" />
+						<field name="program_code" table="activity_log" />
+						<field name="description" table="project_program" />
+						<field name="cost_actual" table="activity_log" />
+						<field name="cost_act_cap" table="activity_log" />
+						<field name="cost_estimated" table="activity_log" />
+						<field name="cost_est_cap" table="activity_log" />
+						<field name="cost_est_design_cap" table="activity_log" />
+						<field name="cost_est_design_exp" table="activity_log" />
+						<field name="date_scheduled" table="activity_log"/>
+						<field name="date_scheduled_end" table="activity_log"/>
+						<field name="project_id" table="activity_log"/>
+						<field name="work_pkg_id" table="activity_log"/>
+					</fields>
+					<sort>
+						<order>
+							<field name="activity_type" table="activity_log" ascending="true" unique="true" />
+						</order>
+					</sort>
+				</database>
+				<mdx>
+					<preferences dimensions="1" format="table" >
+						<query>
+							<queryParameters>
+								<queryParameter name="date_start_from" value="1899-12-31" type="java.sql.Date"/>
+								<queryParameter name="date_start_to" value="2900-12-31" type="java.sql.Date"/>
+							</queryParameters>
+							<sql dialect="generic">
+									SELECT action_title, activity_log_id, activity_type, 
+									cost_actual, cost_act_cap, cost_estimated, cost_est_cap,
+									cost_est_design_cap, cost_est_design_exp,
+									activity_log.date_scheduled, activity_log.date_scheduled_end, 
+									project_id, work_pkg_id,
+									CASE WHEN date_started &gt;= #SqlParameter%date_start_from% AND date_started &lt;= #SqlParameter%date_start_to% THEN cost_act_cap ELSE 0 END AS cost_act_cap_period,
+									CASE WHEN date_started &gt;= #SqlParameter%date_start_from% AND date_started &lt;= #SqlParameter%date_start_to% THEN cost_actual ELSE 0 END AS cost_actual_period,
+									(SELECT ISNULL(SUM(amount_expense),0.0) FROM invoice_payment i, project_program pr WHERE i.program_code = pr.program_code AND pr.activity_type = activity_log.activity_type AND i.project_id = activity_log.project_id) AS cost_to_date
+									FROM activity_log
+							</sql>
+						</query>
+
+						<dimensions>
+							<dimension name="Action Type" column="activity_type" table="activity_log">
+								<title translatable="true">Action Type</title>
+								<allMemberTitle translatable="true">Total</allMemberTitle>
+							</dimension>
+						</dimensions>
+					
+						<measures>
+							<measure name="Action" column="activity_type" type="calculated" aggregator="min" dataType="string" size="30" showTotals="false">
+								<title translatable="true">Action Type</title>
+							</measure>
+						
+							<measure name="Committed Budget" column="cost_est_design_cap" aggregator="sum">
+								<title translatable="true">Committed Budget</title>
+							</measure>
+
+							<measure name="Committed Budget Pct" column="cost_est_design_cap" aggregator="sum-percent">
+								<title translatable="true">% of Total Budget</title>
+							</measure>
+
+							<measure name="Expeditures to Date" column="cost_to_date" aggregator="sum" type="calculated">
+								<title translatable="true">Expeditures to Date</title>
+							</measure>
+
+						</measures>
+					</preferences> 
+				</mdx>
+			</dataSource>
+
+		</afmTableGroup>
+
+	</afmTableGroup>
+
+</afmXmlView>

@@ -1,0 +1,818 @@
+<view version="2.0">
+	<js file="ab-cb-rpt-drilldown.js"/>
+    <js file="ab-cb-rpt-common.js"/>
+	
+    <title translatable="true">Hazard Assessments by Location Drill-down</title>
+    <message name="noProjectSelectedForXLS" translatable="true">You must select at least one project before pressing the 'XLS' button</message>
+    <message name="noProjectSelected" translatable="true">You must select at least one project before pressing the 'Show' button</message>
+    <message name="title_country" translatable="true">Country</message>
+    <message name="title_region" translatable="true">Region</message>
+    <message name="title_state" translatable="true">State</message>
+    <message name="title_city" translatable="true">City</message>
+    <message name="title_site" translatable="true">Site</message>
+    <message name="title_bldg" translatable="true">Building</message>
+    <message name="title_floor" translatable="true">Floor</message>
+    <message name="title_room" translatable="true">Room</message>
+	
+    <layout id="main">
+        <west id="main_west" initialSize="30%" split="true"/>
+        <center id="main_center"/>
+    </layout>
+    <layout id="nested" containingLayout="main" region="center">
+        <north id="nested_north" initialSize="182px" split="true"/>
+        <center id="nested_center"/>
+    </layout>
+
+    <!--  Projects Panel -->
+    <panel type="view" id="abCbRptDrilldown_projectsPanel" file="ab-cb-rpt-projects.axvw" layoutRegion="main_west"/>
+	
+    <!--Filter Console Panel-->
+    <panel type="view" id="abCbRptDrilldown_filterPanel" file="ab-cb-rpt-common-filter.axvw" layoutRegion="nested_north"/>   
+
+    <tabs id="abCbRptDrilldown_tabs" workflow="free" tabRefreshPolicy="refreshOnLoad" layoutRegion="nested_center" cssClass="wizard">
+        <tab name="abCbRptDrilldown_tabCountry" selected="true">
+            <title translatable="true">Country</title>
+            
+            <dataSource id="abCbRptDrilldown_dsCountry" type="grouping">
+                <table name="activity_log" role="main"/>
+                <table name="bl" role="standard"/>
+                
+                <field name="ctry_id" table="bl" groupBy="true"/>
+                <field name="vf_total" formula="count" baseField="activity_log.activity_log_id" dataType="number" size="12" decimals="0">
+                    <title translatable="true">Total</title>
+                </field>
+                <field name="vf_hazardous" dataType="number" size="12" decimals="0">
+                    <title translatable="true">Hazardous</title>
+                    <sql dialect="generic">COUNT(CASE WHEN hcm_is_hazard &lt;&gt; 'No' THEN hcm_is_hazard ELSE NULL END)</sql>
+                </field>
+                <field name="vf_active" dataType="number" size="12" decimals="0">
+                    <title translatable="true">Active</title>
+                    <sql dialect="generic">COUNT(CASE WHEN hcm_is_hazard IN('Yes','Presumed') THEN hcm_is_hazard ELSE NULL END)</sql>
+                </field>
+                <field name="vf_abated" dataType="number" size="12" decimals="0">
+                    <title translatable="true">Abated</title>
+                    <sql dialect="generic">COUNT(CASE WHEN hcm_is_hazard = 'All Abated' THEN hcm_is_hazard ELSE NULL END)</sql>
+                </field>
+                <field name="vf_sites" dataType="number" size="12" decimals="0">
+                    <title translatable="true">Sites</title>
+                    <sql dialect="generic">COUNT(DISTINCT activity_log.site_id)</sql>
+                </field>
+                <field name="vf_bldgs" dataType="number" size="12" decimals="0">
+                    <title translatable="true">Buildings</title>
+                    <sql dialect="generic">COUNT(DISTINCT activity_log.bl_id)</sql>
+                </field>
+                <field name="vf_floors" dataType="number" size="12" decimals="0">
+                    <title translatable="true">Floors</title>
+                    <sql dialect="generic">COUNT(DISTINCT activity_log.fl_id)</sql>
+                </field>
+                <field name="vf_rooms" dataType="number" size="12" decimals="0">
+                    <title translatable="true">Rooms</title>
+                    <sql dialect="generic">COUNT(DISTINCT activity_log.rm_id)</sql>
+                </field>
+                <field name="vf_costEstBase" dataType="number" size="12" decimals="2">
+                    <title translatable="true">Cost-Est Baseline</title>
+                    <sql dialect="generic">SUM(cost_est_cap + cost_estimated)</sql>
+                </field>
+                <field name="vf_costActual" dataType="number" size="12" decimals="2">
+                    <title translatable="true">Cost-Actual</title>
+                    <sql dialect="generic">SUM(cost_actual + cost_act_cap)</sql>
+                </field>
+
+                <restriction type="parsed">
+                    <clause table="activity_log" name="activity_type" op="=" value="ASSESSMENT - HAZMAT"/>
+                </restriction>
+        
+                <sortField name="ctry_id" table="bl"/>
+            </dataSource>
+        
+            <panel type="crossTable" id="abCbRptDrilldown_panelCountry" dataSource="abCbRptDrilldown_dsCountry" showOnLoad="false">
+                <title translatable="true">Country Summary</title>
+                <instructions>&#160;</instructions>
+                
+                <action id="paginatedReport">
+                    <title translatable="true">DOC</title>
+                    <command type="callFunction" functionName="abCbRptDrilldownController.onPaginatedReport(this, 'ab-cb-rpt-drilldown-ctry-pgrp.axvw')"/>
+                </action>
+                <action id="exportXLS">
+                    <title>XLS</title>
+                    <command type="exportPanel" outputType="xls" panelId="abCbRptDrilldown_panelCountry"/>
+                </action>
+                <action id="paginatedReport">
+                    <title translatable="true">DOC-Details</title>
+                    <command type="callFunction" functionName="abCbRptDrilldownController.onPaginatedReport(this, 'ab-cb-rpt-drilldown-ctry-det-pgrp.axvw')"/>
+                </action>
+                
+                <event type="onClickItem">
+                    <command type="callFunction" functionName="abCbRptDrilldownController.onClickItem(this,0)"/>
+                </event>
+            </panel>
+        </tab>
+
+        <tab name="abCbRptDrilldown_tabRegion" selected="true">
+            <title translatable="true">Region</title>
+            
+            <dataSource id="abCbRptDrilldown_dsRegion" type="grouping">
+                <table name="activity_log" role="main"/>
+                <table name="bl" role="standard"/>
+                
+                <field name="vf_ctry_regn" baseField="bl.bl_id" dataType="text" groupBy="true">
+                    <title translatable="true">Country / Region</title>
+                    <sql dialect="generic">bl.ctry_id ${sql.concat} (CASE WHEN bl.regn_id IS NOT NULL THEN ' / ' ELSE '' END) ${sql.concat} bl.regn_id</sql>
+                </field>
+                <field name="vf_total" formula="count" baseField="activity_log.activity_log_id" dataType="number" size="12" decimals="0">
+                    <title translatable="true">Total</title>
+                </field>
+                <field name="vf_hazardous" dataType="number" size="12" decimals="0">
+                    <title translatable="true">Hazardous</title>
+                    <sql dialect="generic">COUNT(CASE WHEN hcm_is_hazard &lt;&gt; 'No' THEN hcm_is_hazard ELSE NULL END)</sql>
+                </field>
+                <field name="vf_active" dataType="number" size="12" decimals="0">
+                    <title translatable="true">Active</title>
+                    <sql dialect="generic">COUNT(CASE WHEN hcm_is_hazard IN('Yes','Presumed') THEN hcm_is_hazard ELSE NULL END)</sql>
+                </field>
+                <field name="vf_abated" dataType="number" size="12" decimals="0">
+                    <title translatable="true">Abated</title>
+                    <sql dialect="generic">COUNT(CASE WHEN hcm_is_hazard = 'All Abated' THEN hcm_is_hazard ELSE NULL END)</sql>
+                </field>
+                <field name="vf_sites" dataType="number" size="12" decimals="0">
+                    <title translatable="true">Sites</title>
+                    <sql dialect="generic">COUNT(DISTINCT activity_log.site_id)</sql>
+                </field>
+                <field name="vf_bldgs" dataType="number" size="12" decimals="0">
+                    <title translatable="true">Buildings</title>
+                    <sql dialect="generic">COUNT(DISTINCT activity_log.bl_id)</sql>
+                </field>
+                <field name="vf_floors" dataType="number" size="12" decimals="0">
+                    <title translatable="true">Floors</title>
+                    <sql dialect="generic">COUNT(DISTINCT activity_log.fl_id)</sql>
+                </field>
+                <field name="vf_rooms" dataType="number" size="12" decimals="0">
+                    <title translatable="true">Rooms</title>
+                    <sql dialect="generic">COUNT(DISTINCT activity_log.rm_id)</sql>
+                </field>
+                <field name="vf_costEstBase" dataType="number" size="12" decimals="2">
+                    <title translatable="true">Cost-Est Baseline</title>
+                    <sql dialect="generic">SUM(cost_est_cap + cost_estimated)</sql>
+                </field>
+                <field name="vf_costActual" dataType="number" size="12" decimals="2">
+                    <title translatable="true">Cost-Actual</title>
+                    <sql dialect="generic">SUM(cost_actual + cost_act_cap)</sql>
+                </field>
+        
+                <restriction type="parsed">
+                    <clause table="activity_log" name="activity_type" op="=" value="ASSESSMENT - HAZMAT"/>
+                </restriction>
+
+                <sortField name="vf_ctry_regn"/>
+            </dataSource>
+        
+            <panel type="crossTable" id="abCbRptDrilldown_panelRegion" dataSource="abCbRptDrilldown_dsRegion" showOnLoad="false">
+                <title translatable="true">Region Summary</title>
+                <instructions>&#160;</instructions>
+                
+                <action id="paginatedReport">
+                    <title translatable="true">DOC</title>
+                    <command type="callFunction" functionName="abCbRptDrilldownController.onPaginatedReport(this, 'ab-cb-rpt-drilldown-regn-pgrp.axvw')"/>
+                </action>
+                <action id="exportXLS">
+                    <title>XLS</title>
+                    <command type="exportPanel" outputType="xls" panelId="abCbRptDrilldown_panelRegion"/>
+                </action>
+                <action id="paginatedReport">
+                    <title translatable="true">DOC-Details</title>
+                    <command type="callFunction" functionName="abCbRptDrilldownController.onPaginatedReport(this, 'ab-cb-rpt-drilldown-regn-det-pgrp.axvw')"/>
+                </action>
+                
+                <event type="onClickItem">
+                    <command type="callFunction" functionName="abCbRptDrilldownController.onClickItem(this,1)"/>
+                </event>
+            </panel>
+        </tab>
+
+        <tab name="abCbRptDrilldown_tabState" selected="true">
+            <title translatable="true">State</title>
+            
+            <dataSource id="abCbRptDrilldown_dsState" type="grouping">
+                <table name="activity_log" role="main"/>
+                <table name="bl" role="standard"/>
+                
+                <field name="vf_ctry_state" baseField="bl.bl_id" dataType="text" groupBy="true">
+                    <title translatable="true">Country / State</title>
+                    <sql dialect="generic">bl.ctry_id ${sql.concat} (CASE WHEN bl.state_id IS NOT NULL THEN ' / ' ELSE '' END) ${sql.concat} bl.state_id</sql>
+                </field>
+                <field name="vf_total" formula="count" baseField="activity_log.activity_log_id" dataType="number" size="12" decimals="0">
+                    <title translatable="true">Total</title>
+                </field>
+                <field name="vf_hazardous" dataType="number" size="12" decimals="0">
+                    <title translatable="true">Hazardous</title>
+                    <sql dialect="generic">COUNT(CASE WHEN hcm_is_hazard &lt;&gt; 'No' THEN hcm_is_hazard ELSE NULL END)</sql>
+                </field>
+                <field name="vf_active" dataType="number" size="12" decimals="0">
+                    <title translatable="true">Active</title>
+                    <sql dialect="generic">COUNT(CASE WHEN hcm_is_hazard IN('Yes','Presumed') THEN hcm_is_hazard ELSE NULL END)</sql>
+                </field>
+                <field name="vf_abated" dataType="number" size="12" decimals="0">
+                    <title translatable="true">Abated</title>
+                    <sql dialect="generic">COUNT(CASE WHEN hcm_is_hazard = 'All Abated' THEN hcm_is_hazard ELSE NULL END)</sql>
+                </field>
+                <field name="vf_sites" dataType="number" size="12" decimals="0">
+                    <title translatable="true">Sites</title>
+                    <sql dialect="generic">COUNT(DISTINCT activity_log.site_id)</sql>
+                </field>
+                <field name="vf_bldgs" dataType="number" size="12" decimals="0">
+                    <title translatable="true">Buildings</title>
+                    <sql dialect="generic">COUNT(DISTINCT activity_log.bl_id)</sql>
+                </field>
+                <field name="vf_floors" dataType="number" size="12" decimals="0">
+                    <title translatable="true">Floors</title>
+                    <sql dialect="generic">COUNT(DISTINCT activity_log.fl_id)</sql>
+                </field>
+                <field name="vf_rooms" dataType="number" size="12" decimals="0">
+                    <title translatable="true">Rooms</title>
+                    <sql dialect="generic">COUNT(DISTINCT activity_log.rm_id)</sql>
+                </field>
+                <field name="vf_costEstBase" dataType="number" size="12" decimals="2">
+                    <title translatable="true">Cost-Est Baseline</title>
+                    <sql dialect="generic">SUM(cost_est_cap + cost_estimated)</sql>
+                </field>
+                <field name="vf_costActual" dataType="number" size="12" decimals="2">
+                    <title translatable="true">Cost-Actual</title>
+                    <sql dialect="generic">SUM(cost_actual + cost_act_cap)</sql>
+                </field>
+
+                <restriction type="parsed">
+                    <clause table="activity_log" name="activity_type" op="=" value="ASSESSMENT - HAZMAT"/>
+                </restriction>
+        
+                <sortField name="vf_ctry_state"/>
+            </dataSource>
+        
+            <panel type="crossTable" id="abCbRptDrilldown_panelState" dataSource="abCbRptDrilldown_dsState" showOnLoad="false">
+                <title translatable="true">State Summary</title>
+                <instructions>&#160;</instructions>
+                
+                <action id="paginatedReport">
+                    <title translatable="true">DOC</title>
+                    <command type="callFunction" functionName="abCbRptDrilldownController.onPaginatedReport(this, 'ab-cb-rpt-drilldown-state-pgrp.axvw')"/>
+                </action>
+                <action id="exportXLS">
+                    <title>XLS</title>
+                    <command type="exportPanel" outputType="xls" panelId="abCbRptDrilldown_panelState"/>
+                </action>
+                <action id="paginatedReport">
+                    <title translatable="true">DOC-Details</title>
+                    <command type="callFunction" functionName="abCbRptDrilldownController.onPaginatedReport(this, 'ab-cb-rpt-drilldown-state-det-pgrp.axvw')"/>
+                </action>
+                
+                <event type="onClickItem">
+                    <command type="callFunction" functionName="abCbRptDrilldownController.onClickItem(this,2)"/>
+                </event>
+            </panel>
+        </tab>
+
+        <tab name="abCbRptDrilldown_tabCity" selected="true">
+            <title translatable="true">City</title>
+            
+            <dataSource id="abCbRptDrilldown_dsCity" type="grouping">
+                <table name="activity_log" role="main"/>
+                <table name="bl" role="standard"/>
+                
+                <field name="vf_ctry_state_city" baseField="bl.bl_id" dataType="text" groupBy="true">
+                    <title translatable="true">Country / State / City</title>
+                    <sql dialect="generic">
+                        bl.ctry_id
+                        ${sql.concat} (CASE WHEN (bl.state_id IS NOT NULL OR bl.city_id IS NOT NULL) THEN ' / ' ELSE '' END) ${sql.concat} bl.state_id
+                        ${sql.concat} (CASE WHEN bl.city_id IS NOT NULL THEN ' / ' ELSE '' END) ${sql.concat} bl.city_id
+                    </sql>
+                </field>
+                <field name="vf_total" formula="count" baseField="activity_log.activity_log_id" dataType="number" size="12" decimals="0">
+                    <title translatable="true">Total</title>
+                </field>
+                <field name="vf_hazardous" dataType="number" size="12" decimals="0">
+                    <title translatable="true">Hazardous</title>
+                    <sql dialect="generic">COUNT(CASE WHEN hcm_is_hazard &lt;&gt; 'No' THEN hcm_is_hazard ELSE NULL END)</sql>
+                </field>
+                <field name="vf_active" dataType="number" size="12" decimals="0">
+                    <title translatable="true">Active</title>
+                    <sql dialect="generic">COUNT(CASE WHEN hcm_is_hazard IN('Yes','Presumed') THEN hcm_is_hazard ELSE NULL END)</sql>
+                </field>
+                <field name="vf_abated" dataType="number" size="12" decimals="0">
+                    <title translatable="true">Abated</title>
+                    <sql dialect="generic">COUNT(CASE WHEN hcm_is_hazard = 'All Abated' THEN hcm_is_hazard ELSE NULL END)</sql>
+                </field>
+                <field name="vf_sites" dataType="number" size="12" decimals="0">
+                    <title translatable="true">Sites</title>
+                    <sql dialect="generic">COUNT(DISTINCT activity_log.site_id)</sql>
+                </field>
+                <field name="vf_bldgs" dataType="number" size="12" decimals="0">
+                    <title translatable="true">Buildings</title>
+                    <sql dialect="generic">COUNT(DISTINCT activity_log.bl_id)</sql>
+                </field>
+                <field name="vf_floors" dataType="number" size="12" decimals="0">
+                    <title translatable="true">Floors</title>
+                    <sql dialect="generic">COUNT(DISTINCT activity_log.fl_id)</sql>
+                </field>
+                <field name="vf_rooms" dataType="number" size="12" decimals="0">
+                    <title translatable="true">Rooms</title>
+                    <sql dialect="generic">COUNT(DISTINCT activity_log.rm_id)</sql>
+                </field>
+                <field name="vf_costEstBase" dataType="number" size="12" decimals="2">
+                    <title translatable="true">Cost-Est Baseline</title>
+                    <sql dialect="generic">SUM(cost_est_cap + cost_estimated)</sql>
+                </field>
+                <field name="vf_costActual" dataType="number" size="12" decimals="2">
+                    <title translatable="true">Cost-Actual</title>
+                    <sql dialect="generic">SUM(cost_actual + cost_act_cap)</sql>
+                </field>
+
+                <restriction type="parsed">
+                    <clause table="activity_log" name="activity_type" op="=" value="ASSESSMENT - HAZMAT"/>
+                </restriction>
+
+                <sortField name="vf_ctry_state_city"/>
+            </dataSource>
+        
+            <panel type="crossTable" id="abCbRptDrilldown_panelCity" dataSource="abCbRptDrilldown_dsCity" showOnLoad="false">
+                <title translatable="true">City Summary</title>
+                <instructions>&#160;</instructions>
+                
+                <action id="paginatedReport">
+                    <title translatable="true">DOC</title>
+                    <command type="callFunction" functionName="abCbRptDrilldownController.onPaginatedReport(this, 'ab-cb-rpt-drilldown-city-pgrp.axvw')"/>
+                </action>
+                <action id="exportXLS">
+                    <title>XLS</title>
+                    <command type="exportPanel" outputType="xls" panelId="abCbRptDrilldown_panelCity"/>
+                </action>
+                <action id="paginatedReport">
+                    <title translatable="true">DOC-Details</title>
+                    <command type="callFunction" functionName="abCbRptDrilldownController.onPaginatedReport(this, 'ab-cb-rpt-drilldown-city-det-pgrp.axvw')"/>
+                </action>
+                
+                <event type="onClickItem">
+                    <command type="callFunction" functionName="abCbRptDrilldownController.onClickItem(this,3)"/>
+                </event>
+            </panel>
+        </tab>
+
+        <tab name="abCbRptDrilldown_tabSite" selected="true">
+            <title translatable="true">Site</title>
+            
+            <dataSource id="abCbRptDrilldown_dsSite" type="grouping">
+                <table name="activity_log" role="main"/>
+                <table name="bl" role="standard"/>
+                
+                <field name="vf_ctry_site" baseField="bl.bl_id" dataType="text" groupBy="true">
+                    <title translatable="true">Country / Site</title>
+                    <sql dialect="generic">bl.ctry_id ${sql.concat} (CASE WHEN bl.site_id IS NOT NULL THEN ' / ' ELSE '' END) ${sql.concat} bl.site_id</sql>
+                </field>
+                <field name="vf_total" formula="count" baseField="activity_log.activity_log_id" dataType="number" size="12" decimals="0">
+                    <title translatable="true">Total</title>
+                </field>
+                <field name="vf_hazardous" dataType="number" size="12" decimals="0">
+                    <title translatable="true">Hazardous</title>
+                    <sql dialect="generic">COUNT(CASE WHEN hcm_is_hazard &lt;&gt; 'No' THEN hcm_is_hazard ELSE NULL END)</sql>
+                </field>
+                <field name="vf_active" dataType="number" size="12" decimals="0">
+                    <title translatable="true">Active</title>
+                    <sql dialect="generic">COUNT(CASE WHEN hcm_is_hazard IN('Yes','Presumed') THEN hcm_is_hazard ELSE NULL END)</sql>
+                </field>
+                <field name="vf_abated" dataType="number" size="12" decimals="0">
+                    <title translatable="true">Abated</title>
+                    <sql dialect="generic">COUNT(CASE WHEN hcm_is_hazard = 'All Abated' THEN hcm_is_hazard ELSE NULL END)</sql>
+                </field>
+                <field name="vf_bldgs" dataType="number" size="12" decimals="0">
+                    <title translatable="true">Buildings</title>
+                    <sql dialect="generic">COUNT(DISTINCT activity_log.bl_id)</sql>
+                </field>
+                <field name="vf_floors" dataType="number" size="12" decimals="0">
+                    <title translatable="true">Floors</title>
+                    <sql dialect="generic">COUNT(DISTINCT activity_log.fl_id)</sql>
+                </field>
+                <field name="vf_rooms" dataType="number" size="12" decimals="0">
+                    <title translatable="true">Rooms</title>
+                    <sql dialect="generic">COUNT(DISTINCT activity_log.rm_id)</sql>
+                </field>
+                <field name="vf_costEstBase" dataType="number" size="12" decimals="2">
+                    <title translatable="true">Cost-Est Baseline</title>
+                    <sql dialect="generic">SUM(cost_est_cap + cost_estimated)</sql>
+                </field>
+                <field name="vf_costActual" dataType="number" size="12" decimals="2">
+                    <title translatable="true">Cost-Actual</title>
+                    <sql dialect="generic">SUM(cost_actual + cost_act_cap)</sql>
+                </field>
+
+                <restriction type="parsed">
+                    <clause table="activity_log" name="activity_type" op="=" value="ASSESSMENT - HAZMAT"/>
+                </restriction>
+
+                <sortField name="vf_ctry_site"/>
+            </dataSource>
+        
+            <panel type="crossTable" id="abCbRptDrilldown_panelSite" dataSource="abCbRptDrilldown_dsSite" showOnLoad="false">
+                <title translatable="true">Site Summary</title>
+                <instructions>&#160;</instructions>
+                
+                <action id="paginatedReport">
+                    <title translatable="true">DOC</title>
+                    <command type="callFunction" functionName="abCbRptDrilldownController.onPaginatedReport(this, 'ab-cb-rpt-drilldown-site-pgrp.axvw')"/>
+                </action>
+                <action id="exportXLS">
+                    <title>XLS</title>
+                    <command type="exportPanel" outputType="xls" panelId="abCbRptDrilldown_panelSite"/>
+                </action>
+                <action id="paginatedReport">
+                    <title translatable="true">DOC-Details</title>
+                    <command type="callFunction" functionName="abCbRptDrilldownController.onPaginatedReport(this, 'ab-cb-rpt-drilldown-site-det-pgrp.axvw')"/>
+                </action>
+                
+                <event type="onClickItem">
+                    <command type="callFunction" functionName="abCbRptDrilldownController.onClickItem(this,4)"/>
+                </event>
+            </panel>
+        </tab>
+
+        <tab name="abCbRptDrilldown_tabBldg" selected="true">
+            <title translatable="true">Building</title>
+            
+            <dataSource id="abCbRptDrilldown_dsBldg" type="grouping">
+                <table name="activity_log" role="main"/>
+                <table name="bl" role="standard"/>
+                
+                <field name="vf_ctry_site_bldg" baseField="bl.bl_id" dataType="text" groupBy="true">
+                    <title translatable="true">Country / Site / Building</title>
+                    <sql dialect="generic">
+                        bl.ctry_id
+                        ${sql.concat} (CASE WHEN (bl.site_id IS NOT NULL OR activity_log.bl_id IS NOT NULL) THEN ' / ' ELSE '' END) ${sql.concat} bl.site_id
+                        ${sql.concat} (CASE WHEN activity_log.bl_id IS NOT NULL THEN ' / ' ELSE '' END) ${sql.concat} activity_log.bl_id
+                    </sql>
+                </field>
+                <field name="vf_total" formula="count" baseField="activity_log.activity_log_id" dataType="number" size="12" decimals="0">
+                    <title translatable="true">Total</title>
+                </field>
+                <field name="vf_hazardous" dataType="number" size="12" decimals="0">
+                    <title translatable="true">Hazardous</title>
+                    <sql dialect="generic">COUNT(CASE WHEN hcm_is_hazard &lt;&gt; 'No' THEN hcm_is_hazard ELSE NULL END)</sql>
+                </field>
+                <field name="vf_active" dataType="number" size="12" decimals="0">
+                    <title translatable="true">Active</title>
+                    <sql dialect="generic">COUNT(CASE WHEN hcm_is_hazard IN('Yes','Presumed') THEN hcm_is_hazard ELSE NULL END)</sql>
+                </field>
+                <field name="vf_abated" dataType="number" size="12" decimals="0">
+                    <title translatable="true">Abated</title>
+                    <sql dialect="generic">COUNT(CASE WHEN hcm_is_hazard = 'All Abated' THEN hcm_is_hazard ELSE NULL END)</sql>
+                </field>
+                <field name="vf_floors" dataType="number" size="12" decimals="0">
+                    <title translatable="true">Floors</title>
+                    <sql dialect="generic">COUNT(DISTINCT activity_log.fl_id)</sql>
+                </field>
+                <field name="vf_rooms" dataType="number" size="12" decimals="0">
+                    <title translatable="true">Rooms</title>
+                    <sql dialect="generic">COUNT(DISTINCT activity_log.rm_id)</sql>
+                </field>
+                <field name="vf_costEstBase" dataType="number" size="12" decimals="2">
+                    <title translatable="true">Cost-Est Baseline</title>
+                    <sql dialect="generic">SUM(cost_est_cap + cost_estimated)</sql>
+                </field>
+                <field name="vf_costActual" dataType="number" size="12" decimals="2">
+                    <title translatable="true">Cost-Actual</title>
+                    <sql dialect="generic">SUM(cost_actual + cost_act_cap)</sql>
+                </field>
+
+                <restriction type="parsed">
+                    <clause table="activity_log" name="activity_type" op="=" value="ASSESSMENT - HAZMAT"/>
+                </restriction>
+
+                <sortField name="vf_ctry_site_bldg"/>
+            </dataSource>
+        
+            <panel type="crossTable" id="abCbRptDrilldown_panelBldg" dataSource="abCbRptDrilldown_dsBldg" showOnLoad="false">
+                <title translatable="true">Building Summary</title>
+                <instructions>&#160;</instructions>
+                
+                <action id="paginatedReport">
+                    <title translatable="true">DOC</title>
+                    <command type="callFunction" functionName="abCbRptDrilldownController.onPaginatedReport(this, 'ab-cb-rpt-drilldown-bldg-pgrp.axvw')"/>
+                </action>
+                <action id="exportXLS">
+                    <title>XLS</title>
+                    <command type="exportPanel" outputType="xls" panelId="abCbRptDrilldown_panelBldg"/>
+                </action>
+                <action id="paginatedReport">
+                    <title translatable="true">DOC-Details</title>
+                    <command type="callFunction" functionName="abCbRptDrilldownController.onPaginatedReport(this, 'ab-cb-rpt-summary-bldg-det-pgrp.axvw')"/>
+                </action>
+                
+                <event type="onClickItem">
+                    <command type="callFunction" functionName="abCbRptDrilldownController.onClickItem(this,5)"/>
+                </event>
+            </panel>
+        </tab>
+
+        <tab name="abCbRptDrilldown_tabFloor" selected="true">
+            <title translatable="true">Floor</title>
+            
+            <dataSource id="abCbRptDrilldown_dsFloor" type="grouping">
+                <table name="activity_log" role="main"/>
+                <table name="bl" role="standard"/>
+                
+                <field name="vf_site_bldg_floor" baseField="bl.bl_id" dataType="text" groupBy="true">
+                    <title translatable="true">Site / Building / Floor</title>
+                    <sql dialect="generic">
+                        bl.site_id
+                        ${sql.concat} (CASE WHEN (activity_log.bl_id IS NOT NULL OR activity_log.fl_id IS NOT NULL) THEN ' / ' ELSE '' END) ${sql.concat} activity_log.bl_id
+                        ${sql.concat} (CASE WHEN activity_log.fl_id IS NOT NULL THEN ' / ' ELSE '' END) ${sql.concat} activity_log.fl_id
+                    </sql>
+                </field>
+                <field name="vf_total" formula="count" baseField="activity_log.activity_log_id" dataType="number" size="12" decimals="0">
+                    <title translatable="true">Total</title>
+                </field>
+                <field name="vf_hazardous" dataType="number" size="12" decimals="0">
+                    <title translatable="true">Hazardous</title>
+                    <sql dialect="generic">COUNT(CASE WHEN hcm_is_hazard &lt;&gt; 'No' THEN hcm_is_hazard ELSE NULL END)</sql>
+                </field>
+                <field name="vf_active" dataType="number" size="12" decimals="0">
+                    <title translatable="true">Active</title>
+                    <sql dialect="generic">COUNT(CASE WHEN hcm_is_hazard IN('Yes','Presumed') THEN hcm_is_hazard ELSE NULL END)</sql>
+                </field>
+                <field name="vf_abated" dataType="number" size="12" decimals="0">
+                    <title translatable="true">Abated</title>
+                    <sql dialect="generic">COUNT(CASE WHEN hcm_is_hazard = 'All Abated' THEN hcm_is_hazard ELSE NULL END)</sql>
+                </field>
+                <field name="vf_rooms" dataType="number" size="12" decimals="0">
+                    <title translatable="true">Rooms</title>
+                    <sql dialect="generic">COUNT(DISTINCT activity_log.rm_id)</sql>
+                </field>
+                <field name="vf_costEstBase" dataType="number" size="12" decimals="2">
+                    <title translatable="true">Cost-Est Baseline</title>
+                    <sql dialect="generic">SUM(cost_est_cap + cost_estimated)</sql>
+                </field>
+                <field name="vf_costActual" dataType="number" size="12" decimals="2">
+                    <title translatable="true">Cost-Actual</title>
+                    <sql dialect="generic">SUM(cost_actual + cost_act_cap)</sql>
+                </field>
+
+                <restriction type="parsed">
+                    <clause table="activity_log" name="activity_type" op="=" value="ASSESSMENT - HAZMAT"/>
+                </restriction>
+
+                <sortField name="vf_site_bldg_floor"/>
+            </dataSource>
+        
+            <panel type="crossTable" id="abCbRptDrilldown_panelFloor" dataSource="abCbRptDrilldown_dsFloor" showOnLoad="false">
+                <title translatable="true">Floor Summary</title>
+                <instructions>&#160;</instructions>
+                
+                <action id="paginatedReport">
+                    <title translatable="true">DOC</title>
+                    <command type="callFunction" functionName="abCbRptDrilldownController.onPaginatedReport(this, 'ab-cb-rpt-summary-floor-pgrp.axvw')"/>
+                </action>
+                <action id="exportXLS">
+                    <title>XLS</title>
+                    <command type="exportPanel" outputType="xls" panelId="abCbRptDrilldown_panelFloor"/>
+                </action>
+                <action id="paginatedReport">
+                    <title translatable="true">DOC-Details</title>
+                    <command type="callFunction" functionName="abCbRptDrilldownController.onPaginatedReport(this, 'ab-cb-rpt-summary-floor-det-pgrp.axvw')"/>
+                </action>
+                
+                <event type="onClickItem">
+                    <command type="callFunction" functionName="abCbRptDrilldownController.onClickItem(this,6)"/>
+                </event>
+            </panel>
+        </tab>
+
+        <tab name="abCbRptDrilldown_tabRoom" selected="true">
+            <title translatable="true">Room</title>
+            
+            <dataSource id="abCbRptDrilldown_dsRoom" type="grouping">
+                <table name="activity_log" role="main"/>
+                <table name="bl" role="standard"/>
+                
+                <field name="vf_site_bldg_floor_room" baseField="bl.bl_id" dataType="text" groupBy="true">
+                    <title translatable="true">Site / Building / Floor / Room</title>
+                    <sql dialect="generic">
+                        bl.site_id
+                        ${sql.concat} (CASE WHEN (activity_log.bl_id IS NOT NULL OR activity_log.fl_id IS NOT NULL OR activity_log.rm_id IS NOT NULL) THEN ' / ' ELSE '' END) ${sql.concat} activity_log.bl_id
+                        ${sql.concat} (CASE WHEN (activity_log.fl_id IS NOT NULL OR activity_log.rm_id IS NOT NULL) THEN ' / ' ELSE '' END) ${sql.concat} activity_log.fl_id
+                        ${sql.concat} (CASE WHEN activity_log.rm_id IS NOT NULL THEN ' / ' ELSE '' END) ${sql.concat} activity_log.rm_id
+                    </sql>
+                </field>
+                <field name="vf_total" formula="count" baseField="activity_log.activity_log_id" dataType="number" size="12" decimals="0">
+                    <title translatable="true">Total</title>
+                </field>
+                <field name="vf_hazardous" dataType="number" size="12" decimals="0">
+                    <title translatable="true">Hazardous</title>
+                    <sql dialect="generic">COUNT(CASE WHEN hcm_is_hazard &lt;&gt; 'No' THEN hcm_is_hazard ELSE NULL END)</sql>
+                </field>
+                <field name="vf_active" dataType="number" size="12" decimals="0">
+                    <title translatable="true">Active</title>
+                    <sql dialect="generic">COUNT(CASE WHEN hcm_is_hazard IN('Yes','Presumed') THEN hcm_is_hazard ELSE NULL END)</sql>
+                </field>
+                <field name="vf_abated" dataType="number" size="12" decimals="0">
+                    <title translatable="true">Abated</title>
+                    <sql dialect="generic">COUNT(CASE WHEN hcm_is_hazard = 'All Abated' THEN hcm_is_hazard ELSE NULL END)</sql>
+                </field>
+                <field name="vf_costEstBase" dataType="number" size="12" decimals="2">
+                    <title translatable="true">Cost-Est Baseline</title>
+                    <sql dialect="generic">SUM(cost_est_cap + cost_estimated)</sql>
+                </field>
+                <field name="vf_costActual" dataType="number" size="12" decimals="2">
+                    <title translatable="true">Cost-Actual</title>
+                    <sql dialect="generic">SUM(cost_actual + cost_act_cap)</sql>
+                </field>
+
+                <restriction type="parsed">
+                    <clause table="activity_log" name="activity_type" op="=" value="ASSESSMENT - HAZMAT"/>
+                </restriction>
+
+                <sortField name="vf_site_bldg_floor_room"/>
+            </dataSource>
+        
+            <panel type="crossTable" id="abCbRptDrilldown_panelRoom" dataSource="abCbRptDrilldown_dsRoom" showOnLoad="false">
+                <title translatable="true">Room Summary</title>
+                <instructions>&#160;</instructions>
+                
+                <action id="paginatedReport">
+                    <title translatable="true">DOC</title>
+                    <command type="callFunction" functionName="abCbRptDrilldownController.onPaginatedReport(this, 'ab-cb-rpt-summary-room-pgrp.axvw')"/>
+                </action>
+                <action id="exportXLS">
+                    <title>XLS</title>
+                    <command type="exportPanel" outputType="xls" panelId="abCbRptDrilldown_panelRoom"/>
+                </action>
+                <action id="paginatedReport">
+                    <title translatable="true">DOC-Details</title>
+                    <command type="callFunction" functionName="abCbRptDrilldownController.onPaginatedReport(this, 'ab-cb-rpt-summary-room-det-pgrp.axvw')"/>
+                </action>
+                
+                <event type="onClickItem">
+                    <command type="callFunction" functionName="abCbRptDrilldownController.onClickItem(this,7)"/>
+                </event>
+            </panel>
+        </tab>
+
+        <tab name="abCbRptDrilldown_tabAssessments">
+            <title translatable="true">Assessments</title>
+            
+            <dataSource id="abCbRptDrilldown_dsAssessments">
+                <table name="activity_log" role="main"/>
+                <table name="bl" role="standard"/>
+                <field name="bl_id" table="bl" hidden="true"/>
+                
+                <field name="activity_log_id">
+                    <title translatable="true">Item ID</title>
+                </field>
+                <field name="project_id">
+                    <title translatable="true">Project</title>
+                </field>
+                <field name="hcm_is_hazard">
+                    <title translatable="true">Contains Hazard?</title>
+                </field>
+                <field name="hcm_haz_status_id">
+                    <title translatable="true">Hazard Status</title>
+                </field>
+                <field name="prob_type">
+                    <title translatable="true">Substance</title>
+                </field>
+                <field name="date_assessed"/>
+                <field name="repair_type">
+                    <title translatable="true">Hazard Response</title>
+                </field>
+                <field name="site_id">
+                    <title translatable="true">Site</title>
+                </field>
+                <field name="bl_id">
+                    <title translatable="true">Building</title>
+                </field>
+                <field name="fl_id">
+                    <title translatable="true">Floor</title>
+                </field>
+                <field name="rm_id">
+                    <title translatable="true">Room</title>
+                </field>
+                <field name="hcm_loc_typ_id">
+                    <title translatable="true">Location of Material</title>
+                </field>
+                <field name="hcm_id"/>
+                <field name="hcm_cond_id">
+                    <title translatable="true">Material Condition</title>
+                </field>
+                <field name="hcm_friable"/>
+                <field name="hcm_qty">
+                    <title translatable="true">Quantity</title>
+                </field>
+                <field name="cb_units_id">
+                    <title translatable="true">Units</title>
+                </field>
+                <field name="action_title">
+                    <title translatable="true">Material Description</title>
+                </field>
+                <field name="hcm_haz_rank_id">
+                    <title translatable="true">Hazard Rank</title>
+                </field>
+                <field name="hcm_haz_rating_id">
+                    <title translatable="true">Hazard Rating</title>
+                </field>
+                <field name="vf_samples" dataType="number" size="12" decimals="0">
+                    <title translatable="true">Samples Count</title>
+                    <sql dialect="generic">
+                        (SELECT COUNT(a.activity_log_id) FROM cb_samples ${sql.as} a WHERE a.activity_log_id = activity_log.activity_log_id)
+                    </sql>
+                </field>
+                <field name="location">
+                    <title translatable="true">Location Detail</title>
+                </field>
+                <field name="hcm_harea_id"/>
+                <field name="rec_action"/>
+                <field name="hcm_pending_act"/>
+                <field name="assessed_by"/>
+                <field name="assigned_to">
+                    <title translatable="true">Inspector/ Assigned To</title>
+                </field>
+                <field name="hcm_abate_by"/>
+                <field name="hcm_class1_id">
+                    <title translatable="true">Classification I</title>
+                </field>
+                <field name="hcm_class2_id">
+                    <title translatable="true">Classification II</title>
+                </field>
+                <field name="hcm_class3_id">
+                    <title translatable="true">Classification III</title>
+                </field>
+                <field name="date_required"/>
+                <field name="date_review">
+                    <title translatable="true">Date Inspected</title>
+                </field>
+                <field name="date_installed">
+                    <title translatable="true">Date Abated</title>
+                </field>
+                <field name="date_completed"/>
+                <field name="date_closed"/>
+                <field name="hcm_pipe_cnt">
+                    <title translatable="true">Pipes Count</title>
+                </field>
+                <field name="hcm_fittings_num">
+                    <title translatable="true">Fittings Count</title>
+                </field>
+                <field name="hcm_labeled"/>
+                <field name="cause_type">
+                    <title translatable="true">Abatement Reason</title>
+                </field>
+                <field name="assessment_id">
+                    <title translatable="true">Initial Item ID</title>
+                </field>
+                <field name="cost_estimated"/>
+                <field name="cost_est_cap"/>
+                <field name="vf_costEstBase" dataType="number" size="12" decimals="2">
+                    <title translatable="true">Cost-Est Baseline</title>
+                    <sql dialect="generic">
+                        (cost_est_cap + cost_estimated)
+                    </sql>
+                </field>
+                <field name="cost_actual"/>
+                <field name="cost_act_cap"/>
+                <field name="vf_costActual" dataType="number" size="12" decimals="2">
+                    <title translatable="true">Cost-Actual</title>
+                    <sql dialect="generic">
+                        (cost_actual + cost_act_cap)
+                    </sql>
+                </field>
+
+                <restriction type="parsed">
+                    <clause table="activity_log" name="activity_type" op="=" value="ASSESSMENT - HAZMAT"/>
+                </restriction>
+            </dataSource>
+            
+            <panel type="grid" id="abCbRptDrilldown_panelAssessments" dataSource="abCbRptDrilldown_dsAssessments" showOnLoad="false">
+                <title translatable="true">Assessments</title>
+                <instructions>&#160;</instructions>
+                
+                <action id="paginatedReport">
+                    <title translatable="true">DOC</title>
+                    <command type="callFunction" functionName="abCbRptDrilldownController.onPaginatedReport(this, 'ab-cb-rpt-assess-pgrp.axvw')"/>
+                </action>
+                <action id="exportXLS">
+                    <title>XLS</title>
+                    <command type="exportPanel" outputType="xls" panelId="abCbRptDrilldown_panelAssessments"/>
+                </action>
+
+                <field id="view" controlType="button" onclick="showDetails">
+                    <title translatable="true">View</title>
+                    <tooltip translatable="true">View Assessment</tooltip>
+                </field>
+                
+        				<sortField table="activity_log" name="date_assessed" ascending="false"/>
+        				<sortField table="activity_log" name="hcm_is_hazard" ascending="false"/>
+				        <sortField table="activity_log" name="prob_type" ascending="true"/>
+				        <sortField table="activity_log" name="project_id" ascending="true"/>
+				        <sortField table="activity_log" name="site_id" ascending="true"/>
+				        <sortField table="activity_log" name="bl_id" ascending="true"/>
+				        <sortField table="activity_log" name="hcm_harea_id" ascending="true"/>
+				        <sortField table="activity_log" name="fl_id" ascending="true"/>
+				        <sortField table="activity_log" name="rm_id" ascending="true"/>
+				        <sortField table="activity_log" name="hcm_loc_typ_id" ascending="true"/>
+            </panel>
+        </tab>
+    </tabs>
+</view>

@@ -1,0 +1,113 @@
+<view version="2.0">
+    <layout file="ab-proj-console-details.axvw"/>
+    <title>Compare Project Costs to Budget</title>    
+    <js file="ab-proj-projects-compare-to-budget.js"/> 
+
+    <panel type="view" id="projProjectsCompareToBudgetConsole" file="ab-proj-restriction-console.axvw" layout="mainLayout" region="north"/>
+      
+  	<dataSource id="projProjectsCompareToBudgetDs0" type="grouping" applyVpaRestrictions="false">
+        <table name="project" role="main"/>
+        <field name="project_id" table="project" groupBy="true"/>
+        <field name="baseline_estimate" dataType="number" decimals="2">
+            <title>Baseline Estimate</title>
+            <sql dialect="generic">SUM(baseline_estimate)</sql>
+        </field>
+        <field name="design_estimate" dataType="number" decimals="2">
+            <title>Design Estimate</title>
+            <sql dialect="generic">SUM(design_estimate)</sql>
+        </field>
+        <field name="actual_costs" dataType="number"  decimals="2">
+            <title>Actual Costs</title>
+            <sql dialect="generic">SUM(actual_costs)</sql>
+        </field>
+        <field name="funding_allocation" dataType="number"  decimals="2">
+            <title>Funding Allocation</title>
+            <sql dialect="generic">SUM(funding_allocation)</sql>
+        </field>
+        <sortField name="project_id" table="project" ascending="true"/> 
+        <sql dialect="generic">
+        SELECT 
+        bl.state_id, bl.city_id, project.site_id, project.bl_id,
+        project.dv_id, project.dp_id, program.program_type, program.program_id, 
+        project.project_type, project.project_id, project.proj_mgr, project.status, 
+        project.is_template,
+          (SELECT SUM(cost_estimated + cost_est_cap) 
+          FROM activity_log 
+        WHERE activity_log.project_id = project.project_id
+        AND activity_log.status 
+        IN ('REQUESTED','BUDGETED','PLANNED','SCHEDULED','IN PROGRESS','IN PROCESS-H','STOPPED','COMPLETED','COMPLETED-V','CLOSED')) 
+        AS baseline_estimate, 
+        (SELECT SUM(cost_est_design_exp + cost_est_design_cap) 
+        FROM activity_log 
+        WHERE activity_log.project_id = project.project_id
+        AND activity_log.status 
+        IN ('REQUESTED','BUDGETED','PLANNED','SCHEDULED','IN PROGRESS','IN PROCESS-H','STOPPED','COMPLETED','COMPLETED-V','CLOSED')) 
+        AS design_estimate, 
+        (SELECT SUM(cost_act_cap + cost_actual) 
+        FROM activity_log 
+        WHERE activity_log.project_id = project.project_id
+        AND activity_log.status 
+        IN ('IN PROGRESS','IN PROCESS-H','STOPPED','COMPLETED','COMPLETED-V','CLOSED')) 
+        AS actual_costs, 
+        (SELECT SUM(amount_cap + amount_exp) FROM projfunds WHERE projfunds.project_id = project.project_id) 
+        AS funding_allocation                   
+
+            FROM 
+                project 
+        LEFT OUTER JOIN bl ON bl.bl_id = project.bl_id 
+        LEFT OUTER JOIN program ON program.program_id = project.program_id
+        WHERE ${sql.vpaRestriction}
+              
+        </sql>
+
+        <sql dialect="oracle">
+        SELECT 
+        bl.state_id, bl.city_id, project.site_id, project.bl_id,
+        project.dv_id, project.dp_id, program.program_type, program.program_id, 
+        project.project_type, project.project_id, project.proj_mgr, project.status, 
+        project.is_template,
+          (SELECT SUM(cost_estimated + cost_est_cap) 
+          FROM activity_log 
+        WHERE activity_log.project_id = project.project_id
+        AND activity_log.status 
+        IN ('REQUESTED','BUDGETED','PLANNED','SCHEDULED','IN PROGRESS','IN PROCESS-H','STOPPED','COMPLETED','COMPLETED-V','CLOSED')) 
+        AS baseline_estimate, 
+        (SELECT SUM(cost_est_design_exp + cost_est_design_cap) 
+        FROM activity_log 
+        WHERE activity_log.project_id = project.project_id
+        AND activity_log.status 
+        IN ('REQUESTED','BUDGETED','PLANNED','SCHEDULED','IN PROGRESS','IN PROCESS-H','STOPPED','COMPLETED','COMPLETED-V','CLOSED')) 
+        AS design_estimate, 
+        (SELECT SUM(cost_act_cap + cost_actual) 
+        FROM activity_log 
+        WHERE activity_log.project_id = project.project_id
+        AND activity_log.status 
+        IN ('IN PROGRESS','IN PROCESS-H','STOPPED','COMPLETED','COMPLETED-V','CLOSED')) 
+        AS actual_costs, 
+        (SELECT SUM(amount_cap + amount_exp) FROM projfunds WHERE projfunds.project_id = project.project_id) 
+        AS funding_allocation                   
+
+            FROM 
+                project, bl, program
+                
+            WHERE 
+        project.bl_id = bl.bl_id(+) AND
+        project.program_id = program.program_id(+) AND
+        ${sql.vpaRestriction}
+        </sql>
+        <restriction type="sql" sql="project.is_template = 0"/>
+    </dataSource>
+
+    <panel type="crossTable" id="selectProjectReport" dataSource="projProjectsCompareToBudgetDs0" layout="mainLayout" region="center">
+        <title>Compare Costs to Budget</title>
+        <action id="exportXLS">
+            <title>XLS</title>
+            <command type="exportPanel" outputType="xls" panelId="selectProjectReport"/>
+        </action>                  
+    </panel>
+</view>
+    
+ 
+ 
+ 
+ 

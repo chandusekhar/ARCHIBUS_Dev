@@ -1,0 +1,160 @@
+<view version="2.0">
+    <js file="ab-sys-user-role-procs-tab-role.js"/>
+    
+    <message name="titleAssignedProcesses">Assigned Processes - {0}</message>
+    <message name="titleAvailableProcesses">Available Applications and their Processes - {0}</message>
+    
+    <message name="ConfirmUnassignUnlicensed">This action removes all unlicensed applications from each role.  Continue?</message>    
+    <message name="unassignUnlicensedSuccessful">Any unlicensed applications have been removed from all roles.</message>   
+    <message name="ConfirmDeleteAll">Do you want to delete all processes assigned to role {0}?</message>
+    <message name="ConfirmUnassign">Do you want to unassign selected processes from role {0}?</message>
+    <message name="ConfirmAssign">Do you want to assign selected processes to role {0}?</message>
+    <message name="ErrorNoProcessSelected">You must make a selection first.</message>
+    <message name="ErrorNoRoleSelected">You must select a role first.</message>
+        
+    <layout id="mainLayout" type="borderLayout">
+        <west id="westRegion" initialSize="45%" split="true"/>
+        <center/>
+    </layout>
+    <layout id="nestedLayout" type="borderLayout" containingLayout="mainLayout" region="center">
+        <north id="northRegion" initialSize="50%" split="true"/>
+        <center id="southRegion"/>
+    </layout>
+    
+    <dataSource id="abSysUserRoleProcRoles_ds">
+        <table name="afm_roles" role="main"/>
+        <field name="role_name"/>
+        <field name="role_title"/>
+        <field name="license_level"/>
+    </dataSource>
+    
+    <dataSource id="abSysUserRoleProcProcesses_ds">
+        <table name="afm_processes" />
+        <field name="activity_id"/>
+        <field name="process_id"/>
+        <field name="title"/>
+        <field name="process_type"/>
+        <field name="license_level"/>
+        <field name="activity_title" dataType="text">
+            <title>Application Title</title>
+            <sql dialect="generic">
+                (SELECT afm_activities.title FROM afm_activities WHERE afm_activities.activity_id = afm_processes.activity_id)
+            </sql>
+        </field>
+        <restriction type="sql" sql="afm_processes.process_type NOT IN ('WINDOWS', 'OVERLAY') AND EXISTS(SELECT afm_activities.activity_id FROM afm_activities WHERE afm_activities.activity_id = afm_processes.activity_id AND afm_activities.is_active = 1)  AND afm_processes.process_type NOT IN ('WINDOWS', 'OVERLAY') AND ((${parameters['result_type']}  = 'assigned' AND EXISTS(SELECT afm_roleprocs.process_id FROM afm_roleprocs 
+            WHERE afm_processes.activity_id = afm_roleprocs.activity_id AND afm_processes.process_id = afm_roleprocs.process_id AND afm_roleprocs.role_name = ${parameters['role_name']}))  
+            OR ( ${parameters['result_type']} = 'available' AND NOT EXISTS(SELECT afm_roleprocs.process_id FROM afm_roleprocs 
+            WHERE afm_processes.activity_id = afm_roleprocs.activity_id AND afm_processes.process_id = afm_roleprocs.process_id AND afm_roleprocs.role_name = ${parameters['role_name']})))"/>
+        <parameter name="role_name" dataType="text" value="null"/>
+        <parameter name="result_type" dataType="text" value="null"/>
+    </dataSource>
+    
+    <panel type="grid" id="abSysUserRoleProcRoles_grid" dataSource="abSysUserRoleProcRoles_ds" selectionEnabled="true" layoutRegion="westRegion">
+        <sortField table="afm_roles" name="role_name" ascending="true"/>
+        <title>Roles</title>
+        <action id="addMobileApp">
+            <title>Add Mobile Apps to Roles</title>
+        </action>
+        <action id="unassignUnlicensed">
+            <title>Unassign Unlicensed</title>
+        </action>
+        <field name="role_name" controlType="link">
+            <command type="callFunction" functionName="onClickRole"/>
+        </field>
+        <field name="role_title" controlType="link">
+            <command type="callFunction" functionName="onClickRole"/>
+        </field>
+        <field name="license_level" controlType="link">
+            <command type="callFunction" functionName="onClickRole"/>
+        </field>
+    </panel>
+    
+    <panel type="grid" id="abSysUserRoleProcAssignedProc_grid" dataSource="abSysUserRoleProcProcesses_ds" multipleSelectionEnabled="true" layoutRegion="northRegion" showOnLoad="false" recordLimit="0">
+        <sortField table="afm_processes" name="activity_id" ascending="true"/>
+        <sortField table="afm_processes" name="process_id" ascending="true"/>
+        <action id="filter">
+            <title>Filter</title>
+        </action>
+        <action id="unassign">
+            <title>Unassign</title>
+        </action>
+        <action id="unassignAll">
+            <title>Unassign All</title>
+        </action>
+        <!--action id="transfer">
+            <title>Data</title>
+        </action-->
+        
+        <field name="activity_title">
+            <title>Application Title</title>
+        </field>
+        <field name="activity_id"/>
+        <field name="title">
+            <title>Process or Role Title</title>
+        </field>
+        <field name="process_id"/>
+        <field name="process_type"/>
+        <field name="license_level"/>
+    </panel>
+
+    <panel type="grid" id="abSysUserRoleProcAvailableProc_grid" dataSource="abSysUserRoleProcProcesses_ds" multipleSelectionEnabled="true" layoutRegion="southRegion" showOnLoad="false" recordLimit="0">
+        <sortField table="afm_processes" name="activity_id" ascending="true"/>
+        <sortField table="afm_processes" name="process_id" ascending="true"/>
+        <action id="assign">
+            <title>Assign</title>
+        </action>
+        
+        <field name="activity_title">
+            <title>Application Title</title>
+        </field>
+        <field name="activity_id"/>
+        <field name="title">
+            <title>Process or Role Title</title>
+        </field>
+        <field name="process_id"/>
+        <field name="process_type"/>
+        <field name="license_level"/>
+    </panel>
+    
+    <dataSource id="abSysUserRoleAssignedProcess_ds">
+        <table name="afm_roleprocs"/>
+        <field name="activity_id"/>
+        <field name="process_id"/>
+        <field name="role_name"/>
+    </dataSource>
+    
+    <dataSource id="abDomainApp_ds">
+        <table name="afm_actprods" role="main"/>
+        <table name="afm_products" role="standard"/>
+        <table name="afm_activities" role="standard"/>
+        <field name="product_id" table="afm_actprods"/>
+        <field name="activity_id" table="afm_actprods"/>
+        <field name="title" table="afm_products"/>
+        <field name="title" table="afm_activities"/>
+        <field name="is_active" table="afm_activities"/>
+        <restriction type="sql" sql="afm_activities.is_active = 1 AND EXISTS(SELECT afm_processes.activity_id FROM afm_processes WHERE afm_processes.activity_id = afm_actprods.activity_id AND afm_processes.process_type NOT IN ('WINDOWS', 'OVERLAY')) "/>
+    </dataSource>
+    
+    <panel type="grid" id="abDomainApp_list" dataSource="abDomainApp_ds" showOnLoad="false" hidden="true" multipleSelectionEnabled="true">
+        <sortField name="is_active" table="afm_activities" ascending="true"/>
+        <sortField name="product_id" table="afm_actprods" ascending="true"/>
+        <sortField name="activity_id" table="afm_actprods" ascending="true"/>
+        <title>ARCHIBUS Domain Applications</title>
+        <action id="filter">
+            <title>Filter</title>
+        </action>
+        <action id="reset">
+            <title>Reset</title>
+        </action>
+        
+        <field name="title" table="afm_products">
+            <title>Domain Name</title>
+        </field>
+        <field name="title" table="afm_activities">
+            <title>Application Title</title>
+        </field>
+        <field name="is_active" table="afm_activities"/>
+        <field name="product_id" table="afm_actprods" hidden="true"/>
+        <field name="activity_id" table="afm_actprods" hidden="true"/>
+    </panel>    
+</view>

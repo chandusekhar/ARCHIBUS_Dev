@@ -1,0 +1,108 @@
+<?xml version="1.0" encoding="utf-8"?>
+<mx:Application xmlns:mx="http://www.adobe.com/2006/mxml" layout="absolute"
+	xmlns:ilog="http://www.ilog.com/2007/ilog/flex"
+	initialize="myInitialize()" resize="onResize()" backgroundColor="#FFFFFF">
+	
+	<mx:Script>
+		<![CDATA[
+			import mx.collections.HierarchicalData;
+			import com.adobe.serialization.json.JSON;
+			import mx.events.FlexEvent;
+			private var panelId:String;
+			
+			[Bindable]
+			private var labelThreshold:int = 0;
+			
+			[Bindable]
+			private var topMarginProportion:Number = 0.2;
+			
+			[Bindable]
+			private var borderColor:uint = 0xFF0000;
+			
+			[Bindable]
+			private var colorScheme:String = "sequential";
+			
+			[Bindable]
+			private var treeMapData:HierarchicalData;
+			
+			private function myInitialize():void{
+				ExternalInterface.addCallback("showData", showData);
+				ExternalInterface.addCallback("setControlProperty",setControlProperty);
+				ExternalInterface.addCallback("setStyleProperty",setStyleProperty);
+				
+				panelId = Application.application.parameters.panelId;
+				
+				labelThreshold = Application.application.parameters.labelThreshold;
+				topMarginProportion = Application.application.parameters.topMarginProportion;
+				borderColor = Application.application.parameters.borderColor;
+				colorScheme = Application.application.parameters.colorScheme;
+				onResize();
+			}
+			
+			private function onResize():void{
+				if(tm != null){
+					tm.width = this.width - 20;
+					tm.height = this.height - 40;
+				}
+			}
+			
+			/**
+	         * Sets control property specified by name.
+	         * Can be called from JS code to set properties not supported in AXVW format.
+	         */     
+	        public function setControlProperty(propertyName:String, propertyValue:Object):void {
+	           	this.tm[propertyName] = propertyValue;	            
+	        }
+	        
+	        /**
+	         * Sets style property specified by name.
+	         * Can be called from JS code to set properties not supported in AXVW format.
+	         */  
+	        public function setStyleProperty(propertyName:String, propertyValue:Object):void {
+	        	this.tm.setStyle(propertyName,propertyValue);
+	        }
+			
+			protected function loadComplete(event:FlexEvent):void {
+  				if (ExternalInterface.available) {
+	    			ExternalInterface.call("loadComplete_JS", panelId);
+		  		} 
+		  		onResize();
+			}
+			
+			private function showData(data:String):void{
+				var arrData:Array = (JSON.decode(data) as Array);
+				treeMapData = new HierarchicalData(arrData);
+				onResize();
+			}
+			
+			 private function highlightItem(item:Object):void {
+				if (! item) return;
+		    
+		    	if(item.parent != undefined){
+		    		hlLabel.text = item.parent + " :: " + item.label;	
+		    	} else {
+		    		hlLabel.text = item.label;
+		    	}
+		    	 
+		        var r:Rectangle = tm.getItemRectangle(item);		        
+				layer.graphics.lineStyle(2, 0xFFCE7F);
+				
+				hlLabel.visible = true;
+		        layer.graphics.drawRect(r.x, r.y, r.width, r.height);		    
+		    }
+
+		]]>
+	</mx:Script>
+	<mx:VBox>
+		<mx:Label id="hlLabel" visible="false" width="400" height="20"/>
+		<mx:Canvas width="100%" height="100%">
+			<ilog:TreeMap id="tm" width="100%" height="100%"
+				labelThreshold="{labelThreshold}" topMarginProportion="{topMarginProportion}"
+				borderColor="{borderColor}" colorScheme="{colorScheme}" creationComplete="loadComplete(event)"
+				dataProvider="{treeMapData}"
+				itemRollOver="highlightItem(event.item)"
+	        	itemRollOut="layer.graphics.clear(); hlLabel.visible = false"/>
+	        <mx:Canvas width="100%" height="100%" id="layer" mouseEnabled="false"/>
+		</mx:Canvas>	
+	</mx:VBox>
+</mx:Application>

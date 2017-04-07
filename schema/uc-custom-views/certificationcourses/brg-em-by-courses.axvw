@@ -1,0 +1,507 @@
+<view version="2.0">
+<!-- Change Log -->
+<!--2015/12/01  -  MSHUSSAI - Modified code to restrict Status=A for active employees -->
+   	
+	<layout type="borderLayout" id="mainLayout">
+       <north  id="console" initialSize="120" split="true"/>
+       <west  id="parentWest" initialSize="30%" split="true"/>
+       <center id="parentCenter"  autoScroll="true"/>
+    </layout>
+	
+    <layout type="borderLayout" id="nestedLayout" containingLayout="mainLayout" region="center">
+      <north id="childNorth" initialSize="30%" split="true"/>
+      <center id="childCenter"   autoScroll="true"/>
+	   <south id="childSouth" initialSize="20%" split="true"/>
+    </layout>
+	
+	<layout type="borderLayout" id="nestedLayoutWest" containingLayout="mainLayout" region="west">
+      <north id="westChildNorth" initialSize="30%" split="true"/>
+      <center id="westChildCenter"  initialSize="70%" autoScroll="true"/>
+    </layout>
+	
+    <title translatable="true">Add/Renew Certifications by Courses</title>
+	<js file="brg-em-by-courses_3.js"/>
+	<js file="uc-common-functions-data.js" />
+
+	
+	<dataSource id="emActiveDs4">
+	    <sql dialect="generic">
+  			select * from (
+				SELECT  em.position, case p.required when 'R' then 'Required' when 'O' then 'Optional' else null end required, case p.required when 'R' then 0 when 'O' then 1 else 2 end seq,em.reports_to,  
+					 U.course_id,em.name_first, em.name_last, start_date, expiry_date, cert_number, U.em_id, isnull(c.course_name,u.course_name) course_name, c.type,c.category_id, u.description,u.date_renew
+				from
+				UC_certifications u     inner join em on U.em_id = em.em_id
+				left join uc_position_courses p on p.course_id=u.course_id and p.position=em.position    
+				 left join (select c.*, cc.status catStatus from UC_courses c inner join UC_course_categories cc on c.category_id=cc.category_id) c on u.course_id = c.course_id
+				where isnull(expiry_date,start_date + 100000) = 
+				(select max(isnull(expiry_date,start_date + 100000)) maxdate from UC_certifications u1 where isnull(u1.expiry_date,start_date + 100000) &gt;= getdate()
+				and u.course_id=u1.course_id and u.em_id=u1.em_id ) 
+				and isnull(c.status,'A')='A' and isnull(c.catStatus,'A')='A' and em.status='A'
+			) ct  where 1=1 ${parameters['filterCert']}    ${parameters['reportsTo']}  
+		</sql>
+		
+	     <table name="UC_certifications" role="main"/>
+ 	  <table name="UC_courses" role="standard"/>
+ 	  <table name="em" role="standard"/>
+	  <field table="em" name="position"/>
+		<field table="em" name="name_first"/>
+		<field table="em" name="name_last"/>	
+		<field  name="required" dataType="text"/>
+		<field  name="seq" dataType="text"/>
+    	<field table="UC_certifications" name="em_id"/>
+        <field  name="type" dataType="text"/>
+        <field table="UC_certifications" name="course_id"/>
+		<field table="UC_certifications" name="start_date"/>
+		<field table="UC_certifications" name="expiry_date"/>
+		<field table="UC_courses" name="category_id" />
+		<field table="UC_courses" name="type" hidden="true"/>
+		<field table="UC_certifications" name="cert_number"/>
+		<field table="UC_certifications" name="description"/>
+		<field table="UC_certifications" name="course_name"/>
+		<field table="UC_certifications" name="date_renew"/>
+		<parameter name="filterCert" dataType="verbatim" value=""/>
+		<parameter name="reportsTo" dataType="verbatim" value=""/>
+    </dataSource>
+	
+	<dataSource id="emExpiredDs3">
+	    <sql dialect="generic">
+			select * from (
+				SELECT em.position, case p.required when 'R' then 'Required' when 'O' then 'Optional' else null end required, case p.required when 'R' then 0 when 'O' then 1 else 2 end seq,em.reports_to,    
+					 U.course_id,em.name_first, em.name_last, em.status, start_date, expiry_date, cert_number, U.em_id,  isnull(c.course_name,u.course_name) course_name,c.category_id,c.type type1, c.type,c.description
+				from
+				UC_certifications u     inner join em on U.em_id = em.em_id
+				left join uc_position_courses p on p.course_id=u.course_id and p.position=em.position
+				left join (select c.*, cc.status catStatus from UC_courses c inner join UC_course_categories cc on c.category_id=cc.category_id) c on u.course_id = c.course_id
+				where expiry_date = 
+				(select max(isnull(expiry_date,start_date + 100000)) maxdate from UC_certifications u1 where u1.expiry_date &lt; getdate()
+				and u.course_id=u1.course_id and u.em_id=u1.em_id and not exists 
+					 (select 1 from UC_certifications u1 where (u1.expiry_date is null or u1.expiry_date &gt;= getdate())
+					and u1.em_id=u.em_id and u1.course_id=u.course_id)
+				) 
+				and isnull(c.status,'A')='A' and isnull(c.catStatus,'A')='A' and em.status='A'
+			)ct where 1=1  ${parameters['filterCert']} ${parameters['reportsTo']}
+		</sql>
+		
+		<table name="UC_certifications" role="main"/>
+		<table name="UC_courses" role="standard"/>
+		<table name="em" role="standard"/>
+		<field table="UC_certifications" name="em_id"/>
+		<field  name="required" dataType="text"/>
+		<field  name="seq" dataType="text"/>
+		<field table="em" name="position"/>
+		<field table="em" name="name_first"/>
+		<field table="em" name="name_last"/>
+        <field name="type1" dataType="text" />
+        <field table="UC_certifications" name="course_id"/>
+		<field table="UC_certifications" name="start_date"/>
+		<field table="UC_certifications" name="expiry_date"/>
+		<field table="UC_courses" name="category_id" />
+		<field table="UC_courses" name="type" />
+		<field table="UC_certifications" name="cert_number"/>
+		<field table="UC_certifications" name="description"/>
+		<field table="UC_certifications" name="course_name"/>
+		<parameter name="filterCert" dataType="verbatim" value=""/>
+		<parameter name="reportsTo" dataType="verbatim" value=""/>
+		
+    </dataSource>
+	
+	<dataSource id="catDs1">
+		<sql dialect="generic">
+			select category_id,description,category_name from UC_course_categories cg where status = 'A' 
+			and exists (
+				select 1 
+				from UC_courses cs
+				left join UC_certifications ct on ct.course_id=cs.course_id 
+				left join uc_position_courses p on cs.course_id=p.course_id
+				where cs.status='A' and cs.category_id=cg.category_id 
+				 ${parameters['reportsTo']} ${parameters['filterCourse']}${parameters['filterCert']}
+			)
+			${parameters['filterCat']}
+			union select null,'Miscellaneous Category','Miscellaneous' 
+				where exists (select 1 from UC_certifications ct where not exists (select 1 from UC_courses cs where cs.course_id=ct.course_id ${parameters['reportsTo']})${parameters['filterMisc']})
+		</sql>
+        <table name="UC_course_categories" role="main"/>
+	    <field table="UC_course_categories" name="category_id"/>
+        <field table="UC_course_categories" name="description"/>
+        <field table="UC_course_categories" name="category_name"/>
+		<parameter name="reportsTo" dataType="verbatim" value=""/>
+		<parameter name="filterCat" dataType="verbatim" value=""/>
+		<parameter name="filterCourse" dataType="verbatim" value=""/>
+		<parameter name="filterCert" dataType="verbatim" value=" and ct.course_id is not null"/>
+		<parameter name="filterMisc" dataType="verbatim" value=""/>
+		
+    </dataSource>
+	
+	<dataSource id="coursesDs7">
+		<sql dialect="generic">
+			select category_id,course_id,description,course_name, type as type1 from UC_courses cs where status = 'A'
+			and exists (
+				select 1 from UC_courses c
+				left join UC_certifications ct on ct.course_id=c.course_id 
+				left join uc_position_courses p on c.course_id=p.course_id   
+				where c.course_id=cs.course_id  ${parameters['reportsTo']} ${parameters['filterCert']}
+			)${parameters['filterCourse']}
+			union 
+			select distinct null,course_id,description,course_name, null from UC_Certifications ct 
+			 where not exists (select 1 from uc_courses c where c.course_id = ct.course_id)  ${parameters['reportsTo']} ${parameters['filterMisc']}
+		</sql>
+        <table name="UC_courses" role="main"/>
+	    <field table="UC_courses" name="category_id"/>
+        <field table="UC_courses" name="course_id"/>
+        <field table="UC_courses" name="course_name"/>
+		<field table="UC_courses" name="description"/>
+		<field  name="type1" dataType="text"/>
+ 		<parameter name="reportsTo" dataType="verbatim" value=""/>
+		<parameter name="filterCourse" dataType="verbatim" value=""/>
+		<parameter name="filterCert" dataType="verbatim" value=""/>
+		<parameter name="filterMisc" dataType="verbatim" value=""/>
+   </dataSource>
+	
+	<panel type="console" id="console" showOnLoad="true" dataSource="emExpiredDs3" selectionEnabled="true" columns="3" layoutRegion="console">
+		<title>Filter</title>
+		<action id="filter" >
+            <title translatable="true">Show</title>
+		</action>
+		<action id="clear" >
+            <title translatable="true">Clear</title>
+			<command type="clearForm" />
+		</action>
+		
+		
+		<field table="UC_courses" name="category_id" >
+			<action>
+				<command type="selectValue"
+						selectFieldNames="UC_course_categories.category_id"
+						fieldNames="UC_courses.category_id"
+						visibleFieldNames="UC_course_categories.category_id,UC_course_categories.category_name,UC_course_categories.description"
+						restriction="UC_course_categories.status='A'"/>
+			</action>
+		</field>
+
+		<field table="UC_certifications" name="em_id" >
+			<action>
+				<title>...</title>
+				<command type="callFunction" functionName="abCoursesByEm.selectEm(this)"/>
+			</action>
+		</field>
+		<field  table="em"  name="position" >
+			<title>Position</title>
+			<action id='Pos'>
+				<command type="selectValue"
+						selectFieldNames="uc_position.position"
+						fieldNames="em.position"
+						visibleFieldNames="uc_position.position,uc_position.description"
+						restriction="uc_position.status='A'"/>
+			</action>
+		</field>
+		
+		
+
+		<field table="UC_certifications" name="course_id"  >
+			<action>
+				<command type="selectValue"
+						selectFieldNames="UC_courses.category_id,UC_courses.course_id"
+						fieldNames="UC_courses.category_id,UC_certifications.course_id"
+						visibleFieldNames="UC_courses.category_id,UC_courses.course_id,UC_course_categories.description"
+						restriction="UC_courses.status='A' and exists (select 1 from UC_course_categories c where c.category_id=UC_courses.category_id and c.status='A')"/>
+			</action>
+		</field>
+		<field table="UC_certifications" name="course_name" >
+			<action>
+				<command type="selectValue"
+						selectFieldNames="UC_certifications.course_name"
+						dialogTitle="Name"
+						showIndex="true"
+						fieldNames="UC_certifications.course_name"
+						sortValues="[{'sortOrder':1,'fieldName':'UC_certifications.course_name'}]"
+						parentPanelId="console"
+						visibleFieldNames="UC_certifications.course_name"
+						selectValueType="grid"
+						restriction="not exists (select 1 from UC_courses c where c.course_id=UC_certifications.course_id) or exists (select 1 from UC_courses c inner join UC_course_categories t on c.category_id=t.category_id and c.status='A' and t.status='A' where c.course_id=UC_certifications.course_id)"
+						/>
+			</action>
+		</field>
+		<field table="UC_certifications" name="description" colspan="1" rowspan = "2"/>
+
+		<field table="UC_courses" name="type" />
+		<field table="UC_certifications" name="cert_number" >
+			<action>
+				<command type="selectValue"
+						selectFieldNames="UC_certifications.cert_number"
+						dialogTitle="Name"
+						showIndex="true"
+						fieldNames="UC_certifications.cert_number"
+						sortValues="[{'sortOrder':1,'fieldName':'UC_certifications.cert_number'}]"
+						parentPanelId="console"
+						visibleFieldNames="UC_certifications.cert_number"
+						selectValueType="grid"
+						restriction="not exists (select 1 from UC_courses c where c.course_id=UC_certifications.course_id) or exists (select 1 from UC_courses c inner join UC_course_categories t on c.category_id=t.category_id and c.status='A' and t.status='A' where c.course_id=UC_certifications.course_id)"
+						/>
+			</action>
+		</field>	
+	</panel>
+	<panel type="grid" id="catPanel" showOnLoad="true" dataSource="catDs1" selectionEnabled="true" layoutRegion="westChildNorth">
+        <title translatable="true">Categories</title>
+        <sortField name="category_id" table="UC_course_categories" />
+		<!--<action id="addCat" >
+            <title translatable="true">Add</title>
+			<command type="callFunction" functionName="openAddEmMultiple"/>
+        </action>-->
+		
+		<field  table="UC_course_categories" name="category_id" controlType="link" id="catIdLink">
+			<!--command type="callFunction" functionName="abCoursesByEm.test()" /-->
+        </field>		
+		
+		<field  table="UC_course_categories" name="category_name" controlType="link" id="catIdLink2">
+			<!--command type="callFunction" functionName="abCoursesByEm.test()" /-->
+        </field>		
+	
+		<field  table="UC_course_categories" name="description" controlType="link" id="catIdLink3">
+     		<!--command type="callFunction" functionName="abCoursesByEm.test()" /-->
+        </field>
+	</panel>
+	
+	<panel type="grid" id="coursesPanel" showOnLoad="false" dataSource="coursesDs7" selectionEnabled="true" layoutRegion="westChildCenter">
+        <title translatable="true">Courses</title>
+        <sortField name="course_id" table="UC_courses" />
+		<field id="AddButton" controlType="button" dataType="text">
+			<title translatable="true">Add</title>		
+		</field>  
+		<field table="UC_courses" name="category_id" hidden="true"/>
+		<field  table="UC_courses" name="course_id" controlType="link" id="courseIdLink">
+
+        </field>	
+	    
+		
+		
+		<field  name="type1" dataType="text" controlType="link">
+			<title>Type</title>
+             <command type="callFunction" functionName="abCoursesByEm.coursesPanel_onCourseIdLink2()"/>
+        </field>
+		
+		<field  table="UC_courses" name="course_name" controlType="link" id="courseIdLink4">
+        </field>		
+	
+		<field  table="UC_courses" name="description" controlType="link" id="courseIdLink5">
+        </field>
+
+    </panel>
+	
+	
+	<panel type="grid" id="detailsPanelNorth" showOnLoad="false" dataSource="emActiveDs4" selectionEnabled="true" layoutRegion="childNorth">
+        <title translatable="true">Employees with Active Certification</title>
+        <sortField name="expiry_date" table="UC_certifications" ascending="false"/>
+	    <sortField name="seq"  ascending="true"/>
+		<sortField name="em_id" table="UC_certifications" ascending="true"/>
+		<action id="exportXLS">
+            <title>XLS</title>
+            <command type="exportPanel" outputType="xls" panelId="detailsPanelNorth"/>
+        </action>
+		
+		<field controlType="button" id="viewHistory">
+         	 <title translatable="true">History</title>
+        </field> 
+
+		<field id="RenewButton" controlType="button">
+			<title translatable="true">Renew</title>
+		</field>
+        <field table="UC_certifications" name="em_id" hidden="true" />
+		<field name="required"/>
+		<field name="seq" hidden="true"/>
+		<field table="em" name="name_first"/>
+		<field table="em" name="name_last"/>
+		<field table="em" name="position"/>
+		<field table="UC_certifications" name="cert_number"/>
+		<field table="UC_certifications" name="course_name" hidden="true"/>
+		<field table="UC_certifications" name="course_id" hidden="true"/>
+		<field table="UC_courses" name="category_id" />
+		 
+		<field  name="type" dataType="text">
+			<title>Type</title>
+		</field>
+		 
+		<field table="UC_certifications" name="start_date"/>
+		<field table="UC_certifications" name="expiry_date"/>
+		<field table="UC_certifications" name="date_renew"/>
+		<field table="UC_certifications" name="description"/>		
+   </panel>
+	
+	
+	
+	
+   <panel type="grid" id="detailsPanelCenter" showOnLoad="false" dataSource="emExpiredDs3" selectionEnabled="true" layoutRegion="childCenter">
+        <title translatable="true">Employees with Expired Certification</title>
+        <sortField name="seq"  ascending="true"/>
+		<sortField name="expiry_date" table="UC_certifications" ascending="false"/>
+		<sortField name="em_id" table="UC_certifications" ascending="true"/>
+	
+	
+		<action id="exportXLS">
+            <title>XLS</title>
+            <command type="exportPanel" outputType="xls" panelId="detailsPanelCenter"/>
+        </action>
+		<field controlType="button" id="viewHistory">
+         	 <title translatable="true">History</title>
+        </field>
+		<field id="renewExpired" controlType="button">
+			<title translatable="true">Renew</title>
+			<!--command type="callFunction" functionName="openBrgAddEmMultiple(this)"/-->
+		</field> 
+        <field table="UC_certifications" name="em_id" hidden="true"/>
+		<field name="required"/>
+		<field name="seq" hidden="true"/>
+		<field table="em" name="name_first"/>
+		<field table="em" name="name_last"/>
+		<field table="em" name="position"/>
+		<field table="UC_certifications" name="cert_number"/>
+		<field table="UC_certifications" name="course_name" hidden="true"/>
+		<field table="UC_certifications" name="course_id" hidden="true"/>
+		<field table="UC_courses" name="category_id" />
+		 
+		<field  name="type1" dataType="text">
+			<title>Type</title>
+		</field>
+		 
+		<field table="UC_certifications" name="start_date"/>
+		<field table="UC_certifications" name="expiry_date"/>
+		<field table="UC_certifications" name="description"/>
+		
+		
+   </panel>
+   <dataSource id="positionEm_ds7">
+		<sql dialect="generic">
+			select * from (
+				select em.em_id,em.name_last,em.name_first,em.position, case p.required when 'R' then 'Required' when 'O' then 'Optional' else null end required,
+				p.course_id, c.category_id, c.course_name, c.type, c.description
+				from em inner join uc_position_courses p on p.position=em.position inner join uc_courses c on c.course_id=p.course_id  inner join uc_position ps on ps.position=p.position
+				where p.status='A' and c.status='A'  and ps.status='A' and not exists (select 1 from uc_certifications ct where ct.course_id=c.course_id and ct.em_id=em.em_id) and em.status='A'
+			) ct  where 1=1 ${parameters['filterCert']}   ${parameters['reportsTo']}
+		</sql>
+		
+		<table name="uc_certifications" role="main"/>
+        <table name="UC_courses" role="standard"/>
+		<table name="em" role="standard"/>
+		
+    	<field  name="em_id" dataType="text"/>
+		<field  name="name_first" table="em"/>
+		<field  name="name_last" table="em"/>
+		<field  name="position" table="em"/>
+		<field table="em" name="em_id"/>
+		<field name="required" dataType="text"/>
+		<field table="UC_courses" name="course_id"/>
+		<field table="UC_courses" name="course_name"/>
+		<field table="UC_courses" name="category_id"/>
+		<field table="UC_courses" name="type"/>
+		<parameter name="filterCert" dataType="verbatim" value=""/>
+		<parameter name="reportsTo" dataType="verbatim" value=""/>
+		
+    </dataSource>
+	
+	<panel type="grid" id="detailsPanelSouth" showOnLoad="false" dataSource="positionEm_ds7" selectionEnabled="true" layoutRegion="childSouth" multipleSelectionEnabled="false" >
+		<title translatable="true">Missing Position Courses</title>
+		<sortField name="required" ascending="false"/>
+		<sortField name="course_name"  ascending="true"/>
+
+		<action id="exportXLS">
+            <title>XLS</title>
+            <command type="exportPanel" outputType="xls" panelId="detailsPanelSouth"/>
+        </action>
+		<field id="CertifyButton" controlType="button">
+			<title translatable="true">Certify</title>
+		</field> 
+		
+        <!--field name="em_id"   hidden="false" dataType="text"/-->
+		<field name="required" dataType="text"/>
+		<field table="em" name="em_id" hidden="true"/>
+		<field table="em" name="name_first"/>
+		<field table="em" name="name_last"/>
+		<field  name="position" table="em"/>
+		<field table="UC_courses" name="course_name" hidden="true"/>
+		<field table="UC_courses" name="course_id" hidden="true"/>
+		<field table="UC_courses" name="category_id"  hidden="true" />
+		<field table="UC_courses" name="type"  hidden="true" /> 		
+   </panel>
+   
+    <dataSource id="renew_cert_ds">
+
+		<table name="UC_certifications" role="main"/>
+		<table name="em" role="standard"/>
+		<table name="UC_courses" role="standard"/>
+        <field table="UC_certifications" name="cert_name"/>
+        <field table="UC_certifications" name="course_id">
+		</field>
+		<field table="UC_courses" name="course_name"/>
+		<field table="UC_certifications" name="course_name"/>
+		<field table="UC_courses" name="category_id"/>
+		<field table="UC_courses" name="type" value="-"/>
+		<field table="UC_certifications" name="start_date"/>
+		<field table="UC_certifications" name="expiry_date"/>
+		<field table="UC_certifications" name="description"/>
+		<field table="UC_certifications" name="date_renew"/>
+		<field table="UC_certifications" name="cert_number"/>
+		<field table="UC_certifications" name="doc"/>
+		<field table="UC_certifications" name="em_id"/>
+		<field table="UC_certifications" name="status"/>
+		<field table="em" name="name_first"/>
+		<field table="em" name="name_last"/>
+	
+	</dataSource>
+		
+	<panel type="form" id="renewalFormPanel" dataSource="renew_cert_ds" columns="2" showOnLoad="false" labelsPosition="top" newRecord="true">
+		<title translatable="true">Renew Certification: </title>
+
+		<action id="Submit" imageName="/schema/ab-core/graphics/save.gif">
+			<title>Save</title>
+			<tooltip>Click to Save Renewal</tooltip>
+		</action>
+
+		<action id="cancel">
+			<title>Close</title>
+			<tooltip>Cancel Renewal</tooltip>
+			<command type="closeDialog"/>
+		</action>
+		
+		
+		<field  table="UC_certifications"  name="em_id" required="true" >
+			<action>
+				<title>...</title>
+				<command type="selectValue"
+						fieldNames="UC_certifications.em_id"
+						selectFieldNames="em.em_id"
+
+						visibleFieldNames="em.em_id, em.name_first, em.name_last, em.position"
+						restriction="em.status='A'"/>
+			</action>
+		</field>
+		
+		
+	
+		
+		
+		<!--field table="UC_certifications" name="em_id" required="true" /-->	
+		<field />
+		<field table="em" name="name_first" required="false"><title>Employee First Name</title></field>		
+        <field table="em" name="name_last" required="false" ><title>Employee Last Name</title></field>
+		<field table="UC_courses" name="category_id" readOnly="true" onchange="brgActiveCertRptController.onChangeCategory(1)" required="false">
+		    <title>Course Category</title>
+		</field>
+		<field table="UC_certifications" name="start_date" readOnly="${!panel.newRecord}"/>
+		<field table="UC_courses" name="type" readOnly="true" onchange="brgActiveCertRptController.onChangeCategory(2)" value="-"  required="false"/>
+		<field table="UC_certifications" name="expiry_date"/>
+		<field table="UC_certifications" name="course_id" onchange = "brgActiveCertRptController.onChangeCourseId()" readOnly="true">
+		  <title>Certification ID</title>
+		</field>
+		<field table="UC_certifications" name="date_renew"/>
+		<field table="UC_courses" name="course_name" readOnly="false" hidden="true"/>
+		<field table="UC_certifications" name="course_name" readOnly="true" required="true" onchange="brgActiveCertRptController.onChangeCourseName()"><title>Course Name</title></field>  <!-- Q from F: Why do we need the course name in both tables? -->
+		<field table="UC_certifications" name="cert_number" />	
+		<field table="UC_certifications" name="doc" hidden="true"/>
+ 		<field table="UC_certifications" name="description" colspan="2"><title>Course Description</title></field>
+		<field table="UC_certifications" name="status" hidden="true" />
+		
+		<field table="UC_certifications" name="start_date" alias="start_date_old" dataType="date" hidden="true" />
+		<field name="entrytype" dataType="text" hidden="true" ><title>Entry Type</title></field>
+       
+	</panel>
+   
+</view>

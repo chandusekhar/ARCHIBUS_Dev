@@ -1,0 +1,143 @@
+<view version="2.0">
+    <layout file="ab-proj-console-short-west-north-details.axvw"/>
+    <js file="ab-proj-create-invoices.js"/>
+    <title>Create Invoices</title>
+    <message name="customProjectIdSelvalTitle">Projects With Work Package Contracts</message>
+    <message name="issueWarning">Once issued, it will not be possible to withdraw this invoice.</message>    
+    
+    <panel type="view" id="projCreateInvoicesConsole" file="ab-work-pkgs-restriction-console.axvw" layout="mainLayout" region="north"/>
+
+    <dataSource id="projCreateInvoicesDs0">
+        <table name="work_pkg_bids" role="main" />
+        <table name="work_pkgs" role="standard"/>
+        <table name="project" role="standard"/>
+		<field name="work_pkg_id" table="work_pkg_bids" />
+		<field name="project_id" table="work_pkgs" />
+        <field name="project_name" table="project"/>
+        <field name="vn_id" table="work_pkg_bids" />
+		<restriction type="sql" sql="work_pkg_bids.status IN ( 'Contract Signed', 'In Process', 'In Process-On Hold', 'Completed', 'Completed and Verified', 'Paid in Full') AND vn_id = (SELECT vn_id FROM vn WHERE vn.email='${user.email}')"/>
+    </dataSource>
+
+    <panel type="grid" id="selectWorkPkgReport" dataSource="projCreateInvoicesDs0" layout="nestedLayout_1" region="west">
+        <title>Select Work Package</title>        	
+        <field table="work_pkg_bids" name="work_pkg_id" controlType="link" onclick="selectWorkPkg"/>
+        <field table="work_pkgs" name="project_id"/>
+        <field name="project_name" table="project"/>
+    </panel>
+    
+    <dataSource id="projCreateInvoicesDs1">
+        <table name="invoice" role="main" />
+        <field name="work_pkg_id" table="invoice"/>
+        <field name="project_id" table="invoice"/>
+        <field name="invoice_id" table="invoice"/>
+        <field name="vn_id" table="invoice" />
+        <field name="status" table="invoice"/>
+        <field name="amount_tot_invoice" table="invoice" />
+        <field name="qty_invoiced" table="invoice" />
+        <field name="contact_id_remit_to" table="invoice" />
+        <field name="contact_id_send_to" table="invoice" />
+        <field name="date_expected_rec" table="invoice" />
+        <field name="description" table="invoice" />
+        <field name="terms" table="invoice" />
+        <field name="doc" table="invoice"/>
+    </dataSource>
+    
+    <panel type="grid" id="projCreateInvoicesGrid" dataSource="projCreateInvoicesDs1" showOnLoad="false" layout="nestedLayout_2" region="north">
+        <title>Invoices</title>
+        <action id="addNew">
+            <title>Add New</title>
+            <command type="openDialog" panelId="projCreateInvoicesForm" newRecord="true"/>
+        </action>
+        <action id="exportDOCX">
+            <title>DOC</title>
+            <command type="exportPanel" outputType="docx" panelId="projCreateInvoicesGrid"/>
+        </action>
+				<action id="exportXLS">
+						<title>XLS</title>
+						<command type="exportPanel" outputType="xls" panelId="projCreateInvoicesGrid"/>
+				</action>
+        <sortField table="invoice" name="invoice_id" ascending="false"/>
+        <field controlType="button">
+            <title>Select</title>
+            <command type="openDialog" panelId="projCreateInvoicesForm"/>
+        </field>
+        <field name="invoice_id" table="invoice" />
+        <field name="status" table="invoice" />
+        <field name="amount_tot_invoice" table="invoice" />
+        <field name="date_expected_rec" table="invoice" />
+        <field name="project_id" table="invoice"/>
+        <field name="work_pkg_id" table="invoice"/>
+    </panel>
+
+    <panel type="form" id="projCreateInvoicesForm" dataSource="projCreateInvoicesDs1" columns="2" showOnLoad="false">
+        <title>Invoice</title>
+        <action id="issue" enabled="${record['invoice.status'] == 'N/A' || record['invoice.status'] == 'CREATED' || record['invoice.status'] == 'WITHDRAW'}">
+            <title>Issue</title>
+        </action>
+        <action id="withdraw" enabled="${record['invoice.status'] == 'N/A' || record['invoice.status'] == 'CREATED'}">
+            <title>Withdraw</title>
+        </action>
+        <action id="save" enabled="${record['invoice.status'] == 'N/A' || record['invoice.status'] == 'CREATED' || record['invoice.status'] == 'WITHDRAW'}">
+            <title>Save Draft</title>
+            <command type="saveForm"/>
+            <command type="showPanel" panelId="projCreateInvoicesGrid" applyParentRestriction="false"/>
+            <command type="closeDialog"/>
+        </action>				
+        <action id="cancel">
+            <title>Cancel</title>
+            <command type="closeDialog"/>
+        </action>
+        <field name="work_pkg_id" table="invoice" readOnly="true"/>
+        <field name="project_id" table="invoice" readOnly="true"/>
+        <field name="invoice_id" table="invoice" readOnly="true"/>
+        <field name="vn_id" table="invoice" readOnly="true"/>
+        <field name="status" table="invoice" readOnly="true"/>
+        <field name="amount_tot_invoice" table="invoice" readOnly="${record['invoice.status'] == 'ISSUED' || record['invoice.status'] == 'CLOSED' || record['invoice.status'] == 'SENT'}"/>
+        <field name="qty_invoiced" table="invoice" readOnly="${record['invoice.status'] == 'ISSUED' || record['invoice.status'] == 'CLOSED' || record['invoice.status'] == 'SENT'}"/>
+        <field name="contact_id_remit_to" table="invoice" readOnly="${record['invoice.status'] == 'ISSUED' || record['invoice.status'] == 'CLOSED' || record['invoice.status'] == 'SENT'}"/>
+        <field name="contact_id_send_to" table="invoice" readOnly="${record['invoice.status'] == 'ISSUED' || record['invoice.status'] == 'CLOSED' || record['invoice.status'] == 'SENT'}"/>
+        <field name="date_expected_rec" table="invoice" readOnly="${record['invoice.status'] == 'ISSUED' || record['invoice.status'] == 'CLOSED' || record['invoice.status'] == 'SENT'}"/>
+        <field name="terms" table="invoice" readOnly="${record['invoice.status'] == 'ISSUED' || record['invoice.status'] == 'CLOSED' || record['invoice.status'] == 'SENT'}"/>
+        <field name="doc" table="invoice" readOnly="${record['invoice.status'] == 'ISSUED' || record['invoice.status'] == 'CLOSED' || record['invoice.status'] == 'SENT'}"/>
+        <field name="description" table="invoice" readOnly="${record['invoice.status'] == 'ISSUED' || record['invoice.status'] == 'CLOSED' || record['invoice.status'] == 'SENT'}" colspan="2"/>
+    </panel>
+    
+    <dataSource id="projCreateInvoicesDs2">
+        <table name="activity_log" role="main"/>
+        <field name="project_id" table="activity_log"/>
+        <field name="work_pkg_id" table="activity_log"/>
+        <field name="action_title" table="activity_log"/>
+        <field name="wbs_id" table="activity_log"/>
+        <field name="activity_log_id" table="activity_log"/>
+        <field name="status" table="activity_log" />
+        <field name="completed_by" table="activity_log" />
+        <field name="date_completed" table="activity_log" />
+        <field name="duration_act" table="activity_log" />
+        <field name="hours_actual" table="activity_log" />
+        <field name="comments" table="activity_log" />
+    </dataSource>
+    
+    <panel type="grid" id="projCreateInvoicesActionsGrid" dataSource="projCreateInvoicesDs2" layout="nestedLayout_2" region="center" showOnLoad="false">
+        <title>Work Package Action Items</title>
+        <action id="exportDOCX">
+            <title>DOC</title>
+            <command type="exportPanel" outputType="docx" panelId="projCreateInvoicesActionsGrid"/>
+        </action>
+				<action id="exportXLS">
+						<title>XLS</title>
+						<command type="exportPanel" outputType="xls" panelId="projCreateInvoicesActionsGrid"/>
+				</action>
+        <sortField name="action_title" table="activity_log" ascending="true"/>
+        <field name="action_title" table="activity_log"/>
+        <field name="status" table="activity_log" >
+        		<title>Action Item Status</title>
+        </field>
+        <field name="date_completed" table="activity_log" />
+        <field name="completed_by" table="activity_log" />
+        <field name="duration_act" table="activity_log" />
+        <field name="hours_actual" table="activity_log" />
+        <field name="wbs_id" table="activity_log"/>
+        <field name="activity_log_id" table="activity_log"/>
+        <field name="comments" table="activity_log" />
+    </panel>
+</view>

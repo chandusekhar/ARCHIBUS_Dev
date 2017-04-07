@@ -1,0 +1,48 @@
+<view version="2.0">
+    <dataSource id="abWasteRptAmountsCommonDs" type="grouping"> 
+        <sql dialect="generic">
+            SELECT wo.*,
+            ${parameters["groupByField"]} ${sql.as} vf_waste_out_group_by_field,
+            (CASE WHEN   
+                ${parameters["quantity"]} IS NULL THEN 0  
+            ELSE
+                ${parameters["quantity"]} 
+            END) ${sql.as} quantity1  
+            FROM waste_out ${sql.as} wo, bill_unit ${sql.as} bu, bill_type ${sql.as} bt, waste_profiles ${sql.as} wp 
+            WHERE wo.units = bu.bill_unit_id AND wo.units_type = bt.bill_type_id 
+                AND wo.waste_profile = wp.waste_profile AND wo.units_type = bu.bill_type_id 
+        </sql>
+        <table name="waste_out" role="main"/>
+        <field name="vf_waste_out_group_by_field" groupBy="true"/>
+        <field name="quantity" formula="sum" dataType="number" numericFormat="Default" baseField="waste_out.quantity1" decimals="4">
+            <title translatable="true">Quantity</title>
+        </field>
+        <parameter name="groupByField" dataType="verbatim" value="wp.waste_type"/>
+        <parameter name="summaryValueForThisGroup" dataType="text" value=""/>   
+        <parameter name="consoleRestriction" dataType="verbatim" value="1=2"/>
+        <parameter name="composedRestriction" dataType="verbatim" value="1=1"/>
+        <parameter name="defaultConversionFactor" dataType="verbatim" 
+            value="(SELECT conversion_factor FROM bill_unit,bill_type 
+                WHERE  bill_type.bill_type_id = bill_unit.bill_type_id  
+                    AND bill_type.bill_type_id LIKE ('REPORTS%'${sql.concat}RTRIM(wo.units_type)) 
+                    AND bill_type.activity_id = 'AbRiskWasteMgmt' AND IS_dflt=1)"/>
+        <parameter name="alternativeConversionFactor" dataType="verbatim" 
+            value="(SELECT conversion_factor FROM bill_unit 
+                WHERE  bill_unit_id =( SELECT min(bill_unit.bill_unit_id)  
+                FROM bill_unit,bill_type 
+                WHERE bill_type.bill_type_id = bill_unit.bill_type_id 
+                    AND bill_type.activity_id = 'AbRiskWasteMgmt'  
+                    AND bill_type.bill_type_id LIKE ('REPORTS%'${sql.concat}RTRIM(wo.units_type)))
+                    AND bill_unit.bill_type_id LIKE  ('REPORTS%'${sql.concat}RTRIM(wo.units_type)))"/>
+        <parameter name="quantity" dataType="verbatim"
+            value="(wo.quantity * bu.conversion_factor / 
+                    (CASE WHEN ${parameters['defaultConversionFactor']} 
+                         IS NOT NULL THEN ${parameters['defaultConversionFactor']} 
+                     ELSE ${parameters['alternativeConversionFactor']}
+                     END))"/>
+        
+        <restriction type="sql" sql="${parameters['composedRestriction']}"/>
+        
+        <sortField name="vf_waste_out_group_by_field" ascending="true" />
+    </dataSource>
+</view>

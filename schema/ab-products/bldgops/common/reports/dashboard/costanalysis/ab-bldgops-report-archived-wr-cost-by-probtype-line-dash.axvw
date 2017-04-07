@@ -1,0 +1,67 @@
+<view version="2.0">
+	<message name="perventive" translatable="true">PREVENTIVE MAINT</message>
+	<message name="maint_corrective" translatable="true">MAINT - CORRECTIVE EXPENSE</message>
+	<message name="maint_preventive" translatable="true">MAINT - PREVENTIVE EXPENSE</message>
+
+	<dataSource id="abBldgopsReportArchivedWrCostByMonthDataAxisDS0" type="grouping">
+		 <sql dialect="generic">
+			SELECT 	${sql.yearMonthOf('wrhwr.date_completed')} as month
+			FROM wrhwr  LEFT JOIN eq on eq.eq_id=wrhwr.eq_id 
+			WHERE   		wrhwr.status IN ('Com','Clo') 
+						AND ${sql.yearMonthDayOf('wrhwr.date_completed')} &gt;= ${parameters['monthStart']} 
+						AND ${sql.yearMonthDayOf('wrhwr.date_completed')} &lt;= ${parameters['monthEnd']} 
+						AND  ${parameters['parentRestriction']}  
+
+		</sql>  
+		<table name="wrhwr" role="main"/>
+		<field name="month" dataType="text"  groupBy="true"/>
+		<parameter name="monthStart" dataType="text" value="2002-01-01" />
+		<parameter name="monthEnd" dataType="text" value="2010-12-01" />
+		<parameter name="parentRestriction" dataType="verbatim" value=" 1=1 " />
+	</dataSource>
+
+	<dataSource id="abBldgopsReportArchivedWrCostByMonthDataAxisDS" type="grouping">
+		<!--Get cost value by month of summaryValueForThisGroup ,the value was caculated by four causes as below -->
+		<sql dialect="generic">
+			SELECT 
+				  ${sql.yearMonthOf('wrhwr.date_completed')} as month,
+				  wrhwr.prob_type ${sql.as} prob_type,
+				  wrhwr.cost_total ${sql.as} month_value
+				  FROM wrhwr  LEFT JOIN eq on eq.eq_id=wrhwr.eq_id 
+				  WHERE  wrhwr.status IN ('Com','Clo') 
+						AND ${sql.yearMonthOf('wrhwr.date_completed')} &gt;= ${parameters['monthStart']} 
+						AND ${sql.yearMonthOf('wrhwr.date_completed')} &lt;= ${parameters['monthEnd']} 
+						AND  ${parameters['parentRestriction']}  
+				                AND ${sql.yearMonthOf('wrhwr.date_completed')} = ${parameters['summaryValueForThisGroup']}
+		</sql>	
+		<table name="wrhwr" role="main"/>
+		<field name="prob_type"  dataType="text" groupBy="true"  />
+		<field name="month_value_total" formula="sum" baseField="wrhwr.month_value" dataType="number"/>
+		<parameter name="monthStart" dataType="text" value="2002-01-01" />
+		<parameter name="monthEnd" dataType="text" value="2010-12-01" />
+		<parameter name="parentRestriction" dataType="verbatim" value=" 1=1 " />
+	        <parameter name="summaryValueForThisGroup" dataType="text" value=""/>	
+		<sortField name="prob_type" table="wrhwr" ascending="false"/>
+	</dataSource>
+
+	<panel id="abBldgopsReportArchivedWrCostByProbtypeLineChart" showLegendOnLoad="false" type="chart" controlType="lineChart" legendLocation="right">
+		<title translatable="true">Costs of Completed Work Requests by Problem Type</title>
+		<action id="showCostByMonthCrossTable" imageName="/schema/ab-system/graphics/ab-icon-report.gif">
+			<tooltip  translatable="true">Report</tooltip>
+			<command type="openDialog" viewName="ab-bldgops-report-archived-wr-cost-by-probtype-summary-dash.axvw"/>
+		</action>  
+		<event type="onClickItem">                 
+			<command type="callFunction" functionName="onCostByProbTypeLineClick"/>
+		</event>
+		<groupingAxis table="wrhwr" field="month" dataSource="abBldgopsReportArchivedWrCostByMonthDataAxisDS0">
+			<title translatable="true">Month</title>
+		</groupingAxis>
+		<secondaryGroupingAxis table="wrhwr" field="prob_type" dataSource="abBldgopsReportArchivedWrCostByMonthDataAxisDS" />
+		<dataAxis table="wrhwr" field="month_value_total" dataSource="abBldgopsReportArchivedWrCostByMonthDataAxisDS">
+			<title translatable="true"></title>
+		</dataAxis>
+	</panel>
+	
+	<js file="ab-bldgops-report-archived-wr-cost-by-probtype-line-dash.js" />
+	<js file="ab-bldgops-report-common.js" />
+</view>

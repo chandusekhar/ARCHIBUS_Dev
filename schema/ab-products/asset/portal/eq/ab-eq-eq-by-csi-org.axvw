@@ -1,0 +1,134 @@
+<view version="2.0">
+	<js file="ab-eq-eq-by-csi-org.js"/>	
+	
+	<message name="world" translatable="true">WORLD</message>
+    <message name="titleBusinessUnitCode" translatable="true">Business Unit Code</message>
+    <message name="titleDivisionCode" translatable="true">Division Code</message>
+    <message name="titleDeptCode" translatable="true">Department Code</message>
+    <message name="titleBldgUse" translatable="true">Building Use</message>
+    <message name="titleBldgCode" translatable="true">Building Code</message>
+	
+	<layout type="nestedLayout" id="mainLayout">
+    	<west autoScroll="true" split="true" initialSize="25%"/>
+    	<center autoScroll="true" />
+	</layout>
+	
+	<dataSource id="dsTreeWorld">
+		
+		<sql dialect="sybase">
+			select  'world' ${sql.as} world from dummy
+    	</sql>
+		
+		<sql dialect="oracle">
+			select  'world' ${sql.as} world from dual
+    	</sql>
+		
+		<sql dialect="sqlserver">
+			select  'world' ${sql.as} world 
+    	</sql>
+	    
+		<table name="ctry" role="main"/>
+		<field name="world" table="ctry" dataType="text"/>
+	</dataSource>
+	
+	<dataSource id="dsTreeBusinessUnit" type="grouping">
+	    
+		<table name="dv" role="main"/>
+		<field table="dv" name="bu_id" groupBy="true"/>
+        <restriction type="sql" sql="dv.bu_id IS NOT NULL AND EXISTS (SELECT 1 FROM eq,bl WHERE eq.dv_id = dv.dv_id AND bl.bl_id = eq.bl_id AND bl.use1 IS NOT NULL AND ${parameters['filterConsole']})"/>
+		<parameter dataType="verbatim" name="filterConsole" value="1=1"/>
+	</dataSource>
+	
+	<dataSource id="dsTreeDivision">
+	    
+		<table name="dv" role="main"/>
+		<field table="dv" name="dv_id"/>
+		<restriction type="sql" sql="EXISTS (SELECT 1 FROM eq,bl WHERE eq.dv_id = dv.dv_id AND bl.bl_id = eq.bl_id AND bl.use1 IS NOT NULL AND ${parameters['filterConsole']})"/>
+		<parameter dataType="verbatim" name="filterConsole" value="1=1"/>
+	</dataSource>
+	
+	<dataSource id="dsTreeDepartment" type="grouping">
+	    
+		<table name="eq" role="main"/>
+		<field table="eq" name="dp_id" groupBy="true"/>
+		<field table="eq" name="dv_id" groupBy="true"/>
+		<restriction type="sql" sql="EXISTS (SELECT 1 FROM bl WHERE bl.bl_id = eq.bl_id AND bl.use1 IS NOT NULL AND ${parameters['filterConsole']})"/>
+		<parameter dataType="verbatim" name="filterConsole" value="1=1"/>
+	</dataSource>
+	
+	<dataSource id="dsTreeBldgUse" type="grouping">
+    
+	    <table name="bl" role="main"/>
+		<field table="bl" name="use1" groupBy="true"/>
+		<restriction type="sql" sql="bl.use1 IS NOT NULL AND bl.bl_id IN (SELECT DISTINCT eq.bl_id FROM eq WHERE ${parameters['dvAndDp']} AND ${parameters['filterConsole']})"/>
+		<parameter dataType="verbatim" name="filterConsole" value="1=1"/>
+		<parameter dataType="verbatim" name="dvAndDp" value="1=1"/>
+	</dataSource>
+	
+	<dataSource id="dsTreeBldgs">
+    
+		<table name="bl" role="main"/>
+		<field table="bl" name="bl_id"/>
+		<field table="bl" name="name"/>
+		<field table="bl" name="lat"/>
+		<field table="bl" name="lon"/>
+		<restriction type="sql" sql="bl.bl_id IN (SELECT DISTINCT eq.bl_id FROM eq WHERE ${parameters['dvAndDp']} AND ${parameters['filterConsole']})"/>
+		<parameter dataType="verbatim" name="filterConsole" value="1=1"/>
+		<parameter dataType="verbatim" name="dvAndDp" value="1=1"/>
+	</dataSource>	
+		
+		
+	<panel type="tree" id="org_world_tree" dataSource="dsTreeWorld" layout="mainLayout" region="west">
+        <action id="geoTreeButton">
+            <title translatable="true">Geographical Tree</title>
+            <command type="callFunction" functionName="View.getOpenerView().controllers.get('abEqEqByCsiCtrl').switchTree('ab-eq-eq-by-csi-geo.axvw')"/>
+        </action>
+        <action id="orgTreeButton">
+            <title translatable="true">Organizational Tree</title>
+            <command type="callFunction" functionName="View.getOpenerView().controllers.get('abEqEqByCsiCtrl').switchTree('ab-eq-eq-by-csi-org.axvw')"/>
+        </action>
+        <action id="csiTreeButton">
+            <title translatable="true">CSI Tree</title>
+            <command type="callFunction" functionName="View.getOpenerView().controllers.get('abEqEqByCsiCtrl').switchTree('ab-eq-eq-by-csi-csi.axvw')"/>
+        </action>
+		
+		<event type="onClickNode">
+        	<command type="callFunction" functionName="onClickTreeNode"/>
+        </event>
+		<panel type="tree" id="organizational_tree" dataSource="dsTreeBusinessUnit">
+           <event type="onClickNode">
+        		<command type="callFunction" functionName="onClickTreeNode"/>
+        	</event> 
+        </panel>
+		<panel type="tree" id="region_tree" dataSource="dsTreeDivision">
+           <event type="onClickNode">
+        		<command type="callFunction" functionName="onClickTreeNode"/>
+        	</event> 
+        </panel>
+		<panel type="tree" id="state_tree" dataSource="dsTreeDepartment">
+            <event type="onClickNode">
+        		<command type="callFunction" functionName="onClickTreeNode"/>
+        	</event>	
+		</panel>
+		<panel type="tree" id="city_tree" dataSource="dsTreeBldgUse">
+            <event type="onClickNode">
+        		<command type="callFunction" functionName="onClickTreeNode"/>
+        	</event>		
+        </panel>
+		<panel type="tree" id="site_tree" dataSource="dsTreeBldgs">
+            <event type="onClickNode">
+        		<command type="callFunction" functionName="onClickTreeNode"/>
+        	</event>			
+        </panel>
+	</panel>
+
+    <tabs workflow="free" id="abEqEqByCsiOrg_tabs" tabRefreshPolicy="refreshOnLoad" layout="nestedLayout" region="center">
+        <tab name="statisticsTab" file="ab-eq-eq-by-csi-stat-tab.axvw" selected="true" useFrame="false">
+            <title translatable="true">Statistics</title>
+        </tab>
+        <tab name="equipmentTab" file="ab-eq-eq-by-csi-eq-tab.axvw" useFrame="false">
+            <title translatable="true">Equipment</title>
+        </tab>
+    </tabs>
+				
+</view>

@@ -1,0 +1,256 @@
+<view version="2.0">
+    <js file="ab-sp-proposed-moves-create-wo.js"/>
+
+    <message name="selectBuilding">Building Code</message>
+    
+	<message name="projetAlreadyExists">already exists. Please input a different project code</message>
+    <message name="wrongDates">The End Date should be greater or equal to the Start Date.</message>
+    <mesasge name="project">Project</mesasge>
+    <message name="created">The Moved Order has been created. You can manage this Move Order using the Enterprise Move Management application.</message>
+    <message name="noMoveLicense">You must have a license for Enterprise Move Management to create Move Orders.</message>
+    
+    <panel type="form" id="markSpaceAsUnavailableForm" dataSource="none" showOnLoad="true" buttonsPosition="top">
+		<title>Group Options</title>
+        <instructions>Before filling in Move Order details, please choose how to group your Move Orders.</instructions>
+        <field>
+            <title>Group Move Orders by:</title>
+            <html>
+                <div>
+                    <ul>
+                        <li height="50">
+                            <input type="radio" id="eventDate" name="typeOfSplit" value="eventDate" checked="true"/>
+                            <label for="eventDate" translatable="true">Allocation Event and Start Date</label>
+                        </li>
+                        <li>
+                        </li>
+                        <li height="50">
+                            <input type="radio" id="eventDateOrg" name="typeOfSplit" value="eventDateOrg"/>
+                            <label for="eventDateOrg" translatable="true">Allocation Event, Start Date, and Organization</label>
+                        </li>
+                        <li height="50">
+                            <input type="radio" id="date" name="typeOfSplit" value="date"/>
+                            <label for="date" translatable="true">Start Date</label>
+                        </li>
+                        <li>
+                        </li>
+                        <li height="50">
+                            <input type="radio" id="org" name="typeOfSplit" value="org"/>
+                            <label for="org" translatable="true">Organization only</label>
+                        </li>
+                        <li>
+                        </li>
+                        <li height="50">
+                            <input type="radio" id="none" name="typeOfSplit" value="none"/>
+                            <label for="none" translatable="true">No grouping</label>
+                        </li>
+                        <li height="150">
+							<a id="createMoveOrder" class="mediumAction button" style="margin-left:5px;" translatable="true">Create Move Order</a>
+                        </li>
+                    </ul>
+                </div>
+            </html>
+        </field>        
+    </panel>
+
+	<dataSource id="groupByDateDS" type="grouping">
+		<table name="gp" role="main"/>
+		<table name="portfolio_scenario" role="standard"/>
+		<field table="portfolio_scenario" name="portfolio_scenario_id" groupBy="true"/>
+		<field table="gp" name="date_start"  groupBy="true"/>
+		<restriction type="sql" sql=" gp.parent_group_id IS NOT NULL and gp.allocation_type = 'Allocated Area' and (select bl_id${sql.concat}'-'${sql.concat}fl_id from gp ${sql.as} a where a.gp_id =  gp.parent_group_id ) != (bl_id${sql.concat}'-'${sql.concat}fl_id ) "/>
+	</dataSource>
+	<panel type="grid" id="date_moveGroupsGrid" dataSource="groupByDateDS" showOnLoad="false">
+		<title>Group Move By Start Date</title>
+		<field table="gp" name="date_start"/>
+        <field controlType="button" id="create">
+            <title>Create Move Order</title>
+            <command type="openDialog" panelId="createGroupMoveOrderForm" newRecord="true" closeButton="false"/>
+        </field>        
+    </panel>
+
+	<dataSource id="groupByEventAndDateDS" type="grouping">
+		<table name="gp" role="main"/>
+		<table name="portfolio_scenario" role="standard"/>
+		<field table="portfolio_scenario" name="portfolio_scenario_id" groupBy="true"/>
+		<field table="gp" name="event_name" groupBy="true"/>
+		<field table="gp" name="date_start"  groupBy="true"/>
+		<restriction type="sql" sql=" gp.parent_group_id IS NOT NULL and gp.allocation_type = 'Allocated Area' and (select bl_id${sql.concat}'-'${sql.concat}fl_id from gp ${sql.as} a where a.gp_id =  gp.parent_group_id ) != (bl_id${sql.concat}'-'${sql.concat}fl_id ) "/>
+	</dataSource>
+	<panel type="grid" id="event_date_moveGroupsGrid" dataSource="groupByEventAndDateDS" showOnLoad="false">
+		<title>Group Move By Event and Start Date</title>
+		<field table="gp" name="event_name"/>
+		<field table="gp" name="date_start"/>
+        <field controlType="button" id="create">
+            <title>Create Move Order</title>
+            <command type="openDialog" panelId="createGroupMoveOrderForm" newRecord="true" closeButton="false"/>
+        </field>        
+    </panel>
+
+	<dataSource id="groupByEventAndDateAndOrgDS" type="grouping">
+		<table name="gp" role="main"/>
+		<table name="portfolio_scenario" role="standard"/>
+		<field table="portfolio_scenario" name="portfolio_scenario_id" groupBy="true"/>
+		<field table="gp" name="event_name" groupBy="true"/>
+		<field table="gp" name="date_start"  groupBy="true"/>
+		<field table="gp" name="org" dataType="text"  groupBy="true">
+			<sql dialect="generic">
+			( 
+				case when portfolio_scenario.scn_level='bu' then gp.planning_bu_id 
+						when portfolio_scenario.scn_level='dv' then gp.dv_id 
+						when portfolio_scenario.scn_level='dp' then gp.dv_id ${sql.concat}'-'${sql.concat} gp.dp_id 
+						else gp.dv_id ${sql.concat}'-'${sql.concat} gp.dp_id 
+				end 
+			)
+			</sql>
+		</field>
+		<restriction type="sql" sql=" gp.parent_group_id IS NOT NULL and gp.allocation_type = 'Allocated Area' and (select bl_id${sql.concat}'-'${sql.concat}fl_id from gp ${sql.as} a where a.gp_id =  gp.parent_group_id ) != (bl_id${sql.concat}'-'${sql.concat}fl_id ) "/>
+	</dataSource>
+	<panel type="grid" id="event_date_org_moveGroupsGrid" dataSource="groupByEventAndDateAndOrgDS" showOnLoad="false">
+		<title>Group Move By Event, Start Date and Organization</title>
+		<field table="gp" name="event_name"/>
+		<field table="gp" name="date_start"/>
+		<field table="gp" name="org">
+			<title>Organization</title>
+		</field>
+        <field controlType="button" id="create">
+            <title>Create Move Order</title>
+            <command type="openDialog" panelId="createGroupMoveOrderForm" newRecord="true" closeButton="false"/>
+        </field>        
+    </panel>
+
+	<dataSource id="groupByOrgDS" type="grouping">
+		<table name="gp" role="main"/>
+		<table name="portfolio_scenario" role="standard"/>
+		<field table="portfolio_scenario" name="portfolio_scenario_id" groupBy="true"/>
+		<field table="gp" name="org" dataType="text"  groupBy="true">
+			<sql dialect="generic">
+			( 
+				case when portfolio_scenario.scn_level='bu' then gp.planning_bu_id 
+						when portfolio_scenario.scn_level='dv' then gp.dv_id 
+						when portfolio_scenario.scn_level='dp' then gp.dv_id ${sql.concat}'-'${sql.concat} gp.dp_id 
+						else gp.dv_id ${sql.concat}'-'${sql.concat} gp.dp_id 
+				end 
+			)
+			</sql>
+		</field>
+		<restriction type="sql" sql=" gp.parent_group_id IS NOT NULL and gp.allocation_type = 'Allocated Area' and (select bl_id${sql.concat}'-'${sql.concat}fl_id from gp ${sql.as} a where a.gp_id =  gp.parent_group_id ) != (bl_id${sql.concat}'-'${sql.concat}fl_id ) "/>
+	</dataSource>
+	<panel type="grid" id="org_moveGroupsGrid" dataSource="groupByOrgDS" showOnLoad="false">
+		<title>Group Move By Organization</title>
+		<field table="gp" name="org">
+			<title>Organization</title>
+		</field>
+        <field controlType="button" id="create">
+            <title>Create Move Order</title>
+            <command type="openDialog" panelId="createGroupMoveOrderForm" newRecord="true" closeButton="false"/>
+        </field>        
+    </panel>
+
+	<dataSource id="groupByNoneDS" type="grouping">
+		<table name="gp" role="main"/>
+		<table name="portfolio_scenario" role="standard"/>
+		<field table="portfolio_scenario" name="portfolio_scenario_id" groupBy="true"/>
+		<field table="gp" name="name"  groupBy="true"/>
+		<field table="gp" name="gp_id"  groupBy="true"/>
+		<field table="gp" name="date_start"  groupBy="true"/>
+		<field table="gp" name="event_name" groupBy="true"/>
+		<restriction type="sql" sql=" gp.parent_group_id IS NOT NULL and gp.allocation_type = 'Allocated Area' and (select bl_id${sql.concat}'-'${sql.concat}fl_id from gp ${sql.as} a where a.gp_id =  gp.parent_group_id ) != (bl_id${sql.concat}'-'${sql.concat}fl_id ) "/>
+	</dataSource>
+	<panel type="grid" id="none_moveGroupsGrid" dataSource="groupByNoneDS" showOnLoad="false">
+		<title>Group Move By None</title>
+		<field table="gp" name="event_name"/>
+		<field table="gp" name="name"/>
+		<field table="gp" name="gp_id"/>
+		<field table="gp" name="date_start"/>
+        <field controlType="button">
+            <title>Create Move Order</title>
+            <command type="openDialog" panelId="createGroupMoveOrderForm" newRecord="true" closeButton="false"/>
+        </field>        
+    </panel>
+
+    <dataSource id="createGroupMoveOrderDs">
+        <table name="project" role="main" />
+        <field name="project_id" table="project" />
+        <field name="description" table="project"  />
+        <field name="bl_id" table="project" />
+        <field name="dept_contact" table="project" />
+        <field name="requestor" table="project" />
+        <field name="date_start" table="project" />
+        <field name="date_end" table="project" />
+        <field name="status" table="project" />
+        <field name="contact_id" table="project" />
+        <field name="project_type" table="project" />
+    </dataSource>
+    <panel id="createGroupMoveOrderForm" type="form" columns="1" dataSource="createGroupMoveOrderDs" newRecord="true" buttonsPosition="top" showOnLoad="false">
+		<title translatable="true">Group Move Detail</title>
+        <action id="createGroupMoveOrder">
+            <title translatable="true">OK</title>
+			<command type="callFunction" functionName="abSpProposedMovesCreateWoCtrl.onCreateGroupMoveOrder()" />
+			<command type="closeDialog" />
+        </action>
+        <action id="cancel">
+            <title translatable="true">Cancel</title>
+			<command type="closeDialog" />
+        </action>
+        <field name="project_id" table="project" required="true" />
+        <field name="description" table="project" required="true"/>
+        <field name="bl_id" table="project" required="true" />
+        <field name="dept_contact" table="project" required="true" />
+        <field name="requestor" table="project" readOnly="true" value="${user.employee.id}"/>
+        <field name="date_start" table="project" required="true">
+            <title translatable="true">Requested Start Date</title>
+        </field>
+        <field name="date_end" table="project" required="true">
+            <title translatable="true">Requested End Date</title>
+        </field>
+        <field name="contact_id" table="project"/>
+        <field name="project_type" table="project"  hidden="true" value="Move" />
+    </panel>
+
+	<dataSource id="gpEmDs">
+		<sql dialect="generic">
+			select  em.em_id,  em.bl_id ${sql.as} from_bl_id, em.fl_id  ${sql.as} from_fl_id , em.rm_id  ${sql.as} from_rm_id, gp.bl_id ${sql.as} to_bl_id, gp.fl_id ${sql.as} to_fl_id   
+			from gp	left outer join portfolio_scenario on  portfolio_scenario.portfolio_scenario_id=gp.portfolio_scenario_id,  
+					em	left outer join rm on em.bl_id=rm.bl_id and em.fl_id=rm.fl_id and em.rm_id=rm.rm_id 			
+							left outer join dv on rm.dv_id=dv.dv_id 
+			where exists 	( select 1 from gp ${sql.as} p
+										where   p.bl_id=rm.bl_id and p.fl_id=rm.fl_id 
+													and ( p.planning_bu_id is null or p.planning_bu_id=dv.bu_id ) 
+													and ( p.dv_id is null or p.dv_id=rm.dv_id ) 
+													and ( p.dp_id is null or p.dp_id=rm.dp_id ) 
+													and gp.parent_group_id=p.gp_id 
+						)
+						and gp.parent_group_id IS NOT NULL and gp.allocation_type = 'Allocated Area' 
+						and (select a.bl_id${sql.concat}'-'${sql.concat}a.fl_id from gp ${sql.as} a where a.gp_id =  gp.parent_group_id ) != (gp.bl_id${sql.concat}'-'${sql.concat}gp.fl_id )
+						and ${parameters['gpRestriction']} 
+				group by  em.em_id,  em.bl_id, em.fl_id, em.rm_id,   gp.bl_id, gp.fl_id   
+		</sql>
+        <table name="em" role="main" />
+        <field name="from_bl_id" dataType="text"/>
+        <field name="from_fl_id" dataType="text"/>
+        <field name="from_rm_id" dataType="text"/>
+        <field name="to_bl_id" dataType="text"/>
+        <field name="to_fl_id" dataType="text"/>
+        <field name="em_id" dataType="text"/>
+		<parameter name="gpRestriction" dataType="verbatim" value="1=1"/>
+    </dataSource>
+
+	<dataSource id="groupDS">
+		<table name="gp" role="main"/>
+		<table name="portfolio_scenario" role="standard"/>
+		<field table="portfolio_scenario" name="portfolio_scenario_id"/>
+		<field table="gp" name="name"/>
+		<field table="gp" name="gp_id"/>
+		<field table="gp" name="bl_id"/>
+		<field table="gp" name="fl_id"/>
+		<field table="gp" name="date_start"/>
+		<field table="gp" name="event_name"/>
+        <field table="gp" name="fromBl" dataType="text"> 
+			<sql dialect="generic">
+					( select g.bl_id from gp ${sql.as} g where g.gp_id =  gp.parent_group_id ) 
+			</sql>
+        </field>
+
+		<restriction type="sql" sql=" gp.parent_group_id IS NOT NULL and gp.allocation_type = 'Allocated Area' and (select a.bl_id${sql.concat}'-'${sql.concat}a.fl_id from gp ${sql.as} a where a.gp_id =  gp.parent_group_id ) != (gp.bl_id${sql.concat}'-'${sql.concat}gp.fl_id ) "/>
+	</dataSource>
+</view>

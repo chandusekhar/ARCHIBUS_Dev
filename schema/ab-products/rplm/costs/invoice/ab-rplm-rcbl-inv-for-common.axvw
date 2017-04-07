@@ -1,0 +1,135 @@
+<view version="2.0">
+  <message name="ls_id_label" translatable="true">Lease Code</message>
+  <message name="bl_id_label" translatable="true">Building Code</message>
+  <message name="pr_id_label" translatable="true">Property Code</message>
+  <message name="ac_id_label" translatable="true">Account Code</message>
+
+  <js file="ab-rplm-rcbl-inv-for-common.js"/>
+
+  <dataSource id="abRplmRcblInvForCommon_invoicesDs">
+	<table name="invoice" role="main"/>
+	<field table="invoice" name="invoice_id"/>
+	<field table="invoice" name="status"/>
+	<field table="invoice" name="groupingField" dataType="text">
+        <sql dialect="generic">${parameters['groupByField']}</sql>
+    </field>
+	<field table="invoice" name="contact_id_send_to"/>
+	<field table="invoice" name="terms"/>
+	<field table="invoice" name="date_sent"/>
+	<field table="invoice" name="date_expected_rec"/>
+	<field table="invoice" name="amount_tot_invoice"/>
+    <field table="invoice" name="amount_vat_invoice"/>
+    <field table="invoice" name="amount_base_invoice"/>
+    <field table="invoice" name="currency_invoice"/>
+	<field table="invoice" name="amount_closed"/>
+	<field table="invoice" name="amount_balance_with_mcvat" dataType="number" size="12" decimals="2" currencyField="invoice.currency_invoice">
+		<sql dialect="generic">amount_tot_invoice - amount_closed</sql>
+	</field>
+    <field table="invoice" name="amount_balance" dataType="number" size="12" decimals="2">
+        <sql dialect="generic">amount_tot_invoice - amount_closed</sql>
+    </field>
+	<field table="invoice" name="description"/>
+	<parameter name="groupByField" dataType="verbatim" value="ls_id"/>
+    <parameter name="groupByFieldRestriction" dataType="verbatim" value="1=1"/>
+	<restriction type="sql" 
+             sql=" ${parameters['groupByFieldRestriction']} AND invoice.project_id IS NULL"/>
+  </dataSource>
+ 
+  <dataSource id="abRplmRcblInvForCommon_costsDs">
+	<table name="cost_tran" role="main"/>
+	<field table="cost_tran" name="cost_tran_id"/>
+	<field table="cost_tran" name="date_due"/>
+	<field table="cost_tran" name="cost_cat_id"/>
+    <field table="cost_tran" name="net_amount" dataType="number" size="12" decimals="2">
+        <sql dialect="generic">
+            (cost_tran.amount_income - cost_tran.amount_expense)
+        </sql>
+    </field>
+    <field table="cost_tran" name="net_base_amount" dataType="number" size="12" decimals="2" currencyField="cost_tran.currency_payment">
+        <sql dialect="generic">
+            (cost_tran.amount_income_base_payment - cost_tran.amount_expense_base_payment)
+        </sql>
+    </field>
+    <field table="cost_tran" name="net_vat_amount" dataType="number" size="12" decimals="2" currencyField="cost_tran.currency_payment">
+         <sql dialect="generic">
+            (cost_tran.amount_income_vat_payment - cost_tran.amount_expense_vat_payment)
+        </sql>
+    </field>
+    <field table="cost_tran" name="net_total_amount" dataType="number" size="12" decimals="2" currencyField="cost_tran.currency_payment">
+        <sql dialect="generic">
+            (cost_tran.amount_income_base_payment - cost_tran.amount_expense_base_payment + cost_tran.amount_income_vat_payment - cost_tran.amount_expense_vat_payment)
+        </sql>
+    </field>
+    <field table="cost_tran" name="currency_payment"/>
+	<field table="cost_tran" name="description"/>
+    <field table="cost_tran" name="cam_cost"/>
+	<parameter name="invoice_id" dataType="verbatim" value=""/>
+	<restriction type="sql" 
+             sql=" ${parameters['invoice_id']} "/>
+  </dataSource>
+
+  <panel type="grid" id="abRplmRcblInvForCommon_invoices" dataSource="abRplmRcblInvForCommon_invoicesDs" showOnLoad="false" layoutRegion="row2col1">
+    <title translatable="true">Invoices</title>
+    <action id="refresh">
+      <title translatable="true">Refresh</title>
+      <command type="callFunction" functionName="refreshInvoicePanel"></command>
+    </action>
+	<field table="invoice" name="invoice_id" controlType="link" onclick="loadCosts"/>
+	<field table="invoice" name="status" controlType="link" onclick="loadCosts"/>
+	<field table="invoice" name="groupingField" controlType="link" onclick="loadCosts">
+        <title translatable="false">Lease Code</title>
+    </field>
+	<field table="invoice" name="contact_id_send_to" controlType="link" onclick="loadCosts"/>
+	<field table="invoice" name="terms" controlType="link" onclick="loadCosts"/>
+	<field table="invoice" name="date_sent" controlType="link" onclick="loadCosts"/>
+	<field table="invoice" name="date_expected_rec" controlType="link" onclick="loadCosts"/>
+	<field table="invoice" name="amount_tot_invoice" controlType="link" onclick="loadCosts"/>
+    <field table="invoice" name="amount_vat_invoice" controlType="link" onclick="loadCosts" hidden="${View.activityParameters['AbCommonResources-EnableVatAndMultiCurrency'] == 0}"/>
+    <field table="invoice" name="amount_base_invoice" controlType="link" onclick="loadCosts" hidden="${View.activityParameters['AbCommonResources-EnableVatAndMultiCurrency'] == 0}"/>
+	<field table="invoice" name="amount_closed" controlType="link" onclick="loadCosts"/>
+	<field table="invoice" name="amount_balance_with_mcvat" dataType="number" size="12" decimals="2" controlType="link" onclick="loadCosts" hidden="${View.activityParameters['AbCommonResources-EnableVatAndMultiCurrency'] == 0}">
+		<title translatable="true">Amount Balance</title>
+	</field>
+    <field table="invoice" name="amount_balance" dataType="number" size="12" decimals="2" controlType="link" onclick="loadCosts" hidden="${View.activityParameters['AbCommonResources-EnableVatAndMultiCurrency'] == 1}">
+        <title translatable="true">Amount Balance</title>
+    </field>
+    <field table="invoice" name="currency_invoice" controlType="link" onclick="loadCosts" hidden="${View.activityParameters['AbCommonResources-EnableVatAndMultiCurrency'] == 0}"/>
+    <field table="invoice" name="description" controlType="link" onclick="loadCosts"/>
+  </panel>
+
+  <panel type="grid" id="abRplmRcblInvForCommon_costs" dataSource="abRplmRcblInvForCommon_costsDs" showOnLoad="false" layoutRegion="row1col2">
+    <title translatable="true">Costs</title>
+    <action id="refresh">
+      	<title translatable="true">Refresh</title>
+        <command type="callFunction" functionName="refreshCostPanel"/>
+    </action>
+	<action id="exportPdf">
+		<title translatable="true">PDF</title>
+		<command type="exportPanel" outputType="pdf" panelId="abRplmRcblInvForCommon_costs" viewName="ab-rplm-rcbl-inv-for-common.axvw"/>
+	</action>
+	<action id="exportXls">
+		<title translatable="true">XLS</title>
+		<command type="exportPanel" outputType="xls" panelId="abRplmRcblInvForCommon_costs" viewName="ab-rplm-rcbl-inv-for-common.axvw"/>
+	</action>
+	<field table="cost_tran" name="cost_tran_id"/>
+	<field table="cost_tran" name="date_due"/>
+	<field table="cost_tran" name="cost_cat_id"/>
+    <field name="net_amount" dataType="number" size="12" decimals="2" hidden="${View.activityParameters['AbCommonResources-EnableVatAndMultiCurrency'] == 1}">
+        <title translatable="true">Net Amount</title>
+    </field>
+    <field name="net_base_amount" dataType="number" size="12" decimals="2" hidden="${View.activityParameters['AbCommonResources-EnableVatAndMultiCurrency'] == 0}">
+        <title translatable="true">Net Base</title>
+    </field>
+    <field name="net_vat_amount" dataType="number" size="12" decimals="2" hidden="${View.activityParameters['AbCommonResources-EnableVatAndMultiCurrency'] == 0}">
+        <title translatable="true">Net VAT</title>
+    </field>
+    <field name="net_total_amount" dataType="number" size="12" decimals="2" hidden="${View.activityParameters['AbCommonResources-EnableVatAndMultiCurrency'] == 0}">
+        <title translatable="true">Net Total Amount</title>
+    </field>
+    <field name="currency_payment" hidden="${View.activityParameters['AbCommonResources-EnableVatAndMultiCurrency'] == 0}"/> 
+    <field table="cost_tran" name="cam_cost">
+        <title translatable="true">CAM Cost?</title>
+    </field>
+	<field table="cost_tran" name="description"/>
+  </panel>
+</view>

@@ -1,0 +1,160 @@
+<!-- This is the master assembly view. It displays a tab panel, initially with a single tab page.
+     The first tab page displays the search console and the list of work requests.
+     If the user selects a work request to review or edit, a new tab page is created to display the work request.
+     The user can go back to the first tab and select another request, which will be displayed in another tab.
+     If the user selects a request, and it is already displayed in a tab, the existing tab will be reused. -->
+
+<view version="2.0">
+	<title translatable="true">Find-Manage Assembly with Dynamic Tab Pages</title>
+    
+    <js file="ab-ex-work-request-dynamic-tabs.js"/>
+
+    <dataSource id="exWorkRequestDynamicTabs_ds">
+        <table name="wr" role="main"/>
+        
+        <field table="wr" name="wr_id"/>
+        <field table="wr" name="bl_id"/>
+        <field table="wr" name="requestor"/>
+        <field table="wr" name="phone"/>
+        <field table="wr" name="eq_id"/>
+        <field table="wr" name="fl_id"/>
+        <field table="wr" name="rm_id"/>
+        <field table="wr" name="prob_type"/>
+        <field table="wr" name="location"/>
+        <field table="wr" name="description"/>
+        <field table="wr" name="priority"/>
+        <field table="wr" name="date_requested"/>
+    </dataSource>
+
+    <!-- Tab panel with a single tab page to display the list of work requests -->
+    <tabs id="exWorkRequestDynamicTabs_projects" workflow="free" tabRefreshPolicy="refreshOnLoad">
+    
+        <event type="beforeTabClose">
+            <command type="callFunction" functionName="wr_tabs_beforeCloseTab"/>
+        </event>
+    
+        <tab name="exWorkRequestDynamicTabs_page-1">
+            <title translatable="true">Work Requests</title>
+
+            <!-- The work request console -->
+            <panel type="console" id="exWorkRequestDynamicTabs_wrConsole" columns="3" dataSource="exWorkRequestDynamicTabs_ds">
+                <title>Filter</title>
+                
+                <!-- Prepare custom console restriction and apply it to the work request report -->
+                <action id="search" imageName="/schema/ab-core/graphics/refresh.gif">
+                    <title>Show</title>
+                    <command type="callFunction" functionName="exWorkRequestDynamicTabs_wrConsole_applyRestriction"/>
+                </action>
+                
+                <action id="clear_search">
+                    <title>Clear</title>
+                    <command type="showPanel" panelId="exWorkRequestDynamicTabs_wrReport" clearRestriction="true"/>
+                    <command type="clearPanel" panelId="exWorkRequestDynamicTabs_wrConsole"/>
+                </action>
+                
+                <!-- Open the work request edit form to add new work request -->
+                <action id="addNew" imageName="/schema/ab-core/graphics/add.gif">
+                    <title>Create Work Request</title>
+                    <command type="createTabPage" viewName="ab-ex-work-request-dynamic-page.axvw" newRecord="true" applyParentRestriction="false"/>
+                </action>
+                
+                <!-- field table="wr" name="wr_id" readOnly="false"/ -->
+                <field table="wr" name="requestor">
+                    <action>
+                        <title>...</title>
+                        <command type="selectValue"
+                                 fieldNames="wr.requestor, wr.phone"
+                                 selectFieldNames="em.em_id,em.phone"
+                                 visibleFieldNames="em.em_id,em.dv_id,em.dp_id,em.phone,em.email"
+                        />        
+                    </action> 
+                </field>
+                <field table="wr" name="phone"/>
+                <field/> 
+                <field table="wr" name="prob_type"/>
+                <field table="wr" name="eq_id">
+                    <action>
+                        <title>...</title>
+                        <command type="selectValue"
+                                 fieldNames="wr.eq_id, wr.fl_id, wr.rm_id"
+                                 selectFieldNames="eq.eq_id, eq.fl_id, eq.rm_id"
+                                 visibleFieldNames="eq.eq_id, eq.eq_std, eq.bl_id, eq.fl_id, eq.rm_id"
+                        />        
+                    </action> 
+                </field>
+                <!-- Custom field: drop-down list based on wr.priority numeric value ranges -->
+                <field>
+                    <title>Work Urgency</title>
+                    <html>
+                        <select class="inputField_box" id="exWorkRequestDynamicTabs_urgency" name="exWorkRequestDynamicTabs_urgency">
+                            <option value="all" selected="1"><span translatable="true">All</span></option>
+                            <option value="emergency"><span translatable="true">Emergency</span></option>
+                            <option value="oneDay"><span translatable="true">One Day</span></option>
+                            <option value="oneWeek"><span translatable="true">One Week</span></option>
+                            <option value="oneMonth"><span translatable="true">One Month</span></option>
+                            <option value="eventually"><span translatable="true">No Urgency</span></option>
+                        </select>
+                    </html>
+                </field>
+                
+                <field table="wr" name="bl_id"/>
+                <field table="wr" name="fl_id"/>
+                <field table="wr" name="rm_id"/>
+                
+                <!-- Custom field: drop-down list that produce one of predefined wr.date_requested value ranges -->
+                <field>
+                    <title translatable="true">Requested</title>
+                    <html>
+                        <select class="inputField_box" id="exWorkRequestDynamicTabs_requested" name="exWorkRequestDynamicTabs_requested" onchange="exWorkRequestDynamicTabs_wrConsole_checkDateRange()">
+                            <option value="Today" ><span translatable="true">Today</span></option>
+                            <option value="This Week"><span translatable="true">This Week</span></option>
+                            <option value="This Month"><span translatable="true">This Month</span></option>
+                            <option value="This Year"><span translatable="true">This Year</span></option>
+                            <option value="Date Range" selected="1"><span translatable="true">Date Range</span></option>
+                        </select>
+                    </html>
+                </field>
+                
+                <!-- Aliased fields based on wr.date_requested -->
+                <field table="wr" name="date_requested" alias="wr.date_requested.from">
+                    <title>From</title>
+                </field>
+                <field table="wr" name="date_requested" alias="wr.date_requested.to">
+                    <title>To</title>
+                </field>
+            </panel>
+        
+            <!-- List of work requests restricted by the console -->
+            <panel type="grid" id="exWorkRequestDynamicTabs_wrReport" showOnLoad="false" dataSource="exWorkRequestDynamicTabs_ds">
+                <title>Work Requests</title>
+		<sortField table="wr" name="wr_id"/>
+		<indexField table="wr" name="requestor"/>
+
+                <field table="wr" name="wr_id">
+                    <title>Code</title>
+                </field>
+                <field table="wr" name="requestor">
+                    <title>Requestor</title>
+                </field>
+                <field table="wr" name="date_requested">
+                    <title>Date</title>
+                </field>
+                <field table="wr" name="prob_type">
+                    <title>Type</title>
+                </field>
+                <field table="wr" name="location">
+                    <title>Location</title>
+                </field>
+                <field table="wr" name="priority">
+                    <title>Priority</title>
+                </field>
+                
+                <!-- Create new tab page to edit work request -->
+                <field controlType="button">
+                    <title>Review</title>
+                    <command type="createTabPage" viewName="ab-ex-work-request-dynamic-page.axvw"/>
+                </field>
+            </panel>
+        </tab>
+    </tabs>
+</view>

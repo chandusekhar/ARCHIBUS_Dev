@@ -1,0 +1,126 @@
+<view version="2.0">
+  	<js file="ab-alloc-wiz-bl-add.js"/>
+  	<message name="selectBl">Please select one or more buildings</message>
+  	<message name="noStartDate">Please enter a Start Date for your Allocations</message>
+  	<message name="addingGroups">Adding existing groups from the selected Buildings to your Portfolio Scenario.</message>
+  	<message name="error_pct_growth">Percent Growth/Reduction must fall between -100 and 10,000</message>
+  	<message name="unassigned">UNASSIGNED</message>
+  	<message name="defaultDescription">Create Group</message>
+  	<message name="noFloors">Building {0} cannot be added to the scenario because no Floors exist for this building.</message>
+    <message name="creatingDefaultGroups">Creating default groups for selected buildings.</message>
+    <message name="unitTitleImperial">ft&#178;</message>
+  	<message name="unitTitleMetric">m&#178;</message>
+  	
+    <dataSource id="allocWizBlAdd_ds0">
+    		<table name="bl" role="main"/>
+    		<field name="bl_id" table="bl" />
+    		<field name="site_id" table="bl"/>
+    		<field table="bl" name="name"/>
+        <field table="bl" name="address1" />
+        <field table="bl" name="address2"/>
+        <field table="bl" name="area_gross_ext"/>
+        <field table="bl" name="area_gross_int"/>
+        <field table="bl" name="area_usable" />
+        <field table="bl" name="std_area_per_em" />
+        <restriction type="sql" sql="NOT EXISTS (SELECT 1 FROM gp WHERE gp.bl_id = bl.bl_id AND gp.portfolio_scenario_id LIKE ${parameters['scn_id']})"/>
+    		<parameter name="scn_id" value="%" dataType="text"/>
+    </dataSource>
+    
+    <dataSource id="allocWizBlAdd_ds1" type="grouping">
+    		<table name="gp" role="main"/>
+    		<field name="portfolio_scenario_id" groupBy="true"/>
+    		<field name="date_start" dataType="date" formula="min" baseField="gp.date_start"/>
+    </dataSource>
+    
+    <dataSource id="allocWizBlAdd_ds2">
+    		<table name="gp" role="main"/>
+    		<field name="portfolio_scenario_id" />
+    		<field name="date_start"/>
+    		<field name="bl_id"/>
+    		<field name="fl_id"/>
+    		<field name="pct_floor"/>
+    		<field name="gp_id"/>
+    		<field name="name"/>
+    		<field name="description"/>
+				<field name="date_end"/>
+				<field name="count_em"/>
+    </dataSource>
+    
+    <dataSource id="allocWizBlAdd_ds3">
+    		<table name="fl"/>
+    		<field name="bl_id"/>
+    		<field name="fl_id"/>
+    		<sortField name="bl_id"/>
+    		<sortField name="fl_id"/>
+    </dataSource>
+    
+    <tabs workflow="enforced" id="allocWizBlAddTabs">		
+		    <tab name="allocWizBlAddBl_page1" selected="true" > 
+		    		<title>Select Building</title>   
+				    <panel type="grid" id="allocWizBlAdd_buildings" multipleSelectionEnabled="true" dataSource="allocWizBlAdd_ds0" showOnLoad="false">
+				    		<title>Buildings</title>
+				    		<instructions>Add one or more Buildings to your Portfolio Scenario</instructions> 
+				        <action id="continue" imageName="/schema/ab-core/graphics/icons/arrow_right.png">
+				        		<title>Continue</title>
+				        </action>
+				        <field id="details" controlType="button">
+				            <title>Details</title>
+				            <tooltip translatable="true">Building Profile, Departments and Leased Suites</tooltip>
+				            <command type="openDialog" viewName="ab-alloc-wiz-bl-edit.axvw"/>
+				        </field>
+				    		<field name="bl_id" table="bl" controlType="link" id="selectBl"/>
+				    		<field name="site_id" table="bl"/>
+				    		<field table="bl" name="name" />
+				        <field table="bl" name="address1" />
+				        <field table="bl" name="address2" />
+				        <field table="bl" name="area_gross_ext" />
+				        <field table="bl" name="area_gross_int" />
+				        <field table="bl" name="area_usable" />
+				        <field table="bl" name="std_area_per_em"/>
+				    </panel>	
+				</tab>
+				<tab name="allocWizBlAddBl_page2"> 
+						<title>Import</title>
+						<panel type="form" id="allocWizBlAdd_importForm" dataSource="allocWizBlAdd_ds2" showOnLoad="false">
+								<title>Import</title>
+								<action id="finish">
+										<title>Finish</title>
+								</action>
+								<field table="bl" name="bl_id" hidden="true"/>
+								<field id="allocWizBlAddBl_import">
+										<title>Would you like to import current floor space allocations for the selected building(s) to your scenario?</title>
+										<html>
+												<br/>
+												<input type="radio" id="allocWizBlAddBl_importRadio_yes" name="allocWizBlAddBl_importRadio" value="yes" checked="true" onclick="selectImport(this)">
+														<span translatable="true">Yes</span>
+												</input>
+												<input type="radio" id="allocWizBlAddBl_importRadio_no" name="allocWizBlAddBl_importRadio" value="no" onclick="selectImport(this)">
+														<span translatable="true">No</span>
+												</input>
+										</html>
+								</field>
+								<field table="gp" name="date_start" required="true" dataType="date" value="${sql.currentDate}">
+										<title>When will these groups begin their allocation? (Individual group dates can be edited later)</title>
+								</field>
+								<field id="allocWizBlAddBl_groupOptions">
+										<title>How do you want to allocate your floor space?</title>
+										<html>
+												<br/>
+												<input type="radio" id="allocWizBlAddBl_groupOptionsRadio_bu" name="allocWizBlAddBl_groupOptionsRadio" value="bu">
+														<span translatable="true">by Business Unit</span>
+												</input><br/>												
+												<input type="radio" id="allocWizBlAddBl_groupOptionsRadio_dv" name="allocWizBlAddBl_groupOptionsRadio" value="dv">
+														<span translatable="true">by Division</span>
+												</input><br/>
+        								<input type="radio" id="allocWizBlAddBl_groupOptionsRadio_dp" name="allocWizBlAddBl_groupOptionsRadio" value="dp" checked="true">
+														<span translatable="true">by Department</span>
+												</input><br/>
+										</html>
+								</field>
+								<field table="gp" name="pct_floor" >
+										<title>Percent Growth/Reduction (Example: Show a 10% reduction as -10)</title>
+								</field>
+						</panel>
+				</tab>
+		</tabs>
+</view>

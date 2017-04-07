@@ -1,0 +1,108 @@
+<view version="2.0">
+    <designInfo type="summary" pattern="ab-viewdef-summary-report-drilldown" isAlterable="false"/>
+      
+	<message name="dPTitle_equip" translatable="true">Equipment Plan</message> 
+	
+    <layout type="borderLayout" id="mainLayout">
+        <west id="top" initialSize="20%" split="true"/>
+        <center id="center" autoScroll="true"/>
+    </layout>
+    
+    <layout id="nested_west" containingLayout="main" region="west">
+        <north id="building" split="true" initialSize="50%"/>
+        <center id="flooring" initialSize="50%"/> 
+    </layout>
+    
+    <layout id="nested_center" containingLayout="main" region="center">
+        <center id="dwgPosition"/>
+        <south id="legentPosition" initialSize="20%" split="true"/>
+    </layout>
+    
+    <title translatable="true">View Equipment Status</title>
+    
+    <dataSource id="abEgressPlans-building">
+        <table name="bl" role="main"/>
+        <field name="bl_id" table="bl"/>
+        <sortField table="bl" name="bl_id" ascending="true"/>
+	<restriction type="sql" sql=" exists(select 1 from fl where bl.bl_id=fl.bl_id and exists( select 1 from rm where rm.fl_id=fl.fl_id and rm.bl_id=fl.bl_id and rm.dwgname is not null))"/>
+    </dataSource>
+    
+    <dataSource id="abEgressPlans-select-flooring">
+        <sql dialect="generic">
+            SELECT
+            rm.bl_id ${sql.as} bl_id,
+            rm.fl_id ${sql.as} fl_id,
+            rm.dwgname ${sql.as} dwgname  
+            FROM rm  where rm.dwgname is not null GROUP BY rm.bl_id,rm.fl_id,rm.dwgname
+        </sql>
+        <table name="fl" role="main"/>
+		<field name="bl_id"/>
+        <field name="fl_id"/>
+        <field name="dwgname"/>
+        <sortField table="fl" name="fl_id" ascending="true"/>
+    </dataSource> 
+ 
+    <dataSource id="abEgressPlans_drawing_eqHighlight">
+        <table name="eq" role="main"/>
+        <field table="eq" name="bl_id"/>
+        <field table="eq" name="fl_id"/>
+        <field table="eq" name="rm_id"/>
+        <field table="eq" name="eq_id"/>
+        <field table="eq" name="recovery_status" legendKey="true"/>
+    </dataSource> 
+    
+    <dataSource id="abEgressPlans_drawing_eqLabel">
+        <table name="eq" role="main"/>
+        <field table="eq" name="bl_id"/>
+        <field table="eq" name="fl_id"/>
+        <field table="eq" name="rm_id"/>
+        <field table="eq" name="eq_id"/>
+        <field table="eq" name="recovery_status" legendKey="true"/>
+    </dataSource>
+ 
+    <panel type="grid" id="abEgressPlans-select-building" afterRefresh="blPanelAfterRefresh" dataSource="abEgressPlans-building" layoutRegion="building">
+        <title translatable="true">Buildings</title>
+        
+        <field name="bl_id" table="bl" controlType="link">
+            <command type="showPanel" panelId="abEgressPlans_select_flooring"/>
+        </field>
+    </panel>
+    
+    <panel type="grid" id="abEgressPlans_select_flooring" showOnLoad="false" dataSource="abEgressPlans-select-flooring" layoutRegion="flooring">
+        <title translatable="true">Floors </title>
+		<field name="bl_id" hidden="true"/>
+        <field name="fl_id" table="fl" controlType="link">
+            <command type="callFunction" functionName="showDrawing"/>
+        </field>
+		<field name="dwgname" table="fl" controlType="link">
+            <command type="callFunction" functionName="showDrawing"/>
+        </field>
+    </panel>
+ 
+    
+    <panel type="drawing" id="abEgressPlans_DrawingPanel" layoutRegion="dwgPosition"
+	     highlightDataSource="abEgressPlans_drawing_zoneHighlight"
+	     labelsDataSource="abEgressPlans_drawing_zoneLabel"
+	     assetTypes="zone">
+        <title translatable="true">Equipment Plan</title>
+    </panel> 
+    
+    <dataSource id="abEgressPlans_grid_eqdetail">
+        <table name="eq" role="main"/>
+        <field table="eq" name="eq_id"/>
+        <field table="eq" name="recovery_status"/>
+        <field table="eq" name="status"/>
+        <field table="eq" name="vn_id"/>
+        <field table="eq" name="rm_id"/>
+        <field table="eq" name="bl_id"/>
+        <field table="eq" name="fl_id"/>
+    </dataSource> 
+    
+    <panel type="grid" id="abEgressPlans_eqdetailGrid" dataSource="abEgressPlans_grid_eqdetail" showOnLoad="false" layoutRegion="legentPosition">
+        <title translatable="true">Equipment Details</title>
+    </panel> 
+    
+    <js file="ab-eq-status-hl-fl.js"/>
+    <js file="ab-ep-common.js"/>
+    
+</view>

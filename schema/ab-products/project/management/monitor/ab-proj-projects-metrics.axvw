@@ -1,0 +1,162 @@
+<view version="2.0">
+    <layout file="ab-proj-console-details.axvw"/>
+    <title>View Projects Metrics</title>    
+    <js file="ab-proj-projects-metrics.js"/>
+
+    <panel type="view" id="projProjectsMetricsConsole" file="ab-proj-restriction-console.axvw" layout="mainLayout" region="north"/>
+      
+  	<dataSource id="projProjectsMetricsDs0" type="grouping" applyVpaRestrictions="false">
+        <table name="project" role="main"/>
+        <field name="project_id" table="project" groupBy="true"/>
+        <field name="cost_variance" dataType="number" decimals="2">
+          <title>Cost Variance</title>
+          <sql dialect="generic">SUM(cost_variance)</sql>
+        </field>
+        <field name="schedule_variance" dataType="number" decimals="2">
+          <title>Schedule Variance</title>
+          <sql dialect="generic">SUM(schedule_variance)</sql>
+        </field>
+        <field name="budget_remaining" dataType="number" decimals="2" >
+          <title>Budget Remaining</title>
+          <sql dialect="generic">SUM(budget_remaining)</sql>
+        </field>
+        <field name="budget_cost_of_work_remaining" dataType="number" decimals="2" >
+          <title>Budgeted Cost of Work Remaining</title>
+          <sql dialect="generic">SUM(budget_cost_of_work_remaining)</sql>
+        </field>
+        <field name="cost_performance_index_value" dataType="number" decimals="2" >
+          <title>Cost Performance Index</title>
+          <sql dialect="generic">MAX(cost_performance_index_value)</sql>
+        </field>
+        <field name="scheduled_performance_index" dataType="number" decimals="2" >
+          <title>Schedule Performance Index</title>
+          <sql dialect="generic">MAX(scheduled_performance_index)</sql>
+        </field>
+        <field name="pct_complete_by_budget" dataType="number" decimals="2" >
+          <title>% Complete by Budget</title>
+          <sql dialect="generic">MAX(pct_complete_by_budget)</sql>
+        </field>
+        <field name="pct_budget_spent" dataType="number" decimals="2" >
+          <title>% Budget Spent</title>
+          <sql dialect="generic">MAX(pct_budget_spent)</sql>
+        </field>
+        <field name="owner_actual_cap" dataType="number" decimals="2" >
+          <title>Owner Changes</title>
+          <sql dialect="generic">SUM(owner_actual_cap)</sql>
+        </field>
+        <field name="vendor_actual_cap" dataType="number" decimals="2" >
+          <title>Vendor Changes</title>
+          <sql dialect="generic">SUM(vendor_actual_cap)</sql>
+        </field>
+        <sortField name="project_id" table="project" ascending="true"/> 
+        <sql dialect="generic">
+      SELECT 
+        bl.city_id, bl.state_id, project.site_id, project.bl_id, project.dv_id, project.dp_id,
+        program.program_type, program.program_id, project.project_type, project.project_id, project.is_template,
+        project.proj_mgr, project.status, 
+        (cost_performance_index.budgeted_cost_work_performed - cost_performance_index.actual_cost_of_work_performed) AS cost_variance,
+        cost_performance_index.budgeted_cost_work_performed/scheduled_performance_index.budgeted_cost_work_scheduled AS scheduled_performance_index,
+        (cost_performance_index.budgeted_cost_work_performed - scheduled_performance_index.budgeted_cost_work_scheduled) AS schedule_variance,
+        (activity_aggs.design_tot_est - cost_performance_index.actual_cost_of_work_performed) AS budget_remaining,
+        (activity_aggs.design_tot_est - cost_performance_index.budgeted_cost_work_performed) AS budget_cost_of_work_remaining,
+        cost_performance_index.budgeted_cost_work_performed/cost_performance_index.actual_cost_of_work_performed AS cost_performance_index_value,
+        (CASE WHEN activity_aggs.design_tot_est = 0 THEN 0
+        ELSE (100 * (cost_performance_index.budgeted_cost_work_performed/activity_aggs.design_tot_est)) END) AS pct_complete_by_budget, (CASE WHEN          activity_aggs.design_tot_est = 0 THEN 0
+        ELSE (100 * (cost_performance_index.actual_cost_of_work_performed/activity_aggs.design_tot_est)) END) AS pct_budget_spent,                  vendor_cost.vendor_actual_cap, owner_cost.owner_actual_cap
+      FROM project 
+        LEFT OUTER JOIN
+        (SELECT project_id,  
+        ( CASE WHEN SUM(cost_est_design_cap + cost_est_design_exp) = 0 THEN 1 ELSE SUM(cost_est_design_cap + cost_est_design_exp) END ) AS              budgeted_cost_work_performed, 
+        ( CASE WHEN SUM(cost_act_cap + cost_actual) = 0 THEN 1 ELSE SUM(cost_act_cap + cost_actual) END ) AS actual_cost_of_work_performed 
+        FROM activity_log 
+        WHERE activity_log.status IN ('COMPLETED', 'COMPLETED-V', 'CLOSED') GROUP BY project_id) 
+        AS cost_performance_index 
+        ON project.project_id = cost_performance_index.project_id
+        LEFT OUTER JOIN 
+        (SELECT project_id,  
+        ( CASE WHEN SUM(cost_est_design_cap + cost_est_design_exp) = 0 THEN 1 ELSE SUM(cost_est_design_cap + cost_est_design_exp) END )   AS            budgeted_cost_work_scheduled 
+        FROM activity_log  
+        WHERE activity_log.status IN ('PLANNED','SCHEDULED','IN PROGRESS') GROUP BY project_id) 
+        AS scheduled_performance_index 
+        ON project.project_id = scheduled_performance_index.project_id
+        LEFT OUTER JOIN
+        (SELECT project_id, SUM(cost_est_design_cap) AS design_cap_est, SUM(cost_est_design_exp) AS design_exp_est, 
+        (SUM(cost_est_design_exp) + SUM(cost_est_design_cap)) AS design_tot_est 
+        FROM activity_log GROUP BY project_id )
+        AS activity_aggs 
+        ON project.project_id = activity_aggs.project_id
+        LEFT OUTER JOIN
+        (SELECT project_id, SUM(cost_act_cap + cost_actual) AS owner_actual_cap FROM activity_log 
+        WHERE activity_log.activity_type LIKE 'PROJECT - CHANGE ORDER' AND activity_log.requestor_type LIKE 'Owner' GROUP BY project_id ) 
+        AS owner_cost 
+        ON project.project_id = owner_cost.project_id
+        LEFT OUTER JOIN
+        (SELECT project_id, SUM(cost_act_cap + cost_actual) AS vendor_actual_cap FROM activity_log 
+        WHERE activity_log.activity_type LIKE 'PROJECT - CHANGE ORDER' AND activity_log.requestor_type LIKE 'Vendor' GROUP BY project_id ) 
+        AS vendor_cost 
+        ON project.project_id = vendor_cost.project_id
+        LEFT OUTER JOIN program ON program.program_id = project.program_id
+        LEFT OUTER JOIN bl ON project.bl_id = bl.bl_id
+        WHERE ${sql.vpaRestriction}      
+        </sql>
+
+        <sql dialect="oracle">
+    SELECT 
+      bl.city_id, bl.state_id, project.site_id, project.bl_id, project.dv_id, project.dp_id,
+      program.program_type, program.program_id, project.project_type, project.project_id, project.is_template,
+      project.proj_mgr, project.status, 
+      (cost_performance_index.budgeted_cost_work_performed - cost_performance_index.actual_cost_of_work_performed)  cost_variance,
+      cost_performance_index.budgeted_cost_work_performed/scheduled_performance_index.budgeted_cost_work_scheduled  scheduled_performance_index,
+      (cost_performance_index.budgeted_cost_work_performed - scheduled_performance_index.budgeted_cost_work_scheduled)  schedule_variance,
+      (activity_aggs.design_tot_est - cost_performance_index.actual_cost_of_work_performed)  budget_remaining,
+      (activity_aggs.design_tot_est - cost_performance_index.budgeted_cost_work_performed)  budget_cost_of_work_remaining,
+      cost_performance_index.budgeted_cost_work_performed/cost_performance_index.actual_cost_of_work_performed  cost_performance_index_value,
+      (CASE WHEN activity_aggs.design_tot_est = 0 THEN 0
+      ELSE (100 * (cost_performance_index.budgeted_cost_work_performed/activity_aggs.design_tot_est)) END)  pct_complete_by_budget, (CASE WHEN          activity_aggs.design_tot_est = 0 THEN 0
+      ELSE (100 * (cost_performance_index.actual_cost_of_work_performed/activity_aggs.design_tot_est)) END)  pct_budget_spent, vendor_cost.vendor_actual_cap,         owner_cost.owner_actual_cap
+    FROM project,
+      (SELECT project_id,  
+        ( CASE WHEN SUM(cost_est_design_cap + cost_est_design_exp) = 0 THEN 1 ELSE SUM(cost_est_design_cap + cost_est_design_exp) END )               budgeted_cost_work_performed, 
+        ( CASE WHEN SUM(cost_act_cap + cost_actual) = 0 THEN 1 ELSE SUM(cost_act_cap + cost_actual) END )  actual_cost_of_work_performed 
+      FROM activity_log 
+      WHERE activity_log.status IN ('COMPLETED', 'COMPLETED-V', 'CLOSED') GROUP BY project_id) cost_performance_index, 
+      (SELECT project_id,  
+        ( CASE WHEN SUM(cost_est_design_cap + cost_est_design_exp) = 0 THEN 1 ELSE SUM(cost_est_design_cap + cost_est_design_exp) END )               budgeted_cost_work_scheduled 
+      FROM activity_log  
+      WHERE activity_log.status IN ('PLANNED','SCHEDULED','IN PROGRESS') GROUP BY project_id) scheduled_performance_index, 
+      (SELECT project_id, SUM(cost_est_design_cap)  design_cap_est, SUM(cost_est_design_exp)  design_exp_est, 
+        (SUM(cost_est_design_exp) + SUM(cost_est_design_cap))  design_tot_est 
+      FROM activity_log GROUP BY project_id ) activity_aggs,
+      (SELECT project_id, SUM(cost_act_cap + cost_actual)  owner_actual_cap 
+      FROM activity_log 
+      WHERE activity_log.activity_type LIKE 'PROJECT - CHANGE ORDER' AND activity_log.requestor_type LIKE 'Owner' GROUP BY project_id ) owner_cost,
+      (SELECT project_id, SUM(cost_act_cap + cost_actual)  vendor_actual_cap FROM activity_log 
+      WHERE activity_log.activity_type LIKE 'PROJECT - CHANGE ORDER' AND activity_log.requestor_type LIKE 'Vendor' GROUP BY project_id ) vendor_cost,
+      program,
+      bl    
+    WHERE   project.project_id = cost_performance_index.project_id(+) AND
+        project.project_id = scheduled_performance_index.project_id(+) AND 
+        project.project_id = activity_aggs.project_id(+) AND
+        project.project_id = owner_cost.project_id(+) AND
+        project.project_id = vendor_cost.project_id(+) AND 
+        project.program_id = program.program_id(+) AND
+        project.bl_id = bl.bl_id(+) AND
+        ${sql.vpaRestriction}
+        </sql>
+        <restriction type="sql" sql="project.is_template = 0"/>
+    </dataSource>
+
+    <panel type="crossTable" id="selectProjectReport" dataSource="projProjectsMetricsDs0" layout="mainLayout" region="center">
+    	<title>View Metrics</title>
+        <action id="exportXLS">
+            <title>XLS</title>
+            <command type="exportPanel" outputType="xls" panelId="selectProjectReport"/>
+        </action> 
+        <instructions>[li][b]Cost Variance[/b] = Budgeted Cost of Work Performed - Actual Cost of Work Performed[/li][li][b]Schedule Variance[/b] = Budgeted Cost of Work Performed - Budgeted Cost for Work Scheduled[/li][li][b]Budget Remaining[/b] = Total Budget - Actual Cost of Work Performed[/li][li][b]Budgeted Cost of Work Remaining[/b] = Total Budget - Budgeted Cost of Work Performed[/li][li][b]Cost Performance Index[/b] = Budgeted Cost of Work Performed/Actual Cost of Work Performed; &gt;1 means budget exceeded costs; &lt;1 means costs exceeded budget[/li][li][b]Schedule Performance Index[/b] = Budgeted Cost of Work Performed/Budgeted Cost for Work Scheduled; &gt;1 means ahead of schedule; &lt;1 means behind schedule[/li][li][b]% Complete by Budget[/b] = 100 * (Budgeted Cost of Work Performed/Total Budget)[/li][li][b]% Budget Spent[/b] = 100 * (Actual Cost of Work Performed/Total Budget)[/li][li][b]Owner Changes[/b] = Total Actual Cost of Change Orders initiated by Owner[/li][li][b]Vendor Changes[/b] = Total Actual Cost of Change Orders initiated by Vendor[/li]</instructions>                   
+    </panel>
+</view>
+    
+ 
+ 
+ 
+ 

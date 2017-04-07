@@ -1,0 +1,147 @@
+<view version="2.0">
+<!-- Change Log -->
+<!-- 2012/06/27 - ASO - WR172752 - Added wr.act_labor_hours in wrlist_ds and wrListPanel -->
+<!-- 2012/06/27 - ASO - WR172913 - show completed work request -->
+<!-- 2012/09/05 - Always sort by WR descending -->
+	<layout file="console-small.axvw" />
+
+	<title>Project Listing</title>
+
+	<js file="uc-proj-quick-manage2.js"/>
+
+	<dataSource id="console_ds3">
+		<table name="project" role="main"/>
+		<table name="em" role="standard"/>
+		<field table="project" name="project_id"/>
+		<field table="project" name="int_num"/>
+		<field table="project" name="proj_mgr"/>
+		<field table="project" name="proj_phase"/>
+		<field table="project" name="program_id"/>
+		<field table="project" name="bl_id"/>
+		<field table="em" name="company"/>
+	</dataSource>
+
+	<panel type="console" id="consolePanel" dataSource="console_ds3" showOnLoad="true"  columns="3" region="north">
+		<title translatable="true">Filter</title>
+
+		<action id="show">
+			<title translatable="true">Show</title>
+		</action>
+
+		<action id="clear">
+			<title translatable="true">Clear</title>
+		</action>
+
+
+		<field table="project" name="int_num">
+		</field>
+		<field table="project" name="project_id">
+			<title>Project Name</title>
+		</field>
+
+
+		<field table="project" name="proj_mgr">
+		</field>
+
+		<field table="project" name="proj_phase"/>
+		<field table="project" name="bl_id"/>
+		<field table="project" name="program_id"/>
+
+		<field table="em" name="company"/>
+	</panel>
+
+
+	<dataSource id="projlist_ds4">
+		<query>
+			<sql dialect = "generic">
+				SELECT p.project_id, p.proj_mgr, p.int_num, int_key, p.status, p.cost_budget, p.proj_phase, p.date_target_end, p.program_id, p.alert_level, p.pct_total_comp,
+					   isnull(act.Actual,0) ${sql.as} Actual,
+					   isnull(com.PO_Value,0) ${sql.as} PO_Val,
+					   (isnull(afe.Amount,0) - isnull(act.Actual,0))-(isnull(com.PO_Value,0)-isnull(act.Actual,0)) ${sql.as} balance,
+					   isnull(afe.Amount,0) ${sql.as} cost_afe, isnull(gl.Amount,0) ${sql.as} cost_to_date
+				FROM project p
+					LEFT JOIN
+						(SELECT a.Internal_Key, isnull(sum(a.Monetary_Amount),0) ${sql.as} Actual from uc_adw_v_actuals a group by a.Internal_Key) act on p.int_key=act.Internal_Key
+					LEFT JOIN
+						(SELECT c.Internal_Key, isnull(sum(c.Amount)+sum(c.VAT_Amount)-sum(c.VAT_Recovery_Amount),0) ${sql.as} PO_Value from uc_adw_PO_commitments c group by c.Internal_Key) com on p.int_key=com.Internal_Key
+					LEFT JOIN
+						(SELECT a.Internal_Key, isnull(abs(sum(Amount)),0) ${sql.as} Amount FROM uc_adw_gl_details a WHERE Acct_Code='70130' group by a.Internal_Key) afe on afe.Internal_Key=p.int_key
+					LEFT JOIN
+						(SELECT a.Internal_Key, isnull(abs(sum(Amount)),0) ${sql.as} Amount FROM uc_adw_gl_details a WHERE Acct_Code <> '70130' AND Acct_Code <> '70120' group by a.Internal_Key) gl on gl.Internal_Key=p.int_key
+				WHERE p.status NOT IN ('Requested-Rejected','Approved-Cancelled','Completed-Verified') AND
+						${parameters['consoleRest']}
+			</sql>
+
+			<table name="project" role="main"/>
+
+			<field table="project" name="project_id"/>
+			<field table="project" name="program_id"/>
+			<field table="project" name="proj_mgr"/>
+			<field table="project" name="int_num"/>
+			<field table="project" name="int_key"/>
+			<field table="project" name="status"/>
+			<field table="project" name="cost_budget"/>
+			<field table="project" name="proj_phase"/>
+			<field table="project" name="date_target_end"/>
+			<field table="project" name="alert_level"/>
+			
+			<field table="project" name="cost_afe" dataType="number" decimals="2"/>
+			<field table="project" name="cost_to_date" dataType="number" decimals="2"/>
+			<field table="project" name="pct_total_comp"/>
+
+
+			<parameter name="consoleRest" dataType="verbatim" value="1=1"/>
+		</query>
+
+	</dataSource>
+
+
+
+	<panel type="grid" id="projListPanel" dataSource="projlist_ds4" showOnLoad="false" region="center" >
+		<title>Projects (All values w/ RGST)</title>
+		<action id="exportXLS">
+            <title>XLS</title>
+            <command type="exportPanel" outputType="xls" panelId="projListPanel"/>
+        </action>
+
+		<field controlType="button">
+			<command type="openDialog" viewName="uc-proj-quick-details2.axvw"/>
+			<title>Details</title>
+		</field>
+		<field table="project" name="project_id"/>
+		<field table="project" name="proj_phase"/>
+		<field table="project" name="program_id"/>
+		<field table="project" name="proj_mgr"/>
+		<field table="project" name="int_num"/>
+		<field table="project" name="status" hidden="true"><title>Status/Alerts</title></field>
+		<field table="project" name="pct_total_comp"><title>Percent Complete</title></field>
+		<field table="project" name="alert_level" hidden="true"/>
+		<field table="project" name="date_target_end"><title>Target Completion</title></field>
+		<field table="project" name="cost_budget" hidden="true"/>
+		<field table="project" name="cost_afe" dataType="number" decimals="2"><title>Total AFE/Budget Value</title></field>
+		
+
+		<field table="project" name="PO_Val" dataType="number" size="26" decimals="2">
+			<title translatable="true">Total PO/Commitment Value</title>
+		</field>
+
+		<field table="project" name="Actual" dataType="number" size="26" decimals="2">
+			<title translatable="true">Actuals Paid</title>
+		</field>
+
+		<field table="project" name="cost_to_date" dataType="number" size="26" decimals="2">
+			<title translatable="true">Total Costs to Date</title>
+		</field>
+		<field table="project" name="balance" dataType="number" size="26" decimals="2">
+			<title translatable="true">Uncommitted Value</title>
+		</field>
+
+
+
+
+	</panel>
+
+
+
+
+</view>

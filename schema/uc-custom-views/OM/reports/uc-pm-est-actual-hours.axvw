@@ -1,0 +1,89 @@
+<view version="2.0">
+	<title>Preventive Maintainence Est. vs. Actual Hours</title>
+	<preferences>
+		<viewTitleBar show="false" />
+	</preferences>
+
+	<layout file="console-small.axvw" />
+	<js file="ab-ondemand-common.js" />
+	<js file="ab-ondemand-report-common.js" />
+	<js file="uc-pm-est-actual-hours.js" />
+
+	<message name="selectTitle" translatable="true">-select-</message>
+
+	<dataSource id="consoleDS">
+		<table name="wrhwr" role="main" />
+		<field table="wrhwr" name="prob_type" />
+        <field table="wrhwr" name="date_requested" />
+	</dataSource>
+
+
+	<dataSource id="crossTableDS" type="grouping">
+		<table name="wrhwr" role="main" />
+		<table name="pms" role="standard" />
+		<sortField name="pmp_id" table="pms" ascending="true" />
+
+		<restriction type="sql" sql="wrhwr.pmp_id IS NOT NULL AND status IN ('FWC','Com','Clo') AND act_labor_hours &gt; 0" />
+
+		<field name="pmp_id" table="pms" groupBy="true">
+			<title translatable="true">PM Procedure</title>
+		</field>
+
+		<field name="max_diff" formula="max" dataType="number" baseField="pms.hours_est">
+			<title translatable="true">Max Difference</title>
+			<sql dialect="sqlserver">MAX(wrhwr.act_labor_hours - pms.hours_est)</sql>
+		</field>
+
+		<field name="min_diff" formula="min" dataType="number">
+			<title translatable="true">Min Difference</title>
+			<sql dialect="sqlserver">MIN(wrhwr.act_labor_hours - pms.hours_est)</sql>
+		</field>
+
+		<field name="avg_diff" formula="avg" dataType="number">
+			<title translatable="true">Average Difference</title>
+			<sql dialect="sqlserver">AVG(wrhwr.act_labor_hours - pms.hours_est)</sql>
+		</field>
+
+		<field name="avg_est_hours" formula="avg" dataType="number">
+			<title translatable="true">Estimated Hours</title>
+			<sql dialect="sqlserver">AVG(pms.hours_est)</sql>
+		</field>
+
+		<field name="avg_act_hours" formula="avg" dataType="number">
+			<title translatable="true">Actual Hours</title>
+			<sql dialect="sqlserver">AVG(wrhwr.act_labor_hours)</sql>
+		</field>
+	</dataSource>
+
+	<panel type="console" columns="3" id="requestConsole"
+		dataSource="consoleDS" region="north">
+		<title translatable="true">Filter</title>
+		<action id="filter">
+			<title translatable="true">Show</title>
+			<command type="callFunction"
+				functionName="apply_console_restriction()" />
+		</action>
+		<action id="clear">
+			<title translatable="true">Clear</title>
+			<command type="clearForm"
+				panelId="reportPanel" />
+		</action>
+		<field table="wrhwr" name="date_requested" alias="wrhwr.date_requested.from" >
+			<title>Date From:</title>
+		</field>
+		<field table="wrhwr" name="date_requested" alias="wrhwr.date_requested.to" >
+			<title>To:</title>
+		</field>
+		<field table="wrhwr" name="prob_type" hidden="true" />
+	</panel>
+
+	<panel id="reportPanel" type="crossTable"
+		dataSource="crossTableDS" region="center">
+		<title translatable="true">
+			Preventive Maintenance
+		</title>
+		<event type="onClickItem">
+		    <command type="callFunction" functionName="onCrossTableClick"/>
+		</event>
+	</panel>
+</view>

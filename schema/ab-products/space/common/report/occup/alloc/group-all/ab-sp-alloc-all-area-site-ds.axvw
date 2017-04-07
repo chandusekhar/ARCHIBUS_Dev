@@ -1,0 +1,85 @@
+<view version="2.0">	 
+	<message name="vert" translatable="true">All vertical penetration areas</message>
+	<message name="serv" translatable="true">All service areas</message>
+	<message name="prorate" translatable="true">All prorated usable space</message>
+	<message name="noProrate" translatable="true">All None prorated usable space</message>
+	<message name="other" translatable="true">Any other areas</message>
+	<message name="nocat" translatable="true">None category areas</message>
+	<message name="remaining" translatable="true">Remaining areas</message>
+	<dataSource id="abSpAllocAllAreaSiteChartDataDS"  type="grouping"  applyVpaRestrictions="false">
+		<sql dialect="generic">
+			SELECT 
+					( select sum(rm.area) from rm left outer join bl on bl.bl_id=rm.bl_id where bl.site_id=site.site_id and rm.rm_cat is null  AND ${sql.vpaRestriction} )  ${sql.as}  totalArea,
+					'1 '${sql.concat}${parameters['nocat']}  ${sql.as} type
+			FROM site  WHERE  RTRIM(site.site_id)=${parameters['summaryValueForThisGroup']} 
+			union 
+			SELECT 
+					( select sum(rm.area) from rm left outer join bl on bl.bl_id=rm.bl_id  left outer join rmcat on rm.rm_cat=rmcat.rm_cat 
+													 where bl.site_id=site.site_id and  rmcat.supercat='VERT'  AND ${sql.vpaRestriction} )  ${sql.as}  totalArea,
+					'2 '${sql.concat}${parameters['vert']}  ${sql.as} type
+			FROM site  WHERE  RTRIM(site.site_id)=${parameters['summaryValueForThisGroup']} 
+			union 
+			SELECT 
+					( select sum(rm.area) from rm left outer join bl on bl.bl_id=rm.bl_id  left outer join rmcat on rm.rm_cat=rmcat.rm_cat 
+													 where bl.site_id=site.site_id and  rmcat.supercat='SERV'  AND ${sql.vpaRestriction} )  ${sql.as}  totalArea,
+					'3 '${sql.concat}${parameters['serv']}  ${sql.as} type
+			FROM site  WHERE  RTRIM(site.site_id)=${parameters['summaryValueForThisGroup']} 
+			union 
+			SELECT 
+					( select sum(rm.area) from rm left outer join bl on bl.bl_id=rm.bl_id  left outer join rmcat on rm.rm_cat=rmcat.rm_cat 
+													 where bl.site_id=site.site_id and  rmcat.supercat='OTHR'  AND ${sql.vpaRestriction} )  ${sql.as}  totalArea,
+					'4 '${sql.concat}${parameters['other']}  ${sql.as} type
+			FROM site  WHERE  RTRIM(site.site_id)=${parameters['summaryValueForThisGroup']} 
+			union 
+			SELECT 
+					( select sum(rm.area) from rm left outer join bl on bl.bl_id=rm.bl_id  left outer join rmcat on rm.rm_cat=rmcat.rm_cat 
+													 where bl.site_id=site.site_id and  rmcat.supercat='USBL' 
+																and rm.dv_id is  null and rm.dp_id is null  and rm.prorate!='NONE'  AND ${sql.vpaRestriction} )  ${sql.as}  totalArea,
+					'5 '${sql.concat}${parameters['prorate']}  ${sql.as} type
+			FROM site  WHERE  RTRIM(site.site_id)=${parameters['summaryValueForThisGroup']} 
+			union 
+			select sum(rm.area) ${sql.as} totalArea,  RTRIM(rm.dv_id) type 
+					  from rm  left outer join rmcat on rm.rm_cat=rmcat.rm_cat  left outer join bl on bl.bl_id=rm.bl_id 
+					  where RTRIM(bl.site_id)=${parameters['summaryValueForThisGroup']}  
+								and rmcat.supercat='USBL' and rm.dv_id is not null and rm.dp_id is null  AND ${sql.vpaRestriction}  
+					  group by RTRIM(rm.dv_id)  
+ 			union 
+			select sum(rm.area) ${sql.as} totalArea,  RTRIM(rm.dv_id)${sql.concat}' - '${sql.concat}RTRIM(rm.dp_id)  ${sql.as}  type 
+					  from rm  left outer join rmcat on rm.rm_cat=rmcat.rm_cat   left outer join bl on bl.bl_id=rm.bl_id 
+					  where RTRIM(bl.site_id)=${parameters['summaryValueForThisGroup']}   
+								and rmcat.supercat='USBL' and rm.dv_id is not null and rm.dp_id is not null AND ${sql.vpaRestriction} 
+					  group by rm.dv_id, rm.dp_id    
+			union 
+			SELECT 
+					( select sum(rm.area) from rm left outer join bl on bl.bl_id=rm.bl_id  left outer join rmcat on rm.rm_cat=rmcat.rm_cat 
+													 where bl.site_id=site.site_id and  rmcat.supercat='USBL' 
+																and rm.dv_id is  null and rm.dp_id is null  and rm.prorate!='NONE'  AND ${sql.vpaRestriction} )  ${sql.as}  totalArea,
+					'6 '${sql.concat}${parameters['noProrate']}  ${sql.as} type
+			FROM site  WHERE  RTRIM(site.site_id)=${parameters['summaryValueForThisGroup']} 
+			union 
+			SELECT 
+					site.area_gross_int - ( select sum(rm.area) from rm  left outer join bl on bl.bl_id=rm.bl_id  where bl.site_id=site.site_id  AND ${sql.vpaRestriction} )  ${sql.as}  totalArea,
+					'7 '${sql.concat}${parameters['remaining']}  ${sql.as} type
+			FROM site  WHERE  RTRIM(site.site_id)=${parameters['summaryValueForThisGroup']} 
+		</sql>
+		<table name="rm" role="main"/>
+        <field name="area" table="rm"/>
+		<field name="type" dataType="text" groupBy="true">
+			<title translatable="true">Space Types</title>
+		</field>
+		<field  name="total_area" dataType="number" decimals="2" formula="sum" baseField="rm.totalArea" numericFormat="area">
+			<title translatable="true">Total Area</title>
+		</field>		
+		
+		<parameter name="summaryValueForThisGroup" dataType="text" value=""/>  
+	    <parameter name="vert" dataType="text" value=""/> 
+	    <parameter name="serv" dataType="text" value=""/> 
+	    <parameter name="prorate" dataType="text" value=""/> 
+	    <parameter name="noProrate" dataType="text" value=""/> 
+	    <parameter name="other" dataType="text" value=""/> 
+	    <parameter name="nocat" dataType="text" value=""/> 
+	    <parameter name="remaining" dataType="text" value=""/> 
+
+		<sortField name="type" table="rm" ascending="true" />
+	</dataSource>
+</view>

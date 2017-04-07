@@ -1,0 +1,152 @@
+<!--  HTML Marker and Clustering example
+-->
+<view version="2.0" showLoadProgress="true">
+	<layout>
+		<west id="row1col1" initialSize="15%" split="true" />
+		<center id="row1col2" />
+	</layout>
+    <message name="noRecords" translatable="true">No items found.</message>
+    <message name="deleteFailed" translatable="true">Could not delete item.</message>
+    <message name="update" translatable="true">Save to new location?</message>
+            			    
+    <!-- reusable .axvw files for the drawing, marker, and cluster controls that takes care of including all control resources: JS, CSS, localized strings in AXVW, libraries, etc. -->
+    <panel type="view" id="drawingFiles" file="ab-common-controls-drawing.axvw"/>
+    <panel type="view" id="markerFiles" file="ab-common-controls-marker.axvw"/>
+    <panel type="view" id="clusterFiles" file="ab-common-controls-cluster.axvw"/>
+                         
+    <js file="ab-ex-svg-dwg-marker.js"/>
+            
+    <!-- Tabs -->        
+    <tabs workflow="enforced" id="tabs" layoutRegion="row1col1">
+        <tab name="floorTab" selected="true">
+            <title translatable="true">Floors</title>
+            <dataSource type="grouping" id="floorsDs">
+                <table name="rm" role="main"/>
+                <field table="rm" name="bl_id" groupBy="true"/>
+                <field table="rm" name="fl_id" groupBy="true"/>
+                <field table="rm" name="dwgname" groupBy="true" hidden="true"/>
+                <sortField name="bl_id"/>
+                <sortField name="fl_id"/>
+                <sortField name="dwgname"/>
+                <restrictions>
+                    <restriction type="sql" sql="rm.dwgname is not null"/>
+                </restrictions>
+            </dataSource>    
+            <dataSource id="roomsDs">
+                <table name="rm" role="main" />     
+                <field table="rm" name="bl_id" hidden="true"/>
+                <field table="rm" name="fl_id" hidden="true"/>
+                <field table="rm" name="rm_id" />
+                <field table="rm" name="rm_std" />
+                <field table="rm" name="dwgname" hidden="true"/>
+                <restrictions>
+                    <restriction type="sql" sql="rm.dwgname is not null"/>
+                </restrictions>       
+            </dataSource>  
+            <panel type="tree" id="floor_tree" dataSource="floorsDs" layoutRegion="row1col1">
+                <title></title>
+                <event type="onClickNode">
+                    <command type="callFunction" functionName="onClickFloorTreeNode"/>
+                </event>
+                <panel type="tree" id="room_tree" dataSource="roomsDs" region="west">
+                    <title>Select Floor</title>
+                    <event type="onClickNode">
+                        <command type="callFunction" functionName="onClickFloorTreeNode"/>
+                    </event>
+                </panel>
+            </panel>
+        </tab>
+        <tab name="markerTab">
+            <title>Markers</title>
+            <dataSource id="ds_afmdwgs_tree" distinct="true">
+                <table name="afm_dwgs" role="standard"/>
+                <table name="afm_redlines" role="main"/>
+                <field table="afm_dwgs" name="dwg_name" hidden="true"/>
+                <field table="afm_redlines" name="dwg_name"/>
+                <restrictions>
+                    <restriction type="sql" sql="afm_dwgs.dwg_name = afm_redlines.dwg_name"/>
+                </restrictions>
+                <sortField table="afm_dwgs" name="dwg_name" ascending="true"/>
+            </dataSource>
+            <dataSource id="ds_marker_tree">
+                <table name="afm_redlines" role="main"/>
+                <field table="afm_redlines" name="auto_number"/>
+                <field table="afm_redlines" name="dwg_name"/>
+                <restriction type="sql" sql="afm_redlines.origin = 'HTML5-based Floor Plan' AND afm_redlines.redline_type = 'Marker' AND afm_redlines.layer_name = 'MY_MARKER_TABLE-assets'"/>
+                <sortField table="afm_redlines" name="auto_number" ascending="true"/>
+            </dataSource>
+            <panel type="tree" id="marker_tree" dataSource="ds_marker_tree" region="west" showOnLoad="false">
+                <title></title>
+                <field table="afm_redlines" name="auto_number"/>
+                <event type="onClickNode">
+                    <command type="callFunction" functionName="onClickMarkerTreeNode"/>
+                </event>
+             </panel>
+        </tab>
+    </tabs>  		    
+    
+    <!-- pop-up panel containing list of available markers; used in "Insert new Marker" -->
+    <panel type="html" id="symbolsPopup" dataSource="none" showOnLoad="false">     
+        <html> 
+            <img id="water" onclick="exampleController.drawingPanel_onPlaceMarker(this)" src="data:image/svg+xml;base64,PD94bWwgdmVyc2lvbj0iMS4wIiBlbmNvZGluZz0idXRmLTgiPz4KPCEtLSBHZW5lcmF0ZWQgYnkgSWNvTW9vbi5pbyAtLT4KPCFET0NUWVBFIHN2ZyBQVUJMSUMgIi0vL1czQy8vRFREIFNWRyAxLjEvL0VOIiAiaHR0cDovL3d3dy53My5vcmcvR3JhcGhpY3MvU1ZHLzEuMS9EVEQvc3ZnMTEuZHRkIj4KPHN2ZyB2ZXJzaW9uPSIxLjEiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyIgeG1sbnM6eGxpbms9Imh0dHA6Ly93d3cudzMub3JnLzE5OTkveGxpbmsiIHdpZHRoPSIzMiIgaGVpZ2h0PSIzMiIgdmlld0JveD0iMCAwIDMyIDMyIj4KPHBhdGggZmlsbD0iIzAwMDAwMCIgZD0iTTI3LjAyMCAxNC43ODZjLTIuMDU1LTUuNzMyLTYuNDEtMTAuODgtMTEuMDIwLTE0Ljc4Ni00LjYxIDMuOTA3LTguOTY1IDkuMDU0LTExLjAyMCAxNC43ODYtMS4yNzEgMy41NDUtMS4zOTYgNy4zOTMgMC4zOTMgMTAuNzk0IDIuMDU4IDMuOTExIDYuMjA3IDYuNDIgMTAuNjI2IDYuNDJzOC41NjktMi41MDkgMTAuNjI2LTYuNDJjMS43OS0zLjQwMSAxLjY2NC03LjI0OSAwLjM5My0xMC43OTR6TTIzLjA4NiAyMy43MTdjLTEuMzY5IDIuNjAyLTQuMTUgNC4yODMtNy4wODYgNC4yODMtMS43MjMgMC0zLjM5MS0wLjU3OS00Ljc1My0xLjU4MyAwLjQxNCAwLjA1NCAwLjgzMiAwLjA4MyAxLjI1NCAwLjA4MyAzLjY3IDAgNy4xNDYtMi4xIDguODU2LTUuMzUxIDEuNDAyLTIuNjY1IDEuMjgxLTUuNDMzIDAuNzQ2LTcuNjM2IDAuNDU1IDAuODggMC44NDEgMS43NTYgMS4xNTEgMi42MjMgMC43MDYgMS45NzEgMS4yNTEgNC44ODYtMC4xNjggNy41ODF6Ij48L3BhdGg+Cjwvc3ZnPgo="></img>
+            <img id="power" onclick="exampleController.drawingPanel_onPlaceMarker(this)" src="data:image/svg+xml;base64,PD94bWwgdmVyc2lvbj0iMS4wIiBlbmNvZGluZz0idXRmLTgiPz4KPCEtLSBHZW5lcmF0ZWQgYnkgSWNvTW9vbi5pbyAtLT4KPCFET0NUWVBFIHN2ZyBQVUJMSUMgIi0vL1czQy8vRFREIFNWRyAxLjEvL0VOIiAiaHR0cDovL3d3dy53My5vcmcvR3JhcGhpY3MvU1ZHLzEuMS9EVEQvc3ZnMTEuZHRkIj4KPHN2ZyB2ZXJzaW9uPSIxLjEiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyIgeG1sbnM6eGxpbms9Imh0dHA6Ly93d3cudzMub3JnLzE5OTkveGxpbmsiIHdpZHRoPSIzMiIgaGVpZ2h0PSIzMiIgdmlld0JveD0iMCAwIDMyIDMyIj4KPHBhdGggZmlsbD0iIzAwMDAwMCIgZD0iTTMyIDguODI4bC0yLjgyOC0yLjgyOC01LjU4NiA1LjU4Ni0zLjE3Mi0zLjE3MiA1LjU4Ni01LjU4Ni0yLjgyOC0yLjgyOC01LjU4NiA1LjU4Ni0zLjU4Ni0zLjU4Ni0yLjcwNyAyLjcwNyAxNiAxNiAyLjcwNy0yLjcwNy0zLjU4Ni0zLjU4NiA1LjU4Ni01LjU4NnoiPjwvcGF0aD4KPHBhdGggZmlsbD0iIzAwMDAwMCIgZD0iTTI0LjgxNCAyMS4wNTZsLTEzLjg3LTEzLjg3Yy0yLjk5NCAzLjU5MS02LjM5MSA5LjEzOS00LjA0NCAxMy45MTNsLTQuMTMzIDQuMTMzYy0wLjk3MiAwLjk3Mi0wLjk3MiAyLjU2MyAwIDMuNTM1bDAuNDY0IDAuNDY0YzAuOTcyIDAuOTcyIDIuNTYzIDAuOTcyIDMuNTM2IDBsNC4xMzMtNC4xMzNjNC43NzQgMi4zNDggMTAuMzIyLTEuMDQ5IDEzLjkxMy00LjA0M3oiPjwvcGF0aD4KPC9zdmc+Cg=="></img>
+            <img id="connection" onclick="exampleController.drawingPanel_onPlaceMarker(this)" src="data:image/svg+xml;base64,PD94bWwgdmVyc2lvbj0iMS4wIiBlbmNvZGluZz0idXRmLTgiPz4KPCEtLSBHZW5lcmF0ZWQgYnkgSWNvTW9vbi5pbyAtLT4KPCFET0NUWVBFIHN2ZyBQVUJMSUMgIi0vL1czQy8vRFREIFNWRyAxLjEvL0VOIiAiaHR0cDovL3d3dy53My5vcmcvR3JhcGhpY3MvU1ZHLzEuMS9EVEQvc3ZnMTEuZHRkIj4KPHN2ZyB2ZXJzaW9uPSIxLjEiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyIgeG1sbnM6eGxpbms9Imh0dHA6Ly93d3cudzMub3JnLzE5OTkveGxpbmsiIHdpZHRoPSI0MCIgaGVpZ2h0PSIzMiIgdmlld0JveD0iMCAwIDQwIDMyIj4KPHBhdGggZmlsbD0iIzAwMDAwMCIgZD0iTTIwIDE4YzMuMzA4IDAgNi4zMDggMS4zNDYgOC40ODEgMy41MTlsLTIuODI3IDIuODI3Yy0xLjQ0OS0xLjQ0OS0zLjQ0OS0yLjM0Ni01LjY1NC0yLjM0NnMtNC4yMDYgMC44OTctNS42NTQgMi4zNDZsLTIuODI3LTIuODI3YzIuMTczLTIuMTczIDUuMTczLTMuNTE5IDguNDgxLTMuNTE5ek01Ljg1OCAxNS44NThjMy43NzctMy43NzcgOC44LTUuODU4IDE0LjE0Mi01Ljg1OHMxMC4zNjUgMi4wODAgMTQuMTQyIDUuODU4bC0yLjgyOCAyLjgyOGMtMy4wMjItMy4wMjItNy4wNDAtNC42ODYtMTEuMzE0LTQuNjg2cy04LjI5MiAxLjY2NC0xMS4zMTQgNC42ODZsLTIuODI4LTIuODI4ek0zMC44OTkgNC4yMDFjMy4zMzQgMS40MSA2LjMyOSAzLjQyOSA4Ljg5OSA2djBsLTIuODI4IDIuODI4Yy00LjUzMy00LjUzMy0xMC41Ni03LjAyOS0xNi45NzEtNy4wMjlzLTEyLjQzOCAyLjQ5Ni0xNi45NzEgNy4wMjlsLTIuODI4LTIuODI4YzIuNTcxLTIuNTcxIDUuNTY1LTQuNTg5IDguODk5LTYgMy40NTMtMS40NjEgNy4xMi0yLjIwMSAxMC44OTktMi4yMDFzNy40NDYgMC43NDEgMTAuODk5IDIuMjAxek0xOCAyOGMwLTEuMTA1IDAuODk1LTIgMi0yczIgMC44OTUgMiAyYzAgMS4xMDUtMC44OTUgMi0yIDJzLTItMC44OTUtMi0yeiI+PC9wYXRoPgo8L3N2Zz4K"></img> 
+            <img id="wrench" onclick="exampleController.drawingPanel_onPlaceMarker(this)" src="data:image/svg+xml;base64,PD94bWwgdmVyc2lvbj0iMS4wIiBlbmNvZGluZz0idXRmLTgiPz4NCjwhLS0gR2VuZXJhdGVkIGJ5IEljb01vb24uaW8gLS0+DQo8IURPQ1RZUEUgc3ZnIFBVQkxJQyAiLS8vVzNDLy9EVEQgU1ZHIDEuMS8vRU4iICJodHRwOi8vd3d3LnczLm9yZy9HcmFwaGljcy9TVkcvMS4xL0RURC9zdmcxMS5kdGQiPg0KPHN2ZyB2ZXJzaW9uPSIxLjEiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyIgeG1sbnM6eGxpbms9Imh0dHA6Ly93d3cudzMub3JnLzE5OTkveGxpbmsiIHdpZHRoPSIzMiIgaGVpZ2h0PSIzMiIgdmlld0JveD0iMCAwIDMyIDMyIj4NCjxnIGlkPSJpY29tb29uLWlnbm9yZSI+DQo8L2c+DQo8cGF0aCBkPSJNMzEuMzQyIDI1LjU1OWwtMTQuMzkyLTEyLjMzNmMwLjY3LTEuMjU5IDEuMDUxLTIuNjk2IDEuMDUxLTQuMjIyIDAtNC45NzEtNC4wMjktOS05LTktMC45MDkgMC0xLjc4NyAwLjEzNS0yLjYxNCAwLjM4Nmw1LjIgNS4yYzAuNzc4IDAuNzc4IDAuNzc4IDIuMDUxIDAgMi44MjhsLTMuMTcyIDMuMTcyYy0wLjc3OCAwLjc3OC0yLjA1MSAwLjc3OC0yLjgyOCAwbC01LjItNS4yYy0wLjI1MSAwLjgyNy0wLjM4NiAxLjcwNS0wLjM4NiAyLjYxNCAwIDQuOTcxIDQuMDI5IDkgOSA5IDEuNTI2IDAgMi45NjMtMC4zOCA0LjIyMi0xLjA1MWwxMi4zMzYgMTQuMzkyYzAuNzE2IDAuODM1IDEuOTM4IDAuODgyIDIuNzE2IDAuMTA0bDMuMTcyLTMuMTcyYzAuNzc4LTAuNzc4IDAuNzMxLTItMC4xMDQtMi43MTZ6IiBmaWxsPSIjMDAwMDAwIj48L3BhdGg+DQo8L3N2Zz4NCg=="></img>
+            <img id="key" onclick="exampleController.drawingPanel_onPlaceMarker(this)" src="data:image/svg+xml;base64,PD94bWwgdmVyc2lvbj0iMS4wIiBlbmNvZGluZz0idXRmLTgiPz4KPCEtLSBHZW5lcmF0ZWQgYnkgSWNvTW9vbi5pbyAtLT4KPCFET0NUWVBFIHN2ZyBQVUJMSUMgIi0vL1czQy8vRFREIFNWRyAxLjEvL0VOIiAiaHR0cDovL3d3dy53My5vcmcvR3JhcGhpY3MvU1ZHLzEuMS9EVEQvc3ZnMTEuZHRkIj4KPHN2ZyB2ZXJzaW9uPSIxLjEiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyIgeG1sbnM6eGxpbms9Imh0dHA6Ly93d3cudzMub3JnLzE5OTkveGxpbmsiIHdpZHRoPSIzMiIgaGVpZ2h0PSIzMiIgdmlld0JveD0iMCAwIDMyIDMyIj4KPHBhdGggZmlsbD0iIzAwMDAwMCIgZD0iTTIyIDBjLTUuNTIzIDAtMTAgNC40NzctMTAgMTAgMCAwLjYyNiAwLjA1OCAxLjIzOCAwLjE2OCAxLjgzMmwtMTIuMTY4IDEyLjE2OHY2YzAgMS4xMDUgMC44OTUgMiAyIDJoMnYtMmg0di00aDR2LTRoNGwyLjU5NS0yLjU5NWMxLjA2MyAwLjM4NSAyLjIwOSAwLjU5NSAzLjQwNSAwLjU5NSA1LjUyMyAwIDEwLTQuNDc3IDEwLTEwcy00LjQ3Ny0xMC0xMC0xMHpNMjQuOTk2IDEwLjAwNGMtMS42NTcgMC0zLTEuMzQzLTMtM3MxLjM0My0zIDMtMyAzIDEuMzQzIDMgMy0xLjM0MyAzLTMgM3oiPjwvcGF0aD4KPC9zdmc+Cg=="></img>           
+            <img id="flag" onclick="exampleController.drawingPanel_onPlaceMarker(this)" src="data:image/svg+xml;base64,PD94bWwgdmVyc2lvbj0iMS4wIiBlbmNvZGluZz0idXRmLTgiPz4NCjwhLS0gR2VuZXJhdGVkIGJ5IEljb01vb24uaW8gLS0+DQo8IURPQ1RZUEUgc3ZnIFBVQkxJQyAiLS8vVzNDLy9EVEQgU1ZHIDEuMS8vRU4iICJodHRwOi8vd3d3LnczLm9yZy9HcmFwaGljcy9TVkcvMS4xL0RURC9zdmcxMS5kdGQiPg0KPHN2ZyB2ZXJzaW9uPSIxLjEiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyIgeG1sbnM6eGxpbms9Imh0dHA6Ly93d3cudzMub3JnLzE5OTkveGxpbmsiIHdpZHRoPSIzMiIgaGVpZ2h0PSIzMiIgdmlld0JveD0iMCAwIDMyIDMyIj4NCjxnIGlkPSJpY29tb29uLWlnbm9yZSI+DQo8L2c+DQo8cGF0aCBkPSJNMjYgNS4zODVjMi4zOSAwIDQuNTM0LTEuMzAxIDYtMi4yODV2MTguNjE1Yy0xLjQ2NiAwLjk4NC0zLjYxIDIuMjg1LTYgMi4yODVzLTQuNTM0LTAuNzA4LTYtMS42OTJjLTEuNDY2LTAuOTg0LTMuNjEtMS42OTItNi0xLjY5MnMtNC41MzQgMS4yMTYtNiAyLjJ2LTE4LjYxNWMxLjQ2Ni0wLjk4NCAzLjYxLTIuMiA2LTIuMnM0LjUzNCAwLjcwOCA2IDEuNjkyYzEuNDY2IDAuOTg0IDMuNjEgMS42OTIgNiAxLjY5MnpNNCAwYzEuMTA1IDAgMiAwLjg5NSAyIDJ2MzBoLTR2LTMwYzAtMS4xMDUgMC44OTUtMiAyLTJ6IiBmaWxsPSIjMDAwMDAwIj48L3BhdGg+DQo8L3N2Zz4NCg=="></img>
+        </html>
+    </panel>
+    
+    <!--  afm_redlines dataSource for markers -->
+    <dataSource id="ds_redlines">
+        <table name="afm_redlines" role="main"/>
+        <field table="afm_redlines" name="auto_number"/>
+        <field table="afm_redlines" name="origin"/>
+        <field table="afm_redlines" name="redline_type"/>
+        <field table="afm_redlines" name="redlines"/>
+        <field table="afm_redlines" name="position_rly"/>
+        <field table="afm_redlines" name="position_rlx"/>
+        <field table="afm_redlines" name="position_luy"/>
+        <field table="afm_redlines" name="position_lux"/>
+        <field table="afm_redlines" name="rotation"/>
+        <field table="afm_redlines" name="dwg_name"/>
+        <field table="afm_redlines" name="layer_name"/>
+        <restriction type="parsed">
+            <clause table="afm_redlines" name="origin" relop="AND" op="=" value="HTML5-based Floor Plan" />
+            <clause table="afm_redlines" name="redline_type" relop="AND" op="=" value="Marker" />
+            <clause table="afm_redlines" name="layer_name" relop="AND" op="=" value="MY_MARKER_TABLE-assets" />
+        </restriction>
+        <sortField table="afm_redlines" name="auto_number" ascending="true"/>
+    </dataSource>   
+    <panel type="form" id="redlineForm" dataSource="ds_redlines" showOnLoad="false">
+        <title>Redline</title>
+        <action id="save">
+            <title>Save</title>
+        </action>
+    </panel>
+    
+    <!-- drawing panel -->
+    <panel type="html" id="drawingPanel" dataSource="none" region="center">
+        <title></title>     
+        <action id="showAvailableSymbols">
+            <title>Insert New Marker</title>
+        </action>
+        <action id="showExistingMarkers">
+            <title>Show Existing Markers</title>
+        </action>                
+        <action type="menu" id="toolsMenu" imageName="/schema/ab-core/graphics/icons/view/gear.png">
+            <title></title>
+            <action id="toggleClustering">
+                <title>Toggle Clustering</title>
+                <command type="callFunction" functionName="exampleController.drawingPanel_onToggleClustering()" />
+            </action>
+            <action id="captureImage">
+                <title>Capture Image</title>
+                <command type="captureSvgImage" id="drawingDiv" />
+            </action>  
+        </action>                   
+        <html> 
+            <div id="drawingDiv"></div>
+        </html>
+    </panel>
+</view>

@@ -1,0 +1,343 @@
+<view version="2.0">
+    
+    <title translatable="true">Assignments</title>
+
+    <layout id="mainCenter">
+        <north id="treeConsole" initialSize="14%" split="true"/>
+        <west id="treePositon" initialSize="17%" split="true"/>
+        <center/>
+    </layout>
+    
+    <layout id="nested_center" containingLayout="mainCenter" region="center">
+        <center id="dwgAndLegendPosition"/>
+        <south id="center_south" initialSize="25%" split="true"/>
+    </layout>
+    <layout id="nested_center_center" containingLayout="nested_center" region="center">
+        <west id="dwgPosition" initialSize="60%" split="true"/>
+        <center id="legendAndDocPosition" />
+        
+    </layout>
+    <layout id="nested_center_south" containingLayout="nested_center" region="south">
+        <north id="assignmentsPosition" initialSize="40%" split="true"/>
+        <center id="southPosition" />
+        
+    </layout>
+    <layout id="documentAndHideRegion" containingLayout="nested_center_center" region="center">
+        <north id="legendPosition" initialSize="25%" split="true"/>
+        <center id="document" />
+        <south id="hideRegion" initialSize="0" split="true"/>
+    </layout>
+    
+    <message name="dateNotAllowNull" translatable="true">You must enter a Required date to continue.</message>
+    <message name="selectFloor" translatable="true">Please select a floor</message>
+    <message name="selectRm" translatable="true">Select a room to claim or release it.</message>
+    <message name="selectRecord">Please select assignment records</message>
+    <message name="legendLevel0">Rooms to Claim</message>
+    <message name="legendLevel1">Rooms to Release</message>
+    <message name="pendingFutureTransMoveOut" translatable="true">Another request exists involving the same room for a future assignment.activity log ids:[{0}]. Please cancel or modify that assignment first before changing this assignment</message>
+    
+    <message name="existsSameDayMoveAndDepartmentRequests" translatable="true">There is already move or department space request on the same date for room '{0}', continue to submit the request will resulted the former requests be overridden, continue?</message>
+
+	<panel type="view" id="labelStylesView" file="ab-helpdesk-assign-datasource-labels.axvw"/>
+    <panel type="view" file="ab-helpdesk-request-assign-console.axvw" id="abHelpdeskRequestConsole" layoutRegion="treeConsole"/>
+    <panel type="view" file="ab-helpdesk-request-world-tree.axvw" id="locTree"  layoutRegion="treePositon"/>
+        
+    <dataSource id="abHelpdeskRequestCreateDpSpAssignDrawingDS" type="DrawingControlHighlight">
+        <table name="rm" role="main"/>
+        <table name="rmcat" role="standard"/>
+        <field table="rm" name="bl_id"/>
+        <field table="rm" name="fl_id"/>
+        <field table="rm" name="rm_id"/>
+        <field table="rm" name="area"/>
+        <field table="rm" name="cap_em"/>
+        <field table="rm" name="count_em"/>
+        
+        <field table="rm" name="legend_level" dataType="text" legendKey="true">
+            <sql dialect="generic">
+                CASE WHEN  EXISTS(SELECT 1 FROM rmpct WHERE rmpct.bl_id =rm.bl_id and rmpct.fl_id=rm.fl_id and rmpct.rm_id=rm.rm_id and  ( rmpct.dv_id = ${parameters['dvId']} and rmpct.dp_id =${parameters['dpId']}   OR  ${parameters['dpId']} IS NULL and rmpct.dv_id = ${parameters['dvId']}) AND (rmpct.date_start IS NULL OR rmpct.date_start &lt;= ${parameters['requestDate']}) AND (rmpct.date_end IS NULL OR rmpct.date_end &gt;= ${parameters['requestDate']}) AND rmpct.status IN (0, 1) ) THEN 'yellow'
+                    WHEN EXISTS(SELECT 1 FROM rmpct WHERE rmpct.bl_id =rm.bl_id and rmpct.fl_id=rm.fl_id and rmpct.rm_id=rm.rm_id  AND (rmpct.date_start IS NULL OR rmpct.date_start &lt;= ${parameters['requestDate']}) AND (rmpct.date_end IS NULL OR rmpct.date_end &gt;= ${parameters['requestDate']}) AND rmpct.status IN (0, 1) AND rmpct.dv_id is null AND rmpct.dp_id is null ) AND NOT EXISTS(SELECT 1 FROM rmpct WHERE rmpct.bl_id =rm.bl_id and rmpct.fl_id=rm.fl_id and rmpct.rm_id=rm.rm_id  and rmpct.dv_id IS NOT NULL and rmpct.dp_id IS NOT NULL  AND (rmpct.date_start IS NULL OR rmpct.date_start &lt;= ${parameters['requestDate']}) AND (rmpct.date_end IS NULL OR rmpct.date_end &gt;= ${parameters['requestDate']}) AND rmpct.status IN (0, 1)) THEN 'blue'
+                END
+            </sql>
+        </field>
+        <field table="rmcat" name="rm_cat"/>
+        <parameter name="requestDate" dataType="date" value="verbatim"/>
+        <parameter name="flId" dataType="text" value="IS NOT NULL"/>
+        <parameter name="blId" dataType="text" value="IS NOT NULL"/>
+        <parameter name="dvId" dataType="text" value="IS NOT NULL"/>
+        <parameter name="dpId" dataType="text" value="IS NOT NULL"/>
+        <restriction type="sql" sql=" rmcat.occupiable = 1  and rmcat.supercat!='VERT' and  rm.bl_id = ${parameters['blId']} AND rm.fl_id = ${parameters['flId']} AND
+                ( EXISTS(SELECT 1 FROM rmpct WHERE rmpct.bl_id =rm.bl_id and rmpct.fl_id=rm.fl_id and rmpct.rm_id=rm.rm_id and  ( rmpct.dv_id = ${parameters['dvId']} and rmpct.dp_id =${parameters['dpId']}    OR  ${parameters['dpId']} IS NULL and rmpct.dv_id = ${parameters['dvId']} ) AND (rmpct.date_start IS NULL OR rmpct.date_start &lt;= ${parameters['requestDate']}) AND (rmpct.date_end IS NULL OR rmpct.date_end &gt;= ${parameters['requestDate']}) AND rmpct.status IN (0, 1) )  
+                    OR ( EXISTS(SELECT 1 FROM rmpct WHERE rmpct.bl_id =rm.bl_id and rmpct.fl_id=rm.fl_id and rmpct.rm_id=rm.rm_id  AND (rmpct.date_start IS NULL OR rmpct.date_start &lt;= ${parameters['requestDate']}) AND (rmpct.date_end IS NULL OR rmpct.date_end &gt;= ${parameters['requestDate']}) AND rmpct.status IN (0, 1) AND rmpct.dv_id is null AND rmpct.dp_id is null ) AND NOT EXISTS(SELECT 1 FROM rmpct WHERE rmpct.bl_id =rm.bl_id and rmpct.fl_id=rm.fl_id and rmpct.rm_id=rm.rm_id  and rmpct.dv_id IS NOT NULL and rmpct.dp_id IS NOT NULL  AND (rmpct.date_start IS NULL OR rmpct.date_start &lt;= ${parameters['requestDate']}) AND (rmpct.date_end IS NULL OR rmpct.date_end &gt;= ${parameters['requestDate']}) AND rmpct.status IN (0, 1))
+                        )
+                )
+         "/>
+    </dataSource>
+    
+    <dataSource id="legendDs" distinct="true">
+        <table name="rm" role="main"/>
+        <field name="rm_id"></field>
+        <restriction type="sql" sql="1=2"/>
+    </dataSource>
+   
+    <panel type="drawing" id="abSpAsgnUserDpToRm_drawingPanel" layoutRegion="dwgPosition" showOnLoad="false" multiple="false" 
+     highlightDataSource="abHelpdeskRequestCreateDpSpAssignDrawingDS" 
+     labelsDataSource="ds_ab-sp-asgn-em-to-rm_drawing_rmLabel1"
+     legendPanel="legendGrid"
+     >
+        <action id="exportDOCX">
+            <title translatable="true">DOC</title>
+            <tooltip translatable="true">Export current view of drawing to Docx file.</tooltip>
+            <command type="exportPanel" outputType="docx" panelId="abSpAsgnUserDpToRm_drawingPanel"/>
+        </action>
+        
+        <title></title>
+    </panel>
+        
+    <panel type="grid" controlType="reportGrid" id="legendGrid" dataSource="legendDs" layoutRegion="legendPosition" showOnLoad="false">
+        <title translatable="true">Legend</title>
+        <field table="legend" name="color" controlType="color"/>
+        <field table="legend" name="value" width="80%">
+            <title translatable="true">Value</title>
+        </field>
+    </panel>
+      
+    <dataSource id="abHelpdeskRequestCreateDpSpAssignDrawingDS2">
+        <table name="rm" role="main"/>
+        <table name="rmcat" role="standard"/>
+        <field table="rm" name="bl_id"/>
+        <field table="rm" name="fl_id"/>
+        <field table="rm" name="rm_id"/>
+        <field table="rm" name="area"/>
+        <field table="rm" name="cap_em"/>
+        <field table="rm" name="count_em"/>
+        <field table="rm" name="legend_level" dataType="text" legendKey="true">
+             <sql dialect="generic">
+                CASE WHEN  EXISTS(SELECT 1 FROM rmpct WHERE rmpct.bl_id =rm.bl_id and rmpct.fl_id=rm.fl_id and rmpct.rm_id=rm.rm_id and  ( rmpct.dv_id = ${parameters['dvId']} and rmpct.dp_id =${parameters['dpId']}  OR  ${parameters['dpId']} IS NULL and rmpct.dv_id = ${parameters['dvId']}) AND (rmpct.date_start IS NULL OR rmpct.date_start &lt;= ${parameters['requestDate']}) AND (rmpct.date_end IS NULL OR rmpct.date_end &gt;= ${parameters['requestDate']}) AND rmpct.status IN (0, 1) ) THEN 'yellow'
+                    WHEN EXISTS(SELECT 1 FROM rmpct WHERE rmpct.bl_id =rm.bl_id and rmpct.fl_id=rm.fl_id and rmpct.rm_id=rm.rm_id  AND (rmpct.date_start IS NULL OR rmpct.date_start &lt;= ${parameters['requestDate']}) AND (rmpct.date_end IS NULL OR rmpct.date_end &gt;= ${parameters['requestDate']}) AND rmpct.status IN (0, 1) AND rmpct.dv_id is null AND rmpct.dp_id is null ) AND NOT EXISTS(SELECT 1 FROM rmpct WHERE rmpct.bl_id =rm.bl_id and rmpct.fl_id=rm.fl_id and rmpct.rm_id=rm.rm_id  and rmpct.dv_id IS NOT NULL and rmpct.dp_id IS NOT NULL  AND (rmpct.date_start IS NULL OR rmpct.date_start &lt;= ${parameters['requestDate']}) AND (rmpct.date_end IS NULL OR rmpct.date_end &gt;= ${parameters['requestDate']}) AND rmpct.status IN (0, 1)) THEN 'blue'
+                END
+            </sql>
+        </field>
+        <field table="rmcat" name="rm_cat"/>
+        <parameter name="requestDate" dataType="date" value="verbatim"/>
+        <parameter name="flId" dataType="text" value="IS NOT NULL"/>
+        <parameter name="blId" dataType="text" value="IS NOT NULL"/>
+        <parameter name="rmId" dataType="verbatim" value="IS NOT NULL"/>
+        <parameter name="dvId" dataType="text" value="IS NOT NULL"/>
+        <parameter name="dpId" dataType="text" value="IS NOT NULL"/>
+        <restriction type="sql" sql=" rmcat.occupiable = 1 and rmcat.supercat!='VERT'  and rm.bl_id = ${parameters['blId']} AND rm.fl_id = ${parameters['flId']} AND rm.rm_id ${parameters['rmId']} AND
+            ( EXISTS(SELECT 1 FROM rmpct WHERE rmpct.bl_id =rm.bl_id and rmpct.fl_id=rm.fl_id and rmpct.rm_id=rm.rm_id and ( rmpct.dv_id = ${parameters['dvId']} and rmpct.dp_id =${parameters['dpId']} OR  ${parameters['dpId']} IS NULL and rmpct.dv_id = ${parameters['dvId']})  AND (rmpct.date_start IS NULL OR rmpct.date_start &lt;= ${parameters['requestDate']}) AND (rmpct.date_end IS NULL OR rmpct.date_end &gt;= ${parameters['requestDate']}) AND rmpct.status IN (0, 1) )  
+                OR ( EXISTS(SELECT 1 FROM rmpct WHERE rmpct.bl_id =rm.bl_id and rmpct.fl_id=rm.fl_id and rmpct.rm_id=rm.rm_id  AND (rmpct.date_start IS NULL OR rmpct.date_start &lt;= ${parameters['requestDate']}) AND (rmpct.date_end IS NULL OR rmpct.date_end &gt;= ${parameters['requestDate']}) AND rmpct.status IN (0, 1) AND rmpct.dv_id is null AND rmpct.dp_id is null ) AND NOT EXISTS(SELECT 1 FROM rmpct WHERE rmpct.bl_id =rm.bl_id and rmpct.fl_id=rm.fl_id and rmpct.rm_id=rm.rm_id  and rmpct.dv_id IS NOT NULL and rmpct.dp_id IS NOT NULL  AND (rmpct.date_start IS NULL OR rmpct.date_start &lt;= ${parameters['requestDate']}) AND (rmpct.date_end IS NULL OR rmpct.date_end &gt;= ${parameters['requestDate']}) AND rmpct.status IN (0, 1))
+                    )
+            )
+         "/>
+    </dataSource>
+    
+    <dataSource id="rmDS">
+        <table name="rm" role="main"/>
+        <field table="rm" name="bl_id"/>
+        <field table="rm" name="fl_id"/>
+        <field table="rm" name="rm_id"/>
+        <field table="rm" name="dwgname"/>
+         <restriction type="sql" sql="rm.dwgname is not null "/>
+    </dataSource>
+    <dataSource id="ds_ab-sp-asgn-dv-dp-to-rm_grid_rm">
+        <table name="rm" role="main"/>
+    </dataSource>
+     
+    <panel type="grid" id="abSpDpAssignGrid" dataSource="ds_ab-sp-asgn-dv-dp-to-rm_grid_rm" multipleSelectionEnabled="true" layoutRegion="assignmentsPosition" showOnLoad="false">
+        <title translatable="true">Assignments</title>
+        
+        <action id="selectRmClaim">
+            <title translatable="true">Select Rooms to Claim</title>
+        </action>
+        <action id="selectRmRelease">
+            <title translatable="true">Select Rooms to Release</title>
+        </action>
+        <action id="revertSelected">
+            <title translatable="true">Revert Selected</title>
+            <command type="callFunction" functionName="revertSelectedAssignment"/>
+        </action>
+        
+        <action id="revert">
+            <title translatable="true">Revert All</title>
+            <command type="callFunction" functionName="resetAssignmentCtrls"/>
+        </action>
+        <field table="composite" name="loc">
+            <title translatable="true">Location</title>
+        </field>
+        <field table="rm" name="dv_id">
+            <title translatable="true">Division Code</title>
+        </field>
+        <field table="rm" name="dp_id">
+            <title translatable="true">Department Code</title>
+        </field>
+        <field table="rm" name="claimOrRelease">
+            <title translatable="true">Status</title>
+        </field>
+         
+        <field table="rm" name="bl_id" hidden="true"/>
+        <field table="rm" name="fl_id" hidden="true"/>
+        <field table="rm" name="rm_id" hidden="true"/>
+        <field table="rm" name="pct_id"  hidden="true" />
+    </panel>
+    
+    <dataSource id="rmpctDS">
+        <table name="rmpct" role="main"/>
+        <field table="rmpct" name="bl_id"/>
+        <field table="rmpct" name="fl_id"/>
+        <field table="rmpct" name="rm_id"/>
+        <field table="rmpct" name="dv_id"/>
+        <field table="rmpct" name="dp_id"/>
+        <field table="rmpct" name="pct_id"/>
+        <field table="rmpct" name="date_start"/>
+        <field table="rmpct" name="activity_log_id"/>
+    </dataSource>
+    
+    <dataSource id="activityLogDS">
+        <table name="activity_log" role="main"/>
+        <field table="activity_log" name="status"/>
+        <field table="activity_log" name="activity_log_id"/>
+        <field table="activity_log" name="requestor" />
+        <field table="activity_log" name="dv_id"  />
+        <field  table="activity_log" name="dp_id" />
+    </dataSource>
+        
+        
+    <dataSource id="rmClaimDS">
+        <table name="rm" role="main"/>
+        <table name="rmcat" role="standard"/>
+        <field table="rm" name="bl_id"/>
+        <field table="rm" name="fl_id"/>
+        <field table="rm" name="rm_id"/>
+        <field table="rmcat" name="rm_cat"/>
+        <parameter name="requestDate" dataType="date" value="verbatim"/>
+        <parameter name="locArray" dataType="verbatim" value=""/>
+        
+        <restriction type="sql" sql="rmcat.supercat!='VERT' AND  RTRIM(rm.bl_id)${sql.concat}'-'${sql.concat}RTRIM(rm.fl_id)${sql.concat}'-'${sql.concat}RTRIM(rm.rm_id) NOT  IN  (${parameters['locArray']}) AND  rmcat.occupiable = 1 AND NOT EXISTS(SELECT 1 FROM rmpct WHERE rmpct.bl_id =rm.bl_id and rmpct.fl_id=rm.fl_id and rmpct.rm_id=rm.rm_id  and rmpct.dv_id IS NOT NULL and rmpct.dp_id IS NOT NULL  AND (rmpct.date_start IS NULL OR rmpct.date_start &lt;= ${parameters['requestDate']}) AND (rmpct.date_end IS NULL OR rmpct.date_end &gt;= ${parameters['requestDate']}) AND rmpct.status IN (0, 1)) AND EXISTS(SELECT 1 FROM rmpct WHERE rmpct.bl_id =rm.bl_id and rmpct.fl_id=rm.fl_id and rmpct.rm_id=rm.rm_id  AND (rmpct.date_start IS NULL OR rmpct.date_start &lt;= ${parameters['requestDate']}) AND (rmpct.date_end IS NULL OR rmpct.date_end &gt;= ${parameters['requestDate']}) AND rmpct.dv_id is null AND rmpct.dp_id is null AND rmpct.status IN (0, 1))"/>
+    </dataSource>
+        
+    <dataSource id="rmRleaseDS">
+        <table name="rm" role="main"/>
+        <table name="rmcat" role="standard"/>
+        <field table="rm" name="bl_id"/>
+        <field table="rm" name="fl_id"/>
+        <field table="rm" name="rm_id"/>
+        <field table="rmcat" name="rm_cat"/>
+        <parameter name="requestDate" dataType="date" value="verbatim"/>
+        <parameter name="locArray" dataType="verbatim" value=""/>
+        <parameter name="dvId" dataType="text" value="IS NOT NULL"/>
+        <parameter name="dpId" dataType="text" value="IS NOT NULL"/>
+        <restriction type="sql" sql=" rmcat.supercat!='VERT' AND  RTRIM(rm.bl_id)${sql.concat}'-'${sql.concat}RTRIM(rm.fl_id)${sql.concat}'-'${sql.concat}RTRIM(rm.rm_id) NOT  IN  (${parameters['locArray']}) AND rmcat.occupiable = 1 AND  EXISTS(SELECT 1 FROM rmpct WHERE rmpct.bl_id =rm.bl_id and rmpct.fl_id=rm.fl_id and rmpct.rm_id=rm.rm_id and  rmpct.dv_id = ${parameters['dvId']} and rmpct.dp_id =${parameters['dpId']}  AND (rmpct.date_start IS NULL OR rmpct.date_start &lt;= ${parameters['requestDate']}) AND (rmpct.date_end IS NULL OR rmpct.date_end &gt;= ${parameters['requestDate']}) AND rmpct.status IN (0, 1) ) "/>
+    </dataSource>
+    
+
+    <panel type="grid" id="rmClaimGrid" dataSource="rmClaimDS" multipleSelectionEnabled="true" showOnLoad="false">
+        <title translatable="true">Select Rooms to Claim</title>
+        <action id="saveAndClose">
+            <title translatable="true">Save and Close</title>
+            <command type="callFunction" functionName="saveAndClose"/>
+        </action>
+        <field table="rm" name="bl_id"/>
+        <field table="rm" name="fl_id"/>
+        <field table="rm" name="rm_id"/>
+    </panel>
+    <panel type="grid" id="rmRleaseGrid" dataSource="rmRleaseDS" multipleSelectionEnabled="true" showOnLoad="false">
+        <title translatable="true">Select Rooms to Release</title>
+        <action id="saveAndClose">
+            <title translatable="true">Save and Close</title>
+            <command type="callFunction" functionName="saveAndClose"/>
+        </action>
+        <field table="rm" name="bl_id"/>
+        <field table="rm" name="fl_id"/>
+        <field table="rm" name="rm_id"/>
+    </panel>
+    
+    <dataSource id="activityDS">
+        <table name="activity_log" role="main" />
+        <field name="created_by" table="activity_log" />
+        <field name="activity_log_id" table="activity_log" />
+        <field name="requestor" table="activity_log" />
+        <field name="phone_requestor" table="activity_log" />
+        <field name="doc1" table="activity_log" />
+        <field name="doc2" table="activity_log" />
+        <field name="doc3" table="activity_log" />
+        <field name="doc4" table="activity_log" />
+        <field name="assessment_id" table="activity_log" />
+       
+        <field name="dv_id" table="activity_log" />
+        <field name="dp_id" table="activity_log" />
+    </dataSource>
+
+    <panel type="form" columns="2" id="requestPanel"
+        dataSource="activityDS" showOnLoad="false">
+        <field name="activity_log_id" table="activity_log"
+            readOnly="true">
+            <title translatable="true">Service Request ID</title>
+        </field>
+        <field name="created_by" table="activity_log" readOnly="true" />
+        <field name="requestor" table="activity_log" readOnly="true" />
+        <field name="phone_requestor" table="activity_log" readOnly="true" />
+        <field name="dv_id" table="activity_log" hidden="true"/>
+        <field name="dp_id" table="activity_log" hidden="true" />
+        <field name="assessment_id" table="activity_log" hidden="true" />
+        <field name="status" table="activity_log" hidden="true"/>
+
+    </panel>
+    <dataSource id="docsDS">
+        <table name="activity_log" role="main" />
+        <field name="created_by" table="activity_log" />
+        <field name="activity_log_id" table="activity_log" />
+        <field name="requestor" table="activity_log" />
+        <field name="phone_requestor" table="activity_log" />
+        <field name="doc1" table="activity_log" />
+        <field name="doc2" table="activity_log" />
+        <field name="doc3" table="activity_log" />
+        <field name="doc4" table="activity_log" />
+        <field name="assessment_id" table="activity_log" />
+        <field name="status" table="activity_log" />
+        
+    </dataSource>
+    <panel type="form" columns="1" id="documentsPanel" layoutRegion="document"  dataSource="docsDS">
+        <title translatable="true">Documents</title>
+        <field name="activity_log_id" table="activity_log" hidden="true"/>
+        <field name="doc1" table="activity_log"  style="width: 30px;"/>
+        <field name="doc2" table="activity_log"  style="width: 30px;"/>
+        <field name="doc3" table="activity_log"  style="width: 30px;"/>
+        <field name="doc4" table="activity_log" style="width: 30px;"/>
+    </panel>
+    <dataSource id="updateDs_0">
+        <table name="activity_log" role="main"/>
+        <field table="activity_log" name="activity_log_id" />
+        <field table="activity_log" name="comments"/>
+    </dataSource>
+
+    <panel type="form" columns="2" id="commentsPanel" dataSource="updateDs_0" layoutRegion="document" showOnLoad="true">
+        
+        <field name="activity_log_id" table="activity_log" hidden="true"/>      
+          
+        <field name="comments" table="activity_log" colspan="1"
+                style="height:60px" showSelectValueAction="false" />
+    </panel>
+    
+    <dataSource id="rmpctForRequestorDS">
+        <table name="rmpct" role="main"/>
+        <field table="rmpct" name="pct_id" />
+        <field table="rmpct" name="primary_em"/>
+        <field table="rmpct" name="status"/>
+        <field table="rmpct" name="bl_id"/>
+        <field table="rmpct" name="fl_id"/>
+        <field table="rmpct" name="date_start"/>
+        <field table="rmpct" name="date_end"/>
+        <field table="rmpct" name="em_id"/>
+        
+        <restriction type="sql" sql="  rmpct.primary_em=1   AND rmpct.status =1 "/>
+          </dataSource>
+    
+    <js file="ab-helpdesk-request-common-sla-v2.js" />
+    <js file="ab-helpdesk-common-v2.js" />
+    <js file="ab-helpdesk-request-approval-common.js" />
+    <js file="ab-sp-common.js"/>
+    <js file="ab-helpdesk-request-dp-sp-assign.js"/>
+    <js file="ab-helpdesk-request-trans-common.js"/>
+    
+</view>

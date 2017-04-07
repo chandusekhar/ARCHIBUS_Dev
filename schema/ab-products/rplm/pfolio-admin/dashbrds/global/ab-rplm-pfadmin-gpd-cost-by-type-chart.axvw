@@ -1,0 +1,77 @@
+<view version="2.0">
+    <js file="ab-rplm-pfadmin-gpd-cost-by-type-chart.js"/>
+    <title>Operating Costs</title>
+    
+    <!-- Chart control -->
+    <dataSource id="abRplmPfadminGpdCostByType_ds" type="grouping" applyVpaRestrictions="false">
+        <sql dialect="generic">
+            SELECT 
+                cost_cat.cost_type ${sql.as} cost_type, 
+                cost_tran.amount_expense ${sql.as} amount_expense
+            FROM cost_tran
+                LEFT OUTER JOIN cost_cat ON cost_tran.cost_cat_id = cost_cat.cost_cat_id
+                LEFT OUTER JOIN bl ON bl.bl_id = cost_tran.bl_id
+            WHERE 
+                ${sql.vpaRestriction} AND  ${parameters['filterRestriction']}
+        </sql>
+        <table name="bl" role="main"/>        
+        <field table="bl" name="cost_type" dataType="text" groupBy="true"/>
+        <field name="sum_amount_expense" formula="sum" baseField="bl.amount_expense" dataType="number" decimals="2" currency="${project.budgetCurrency.code}">
+            <title translatable="true">Amount - Expense - Sum</title>
+        </field>
+        <parameter name="filterRestriction" dataType="verbatim" value="1 = 1"/>   
+        <sortField table="bl" name="cost_type" ascending="false"/>
+    </dataSource>
+    
+    <panel type="chart" id="abRplmPfadminGpdCostByType_chart" dataSource="abRplmPfadminGpdCostByType_ds" showLegendOnLoad="false"
+            controlType="pieChart" fillType="radialGradient" >
+        <title translatable="true">Operating Costs</title>
+        <event type="onClickItem">   
+            <command type="openDialog" panelId="abRplmPfadminGpdCostByTypeDetails" width="600" height="400"/>   
+        </event>
+        <groupingAxis table="bl" field="cost_type" showLabel="true"> 
+            <title translatable="true">Cost Type</title> 
+        </groupingAxis>
+        <dataAxis table="bl" field="sum_amount_expense" showLabel="true" labelPosition="inside" labelRotation="0" autoCalculateTickSizeInterval="true" unitKey="M" >  
+            <title translatable="true">Amount -Expense (Sum)</title> 
+        </dataAxis>
+    </panel>
+
+    <dataSource id="abRplmPfadminGpdCostByTypeDetails_ds" applyVpaRestrictions="false"> 
+        <sql dialect="generic">
+            SELECT 
+                cost_cat.cost_type ${sql.as} cost_type, 
+                cost_tran.amount_expense ${sql.as} amount_expense,
+                cost_tran.cost_cat_id ${sql.as} cost_cat_id 
+            FROM cost_tran
+                LEFT OUTER JOIN cost_cat ON cost_tran.cost_cat_id = cost_cat.cost_cat_id
+                LEFT OUTER JOIN bl ON bl.bl_id = cost_tran.bl_id
+            WHERE 
+                ${sql.vpaRestriction} AND ${parameters['filterRestriction']}
+        </sql>  
+        <table name="bl" role="main" />
+        <table name="cost_cat" role="standard" />
+        <field name="amount_expense" dataType="number" decimals="2" currency="${project.budgetCurrency.code}"/>
+        <field name="cost_cat_id" dataType="text"/>
+        <field name="cost_type" dataType="text"/>
+        <parameter name="filterRestriction" dataType="verbatim" value="1 = 1"/>   
+    </dataSource>
+    
+    <panel type="grid" id="abRplmPfadminGpdCostByTypeDetails" dataSource="abRplmPfadminGpdCostByTypeDetails_ds" hidden="true" showOnLoad="false">
+        <title>Operating Costs</title>
+        <action id="exportXLS">
+            <title>XLS</title>
+            <command type="exportPanel" outputType="xls" panelId="abRplmPfadminGpdCostByTypeDetails"/>
+        </action>
+        <field name="amount_expense">
+            <title>Amount Expense</title>
+        </field>
+        <field name="cost_cat_id">
+            <title>Cost Category Code</title>
+        </field>
+        <field name="cost_type">
+            <title>Cost Type</title>
+        </field>
+    </panel>
+    
+</view>

@@ -1,0 +1,108 @@
+<view version="2.0">
+	<dataSource id="generateEstimateWrOtherDs">
+	    <query>
+		    <sql dialect="generic">
+			   select  top 4  wr_other.wr_id,'VEHICLE-RES' other_rs_type,DATEADD(dd, DATEDIFF(dd, 0, pickup + rt.date_used), 0) date_used,rt.units_used,
+					case rt.units_used 
+						when 'KMs' then kms 
+						when 'MNs' then
+							 mnths + case when mnthDays>0 and dys>= mnthDays then 1 else 0 end
+							+ case when mnthDays=0 and mnthHrs>0 and hrs>= mnthHrs then 1 else 0 end
+						when 'DYs' then 
+							case when mnthDays>0 and dys>= mnthDays then 0 else dys end
+							+ case when dayHrs>0 and hrs>= dayHrs then 1 else 0 end
+						else 
+							case when (dayHrs>0 and hrs>= dayHrs) or (mnthDays=0 and mnthHrs>0 and hrs>= 24*30) then 0 else hrs end
+					end qty_est,
+					case rt.units_used 
+						when 'KMs' then kms * rent_rate_mtr_unit  
+						when 'MNs' then rent_rate_month * 
+							(mnths + case when mnthDays>0 and dys>= mnthDays then 1 else 0 end
+							+ case when mnthDays=0 and mnthHrs>0 and hrs>= mnthHrs then 1 else 0 end)
+						when 'DYs' then rent_rate_day * 
+							(case when mnthDays>0 and dys>= mnthDays then 0 else dys end
+							+ case when dayHrs>0 and hrs>= dayHrs then 1 else 0 end)
+						else rent_rate_hour * 
+							case when (dayHrs>0 and hrs>= dayHrs) or (mnthDays=0 and mnthHrs>0 and hrs>= 24*30) then 0 else hrs end
+					end cost_estimated,
+					'Estimated Rate/' + 
+					case rt.units_used 
+						when 'KMs' then 'KM: ' + rtrim(rent_rate_mtr_unit)
+						when 'MNs' then 'Month: ' + rtrim(rent_rate_month)
+						when 'DYs' then 'Day: ' + rtrim(rent_rate_day)
+						else 'Hour: ' + rtrim(rent_rate_hour)
+					end + char(10) + char(13)  +
+					case rt.units_used 
+						when 'KMs' then
+							'Est Kms:  ' + rtrim(totalKms)   + char(10) + char(13) +	
+							'Free Kms:  ' + rtrim(free_km) 
+						else
+							'Vehicle Type:  ' + rtrim(vehicle_type_id) + char(10) + char(13) + 
+							'Pick Up:  ' + rtrim(pickup) + char(10) + char(13) + 
+							'Drop off:  ' + rtrim(dropoff)
+					end description		
+					from 
+					(
+						select  wr_id,vehicle_type_id,pickup,dropoff,rent_rate_month,rent_rate_day,rent_rate_hour,totalKms, free_km,
+						case when isnumeric(free_km)=1 then case when totalKms &gt; free_km then totalKms - free_km else 0 end else 0 end kms, rent_rate_mtr_unit,
+						case when rent_rate_day = 0 or rent_rate_month = 0 then 0 else rent_rate_month/rent_rate_day end mnthDays,
+						case when rent_rate_day = 0 or rent_rate_hour = 0 then 0 else rent_rate_day/rent_rate_hour end DayHrs,
+						case when rent_rate_hour = 0 and (rent_rate_month = 0 or rent_rate_day = 0) then 0 else rent_rate_month/rent_rate_hour end mnthHrs,
+						case when rent_rate_month = 0 then 0 else cast(hrs/(24*30) as int) end  mnths,
+						case 
+							when rent_rate_day = 0 then 0
+							when rent_rate_month = 0 then cast(hrs/24 as int) 
+							else cast((hrs-(cast(hrs/(24*30) as int)*24*30))/24 as int)
+						end dys,
+						hrs 
+						- (case when rent_rate_month = 0 then 0 else cast(hrs/(24*30) as int) end *24*30)
+						- (case 
+							when rent_rate_day = 0 then 0
+							when rent_rate_month = 0 then cast(hrs/24 as int) 
+							else cast((hrs-(cast(hrs/(24*30) as int)*24*30))/24 as int)
+						  end * 24) hrs
+						from
+						(	
+							select wr.wr_id,v.vehicle_type_id,rent_rate_hour,rent_rate_day, rent_rate_month,rent_rate_mtr_unit, 
+							DATEADD(ms, DATEDIFF(ms, '00:00:00',  case wr.time_pickup when '-' then '00:00:00' else wr.time_pickup end), wr.date_pickup) pickup,
+							DATEADD(ms, DATEDIFF(ms, '00:00:00',  case wr.time_dropoff when '-' then '00:00:00' else wr.time_dropoff end), wr.date_dropoff) dropoff,
+							datediff(
+								hh
+								,DATEADD(ms, DATEDIFF(ms, '00:00:00',  case wr.time_pickup when '-' then '00:00:00' else wr.time_pickup end), wr.date_pickup)
+								,DATEADD(ms, DATEDIFF(ms, '00:00:00',  case wr.time_dropoff when '-' then '00:00:00' else wr.time_dropoff end), wr.date_dropoff)
+							) hrs,
+							case 
+								when rent_rate_month = 0 then 0 
+								when rent_rate_day not in (0) then(rent_rate_month/rent_rate_day * 24) +  (24-(rent_rate_day/rent_rate_hour))
+								when rent_rate_hour not in (0) then(rent_rate_month/rent_rate_hour)
+								else 30*24
+							end mHrs,
+							case 
+								when rent_rate_day = 0 then 0 
+								when rent_rate_hour not in (0) then(rent_rate_day/rent_rate_hour) 
+								else 24
+							end dHrs,
+							distance_est totalKms, free_km
+							from   vehicle_type v
+							inner join ${parameters['theWr']}
+							 
+						)wr
+
+					) wr_other
+					inner join(select 'KMs' units_used,0 date_used  union select 'HRs',1 union select 'DYs',2 union select 'MNs',3) rt on 1=1 
+
+					
+				</sql>
+		</query>
+		<table name="wr_other" role="main"/>
+		<field name="wr_id" table="wr_other"/>
+		<field name="other_rs_type" table="wr_other"/>
+		<field name="date_used" table="wr_other"/>
+		<field name="qty_est" table="wr_other"/>
+		<field name="units_used" table="wr_other"/>
+		<field name="cost_estimated" table="wr_other"/>
+		<field name="description" table="wr_other"/>
+		<parameter name="theWr" dataType="verbatim" value="0"/>
+	</dataSource>
+	
+</view>

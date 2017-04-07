@@ -1,0 +1,331 @@
+<view version="2.0">
+    <layout id="main">
+        <north id="filterPosition" initialSize="9%" split="true"/>
+        <center/>
+        <south split="true" initialSize="50%"/>
+    </layout>
+    
+    <layout id="nested_center" containingLayout="main" region="center">
+        <west id="panel1Position" initialSize="50%" split="true"/>
+        <center id="panel2Position"/>
+    </layout>
+    
+    <layout id="nested_south" containingLayout="main" region="south">
+        <west id="panel3Position" initialSize="50%" split="true"/>
+        <center id="panel4Position"/>
+    </layout>
+    
+    <layout id="nested_panel2" containingLayout="nested_center" region="center">
+        <north id="panel2TopPosition" initialSize="12%" split="true"/>
+        <center id="panel2bottomPosition"/>
+    </layout>
+    
+    <layout id="nested_panel3" containingLayout="nested_south" region="west">
+        <north id="panel3TopPosition" initialSize="12%" split="true"/>
+        <center id="panel3bottomPosition"/>
+    </layout>
+    
+    <message name="totals" translatable="true">Total</message>
+    <message name="notEmpty" translatable="true">Please select Division and Department first!</message>
+    
+    <dataSource id="ds_ab-sp-dp-dash_console_rm">
+        <table name="rm" role="main"/>
+        <field table="rm" name="dv_id" required="true"/>
+        <field table="rm" name="dp_id" required="true"/>
+    </dataSource>
+    
+    <dataSource id="ds_ab-sp-dp-dash_crosstable_gp_union_rm" type="grouping">
+        <sql dialect="generic">
+            SELECT
+            CASE WHEN(bl.site_id IS NULL) THEN '' ELSE bl.site_id END ${sql.as} site_id,
+            CASE WHEN(rm.bl_id IS NULL) THEN '' ELSE rm.bl_id END ${sql.as} bl_id,
+            CASE WHEN(rm.fl_id IS NULL) THEN '' ELSE rm.fl_id END ${sql.as} fl_id,
+            rm.dv_id ${sql.as} dv_id,
+            rm.dp_id ${sql.as} dp_id,
+            rm.area  ${sql.as} area,
+            rm.rm_id ${sql.as} rm_id,
+            CASE WHEN (rm.dp_id IS NULL)THEN 0 ELSE 1 END ${sql.as}  dp_count,
+            dp.area_gp+dp.area_rm  ${sql.as} area_dp_total
+            FROM rm LEFT OUTER JOIN dp ON rm.dv_id=dp.dv_id AND rm.dp_id=dp.dp_id  LEFT OUTER JOIN bl ON rm.bl_id=bl.bl_id WHERE rm.rm_cat IS NULL OR EXISTS (SELECT 1 FROM rmcat WHERE
+            rmcat.used_in_calcs IN ('all_totals', 'dp_comn_ocup_totals') AND rmcat.rm_cat = rm.rm_cat)
+            UNION ALL
+            SELECT
+            CASE WHEN(bl.site_id IS NULL) THEN '' ELSE bl.site_id END ${sql.as} site_id,
+            CASE WHEN(gp.bl_id IS NULL) THEN '' ELSE gp.bl_id END ${sql.as} bl_id,
+            CASE WHEN(gp.fl_id IS NULL) THEN '' ELSE gp.fl_id END ${sql.as} fl_id,
+            gp.dv_id ${sql.as} dv_id,
+            gp.dp_id ${sql.as} dp_id,
+            gp.area  ${sql.as} area,
+            gp.gp_num ${sql.as} rm_id,
+            CASE WHEN (gp.dp_id IS NULL)THEN 0 ELSE 1 END ${sql.as}  dp_count,
+            dp.area_gp+dp.area_rm  ${sql.as} area_dp_total
+            FROM gp LEFT OUTER JOIN dp ON gp.dv_id=dp.dv_id AND gp.dp_id=dp.dp_id LEFT OUTER JOIN bl ON gp.bl_id=bl.bl_id	where gp.portfolio_scenario_id is null 
+        </sql>
+        <table name="rm" role="main"/>
+        <field name="site_bl_fl" dataType="text" groupBy="true" baseField="rm.site_id">
+            <title translatable="true">Site, Building, Floor</title>
+            <sql dialect="generic">RTRIM(rm.site_id)${sql.concat}'-'${sql.concat}RTRIM(rm.bl_id)${sql.concat}'-'${sql.concat}RTRIM(rm.fl_id)</sql>
+        </field>
+        <field name="total_area" formula="sum" baseField="rm.area" dataType="number" decimals="2">
+            <title translatable="true">Total Area</title>
+        </field>
+        <field name="pct_total" baseField="rm.area" dataType="number" decimals="2">
+            <title translatable="true">Pct. of Total Dept.Area</title>
+            <sql dialect="generic">CASE WHEN (AVG(rm.area_dp_total) =0  OR AVG(rm.dp_count)=0  )THEN 0 ELSE 100*SUM(rm.area)/AVG(rm.area_dp_total) END</sql>
+        </field>
+        <sortField table="rm" name="site_bl_fl" ascending="true"/>
+    </dataSource>
+    
+    <dataSource id="ds_ab-sp-dp-dash_grid_dp-fin">
+        <table name="dp" role="main"/>
+        <field table="dp" name="dv_id"/>
+        <field table="dp" name="dp_id"/>
+        <field table="dp" name="name"/>
+        <field table="dp" name="cost"/>
+        <field table="dp" name="area_chargable"/>
+        <field table="dp" name="area_rm"/>
+        <field table="dp" name="area_gp"/>
+        <field table="dp" name="area_comn"/>
+        <field table="dp" name="area_comn_ocup"/>
+        <field table="dp" name="area_comn_gp"/>
+        <field table="dp" name="area_comn_nocup"/>
+        <field table="dp" name="area_comn_serv"/>
+    </dataSource>
+    
+    <dataSource id="ds_ab-sp-dp-dash_grid_rm_gp">
+        <sql dialect="generic">
+            (SELECT bl_id ${sql.as} bl_id,
+            fl_id ${sql.as} fl_id,
+            rm_id ${sql.as} rmid,
+            dv_id ${sql.as} dv_id,
+            dp_id ${sql.as} dp_id,
+            NULL ${sql.as} num,
+            cost ${sql.as} cost,
+            area_chargable ${sql.as} area_chargable,
+            rm.area ${sql.as} area,
+            area_comn ${sql.as} area_comn,
+            area_comn_ocup ${sql.as} comnOcup,
+            NULL ${sql.as} comnGp,
+            area_comn_nocup ${sql.as} comnNocup,
+            NULL ${sql.as} comnServ
+            FROM rm  WHERE rm.rm_cat IS NULL OR EXISTS (SELECT 1 FROM rmcat WHERE
+            rmcat.used_in_calcs IN ('all_totals', 'dp_comn_ocup_totals') AND rmcat.rm_cat = rm.rm_cat))
+            UNION ALL
+            (SELECT bl_id ${sql.as} bl_id,
+            fl_id ${sql.as} fl_id,
+            '' ${sql.as} rmid,
+            dv_id ${sql.as} dv_id,
+            dp_id ${sql.as} dp_id,
+            gp_num ${sql.as} num,
+            cost ${sql.as} cost,
+            area_chargable ${sql.as} area_chargable,
+            area ${sql.as} area,
+            area_comn ${sql.as} area_comn,
+            NULL ${sql.as} comnOcup,
+            area_comn_gp ${sql.as} comnGp,
+            NULL ${sql.as} comnNocup,
+            area_comn_serv ${sql.as} comnServ
+            FROM gp where gp.portfolio_scenario_id is null)
+        </sql>
+        <table name="rm" role="main"/>
+        <field table="rm" name="bl_id" dataType="text"/>
+        <field table="rm" name="fl_id" dataType="text"/>
+        <field table="rm" name="rmid" dataType="text">
+            <title translatable="true">Room Code</title>
+        </field>
+        <field table="rm" name="num" dataType="text">
+            <title translatable="true">Group Number</title>
+        </field>
+        <field table="rm" name="cost" dataType="number" decimals="2"/>
+        <field table="rm" name="area_chargable" dataType="number" decimals="2"/>
+        <field table="rm" name="area" dataType="number" decimals="2">
+            <title translatable="true">Area</title>
+        </field>
+        <field table="rm" name="area_comn" dataType="number" decimals="2"/>
+        <field table="rm" name="comnOcup" dataType="number" decimals="2">
+            <title translatable="true">Occupiable Common Area</title>
+        </field>
+        <field table="rm" name="comnNocup" dataType="number" decimals="2">
+            <title translatable="true">Non-Occupiable Common Area</title>
+        </field>
+        <field table="rm" name="comnGp" dataType="number" decimals="2">
+            <title translatable="true">Group Common Area</title>
+        </field>
+        <field table="rm" name="comnServ" dataType="number" decimals="2">
+            <title translatable="true">Service Common Area</title>
+        </field>
+        <field table="rm" name="dv_id" dataType="text" hidden="true"/>
+        <field table="rm" name="dp_id" dataType="text" hidden="true"/>
+    </dataSource>
+    
+    <dataSource id="ds_ab-sp-dp-dash_grid_dp-em">
+        <table name="dp" role="main"/>
+        <field table="dp" name="dv_id"/>
+        <field table="dp" name="dp_id"/>
+        <field table="dp" name="name"/>
+        <field table="dp" name="area_rm"/>
+        <field table="dp" name="area_ocup"/>
+        <field table="dp" name="area_nocup"/>
+        <field table="dp" name="count_em"/>
+    </dataSource>
+    
+    <dataSource id="ds_ab-sp-dp-dash_grid_em_bl" type="grouping">
+        <table name="em" role="main"/>
+        <table name="bl" role="standard"/>
+        <field table="bl" name="site_id" groupBy="true"/>
+        <field table="em" name="bl_id" groupBy="true"/>
+        <field table="em" name="fl_id" groupBy="true"/>
+        <field table="em" name="dv_id" groupBy="true"/>
+        <field table="em" name="dp_id" groupBy="true"/>
+        <field name="tot_area" formula="sum" baseField="em.area_rm" dataType="number" decimals="2"/>
+        <field name="tot_count" formula="count" baseField="em.em_id" dataType="number" decimals="0"/>
+        <field name="area_avg" formula="avg" baseField="em.area_rm" dataType="number" decimals="2"/>
+    </dataSource>
+    
+    <dataSource id="ds_ab-sp-dp-dash_report_rm">
+        <sql dialect="generic">
+            SELECT
+            rm.bl_id,
+            rm.fl_id,
+            rm.rm_id,
+            rm.name,
+            rm.area,
+            rm.cap_em,
+            ( SELECT COUNT(*) FROM em WHERE em.bl_id = rm.bl_id AND em.fl_id = rm.fl_id AND em.rm_id = rm.rm_id ) ${sql.as} count_em,
+            rm.rm_cat,
+            rm.rm_type,
+            rm.rm_std,
+            rm.dv_id,
+            rm.dp_id,
+            (rm.cap_em -  ( SELECT COUNT(*) FROM em WHERE em.bl_id = rm.bl_id AND em.fl_id = rm.fl_id AND em.rm_id = rm.rm_id )  ) ${sql.as}  ava_em
+            FROM rm,rmcat
+            WHERE rm.rm_cat = rmcat.rm_cat
+            and rm.cap_em> ( SELECT COUNT(*) FROM em WHERE em.bl_id = rm.bl_id AND em.fl_id = rm.fl_id AND em.rm_id = rm.rm_id ) 
+            and rmcat.occupiable=1
+            and rmcat.used_in_calcs IN('all_totals', 'dp_comn_ocup_totals')
+        </sql>
+        <table name="rm" role="main"/>
+        <field table="rm" name="bl_id"/>
+        <field table="rm" name="fl_id"/>
+        <field table="rm" name="rm_id"/>
+        <field table="rm" name="area"/>
+        <field table="rm" name="count_em"/>
+        <field table="rm" name="cap_em"/>
+        <field table="rm" name="ava_em"  dataType="number" decimals="0"/>
+        <field table="rm" name="rm_cat"/>
+        <field table="rm" name="rm_type"/>
+        <field table="rm" name="rm_std"/>
+        <field table="rm" name="dv_id"/>
+        <field table="rm" name="dp_id"/>
+    </dataSource>
+    
+    <panel type="console" id="abSpDpDash_filterConsole" columns="3" dataSource="ds_ab-sp-dp-dash_console_rm" layoutRegion="filterPosition">
+        <title translatable="true">Filter</title>
+        <action id="showPanels">
+            <title translatable="true">Show</title>
+            <command type="showPanel" panelId="abSpDpDash_pieChartPanel"/>
+            <command type="showPanel" panelId="abSpDpDash_deptGrid"/>
+            <command type="showPanel" panelId="abSpDpDash_roomGroupGrid"/>
+            <command type="showPanel" panelId="abSpDpDash_dpPanel"/>
+            <command type="showPanel" panelId="abSpDpDash_emsumPanel"/>
+            <command type="showPanel" panelId="abSpDpDash_availRmPanel"/>
+        </action>
+        <action id="clear">
+            <title translatable="true">Clear</title>
+            <command type="clearPanel" panelId="abSpDpDash_filterConsole"/>
+        </action>
+    </panel>
+    
+    <panel id="abSpDpDash_pieChartPanel"
+     type="chart"
+     controlType="pieChart"
+     showOnLoad="false"
+     dataSource="ds_ab-sp-dp-dash_crosstable_gp_union_rm"
+     showLegendOnLoad="true"
+     showLegendAsPopUp="false"
+     legendLocation="left"
+     showDataTips="true"
+     fillType="solid"
+     layoutRegion="panel1Position">
+        <title translatable="true">Departmental Area by Floor</title>
+        <groupingAxis dataSource="ds_ab-sp-dp-dash_crosstable_gp_union_rm" table="rm" field="site_bl_fl"/>
+        <dataAxis dataSource="ds_ab-sp-dp-dash_crosstable_gp_union_rm" table="rm" field="total_area" displayAxis="true" labelPosition="callout"/>
+    </panel>
+    
+    <panel type="grid" id="abSpDpDash_deptGrid" dataSource="ds_ab-sp-dp-dash_grid_dp-fin" showOnLoad="false" layoutRegion="panel2TopPosition">
+        <title translatable="true">Financial Analysis</title>
+        <sortField table="dp" name="dv_id" ascending="true"/>
+        <sortField table="dp" name="dp_id" ascending="true"/>
+        <field table="dp" name="dv_id"/>
+        <field table="dp" name="dp_id"/>
+        <field table="dp" name="name"/>
+        <field table="dp" name="cost"/>
+        <field table="dp" name="area_chargable"/>
+        <field table="dp" name="area_rm"/>
+        <field table="dp" name="area_gp"/>
+        <field table="dp" name="area_comn"/>
+        <field table="dp" name="area_comn_ocup"/>
+        <field table="dp" name="area_comn_nocup"/>
+        <field table="dp" name="area_comn_gp"/>
+        <field table="dp" name="area_comn_serv"/>
+    </panel>
+    
+    <panel type="grid" id="abSpDpDash_roomGroupGrid" controlType="reportGrid" dataSource="ds_ab-sp-dp-dash_grid_rm_gp" showOnLoad="false" layoutRegion="panel2bottomPosition">
+        <title translatable="true">Rooms and Groups for Department</title>
+    </panel>
+    
+    
+    <panel type="grid" id="abSpDpDash_dpPanel" dataSource="ds_ab-sp-dp-dash_grid_dp-em" showOnLoad="false" layoutRegion="panel3TopPosition">
+        <sortField name="dv_id" table="dp" ascending="true"/>
+        <sortField name="dp_id" table="dp" ascending="true"/>
+        <title translatable="true">Employee Analysis</title>
+        <field name="dv_id" table="dp"/>
+        <field name="dp_id" table="dp"/>
+        <field name="name" table="dp"/>
+        <field name="count_em" table="dp"/>
+        <field name="area_rm" table="dp"/>
+        <field name="area_ocup" table="dp"/>
+        <field name="area_nocup" table="dp"/>
+    </panel>
+    
+    <panel type="grid" id="abSpDpDash_emsumPanel" controlType="reportGrid" showOnLoad="false" dataSource="ds_ab-sp-dp-dash_grid_em_bl" layoutRegion="panel3bottomPosition">
+        <title translatable="true">Departmental Analysis by Location</title>
+        <sortField name="site_id" table="bl" ascending="true"/>
+        <sortField name="bl_id" table="em" ascending="true"/>
+        <sortField name="fl_id" table="em" ascending="true"/>
+        <field name="dv_id" table="em" hidden="true"/>
+        <field name="dp_id" table="em" hidden="true"/>
+        <field name="site_id" table="bl"/>
+        <field name="bl_id" table="em"/>
+        <field name="fl_id" table="em"/>
+        <field name="tot_count" table="em" dataType="number" decimals="0">
+            <title translatable="true">Employee Headcount</title>
+        </field>
+        <field name="tot_area" table="em" dataType="number" decimals="2">
+            <title translatable="true">Total Area</title>
+        </field>
+        <field name="area_avg" table="em" dataType="number" decimals="2">
+            <title translatable="true">Average Area</title>
+        </field>
+    </panel>
+    
+    <panel type="grid" id="abSpDpDash_availRmPanel" showOnLoad="false" dataSource="ds_ab-sp-dp-dash_report_rm" layoutRegion="panel4Position">
+        <title translatable="true">Available Rooms for Department</title>
+        <sortField name="bl_id" table="rm" ascending="true"/>
+        <sortField name="fl_id" table="rm" ascending="true"/>
+        <sortField name="rm_id" table="rm" ascending="true"/>
+        <field table="rm" name="bl_id"/>
+        <field table="rm" name="fl_id"/>
+        <field table="rm" name="rm_id"/>
+        <field table="rm" name="area"/>
+        <field table="rm" name="count_em"/>
+        <field table="rm" name="cap_em"/>
+        <field name="ava_em" dataType="number" decimals="0">
+            <title translatable="true">Employee Available Capacity</title>
+        </field>
+        <field table="rm" name="rm_cat"/>
+        <field table="rm" name="rm_type"/>
+        <field table="rm" name="rm_std"/>
+    </panel>
+    <js file="ab-sp-dp-dash.js"/>
+</view>

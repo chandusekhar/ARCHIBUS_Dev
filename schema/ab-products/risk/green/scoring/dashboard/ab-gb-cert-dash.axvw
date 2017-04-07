@@ -1,0 +1,215 @@
+<view version="2.0">
+    <layout type="borderLayout" id="mainLayout">
+        <north initialSize="90" split="true"/>
+        <center/>
+        <south initialSize="40%" split="true"/>
+    </layout>
+    <layout type="borderLayout" id="nestCenterLayout" containingLayout="mainLayout" region="center">
+        <west initialSize="50%" split="true"/>
+        <center/>
+    </layout>
+    <layout type="borderLayout" id="nestSouthLayout" containingLayout="mainLayout" region="south">
+        <west initialSize="50%" split="true"/>
+        <center/>
+    </layout>
+    
+    <message name="scoreChartTitle1" translatable="true">Total Rating Projects by Self Score</message>
+    <message name="scoreChartTitle2" translatable="true">Total Rating Projects by Official Score</message>
+	<message name="scoreActionTitle1" translatable="true">Self Score Chart</message>
+    <message name="scoreActionTitle2" translatable="true">Official Score Chart</message>
+	<message name="one_five" translatable="true">1-5 Years</message>
+	<message name="six_ten" translatable="true">6-10 Years</message>
+	<message name="elev_fifteen" translatable="true">11-15 Years</message>
+	<message name="sixteen_twenty" translatable="true">16-20 Years</message>
+	<message name="more_twenty" translatable="true">21+ Years</message>
+	<message name="None" translatable="true">None</message>
+	<message name="Negative" translatable="true">Negative</message>
+    
+    <title translatable="true">Scoring Overview Dashboard</title>
+    
+    <js file="ab-gb-report-common.js"/>
+    <js file="ab-gb-cert-dash-score-overview.js"/>
+    
+    <dataSource id="abGbRptCertScoreOverviewConsoleDS">
+        <table name="gb_cert_proj" role="main"/>
+        <table name="bl" role="standard"/>
+        <field table="bl" name="site_id"/>
+        <field table="gb_cert_proj" name="bl_id"/>
+        <field table="gb_cert_proj" name="project_name"/>
+        <field table="gb_cert_proj" name="cert_std"/>
+        <field table="gb_cert_proj" name="certified_level"/>
+        <field table="gb_cert_proj" name="cert_status"/>
+    </dataSource>
+    
+    <panel type="console" id="abGbRptCertScoreOverviewConsole" dataSource="abGbRptCertScoreOverviewConsoleDS"
+     columns="3" layout="mainLayout" region="north">
+        <title translatable="true">Filter</title>
+        <action id="show">
+            <title translatable="true">Show</title>
+        </action>
+        <action id="clear">
+            <title translatable="true">Clear</title>
+            <command type="clearPanel" panelId="abGbRptCertScoreOverviewConsole"/>
+        </action>
+        <field table="bl" name="site_id" selectValueType="multiple" required="false"/>
+        <field table="gb_cert_proj" name="project_name" selectValueType="multiple" required="false"/>
+        <field table="gb_cert_proj" name="cert_std" selectValueType="multiple" required="false" style="width:165;"/>
+        <field table="gb_cert_proj" name="bl_id" selectValueType="multiple" required="false"/>
+        <field table="gb_cert_proj" name="certified_level" selectValueType="multiple" required="false"/>
+        <field table="gb_cert_proj" name="cert_status" selectValueType="multiple" required="false"/>
+    </panel>
+    
+    <dataSource id="abGbRptCertScoreOverviewByLevelChartDS" type="grouping">
+        <table name="gb_cert_proj" role="main"/>
+        <table name="bl" role="standard"/>
+        <field table="gb_cert_proj" name="certified_level" groupBy="true"/>
+        <field name="buidingNumber" formula="count" baseField="bl.bl_id" dataType="number" size="6" decimals="0"/>
+        <parameter name="consoleRestriction" dataType="verbatim" value="1=1"/>
+        <restriction type="sql" sql=" ${parameters['consoleRestriction']}"/>
+    </dataSource>
+    
+    <panel id="abGbRptCertScoreOverviewByLevelChart"
+     type="chart"
+     controlType="pieChart"
+     dataSource="abGbRptCertScoreOverviewByLevelChartDS"
+     layout="nestCenterLayout"
+     region="west"
+    >
+        <title translatable="true">Total Rating Projects by Certification Level</title>
+        <action id="doc">
+            <title translatable="true">DOC</title>
+            <command type="exportPanel" outputType="docx" panelId="abGbRptCertScoreOverviewByLevelChart"/>
+        </action>           
+        <groupingAxis dataSource="abGbRptCertScoreOverviewByLevelChartDS" table="gb_cert_proj" field="certified_level" labelRotation="45">
+            <title translatable="true">Certification Level</title>
+        </groupingAxis>
+        <dataAxis dataSource="abGbRptCertScoreOverviewByLevelChartDS" table="gb_cert_proj" field="buidingNumber" labelPosition="callout">
+            <title translatable="true">Number of Buildings</title>
+        </dataAxis>
+    </panel>
+    
+    
+    <dataSource id="abGbRptCertScoreOverviewByScoreChartDS" type="grouping">
+        <sql dialect="generic">
+            select gb_cert_proj.bl_id,
+            (select gb_cert_levels.cert_level from gb_cert_levels where
+            gb_cert_levels.cert_std = gb_cert_proj.cert_std and
+            ${parameters['scoreField']} &gt;= gb_cert_levels.min_score and
+            ${parameters['scoreField']} &lt;= gb_cert_levels.max_score) ${sql.as} cert_level
+            from gb_cert_proj left outer join bl on bl.bl_id = gb_cert_proj.bl_id where ${parameters['consoleRestriction']}
+        </sql>
+        <table name="gb_cert_proj" role="main"/>
+        <field table="gb_cert_proj" name="cert_level" dataType="text" groupBy="true"/>
+        <field name="buidingNumber" formula="count" baseField="gb_cert_proj.bl_id" dataType="number" size="6" decimals="0"></field>
+        <parameter name="scoreField" dataType="verbatim" value="gb_cert_proj.tot_self_score"/>
+        <parameter name="consoleRestriction" dataType="verbatim" value="1=1"/>
+    </dataSource>
+    
+    
+    <panel id="abGbRptCertScoreOverviewByScoreChart"
+     type="chart"
+     controlType="pieChart"
+     dataSource="abGbRptCertScoreOverviewByScoreChartDS"
+     layout="nestCenterLayout"
+     region="center"
+    >
+        <title translatable="true">Total Rating Projects by Self Score</title>
+        <action id="switch">
+            <title translatable="true">Official Score Chart</title>
+        </action>
+        <action id="doc">
+            <title translatable="true">DOC</title>
+            <command type="exportPanel" outputType="docx" panelId="abGbRptCertScoreOverviewByScoreChart"/>
+        </action>         
+        <groupingAxis dataSource="abGbRptCertScoreOverviewByScoreChartDS" table="gb_cert_proj" field="cert_level" labelRotation="45">
+            <title translatable="true">Score</title>
+        </groupingAxis>
+        <dataAxis dataSource="abGbRptCertScoreOverviewByScoreChartDS" table="gb_cert_proj" field="buidingNumber" labelPosition="callout">
+            <title translatable="true">Number of Buildings</title>
+        </dataAxis>
+    </panel>
+    
+    <dataSource id="abGbRptCertScoreOverviewByStatusChartDS" type="grouping">
+        <table name="gb_cert_proj" role="main"/>
+        <table name="bl" role="standard"/>
+        <field table="gb_cert_proj" name="cert_status" groupBy="true"/>
+        <field name="buidingNumber" formula="count" baseField="bl.bl_id" dataType="number" size="6" decimals="0"/>
+        <parameter name="consoleRestriction" dataType="verbatim" value="1=1"/>
+        <restriction type="sql" sql=" ${parameters['consoleRestriction']}"/>
+    </dataSource>
+    
+    <panel id="abGbRptCertScoreOverviewByStatusChart"
+     type="chart"
+     controlType="pieChart"
+     dataSource="abGbRptCertScoreOverviewByStatusChartDS"
+     layout="nestSouthLayout"
+     region="west"     
+    >
+        <title translatable="true">Total Rating Projects by Certification Status</title>
+        <action id="doc">
+            <title translatable="true">DOC</title>
+            <command type="exportPanel" outputType="docx" panelId="abGbRptCertScoreOverviewByStatusChart"/>
+        </action>
+        <groupingAxis dataSource="abGbRptCertScoreOverviewByStatusChartDS" table="gb_cert_proj" field="cert_status" labelRotation="45">
+            <title translatable="true">Certification Status</title>
+        </groupingAxis>
+        <dataAxis dataSource="abGbRptCertScoreOverviewByStatusChartDS" table="gb_cert_proj" field="buidingNumber" labelPosition="callout">
+            <title translatable="true">Number of Buildings</title>
+        </dataAxis>
+    </panel>
+    
+    <dataSource id="abGbRptCertScoreOverviewByPaybackPeriodChartDS" type="grouping">
+        <sql dialect="generic">
+            select gb_cert_proj.bl_id,
+            gb_cert_proj.tot_payback_period ${sql.as} paybackPeriod,
+            (case when gb_cert_proj.tot_payback_period&lt;0 then ${parameters['Negative']}
+            when gb_cert_proj.tot_payback_period=0 then ${parameters['None']}
+            when gb_cert_proj.tot_payback_period &gt;0 and gb_cert_proj.tot_payback_period &lt;=5 then ${parameters['one_five']}
+            when gb_cert_proj.tot_payback_period &gt;5 and gb_cert_proj.tot_payback_period &lt;=10 then ${parameters['six_ten']}
+            when gb_cert_proj.tot_payback_period &gt;10 and gb_cert_proj.tot_payback_period &lt;=15 then ${parameters['elev_fifteen']}
+            when gb_cert_proj.tot_payback_period &gt;15 and gb_cert_proj.tot_payback_period &lt;=20 then ${parameters['sixteen_twenty']}
+            when gb_cert_proj.tot_payback_period &gt;20 then ${parameters['more_twenty']} end) ${sql.as} paybackPeriodRange,
+            (case when gb_cert_proj.tot_payback_period &lt;0 then 1
+            when gb_cert_proj.tot_payback_period=0 then 2
+            when gb_cert_proj.tot_payback_period &gt;0 and gb_cert_proj.tot_payback_period &lt;=5 then 3
+            when gb_cert_proj.tot_payback_period &gt;5 and gb_cert_proj.tot_payback_period &lt;=10 then 4
+            when gb_cert_proj.tot_payback_period &gt;10 and gb_cert_proj.tot_payback_period &lt;=15 then 5
+            when gb_cert_proj.tot_payback_period &gt;15 and gb_cert_proj.tot_payback_period &lt;=20 then 6
+            when gb_cert_proj.tot_payback_period &gt;20 then 7 end) ${sql.as} paybackPeriodRangeSort
+            from gb_cert_proj left outer join bl on bl.bl_id = gb_cert_proj.bl_id where ${parameters['consoleRestriction']}
+        </sql>
+        <table name="gb_cert_proj" role="main"/>
+        <field table="gb_cert_proj" name="paybackPeriodRange" dataType="text" groupBy="true"/>
+        <field table="gb_cert_proj" name="paybackPeriodRangeSort" dataType="integer" groupBy="true"/>
+        <sortField table="gb_cert_proj" name="paybackPeriodRangeSort" ascending="true"/>
+        <field name="buidingNumber" formula="count" baseField="gb_cert_proj.bl_id" dataType="number" size="6" decimals="0"/>
+		<parameter name="Negative" dataType="text" value="1=1"/>
+		<parameter name="None" dataType="text" value="1=1"/>
+		<parameter name="one_five" dataType="text" value="1=1"/>
+		<parameter name="six_ten" dataType="text" value="1=1"/>
+		<parameter name="elev_fifteen" dataType="text" value="1=1"/>
+		<parameter name="sixteen_twenty" dataType="text" value="1=1"/>
+		<parameter name="more_twenty" dataType="text" value="1=1"/>
+        <parameter name="consoleRestriction" dataType="verbatim" value="1=1"/>
+    </dataSource>
+    
+    <panel id="abGbRptCertScoreOverviewByPaybackPeriodChart"
+     type="chart"
+     controlType="pieChart"
+     dataSource="abGbRptCertScoreOverviewByPaybackPeriodChartDS"
+     layout="nestSouthLayout"
+     region="center"
+    >
+        <title translatable="true">Total Rating Projects by Payback Period</title>
+        <action id="doc">
+            <title translatable="true">DOC</title>
+            <command type="exportPanel" outputType="docx" panelId="abGbRptCertScoreOverviewByPaybackPeriodChart"/>
+        </action>
+        <groupingAxis dataSource="abGbRptCertScoreOverviewByPaybackPeriodChartDS" table="gb_cert_proj" field="paybackPeriodRange" labelRotation="45">
+            <title translatable="true">Payback Period</title>
+        </groupingAxis>
+        <dataAxis dataSource="abGbRptCertScoreOverviewByPaybackPeriodChartDS" table="gb_cert_proj" field="buidingNumber" labelPosition="callout">
+            <title translatable="true">Number of Buildings</title>
+        </dataAxis>
+    </panel>
+</view>

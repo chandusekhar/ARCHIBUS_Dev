@@ -1,0 +1,95 @@
+<view version="2.0">    
+	<js file="ab-comp-rpt-requirement-pm-procedure-tab.js"/>	   
+
+    <panel type="view" id="abCompRptPmpLicenseCheck" file="ab-comp-rpt-work-history-license-check.axvw"/>
+
+	<dataSource id="abCompRptPmpGridDS">
+		<table name="regreq_pmp" role="main"/>
+ 		<table name="pmp" role="standard"/>
+
+		<field table="regreq_pmp" name="pmp_id" hidden="true"/>
+		<field table="pmp" name="pmp_id"/>
+		<field table="pmp" name="pmp_type"/>
+		<field table="regreq_pmp" name="update_status"/>
+		<field table="pmp" name="eq_std"/>
+
+		<field table="pmp" name="countOpenRequests" dataType="integer">
+			<title>Open Work Requests</title>
+			<sql dialect="generic">
+				( SELECT COUNT(DISTINCT wr.wr_id)
+					FROM pms 
+					JOIN wr ON wr.pms_id = pms.pms_id
+					LEFT JOIN eq ON pms.eq_id = eq.eq_id, 
+					regreq_pmp rp2
+					LEFT JOIN regloc rl ON rp2.regulation=rl.regulation AND rp2.reg_program=rl.reg_program AND rp2.reg_requirement=rl.reg_requirement
+					LEFT JOIN compliance_locations cl ON rl.location_id = cl.location_id
+					WHERE pms.pmp_id = pmp.pmp_id 
+					AND rp2.regulation=regreq_pmp.regulation AND rp2.reg_program=regreq_pmp.reg_program AND rp2.reg_requirement=regreq_pmp.reg_requirement
+					AND (pms.site_id=cl.site_id OR cl.site_id IS NULL)
+					AND (pms.bl_id=cl.bl_id OR cl.bl_id IS NULL)
+					AND (pms.fl_id=cl.fl_id OR cl.fl_id IS NULL)
+					AND (pms.rm_id=cl.rm_id OR cl.rm_id IS NULL)
+					AND (pms.eq_id=cl.eq_id OR cl.eq_id IS NULL)
+					AND (eq.eq_std=cl.eq_std OR cl.eq_std IS NULL)
+					AND wr.status NOT IN ('Com','Clo')
+				)
+			</sql>
+		</field>
+
+		<field table="pmp" name="countSteps" dataType="integer">
+			<title>Steps</title>
+			<sql dialect="generic">
+				( SELECT COUNT(*) FROM pmps WHERE pmps.pmp_id=pmp.pmp_id )
+			</sql>
+		</field>
+
+		<field table="pmp" name="countSchedules" dataType="integer">
+			<title>Schedules</title>
+			<sql dialect="generic">
+				(	SELECT COUNT(DISTINCT pms_id)
+					FROM pms 
+					LEFT JOIN eq ON pms.eq_id = eq.eq_id, 
+					regreq_pmp rp2
+					LEFT JOIN regloc rl ON rp2.regulation=rl.regulation AND rp2.reg_program=rl.reg_program AND rp2.reg_requirement=rl.reg_requirement
+					LEFT JOIN compliance_locations cl ON rl.location_id = cl.location_id
+					WHERE pms.pmp_id = pmp.pmp_id
+					AND rp2.regulation=regreq_pmp.regulation AND rp2.reg_program=regreq_pmp.reg_program AND rp2.reg_requirement=regreq_pmp.reg_requirement
+					AND (pms.site_id=cl.site_id OR cl.site_id IS NULL)
+					AND (pms.bl_id=cl.bl_id OR cl.bl_id IS NULL)
+					AND (pms.fl_id=cl.fl_id OR cl.fl_id IS NULL)
+					AND (pms.rm_id=cl.rm_id OR cl.rm_id IS NULL)
+					AND (pms.eq_id=cl.eq_id OR cl.eq_id IS NULL)
+					AND (eq.eq_std=cl.eq_std OR cl.eq_std IS NULL)
+				)
+			</sql>
+		</field>
+
+		<field table="pmp" name="description"/>
+		<field table="pmp" name="ac_id"/>
+
+		<restriction type="sql" sql=" regreq_pmp.regulation=${parameters['regulation']} AND regreq_pmp.reg_program=${parameters['reg_program']} AND regreq_pmp.reg_requirement=${parameters['reg_requirement']} "/>
+		<parameter name="regulation" dataType="text" value=""/>
+		<parameter name="reg_program" dataType="text" value=""/>
+		<parameter name="reg_requirement" dataType="text" value=""/>
+	</dataSource>
+    
+    <panel type="grid" id="abCompRptPmpGrid" dataSource="abCompRptPmpGridDS">
+        <action id="doc">
+            <title translatable="true">DOCX</title>
+            <command type="exportPanel" outputType="docx" panelId="abCompRptPmpGrid" orientation="landscape"/>
+        </action>
+        <action id="xls">
+            <title translatable="true">XLS</title>
+            <command type="exportPanel" outputType="xls" panelId="abCompRptPmpGrid"/>
+        </action>
+        <action id="pdf">
+            <title translatable="true">PDF</title>
+            <command type="exportPanel" outputType="pdf" panelId="abCompRptPmpGrid" orientation="landscape"/>
+        </action>
+
+        <field controlType="button" id="viewPmpDetail"> 
+            <title translatable="true">View</title>
+            <command type="openDialog" viewName="ab-comp-rpt-pm-procedure-details.axvw"/>
+        </field>
+    </panel>  
+</view>

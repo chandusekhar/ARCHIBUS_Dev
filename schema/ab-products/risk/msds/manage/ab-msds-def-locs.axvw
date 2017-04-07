@@ -1,0 +1,595 @@
+<view version="2.0">
+
+  <js file="ab-msds-def-locs.js"/>
+
+  <message name="valuesVary" translatable="true">VARIES</message>
+  <message name="prompt_showAll" translatable="true">You have not made any selections to limit the records retrieved.  Proceed?</message>
+  <message name="prompt_unassignSelected" translatable="true">This action will remove room and floor location assignment details from all selected records.  \nThe material quantities and containers will appear at the building level only.  \nProceed?</message>
+  <message name="prompt_disposeSelected" translatable="true">This action will remove all selected location records from the active \ninventory and archive them with status 'Disposed.'  \nProceed?</message>
+  <message name="prompt_disposeEditForm" translatable="true">You have set the container(s) status to 'Disposed.'  \nSaving with this status will remove the item(s) from the active inventory and cannot be undone.  \nProceed?</message>
+
+ 
+  <layout type="borderLayout" id="mainLayout">
+    <north initialSize="55%" split="true"/>
+    <center id="assignmentRegion" autoScroll="true"/>
+  </layout>
+
+  <layout type="borderLayout" id="nest_north" containingLayout="mainLayout" region="north">
+    <west id="msdsRegion" initialSize="50%" split="true"/>
+    <center id="locationRegion" autoScroll="true"/>
+  </layout>
+
+  <title translatable="true">Assign Material Locations</title>
+
+  <panel type="view" id="msdsDataSharedDataSourceView" file="ab-msds-data-ds.axvw" layoutRegion="invisible"/>
+  <panel type="view" id="msdsDataLocationsDataSourceView" file="ab-msds-locations-ds.axvw" layoutRegion="invisible"/>
+
+  <dataSource id="abRiskMsdsDefLocsLocationDS">
+    <sql dialect="generic">
+      /* bl, fl, rm records without eq or subroom levels */
+      SELECT
+      bl.ctry_id ${sql.as} ctry_id,
+      bl.state_id ${sql.as} state_id,
+      bl.site_id ${sql.as} site_id,
+	  bl.bl_id ${sql.as} bl_id,
+      fl.fl_id ${sql.as} fl_id,
+      rm.rm_id ${sql.as} rm_id,
+      rm.rm_type ${sql.as} rm_type,
+      rm.rm_use ${sql.as} rm_use,
+      null ${sql.as} aisle_id,
+      null ${sql.as} cabinet_id,
+      null ${sql.as} shelf_id,
+      null ${sql.as} bin_id, 
+      null ${sql.as} eq_std,
+      null ${sql.as} eq_id
+      from bl left join fl on bl.bl_id = fl.bl_id
+              left join rm on rm.bl_id = fl.bl_id and rm.fl_id = fl.fl_id
+              left join aisle on aisle.rm_id = rm.rm_id and aisle.fl_id = rm.fl_id and aisle.bl_id = rm.bl_id
+              where aisle.aisle_id is not null
+	  
+      union
+      /* all subroom space levels = bl, fl, rm, aisle, cabinet, shelf, bin records; without eq */
+      SELECT
+      bl.ctry_id ${sql.as} ctry_id,
+      bl.state_id ${sql.as} state_id,
+      bl.site_id ${sql.as} site_id,
+      bl.bl_id ${sql.as} bl_id,
+      fl.fl_id ${sql.as} fl_id,
+      rm.rm_id ${sql.as} rm_id,
+      rm.rm_type ${sql.as} rm_type,
+      rm.rm_use ${sql.as} rm_use,
+      aisle.aisle_id ${sql.as} aisle_id,
+      cabinet.cabinet_id ${sql.as} cabinet_id,
+      shelf.shelf_id ${sql.as} shelf_id,
+      bin.bin_id ${sql.as} bin_id, 
+      null ${sql.as} eq_std,
+      null ${sql.as} eq_id
+      from bl left join fl on bl.bl_id = fl.bl_id
+              left join rm on rm.bl_id = fl.bl_id and rm.fl_id = fl.fl_id
+              left join aisle on aisle.rm_id = rm.rm_id and aisle.fl_id = rm.fl_id and aisle.bl_id = rm.bl_id
+              left join cabinet on cabinet.aisle_id = aisle.aisle_id and cabinet.rm_id = aisle.rm_id and cabinet.fl_id = aisle.fl_id and cabinet.bl_id = aisle.bl_id
+              left join shelf on shelf.cabinet_id = cabinet.cabinet_id and shelf.aisle_id = cabinet.aisle_id and shelf.rm_id = cabinet.rm_id and shelf.fl_id = cabinet.fl_id and shelf.bl_id = cabinet.bl_id
+              left join bin on bin.shelf_id = shelf.shelf_id and bin.cabinet_id = shelf.cabinet_id and bin.aisle_id = shelf.aisle_id and bin.rm_id = shelf.rm_id and bin.fl_id = shelf.fl_id and bin.bl_id = shelf.bl_id    
+      
+      union
+      /* eq locations */
+      SELECT
+      bl.ctry_id ${sql.as} ctry_id,
+      bl.state_id ${sql.as} state_id,
+      bl.site_id ${sql.as} site_id,
+	  bl.bl_id ${sql.as} bl_id,
+	  fl.fl_id ${sql.as} fl_id,
+      rm.rm_id ${sql.as} rm_id,
+      rm.rm_type ${sql.as} rm_type,
+      rm.rm_use ${sql.as} rm_use,
+      null ${sql.as} aisle_id,
+      null ${sql.as} cabinet_id,
+      null ${sql.as} shelf_id,
+      null ${sql.as} bin_id,      
+      eq.eq_std ${sql.as} eq_std,
+      eq.eq_id ${sql.as} eq_id
+			from eq left join bl on eq.bl_id = bl.bl_id 
+                    left join fl on eq.bl_id=fl.bl_id and eq.fl_id=fl.fl_id
+                    left join rm on eq.bl_id=rm.bl_id and eq.fl_id=rm.fl_id and eq.rm_id=rm.rm_id
+			where eq.bl_id is not null
+            
+      union
+      /* whole floors, listed without rooms or eq */
+      SELECT
+      bl.ctry_id ${sql.as} ctry_id,
+      bl.state_id ${sql.as} state_id,
+      bl.site_id ${sql.as} site_id,
+	  bl.bl_id ${sql.as} bl_id,
+      fl.fl_id ${sql.as} fl_id,
+      null ${sql.as} rm_id,
+      null ${sql.as} rm_type,
+      null ${sql.as} rm_use,
+      null ${sql.as} aisle_id,
+      null ${sql.as} cabinet_id,
+      null ${sql.as} shelf_id,
+      null ${sql.as} bin_id,
+      null ${sql.as} eq_std,
+      null ${sql.as} eq_id
+      from bl left join fl on bl.bl_id = fl.bl_id
+              left join rm on rm.bl_id = fl.bl_id and rm.fl_id = fl.fl_id
+              where rm.rm_id is not null 
+		     
+      union
+      /* whole buildings, listed without floors, rooms, or eq */
+      SELECT
+      bl.ctry_id ${sql.as} ctry_id,
+      bl.state_id ${sql.as} state_id,
+      bl.site_id ${sql.as} site_id,
+      bl.bl_id ${sql.as} bl_id,
+      null ${sql.as} fl_id,
+      null ${sql.as} rm_id,
+      null ${sql.as} rm_type,
+      null ${sql.as} rm_use,
+      null ${sql.as} aisle_id,
+      null ${sql.as} cabinet_id,
+      null ${sql.as} shelf_id,
+      null ${sql.as} bin_id,
+      null ${sql.as} eq_std,
+      null ${sql.as} eq_id
+      from bl left join fl on bl.bl_id = fl.bl_id
+              left join rm on rm.bl_id = fl.bl_id and rm.fl_id = fl.fl_id
+              where fl.fl_id is not null 	 
+
+      union              
+      /* shelves listed without subordinate bin records */
+      SELECT
+      bl.ctry_id ${sql.as} ctry_id,
+      bl.state_id ${sql.as} state_id,
+      bl.site_id ${sql.as} site_id,
+      bl.bl_id ${sql.as} bl_id,
+      fl.fl_id ${sql.as} fl_id,
+      rm.rm_id ${sql.as} rm_id,
+      rm.rm_type ${sql.as} rm_type,
+      rm.rm_use ${sql.as} rm_use,
+      aisle.aisle_id ${sql.as} aisle_id,
+      cabinet.cabinet_id ${sql.as} cabinet_id,
+      shelf.shelf_id ${sql.as} shelf_id,
+      null ${sql.as} bin_id, 
+      null ${sql.as} eq_std,
+      null ${sql.as} eq_id
+      from bl left join fl on bl.bl_id = fl.bl_id
+              left join rm on rm.bl_id = fl.bl_id and rm.fl_id = fl.fl_id
+              left join aisle on aisle.rm_id = rm.rm_id and aisle.fl_id = rm.fl_id and aisle.bl_id = rm.bl_id
+              left join cabinet on cabinet.aisle_id = aisle.aisle_id and cabinet.rm_id = aisle.rm_id and cabinet.fl_id = aisle.fl_id and cabinet.bl_id = aisle.bl_id
+              left join shelf on shelf.cabinet_id = cabinet.cabinet_id and shelf.aisle_id = cabinet.aisle_id and shelf.rm_id = cabinet.rm_id and shelf.fl_id = cabinet.fl_id and shelf.bl_id = cabinet.bl_id
+              left join bin on bin.shelf_id = shelf.shelf_id and bin.cabinet_id = shelf.cabinet_id and bin.aisle_id = shelf.aisle_id and bin.rm_id = shelf.rm_id and bin.fl_id = shelf.fl_id and bin.bl_id = shelf.bl_id
+              where bin.bin_id is not null
+
+      union              
+      /* cabinets listed without subordinate shelf records */
+      SELECT
+      bl.ctry_id ${sql.as} ctry_id,
+      bl.state_id ${sql.as} state_id,
+      bl.site_id ${sql.as} site_id,
+      bl.bl_id ${sql.as} bl_id,
+      fl.fl_id ${sql.as} fl_id,
+      rm.rm_id ${sql.as} rm_id,
+      rm.rm_type ${sql.as} rm_type,
+      rm.rm_use ${sql.as} rm_use,
+      aisle.aisle_id ${sql.as} aisle_id,
+      cabinet.cabinet_id ${sql.as} cabinet_id,
+      null ${sql.as} shelf_id,
+      null ${sql.as} bin_id, 
+      null ${sql.as} eq_std,
+      null ${sql.as} eq_id
+      from bl left join fl on bl.bl_id = fl.bl_id
+              left join rm on rm.bl_id = fl.bl_id and rm.fl_id = fl.fl_id
+              left join aisle on aisle.rm_id = rm.rm_id and aisle.fl_id = rm.fl_id and aisle.bl_id = rm.bl_id
+              left join cabinet on cabinet.aisle_id = aisle.aisle_id and cabinet.rm_id = aisle.rm_id and cabinet.fl_id = aisle.fl_id and cabinet.bl_id = aisle.bl_id
+              left join shelf on shelf.cabinet_id = cabinet.cabinet_id and shelf.aisle_id = cabinet.aisle_id and shelf.rm_id = cabinet.rm_id and shelf.fl_id = cabinet.fl_id and shelf.bl_id = cabinet.bl_id              
+              where shelf.shelf_id is not null
+              
+      union              
+      /* aisles listed without subordinate cabinet records */
+      SELECT
+      bl.ctry_id ${sql.as} ctry_id,
+      bl.state_id ${sql.as} state_id,
+      bl.site_id ${sql.as} site_id,
+      bl.bl_id ${sql.as} bl_id,
+      fl.fl_id ${sql.as} fl_id,
+      rm.rm_id ${sql.as} rm_id,
+      rm.rm_type ${sql.as} rm_type,
+      rm.rm_use ${sql.as} rm_use,
+      aisle.aisle_id ${sql.as} aisle_id,
+      null ${sql.as} cabinet_id,
+      null ${sql.as} shelf_id,
+      null ${sql.as} bin_id, 
+      null ${sql.as} eq_std,
+      null ${sql.as} eq_id
+      from bl left join fl on bl.bl_id = fl.bl_id
+              left join rm on rm.bl_id = fl.bl_id and rm.fl_id = fl.fl_id
+              left join aisle on aisle.rm_id = rm.rm_id and aisle.fl_id = rm.fl_id and aisle.bl_id = rm.bl_id
+              left join cabinet on cabinet.aisle_id = aisle.aisle_id and cabinet.rm_id = aisle.rm_id and cabinet.fl_id = aisle.fl_id and cabinet.bl_id = aisle.bl_id
+              where cabinet.cabinet_id is not null
+    </sql>
+    <table name="rm" role="main"/>
+    <field name="site_id" dataType="text">
+      <title translatable="true">Site Code</title>
+    </field>
+    <field table="rm" name="bl_id"/>
+    <field table="rm" name="fl_id"/>
+    <field table="rm" name="rm_id"/>
+    <field name="aisle_id" dataType="text">
+      <title translatable="true">Aisle Code</title>
+    </field>
+    <field name="cabinet_id" dataType="text">
+      <title translatable="true">Cabinet Code</title>
+    </field>
+    <field name="shelf_id" dataType="text">
+      <title translatable="true">Shelf Code</title>
+    </field>
+    <field name="bin_id" dataType="text">
+      <title translatable="true">Bin Code</title>
+    </field>
+    <field name="eq_id" dataType="text">
+      <title translatable="true">Equipment Code</title>
+    </field>    
+    <field name="eq_std" dataType="text">
+      <title translatable="true">Equipment Standard</title>
+    </field>
+    <field table="rm" name="rm_type"/>
+    <field table="rm" name="rm_use"/>    
+  </dataSource>
+
+  <panel type="console" columns="2" id="abRiskMsdsDefLocsMsdsConsole" dataSource="abRiskMsdsDataDS" showOnLoad="false" hidden="true" newRecord="true">
+    <title translatable="true">Materials Filter</title>
+    <action id="show">
+      <title translatable="true">Show</title>
+      <command type="callFunction" functionName="closeAbRiskMsdsDefLocsMsdsConsoleWindow" />
+    </action>
+    <action id="clear">
+      <title translatable="true">Clear</title>
+      <command type="clearPanel" panelId="abRiskMsdsDefLocsMsdsConsole"/>      
+      <command type="showPanel" panelId="abRiskMsdsDefLocsMsdsList"/>
+    </action>
+    <field table="msds_data" name="ghs_id"/>
+    <field table="msds_data" name="product_code"/>
+    <field table="msds_data" name="product_name" required="false"/>
+    <field table="msds_data" name="chemical_name"/>
+    <field table="msds_data" name="manufacturer_id" required="false">
+        <action>
+            <title translatable="false">...</title>
+            <tooltip translatable="true">Select Value</tooltip>
+            <command type="selectValue"
+                selectValueType="multiple" 
+                restriction="   company IN (SELECT DISTINCT(manufacturer_id) FROM msds_data  ) "
+                fieldNames="msds_data.manufacturer_id"
+                selectFieldNames="company.company"
+                visibleFieldNames="company.company, company.city_id, company.state_id, company.ctry_id, company.comments">
+            </command>
+        </action>
+    </field>
+    <field table="msds_data" name="distributor_id">
+        <action>
+            <title translatable="false">...</title>
+            <tooltip translatable="true">Select Value</tooltip>
+            <command type="selectValue"
+                selectValueType="multiple" 
+                restriction="   company IN (SELECT DISTINCT(distributor_id) FROM msds_data  ) "
+                fieldNames="msds_data.distributor_id"
+                selectFieldNames="company.company"
+                visibleFieldNames="company.company, company.city_id, company.state_id, company.ctry_id, company.comments">
+            </command>
+        </action>
+    </field>
+    <field table="msds_data" name="preparer_id">
+        <action>
+            <title translatable="false">...</title>
+            <tooltip translatable="true">Select Value</tooltip>
+            <command type="selectValue"
+                selectValueType="multiple" 
+                restriction="   company IN (SELECT DISTINCT(preparer_id) FROM msds_data  ) "
+                fieldNames="msds_data.preparer_id"
+                selectFieldNames="company.company"
+                visibleFieldNames="company.company, company.city_id, company.state_id, company.ctry_id, company.comments">
+            </command>
+        </action>
+    </field>
+  </panel>
+
+  <panel type="grid" id="abRiskMsdsDefLocsMsdsList" multipleSelectionEnabled="true" dataSource="abRiskMsdsDataDS" layoutRegion="msdsRegion" showIndexAndFilterOnLoad="true">
+    <title translatable="true">Select Material</title>
+    <action id="assign">
+      <title translatable="true">Assign to Selected Locations</title>
+    </action>
+    <action id="filter" imageName="/schema/ab-system/graphics/ab-filter-run.gif">
+      <tooltip>Filter</tooltip>
+    </action>
+    <field table="msds_data" name="ghs_id" controlType="link" onclick="selectGridItem"/>
+    <field table="msds_data" name="manufacturer_id" controlType="link" onclick="selectGridItem"/>
+    <field table="msds_data" name="product_name" controlType="link" onclick="selectGridItem"/>
+    <field table="msds_data" name="chemical_name" controlType="link" onclick="selectGridItem"/>
+    <field table="msds_data" name="product_code" controlType="link" onclick="selectGridItem"/>
+    <field table="msds_data" name="description" controlType="link" onclick="selectGridItem"/>
+  </panel>
+
+  <panel type="console" columns="2" id="abRiskMsdsDefLocsLocationConsole" dataSource="abRiskMsdsDefLocsLocationDS" showOnLoad="false" hidden="true" newRecord="true">
+    <title translatable="true">Location Filter</title>
+    <action id="show">
+      <title translatable="true">Show</title>
+      <command type="showPanel" panelId="abRiskMsdsDefLocsLocationList" />
+      <command type="callFunction" functionName="closeAbRiskMsdsDefLocsLocationConsoleWindow" />
+    </action>
+    <action id="clear">
+      <title translatable="true">Clear</title>
+      <command type="clearPanel" panelId="abRiskMsdsDefLocsLocationConsole"/>
+      <command type="showPanel" panelId="abRiskMsdsDefLocsLocationList"/>
+    </action>
+    <field name="ctry_id" dataType="text" required="false" selectValueType="multiple">
+      <title translatable="true">Country Code</title>
+      <action>
+        <command type="selectValue" fieldNames="rm.ctry_id" selectFieldNames="bl.ctry_id" visibleFieldNames="bl.ctry_id" applyFilter="true" selectValueType="multiple">
+        </command>
+      </action>
+    </field>
+    <field/>
+    <field name="site_id"  dataType="text" required="false" selectValueType="multiple">
+      <title translatable="true">Site Code</title>
+      <action>
+        <command type="selectValue" fieldNames="rm.ctry_id,rm.site_id" selectFieldNames="bl.ctry_id,site.site_id" visibleFieldNames="bl.ctry_id,site.site_id" applyFilter="true" selectValueType="multiple">
+        </command>
+      </action>
+    </field>
+    <field table="rm" name="bl_id" selectValueType="multiple" required="false">
+      <action>
+        <command type="selectValue" fieldNames="rm.ctry_id,rm.site_id,rm.bl_id" selectFieldNames="bl.ctry_id,bl.site_id,bl.bl_id" visibleFieldNames="bl.site_id,bl.bl_id,bl.name" applyFilter="true" selectValueType="multiple">
+        </command>
+      </action>
+    </field>
+    <field table="rm" name="fl_id" selectValueType="multiple" required="false">
+      <action>
+        <command type="selectValue" fieldNames="rm.ctry_id,rm.site_id,rm.bl_id,rm.fl_id" selectFieldNames="bl.ctry_id,bl.site_id,bl.bl_id,fl.fl_id" visibleFieldNames="bl.site_id,bl.bl_id,fl.fl_id" applyFilter="true" selectValueType="multiple">
+        </command>
+      </action>
+    </field>
+    <field table="rm" name="rm_id" selectValueType="multiple" required="false">
+      <action>
+        <command type="selectValue" fieldNames="rm.ctry_id,rm.site_id,rm.bl_id,rm.fl_id,rm.rm_id" selectFieldNames="bl.ctry_id,bl.site_id,bl.bl_id,fl.fl_id,rm.rm_id" visibleFieldNames="bl.site_id,bl.bl_id,rm.fl_id,rm.rm_id" applyFilter="true" selectValueType="multiple">
+        </command>
+      </action>
+    </field>  
+    <field table="rm" name="rm_type" selectValueType="multiple" required="false"/>
+    <field table="rm" name="rm_use" selectValueType="multiple" required="false"/>
+    <field name="eq_std" required="false" dataType="text" selectValueType="multiple">
+      <title translatable="true">Equipment Standard</title>
+      <action>
+        <command type="selectValue" fieldNames="rm.eq_std" selectFieldNames="eq.eq_std" visibleFieldNames="eq.eq_std" applyFilter="true" selectValueType="multiple">
+        </command>
+      </action>
+    </field>
+    <field name="eq_id" required="false" dataType="text" selectValueType="multiple">
+      <title translatable="true">Equipment Code</title>
+      <action>
+        <command type="selectValue" fieldNames="rm.eq_id" selectFieldNames="eq.eq_id" visibleFieldNames="eq.eq_id,eq.eq_std" applyFilter="true" selectValueType="multiple">
+        </command>
+      </action>
+    </field>
+  </panel>
+
+  <panel type="grid" id="abRiskMsdsDefLocsLocationList" multipleSelectionEnabled="true" dataSource="abRiskMsdsDefLocsLocationDS" layoutRegion="locationRegion" showIndexAndFilterOnLoad="true">
+    <title translatable="true">Select Locations</title>
+    <action id="assignmentshow">
+       <title translatable="true">Show Assignments at Selected Locations</title>
+       <!--KB 3047831-prompt before performing unrestricted query  command type="showPanel" panelId="abRiskMsdsDefLocsAssignmentList" applyParentRestriction="true"/-->
+    </action>
+    <action id="filter" imageName="/schema/ab-system/graphics/ab-filter-run.gif">
+      <tooltip>Filter</tooltip>
+    </action>
+    <sortField table="rm" name="site_id" ascending="true"/>
+    <sortField table="rm" name="bl_id" ascending="true"/>
+    <sortField table="rm" name="fl_id" ascending="true"/>
+    <sortField table="rm" name="rm_id" ascending="true"/>
+    <sortField table="rm" name="aisle_id" ascending="true"/>
+    <sortField table="rm" name="cabinet_id" ascending="true"/>
+    <sortField table="rm" name="shelf_id" ascending="true"/>
+    <sortField table="rm" name="bin_id" ascending="true"/>
+     
+    <field table="rm" name="site_id" controlType="link" onclick="selectGridItem">
+        <title translatable="true">Site Code</title>
+    </field>      
+    <field table="rm" name="bl_id" controlType="link" onclick="selectGridItem"/>
+    <field table="rm" name="fl_id" controlType="link" onclick="selectGridItem"/>
+    <field table="rm" name="rm_id" controlType="link" onclick="selectGridItem"/>
+    <field table="rm" name="aisle_id" controlType="link" onclick="selectGridItem">
+        <title translatable="true">Aisle Code</title>
+    </field>
+    <field table="rm" name="cabinet_id" controlType="link" onclick="selectGridItem">
+        <title translatable="true">Cabinet Code</title>
+    </field>
+    <field table="rm" name="shelf_id" controlType="link" onclick="selectGridItem">
+        <title translatable="true">Shelf Code</title>
+    </field>
+    <field table="rm" name="bin_id" controlType="link" onclick="selectGridItem">
+        <title translatable="true">Bin Code</title>
+    </field>
+    <field table="rm" name="eq_id" controlType="link" onclick="selectGridItem">
+        <title translatable="true">Equipment Code</title>
+    </field>
+    <field table="rm" name="eq_std" controlType="link" onclick="selectGridItem">    
+        <title translatable="true">Equipment Standard</title>
+    </field>
+    <field table="rm" name="rm_type" controlType="link" onclick="selectGridItem"/>
+    <field table="rm" name="rm_use" controlType="link" onclick="selectGridItem"/>
+  </panel>
+
+  <panel type="form" columns="2" id="abRiskMsdsDefLocsAssignmentForm" dataSource="abRiskMsdsDefLocsAssignmentDS" showOnLoad="false" hidden="true">
+    <title translatable="true">Define Material Location Details</title>
+    <action id="update">
+      <title translatable="true">Apply to Selected Location Assignments</title>
+      <command type="callFunction" functionName="applyToSelectedAssignments" />
+      <command type="showPanel" panelId="abRiskMsdsDefLocsAssignmentList" applyParentRestriction="false"/>
+    </action>
+    <action id="cancel">
+      <title translatable="true">Cancel</title>
+      <command type="closeDialog"/>
+    </action>    
+    <instructions translatable="true">[b]Caution:[/b] Existing values for one or more fields vary among the selected records.  If you choose to Apply to Selected Location Assignments, the application will save values from this window to all selected records.  Click Cancel to exit this window and modify the selection if desired.</instructions>    
+    <field table="msds_data" name="manufacturer_id" required="false" readOnly="true" colspan="2"/>
+    <field table="msds_data" name="product_name" required="false" readOnly="true" colspan="2"/>
+    <field table="msds_location" name="quantity"/>
+    <field table="msds_location" name="quantity_units_type" hidden="true"/>
+    <field table="msds_location" name="quantity_units">
+      <action>
+                <command type="selectValue"
+                 applyFilter="true" 
+                 fieldNames="msds_location.quantity_units,msds_location.quantity_units_type" 
+                 selectFieldNames="bill_unit.bill_unit_id,bill_unit.bill_type_id" 
+                 visibleFieldNames="bill_unit.bill_type_id,bill_unit.bill_unit_id" 
+                 restriction="EXISTS(SELECT 1 FROM bill_type WHERE bill_type.bill_type_id=bill_unit.bill_type_id AND (bill_unit.bill_type_id='MSDS - VOLUME' OR bill_unit.bill_type_id='MSDS - MASS'))" 
+                 >
+        </command>
+      </action>
+    </field>
+    <field table="msds_location" name="date_start"/>    
+    <field table="msds_location" name="date_end"/>
+    <field table="msds_location" name="custodian_id">
+        <action>
+                <command type="selectValue" 
+                 fieldNames="msds_location.custodian_id" 
+                 selectFieldNames="em.em_id" 
+                 visibleFieldNames="em.em_id,em.em_std,em.bl_id,em.fl_id,em.rm_id" 
+                 restriction="" 
+                 >
+          <title>Custodian</title>
+        </command>
+      </action>
+    </field>
+    <field table="msds_location" name="container_status"/>
+    <field table="msds_location" name="container_cat">
+      <action>
+                <command type="selectValue" 
+                 fieldNames="msds_location.container_cat" 
+                 selectFieldNames="hazard_container_cat.container_cat" 
+                 visibleFieldNames="hazard_container_cat.container_cat,hazard_container_cat.description" 
+                 restriction="hazard_container_cat.activity_id='AbRiskMSDS'" 
+                 >
+        </command>
+      </action>
+    </field>
+    <field table="msds_location" name="container_type">
+      <action>
+                <command type="selectValue"
+                 applyFilter="true"              
+                 fieldNames="msds_location.container_cat,msds_location.container_type" 
+                 selectFieldNames="hazard_container_type.container_cat, hazard_container_type.container_type" 
+                 visibleFieldNames="hazard_container_type.container_cat, hazard_container_type.container_type" 
+                 restriction="EXISTS(SELECT 1 FROM hazard_container_cat WHERE hazard_container_cat.container_cat= hazard_container_type.container_cat AND hazard_container_cat.activity_id='AbRiskMSDS')" 
+                 >
+        </command>
+      </action>
+    </field>
+    <field table="msds_location" name="container_code" onchange="containerCodeAndNumberFieldCheck()"/>
+    <field table="msds_location" name="num_containers" onchange="containerCodeAndNumberFieldCheck()"/>
+    
+    <field table="msds_location" name="temperature"/>    
+    <field table="msds_location" name="temperature_units"/>   
+    <field table="msds_location" name="pressure"/>    
+    <field table="msds_location" name="pressure_units">    
+      <action>
+                <command type="selectValue" 
+                 fieldNames="msds_location.pressure_units,msds_location.pressure_units_type" 
+                 selectFieldNames="bill_unit.bill_unit_id,bill_unit.bill_type_id" 
+                 visibleFieldNames="bill_unit.bill_type_id,bill_unit.bill_unit_id" 
+                 restriction="bill_unit.bill_type_id='MSDS - PRESSURE'" 
+                 >
+          <title>Pressure Units</title>
+        </command>
+      </action>
+    </field>    
+    <field table="msds_location" name="pressure_units_type" hidden="true"/>
+    
+    <field table="msds_location" name="evacuation_radius"/>    
+    <field table="msds_location" name="evacuation_radius_units_type" hidden="true"/>
+    <field table="msds_location" name="evacuation_radius_units">
+      <action>
+                <command type="selectValue" 
+                 fieldNames="msds_location.evacuation_radius_units,msds_location.evacuation_radius_units_type" 
+                 selectFieldNames="bill_unit.bill_unit_id,bill_unit.bill_type_id" 
+                 visibleFieldNames="bill_unit.bill_type_id,bill_unit.bill_unit_id" 
+                 restriction="bill_unit.bill_type_id='MSDS - DISTANCE'" 
+                 >
+          <title>Evacuation Radius Units</title>
+        </command>
+      </action>
+    </field>
+    <field table="msds_location" name="description" colspan="2"/>
+    
+    <field table="msds_location" name="bl_id"/>
+    <field table="msds_location" name="fl_id"/>
+    <field table="msds_location" name="rm_id"/>
+    <field table="msds_location" name="eq_id">
+            <action>
+                <command type="selectValue" 
+                 fieldNames="msds_location.eq_id" 
+                 selectFieldNames="eq.eq_id" 
+                 visibleFieldNames="eq.eq_id,eq.eq_std,eq.bl_id,eq.fl_id,eq.rm_id" 
+                 restriction="(eq.bl_id = '${record['msds_location.bl_id']}' OR '${record['msds_location.bl_id']}' = '')
+                          AND (eq.fl_id = '${record['msds_location.fl_id']}' OR '${record['msds_location.fl_id']}' = '')
+                          AND (eq.rm_id = '${record['msds_location.rm_id']}' OR '${record['msds_location.rm_id']}' = '')" 
+                 >
+                <title>Equipment</title>
+            </command>
+        </action>
+    </field>
+    <field table="msds_location" name="aisle_id"/>
+    <field table="msds_location" name="cabinet_id"/>
+    <field table="msds_location" name="shelf_id"/>
+    <field table="msds_location" name="bin_id"/>
+    
+    <field table="msds_location" name="date_updated" readOnly="true"/>
+    <field table="msds_location" name="date_last_inv" readOnly="false"/>
+    <field table="msds_location" name="last_edited_by" readOnly="true" colspan="2"/>
+    <!-- field table="msds_location" name="doc_custody"/-->
+    <field table="msds_location" name="comments" colspan="2"/>            
+    <field table="msds_location" name="auto_number" hidden="true"/>    
+  </panel>
+
+  <panel type="grid" multipleSelectionEnabled="true" showOnLoad="false" id="abRiskMsdsDefLocsAssignmentList" dataSource="abRiskMsdsDefLocsAssignmentDS" layoutRegion="assignmentRegion">
+    <title translatable="true">Material Location Assignments</title>
+        <action id="editselected">
+            <title translatable="true">Edit Selected Details</title>
+        </action>
+    <action id="unassignSelected">
+      <title translatable="true">Unassign Selected</title>
+      <tooltip translatable="true">Remove floor, room, subroom, and equipment location information from the selected record(s).</tooltip>
+      <command type="callFunction" functionName="unassignSelected"/>      
+    </action>
+    <action id="disposeSelected">
+        <title translatable="true">Dispose Selected</title>
+        <tooltip translatable="true">Delete the selected record(s) from the current material inventory and archive with status of 'Disposed'.</tooltip>
+        <command type="callFunction" functionName="disposeSelected"/>
+    </action>
+		<field table="msds_location" name="bl_id" controlType="link" onclick="selectGridItem"/>	
+		<field table="msds_location" name="fl_id" controlType="link" onclick="selectGridItem"/>
+		<field table="msds_location" name="rm_id" controlType="link" onclick="selectGridItem"/>
+        <field table="msds_location" name="aisle_id" controlType="link" onclick="selectGridItem"/>
+        <field table="msds_location" name="cabinet_id" controlType="link" onclick="selectGridItem"/>
+        <field table="msds_location" name="shelf_id" controlType="link" onclick="selectGridItem"/>
+        <field table="msds_location" name="bin_id" controlType="link" onclick="selectGridItem"/>
+		<field table="msds_location" name="eq_id" controlType="link" onclick="selectGridItem"/>        
+        <field table="msds_location" name="container_code" controlType="link" onclick="selectGridItem"/>
+        <field table="msds_data" name="product_name" controlType="link" onclick="selectGridItem"/>
+        <field table="msds_location" name="quantity" controlType="link" onclick="selectGridItem"/>
+		<field table="msds_location" name="quantity_units" controlType="link" onclick="selectGridItem"/>
+        <field table="msds_location" name="container_cat" controlType="link" onclick="selectGridItem"/>
+		<field table="msds_location" name="container_type" controlType="link" onclick="selectGridItem"/>
+		<field table="msds_location" name="date_updated" controlType="link" onclick="selectGridItem"/>
+        <field table="msds_location" name="auto_number" hidden="true"/>
+        <field table="msds_data" name="manufacturer_id" hidden="true"/>        
+        <field table="msds_location" name="quantity_units_type" hidden="true"/>        
+        <field table="msds_location" name="num_containers" hidden="true"/>
+        <field table="msds_location" name="evacuation_radius" hidden="true"/>
+        <field table="msds_location" name="temperature" hidden="true"/>
+        <field table="msds_location" name="evacuation_radius_units" hidden="true"/>
+        <field table="msds_location" name="temperature_units" hidden="true"/>
+        <field table="msds_location" name="evacuation_radius_units_type" hidden="true"/>
+        <field table="msds_location" name="pressure" hidden="true"/>        
+        <field table="msds_location" name="description" hidden="true"/>
+  </panel>
+  
+</view>

@@ -1,0 +1,785 @@
+<view version="2.0">
+    <title translatable="true">Footprint by Source Category</title>
+    <js file="ab-gb-rpt-fp-src-cat.js"/>
+    <js file="ab-gb-rpt-fp-common.js"/>
+
+    <message name="label_scope1" translatable="true">Scope 1</message>
+    <message name="label_scope2" translatable="true">Scope 2</message>
+    <message name="label_scope3" translatable="true">Scope 3</message>
+    <message name="label_other" translatable="true">Other</message>
+	<message name="total_emissions" translatable="true">Total Emissions (MTCO2e)</message>
+	<message name="emissions_per_area" translatable="true">Total Emissions (kg CO2e)</message>
+
+    <!-- Layout -->
+    <layout type="borderLayout" id="mainLayout">
+        <north id="filterPos" initialSize="110" split="true"/>
+        <center id="reportPos" autoScroll="true"/>
+    </layout>
+    
+    <!--  Filter -->
+    <dataSource id="abGbRptFpSrcCat_filter_ds">
+        <table name="gb_fp_totals" role="main"/>
+        <table name="bl" role="standard"/>
+        <field table="gb_fp_totals" name="vf_calc_year" dataType="text" size="200">
+            <title translatable="true">Calculation Year</title>
+        </field>
+        <field table="bl" name="site_id"/>
+        <field table="gb_fp_totals" name="bl_id"/>
+        <field table="gb_fp_totals" name="scenario_id"/>
+    </dataSource>
+    <panel type="console" id="abGbRptFpSrcCat_filter" dataSource="abGbRptFpSrcCat_filter_ds" columns="3" layoutRegion="filterPos">
+        <title translatable="true">Filter</title>
+        <action id="show">
+            <title translatable="true">Show</title>
+        </action>
+        <action id="clear">
+            <title translatable="true">Clear</title>
+            <command type="clearPanel" panelId="abGbRptFpSrcCat_filter"/>
+            <command type="callFunction" functionName=" document.getElementById('radio_emission_scope').value = 'scope1'; document.getElementById('chk_vf_totals_per_area').checked = false;"/>
+        </action>
+        <field table="bl" name="site_id">
+            <action>
+                <title translatable="false">...</title>
+                <tooltip translatable="true">Select Value</tooltip>
+                <command type="selectValue"
+                    selectValueType="multiple" 
+                    fieldNames="bl.site_id"
+                    selectFieldNames="site.site_id"
+                    visibleFieldNames="site.site_id, site.name"
+                    actionListener="afterSelectValue" 
+                    restriction="EXISTS(SELECT gb_fp_totals.bl_id FROM gb_fp_totals, bl WHERE gb_fp_totals.bl_id = bl.bl_id AND bl.site_id = site.site_id)"/>
+            </action>
+        </field>
+        <field table="gb_fp_totals" name="vf_calc_year"  dataType="text" size="200">
+            <title translatable="true">Calculation Year</title>
+            <action>
+                <title translatable="false">...</title>
+                <tooltip translatable="true">Select Value</tooltip>
+                <command type="selectValue"
+                    selectValueType="multiple"
+                    fieldNames="gb_fp_totals.vf_calc_year"
+                    selectFieldNames="gb_fp_totals.calc_year"
+                    visibleFieldNames="gb_fp_totals.calc_year"
+                    actionListener="afterSelectValue"/>
+            </action>
+        </field>
+        <field id="vf_totals_per_area">
+            <title translatable="true">Totals Per Unit Area</title>
+            <html>
+                <span class="inputField">
+                &#160;<input type="checkbox" id="chk_vf_totals_per_area" name="chk_vf_totals_per_area"/>
+                </span>
+            </html>
+        </field>
+        <field table="gb_fp_totals" name="bl_id">
+            <action>
+                <title translatable="false">...</title>
+                <tooltip translatable="true">Select Value</tooltip>
+                <command type="selectValue"
+                    selectValueType="multiple" 
+                    fieldNames="gb_fp_totals.bl_id"
+                    selectFieldNames="bl.bl_id"
+                    visibleFieldNames="bl.site_id, bl.bl_id, bl.name"
+                    actionListener="afterSelectValue" 
+                    restriction="EXISTS(SELECT gb_fp_totals.bl_id FROM gb_fp_totals WHERE gb_fp_totals.bl_id = bl.bl_id)"/>
+            </action>
+        </field>
+        <field table="gb_fp_totals" name="scenario_id">
+            <action>
+                <title translatable="false">...</title>
+                <tooltip translatable="true">Select Value</tooltip>
+                <command type="selectValue"
+                    selectValueType="multiple" 
+                    fieldNames="gb_fp_totals.scenario_id"
+                    selectFieldNames="scenario.proj_scenario_id"
+                    visibleFieldNames="scenario.proj_scenario_id, scenario.description"
+                    actionListener="afterSelectValue" 
+                    restriction="EXISTS(SELECT gb_fp_totals.scenario_id FROM gb_fp_totals,bl WHERE gb_fp_totals.scenario_id = scenario.proj_scenario_id AND gb_fp_totals.bl_id = bl.bl_id)"/>
+            </action>
+        </field>
+        <field id="vf_emission_scope">
+            <title translatable="true">Emissions Scope</title>
+            <html>
+                <select class="inputField_box" name="radio_emission_scope" id="radio_emission_scope">
+                    <option id="radio_emission_scope1" value="scope1" selected="true"></option>
+                    <option id="radio_emission_scope3" value="scope2"></option>
+                    <option id="radio_emission_scope3" value="scope3"></option>
+                    <option id="radio_emission_other" value="other"></option>
+                </select>
+            </html>
+        </field>
+    </panel>
+
+
+    <tabs workflow="free" id="abGbRptFpSrcCat_tabs" tabRefreshPolicy="refreshOnLoad" layoutRegion="reportPos">
+        <tab name="abGbRptFpSrcCat_site_tab" selected="true">
+            <title translatable="true">Site Emissions</title>
+            
+            <dataSource id="abGbRptFpSrcCat_site_ds" type="grouping">
+                <table name="gb_fp_totals" role="main"/>
+                <table name="bl" role="standard"/>
+                <table name="site" role="standard"/>
+                <table name="gb_fp_setup" role="standard"/>
+                <field table="gb_fp_totals" name="calc_year" groupBy="true"/>
+                <field table="bl" name="site_id" groupBy="true"/>
+                <field table="gb_fp_totals" name="site_name" dataType="text">
+                    <sql dialect="generic">
+                        (SELECT site.name FROM site WHERE site.site_id = bl.site_id)
+                    </sql>
+                </field>
+                <field table="gb_fp_totals" name="scenario_id" groupBy="true"/>
+                <field table="gb_fp_totals" name="vf_s1_total" dataType="number" decimals="1">
+                    <sql dialect="generic">
+                        ((SUM(gb_fp_totals.s1_fuel_comb)+ SUM(gb_fp_totals.s1_co_road)+ SUM(gb_fp_totals.s1_co_airc) + SUM(gb_fp_totals.s1_refrig_airc))/
+                            (CASE ${parameters['isGroupPerArea']} 
+                                WHEN 'true' 
+                                    THEN 
+                                        SUM(gb_fp_setup.area_gross_ext)*0.001
+                                ELSE 1.00
+                            END))
+                    </sql>
+                </field>
+                <field table="gb_fp_totals" name="vf_s1_fuel_comb" dataType="number" decimals="1">
+                    <sql dialect="generic">
+                        (SUM(gb_fp_totals.s1_fuel_comb)/
+                            (CASE ${parameters['isGroupPerArea']} 
+                                WHEN 'true' 
+                                    THEN 
+                                        SUM(gb_fp_setup.area_gross_ext)*0.001
+                                ELSE 1.00
+                            END))
+                    </sql>
+                </field>
+                <field table="gb_fp_totals" name="vf_s1_co_road" dataType="number" decimals="1">
+                    <sql dialect="generic">
+                        (SUM(gb_fp_totals.s1_co_road)/
+                            (CASE ${parameters['isGroupPerArea']} 
+                                WHEN 'true' 
+                                    THEN 
+                                        SUM(gb_fp_setup.area_gross_ext)*0.001
+                                ELSE 1.00
+                            END))
+                    </sql>
+                </field>
+                <field table="gb_fp_totals" name="vf_s1_co_airc" dataType="number" decimals="1">
+                    <sql dialect="generic">
+                        (SUM(gb_fp_totals.s1_co_airc)/
+                            (CASE ${parameters['isGroupPerArea']} 
+                                WHEN 'true' 
+                                    THEN 
+                                        SUM(gb_fp_setup.area_gross_ext)*0.001
+                                ELSE 1.00
+                            END))
+                    </sql>
+                </field>
+                <field table="gb_fp_totals" name="vf_s1_co_transp" dataType="number" decimals="1">
+                    <sql dialect="generic">
+                        ((SUM(gb_fp_totals.s1_co_airc)+ SUM(gb_fp_totals.s1_co_road))/
+                            (CASE ${parameters['isGroupPerArea']} 
+                                WHEN 'true' 
+                                    THEN 
+                                        SUM(gb_fp_setup.area_gross_ext)*0.001
+                                ELSE 1.00
+                            END))
+                    </sql>
+                </field>
+                <field table="gb_fp_totals" name="vf_s1_refrig_airc" dataType="number" decimals="1">
+                    <sql dialect="generic">
+                        (SUM(gb_fp_totals.s1_refrig_airc)/
+                            (CASE ${parameters['isGroupPerArea']} 
+                                WHEN 'true' 
+                                    THEN 
+                                        SUM(gb_fp_setup.area_gross_ext)*0.001
+                                ELSE 1.00
+                            END))
+                    </sql>
+                </field>
+                <field table="gb_fp_totals" name="vf_s2_purch_e" dataType="number" decimals="1">
+                    <sql dialect="generic">
+                        (SUM(gb_fp_totals.s2_purch_e)/
+                            (CASE ${parameters['isGroupPerArea']} 
+                                WHEN 'true' 
+                                    THEN 
+                                        SUM(gb_fp_setup.area_gross_ext)*0.001
+                                ELSE 1.00
+                            END))
+                    </sql>
+                </field>
+                <field table="gb_fp_totals" name="vf_s3_total" dataType="number" decimals="1">
+                    <sql dialect="generic">
+                        ((SUM(gb_fp_totals.s3_cont) + SUM(gb_fp_totals.s3_em_air) + SUM(gb_fp_totals.s3_em_rail) + SUM(gb_fp_totals.s3_em_road) + SUM(gb_fp_totals.s3_mat) + SUM(gb_fp_totals.s3_outs) + SUM(gb_fp_totals.s3_serv) + SUM(gb_fp_totals.s3_waste_liq) + SUM(gb_fp_totals.s3_waste_sol))/
+                            (CASE ${parameters['isGroupPerArea']} 
+                                WHEN 'true' 
+                                    THEN 
+                                        SUM(gb_fp_setup.area_gross_ext)*0.001
+                                ELSE 1.00
+                            END))
+                    </sql>
+                </field>
+                <field table="gb_fp_totals" name="vf_s3_waste_sol" dataType="number" decimals="1">
+                    <sql dialect="generic">
+                        (SUM(gb_fp_totals.s3_waste_sol)/
+                            (CASE ${parameters['isGroupPerArea']} 
+                                WHEN 'true' 
+                                    THEN 
+                                        SUM(gb_fp_setup.area_gross_ext)*0.001
+                                ELSE 1.00
+                            END))
+                    </sql>
+                </field>
+                <field table="gb_fp_totals" name="vf_s3_waste_liq" dataType="number" decimals="1">
+                    <sql dialect="generic">
+                        (SUM(gb_fp_totals.s3_waste_liq)/
+                            (CASE ${parameters['isGroupPerArea']} 
+                                WHEN 'true' 
+                                    THEN 
+                                        SUM(gb_fp_setup.area_gross_ext)*0.001
+                                ELSE 1.00
+                            END))
+                    </sql>
+                </field>
+                <field table="gb_fp_totals" name="vf_s3_waste_total" dataType="number" decimals="1">
+                    <sql dialect="generic">
+                        ((SUM(gb_fp_totals.s3_waste_sol) + SUM(gb_fp_totals.s3_waste_liq))/
+                            (CASE ${parameters['isGroupPerArea']} 
+                                WHEN 'true' 
+                                    THEN 
+                                        SUM(gb_fp_setup.area_gross_ext)*0.001
+                                ELSE 1.00
+                            END))
+                    </sql>
+                </field>
+                <field table="gb_fp_totals" name="vf_s3_em_road" dataType="number" decimals="1">
+                    <sql dialect="generic">
+                        (SUM(gb_fp_totals.s3_em_road)/
+                            (CASE ${parameters['isGroupPerArea']} 
+                                WHEN 'true' 
+                                    THEN 
+                                        SUM(gb_fp_setup.area_gross_ext)*0.001
+                                ELSE 1.00
+                            END))
+                    </sql>
+                </field>
+                <field table="gb_fp_totals" name="vf_s3_em_rail" dataType="number" decimals="1">
+                    <sql dialect="generic">
+                        (SUM(gb_fp_totals.s3_em_rail)/
+                            (CASE ${parameters['isGroupPerArea']} 
+                                WHEN 'true' 
+                                    THEN 
+                                        SUM(gb_fp_setup.area_gross_ext)*0.001
+                                ELSE 1.00
+                            END))
+                    </sql>
+                </field>
+                <field table="gb_fp_totals" name="vf_s3_em_air" dataType="number" decimals="1">
+                    <sql dialect="generic">
+                        (SUM(gb_fp_totals.s3_em_air)/
+                            (CASE ${parameters['isGroupPerArea']} 
+                                WHEN 'true' 
+                                    THEN 
+                                        SUM(gb_fp_setup.area_gross_ext)*0.001
+                                ELSE 1.00
+                            END))
+                    </sql>
+                </field>
+                <field table="gb_fp_totals" name="vf_s3_em_total" dataType="number" decimals="1">
+                    <sql dialect="generic">
+                        ((SUM(gb_fp_totals.s3_em_road)+ SUM(gb_fp_totals.s3_em_rail) + SUM(gb_fp_totals.s3_em_air))/
+                            (CASE ${parameters['isGroupPerArea']} 
+                                WHEN 'true' 
+                                    THEN 
+                                        SUM(gb_fp_setup.area_gross_ext)*0.001
+                                ELSE 1.00
+                            END))
+                    </sql>
+                </field>
+                <field table="gb_fp_totals" name="vf_s3_mat" dataType="number" decimals="1">
+                    <sql dialect="generic">
+                        (SUM(gb_fp_totals.s3_mat)/
+                            (CASE ${parameters['isGroupPerArea']} 
+                                WHEN 'true' 
+                                    THEN 
+                                        SUM(gb_fp_setup.area_gross_ext)*0.001
+                                ELSE 1.00
+                            END))
+                    </sql>
+                </field>
+                <field table="gb_fp_totals" name="vf_s3_cont" dataType="number" decimals="1">
+                    <sql dialect="generic">
+                        (SUM(gb_fp_totals.s3_cont)/
+                            (CASE ${parameters['isGroupPerArea']} 
+                                WHEN 'true' 
+                                    THEN 
+                                        SUM(gb_fp_setup.area_gross_ext)*0.001
+                                ELSE 1.00
+                            END))
+                    </sql>
+                </field>
+                <field table="gb_fp_totals" name="vf_s3_outs" dataType="number" decimals="1">
+                    <sql dialect="generic">
+                        (SUM(gb_fp_totals.s3_outs)/
+                            (CASE ${parameters['isGroupPerArea']} 
+                                WHEN 'true' 
+                                    THEN 
+                                        SUM(gb_fp_setup.area_gross_ext)*0.001
+                                ELSE 1.00
+                            END))
+                    </sql>
+                </field>
+                <field table="gb_fp_totals" name="vf_s3_serv" dataType="number" decimals="1">
+                    <sql dialect="generic">
+                        (SUM(gb_fp_totals.s3_serv)/
+                            (CASE ${parameters['isGroupPerArea']} 
+                                WHEN 'true' 
+                                    THEN 
+                                        SUM(gb_fp_setup.area_gross_ext)*0.001
+                                ELSE 1.00
+                            END))
+                    </sql>
+                </field>
+                <field table="gb_fp_totals" name="vf_s_other" dataType="number" decimals="1">
+                    <sql dialect="generic">
+                        (SUM(gb_fp_totals.s_other)/
+                            (CASE ${parameters['isGroupPerArea']} 
+                                WHEN 'true' 
+                                    THEN 
+                                        SUM(gb_fp_setup.area_gross_ext)*0.001
+                                ELSE 1.00
+                            END))
+                    </sql>
+                </field>
+                <field table="gb_fp_totals" name="vf_cf_bldg_count" dataType="number" decimals="0">
+                    <!--sql dialect="generic">
+                       (SELECT COUNT(DISTINCT cf_count.bl_id) FROM gb_fp_totals cf_count, bl cf_count_bl WHERE cf_count.bl_id = gb_fp_totals.bl_id AND cf_count.bl_id = cf_count_bl.bl_id AND cf_count.calc_year = gb_fp_totals.calc_year AND  cf_count_bl.site_id = bl.site_id)
+                    </sql-->
+                    <sql dialect="generic">
+                       (COUNT(DISTINCT gb_fp_totals.bl_id))
+                    </sql>
+                </field>
+                <field table="gb_fp_totals" name="vf_bldg_count" dataType="number" decimals="0">
+                    <sql dialect="generic">
+                       (SELECT COUNT(DISTINCT count_bl.bl_id) FROM bl count_bl WHERE count_bl.site_id = bl.site_id)
+                    </sql>
+                </field>
+
+                <field table="gb_fp_setup" name="area_gross_ext" dataType="number" decimals="1">
+                    <sql dialect="generic">
+                        (SUM(gb_fp_setup.area_gross_ext))
+                    </sql>
+                </field>
+
+                <field table="gb_fp_setup" name="max_bl_setup" dataType="text" formula="max" baseField="gb_fp_setup.bl_id"/>
+                <parameter name="isGroupPerArea" dataType="text" value="false"/>                
+
+                <restriction type="parsed">
+                    <clause table="bl" name="bl_id" op="IS NOT NULL" value=""/>
+                </restriction>
+            </dataSource>
+            
+            <panel type="grid" id="abGbRptFpSrcCat_site" dataSource="abGbRptFpSrcCat_site_ds" showOnLoad="false" selectionEnabled="true">
+                <title translatable="true">Site Emissions</title>
+                <action id="exportXls">
+                    <title translatable="true">XLS</title>
+                    <command type="callFunction" functionName="generateXLS(abGbRptFpSrcCatCtrl, 'abGbRptFpSrcCat_site', false, false, 'gb_fp_setup.area_gross_ext')"/>
+                </action>
+                <field table="gb_fp_totals" name="calc_year" controlType="link" onclick="showDetails"/>
+                <field table="bl" name="site_id" controlType="link" onclick="showDetails"/>
+                <field table="gb_fp_totals" name="site_name" dataType="text" controlType="link" onclick="showDetails" readOnly="true">
+                    <title translatable="true">Site Name</title>
+                </field>
+                <field table="gb_fp_totals" name="scenario_id" controlType="link" onclick="showDetails"/>
+                <field table="gb_fp_totals" name="vf_s1_total" dataType="number" decimals="1" controlType="link" onclick="showDetails" readOnly="true">
+                    <title translatable="true">Total Emissions</title>
+                </field>
+                <field table="gb_fp_totals" name="vf_s1_fuel_comb" dataType="number" decimals="1" controlType="link" onclick="showDetails" >
+                    <title translatable="true">Stationary Fuel Combustion</title>
+                </field>
+                <field table="gb_fp_totals" name="vf_s1_co_road" dataType="number" decimals="1" controlType="link" onclick="showDetails" >
+                    <title translatable="true">Company-Owned Road Transportation</title>
+                </field>
+                <field table="gb_fp_totals" name="vf_s1_co_airc" dataType="number" decimals="1" controlType="link" onclick="showDetails" >
+                    <title translatable="true">Company-Owned Air Transportation</title>
+                </field>
+                <field table="gb_fp_totals" name="vf_s1_co_transp" dataType="number" decimals="1" controlType="link" onclick="showDetails" readOnly="true">
+                    <title translatable="true">Company Transportation Total</title>
+                </field>
+                <field table="gb_fp_totals" name="vf_s1_refrig_airc" dataType="number" decimals="1" controlType="link" onclick="showDetails" >
+                    <title translatable="true">Refrigeration and Air Conditioning</title>
+                </field>
+                <field table="gb_fp_totals" name="vf_s2_purch_e" dataType="number" decimals="1" controlType="link" onclick="showDetails" >
+                    <title translatable="true">Purchased Electricity</title>
+                </field>
+                <field table="gb_fp_totals" name="vf_s3_total" dataType="number" decimals="1" controlType="link" onclick="showDetails" readOnly="true">
+                    <title translatable="true">Total Emissions</title>
+                </field>
+                <field table="gb_fp_totals" name="vf_s3_waste_sol" dataType="number" decimals="1" controlType="link" onclick="showDetails" >
+                    <title translatable="true">Solid Waste</title>
+                </field>
+                <field table="gb_fp_totals" name="vf_s3_waste_liq" dataType="number" decimals="1" controlType="link" onclick="showDetails" >
+                    <title translatable="true">Liquid Waste</title>
+                </field>
+                <field table="gb_fp_totals" name="vf_s3_waste_total" dataType="number" decimals="1" controlType="link" onclick="showDetails" readOnly="true">
+                    <title translatable="true">Total Waste</title>
+                </field>
+                <field table="gb_fp_totals" name="vf_s3_em_road" dataType="number" decimals="1" controlType="link" onclick="showDetails" >
+                    <title translatable="true">Employee Road</title>
+                </field>
+                <field table="gb_fp_totals" name="vf_s3_em_rail" dataType="number" decimals="1" controlType="link" onclick="showDetails" >
+                    <title translatable="true">Employee Rail</title>
+                </field>
+                <field table="gb_fp_totals" name="vf_s3_em_air" dataType="number" decimals="1" controlType="link" onclick="showDetails" >
+                    <title translatable="true">Employee Air</title>
+                </field>
+                <field table="gb_fp_totals" name="vf_s3_em_total" dataType="number" decimals="1" controlType="link" onclick="showDetails" readOnly="true">
+                    <title translatable="true">Employee Total</title>
+                </field>
+                <field table="gb_fp_totals" name="vf_s3_mat" dataType="number" decimals="1" controlType="link" onclick="showDetails" >
+                    <title translatable="true">Materials</title>
+                </field>
+                <field table="gb_fp_totals" name="vf_s3_cont" dataType="number" decimals="1" controlType="link" onclick="showDetails" >
+                    <title translatable="true">Contractor</title>
+                </field>
+                <field table="gb_fp_totals" name="vf_s3_outs" dataType="number" decimals="1" controlType="link" onclick="showDetails" >
+                    <title translatable="true">Outsourced</title>
+                </field>
+                <field table="gb_fp_totals" name="vf_s3_serv" dataType="number" decimals="1" controlType="link" onclick="showDetails" >
+                    <title translatable="true">Servers</title>
+                </field>
+                <field table="gb_fp_totals" name="vf_s_other" dataType="number" decimals="1" controlType="link" onclick="showDetails" >
+                    <title translatable="true">Other Emissions</title>
+                </field>
+                
+                <field table="gb_fp_totals" name="vf_cf_bldg_count" dataType="number" decimals="0" readOnly="true" controlType="link" onclick="showDetails">
+                    <title translatable="true">Footprint Buildings</title>
+                </field>
+                <field table="gb_fp_totals" name="vf_bldg_count" dataType="number" decimals="0" readOnly="true" controlType="link" onclick="showDetails">
+                    <title translatable="true">Total Buildings</title>
+                </field>
+                <field table="gb_fp_setup" name="area_gross_ext"  dataType="number" decimals="1" controlType="link" onclick="showDetails"/>
+            </panel>
+        </tab>
+        <tab name="abGbRptFpSrcCat_bl_tab">
+            <title translatable="true">Building Emissions</title>
+            
+            <dataSource id="abGbRptFpSrcCat_bl_ds">
+                <table name="gb_fp_totals" role="main"/>
+                <table name="bl" role="standard"/>
+                <table name="gb_fp_setup" role="standard"/>
+                <field table="gb_fp_totals" name="calc_year"/>
+                <field table="bl" name="site_id"/>
+                <field table="gb_fp_totals" name="bl_id"/>
+                <field table="gb_fp_totals" name="scenario_id"/>
+                <field table="gb_fp_totals" name="site_name" dataType="text">
+                    <sql dialect="generic">
+                        (SELECT site.name FROM site WHERE site.site_id = bl.site_id)
+                    </sql>
+                </field>
+                <field table="gb_fp_totals" name="vf_s1_total" dataType="number" decimals="1" showTotals="true">
+                    <sql dialect="generic">
+                        ((gb_fp_totals.s1_fuel_comb+ gb_fp_totals.s1_co_road+ gb_fp_totals.s1_co_airc + gb_fp_totals.s1_refrig_airc)/
+                            (CASE ${parameters['isGroupPerArea']} 
+                                WHEN 'true' 
+                                    THEN 
+                                        gb_fp_setup.area_gross_ext*0.001
+                                ELSE 1.00
+                            END))
+                    </sql>
+                </field>
+                <field table="gb_fp_totals" name="vf_s1_fuel_comb" dataType="number" decimals="1" showTotals="true">
+                    <sql dialect="generic">
+                        (gb_fp_totals.s1_fuel_comb/
+                            (CASE ${parameters['isGroupPerArea']} 
+                                WHEN 'true' 
+                                    THEN 
+                                        gb_fp_setup.area_gross_ext*0.001
+                                ELSE 1.00
+                            END))
+                    </sql>
+                </field>
+                <field table="gb_fp_totals" name="vf_s1_co_road" dataType="number" decimals="1" showTotals="true">
+                    <sql dialect="generic">
+                        (gb_fp_totals.s1_co_road/
+                            (CASE ${parameters['isGroupPerArea']} 
+                                WHEN 'true' 
+                                    THEN 
+                                        gb_fp_setup.area_gross_ext*0.001
+                                ELSE 1.00
+                            END))
+                    </sql>
+                </field>
+                <field table="gb_fp_totals" name="vf_s1_co_airc" dataType="number" decimals="1" showTotals="true">
+                    <sql dialect="generic">
+                        (gb_fp_totals.s1_co_airc/
+                            (CASE ${parameters['isGroupPerArea']} 
+                                WHEN 'true' 
+                                    THEN 
+                                        gb_fp_setup.area_gross_ext*0.001
+                                ELSE 1.00
+                            END))
+                    </sql>
+                </field>
+                <field table="gb_fp_totals" name="vf_s1_co_transp" dataType="number" decimals="1" showTotals="true">
+                    <sql dialect="generic">
+                        ((gb_fp_totals.s1_co_airc+ gb_fp_totals.s1_co_road)/
+                            (CASE ${parameters['isGroupPerArea']} 
+                                WHEN 'true' 
+                                    THEN 
+                                        gb_fp_setup.area_gross_ext*0.001
+                                ELSE 1.00
+                            END))
+                    </sql>
+                </field>
+                <field table="gb_fp_totals" name="vf_s1_refrig_airc" dataType="number" decimals="1" showTotals="true">
+                    <sql dialect="generic">
+                        (gb_fp_totals.s1_refrig_airc/
+                            (CASE ${parameters['isGroupPerArea']} 
+                                WHEN 'true' 
+                                    THEN 
+                                        gb_fp_setup.area_gross_ext*0.001
+                                ELSE 1.00
+                            END))
+                    </sql>
+                </field>
+                <field table="gb_fp_totals" name="vf_s2_purch_e" dataType="number" decimals="1" showTotals="true">
+                    <sql dialect="generic">
+                        (gb_fp_totals.s2_purch_e/
+                            (CASE ${parameters['isGroupPerArea']} 
+                                WHEN 'true' 
+                                    THEN 
+                                        gb_fp_setup.area_gross_ext*0.001
+                                ELSE 1.00
+                            END))
+                    </sql>
+                </field>
+                <field table="gb_fp_totals" name="vf_s3_total" dataType="number" decimals="1" showTotals="true">
+                    <sql dialect="generic">
+                        ((gb_fp_totals.s3_cont + gb_fp_totals.s3_em_air + gb_fp_totals.s3_em_rail + gb_fp_totals.s3_em_road + gb_fp_totals.s3_mat + gb_fp_totals.s3_outs + gb_fp_totals.s3_serv + gb_fp_totals.s3_waste_liq + gb_fp_totals.s3_waste_sol)/
+                            (CASE ${parameters['isGroupPerArea']} 
+                                WHEN 'true' 
+                                    THEN 
+                                        gb_fp_setup.area_gross_ext*0.001
+                                ELSE 1.00
+                            END))
+                    </sql>
+                </field>
+                <field table="gb_fp_totals" name="vf_s3_waste_sol" dataType="number" decimals="1" showTotals="true">
+                    <sql dialect="generic">
+                        (gb_fp_totals.s3_waste_sol/
+                            (CASE ${parameters['isGroupPerArea']} 
+                                WHEN 'true' 
+                                    THEN 
+                                        gb_fp_setup.area_gross_ext*0.001
+                                ELSE 1.00
+                            END))
+                    </sql>
+                </field>
+                <field table="gb_fp_totals" name="vf_s3_waste_liq" dataType="number" decimals="1" showTotals="true">
+                    <sql dialect="generic">
+                        (gb_fp_totals.s3_waste_liq/
+                            (CASE ${parameters['isGroupPerArea']} 
+                                WHEN 'true' 
+                                    THEN 
+                                        gb_fp_setup.area_gross_ext*0.001
+                                ELSE 1.00
+                            END))
+                    </sql>
+                </field>
+                <field table="gb_fp_totals" name="vf_s3_waste_total" dataType="number" decimals="1" showTotals="true">
+                    <sql dialect="generic">
+                        ((gb_fp_totals.s3_waste_sol + gb_fp_totals.s3_waste_liq)/
+                            (CASE ${parameters['isGroupPerArea']} 
+                                WHEN 'true' 
+                                    THEN 
+                                        gb_fp_setup.area_gross_ext*0.001
+                                ELSE 1.00
+                            END))
+                    </sql>
+                </field>
+                <field table="gb_fp_totals" name="vf_s3_em_road" dataType="number" decimals="1" showTotals="true">
+                    <sql dialect="generic">
+                        (gb_fp_totals.s3_em_road/
+                            (CASE ${parameters['isGroupPerArea']} 
+                                WHEN 'true' 
+                                    THEN 
+                                        gb_fp_setup.area_gross_ext*0.001
+                                ELSE 1.00
+                            END))
+                    </sql>
+                </field>
+                <field table="gb_fp_totals" name="vf_s3_em_rail" dataType="number" decimals="1" showTotals="true">
+                    <sql dialect="generic">
+                        (gb_fp_totals.s3_em_rail/
+                            (CASE ${parameters['isGroupPerArea']} 
+                                WHEN 'true' 
+                                    THEN 
+                                        gb_fp_setup.area_gross_ext*0.001
+                                ELSE 1.00
+                            END))
+                    </sql>
+                </field>
+                <field table="gb_fp_totals" name="vf_s3_em_air" dataType="number" decimals="1" showTotals="true">
+                    <sql dialect="generic">
+                        (gb_fp_totals.s3_em_air/
+                            (CASE ${parameters['isGroupPerArea']} 
+                                WHEN 'true' 
+                                    THEN 
+                                        gb_fp_setup.area_gross_ext*0.001
+                                ELSE 1.00
+                            END))
+                    </sql>
+                </field>
+                <field table="gb_fp_totals" name="vf_s3_em_total" dataType="number" decimals="1" showTotals="true">
+                    <sql dialect="generic">
+                        ((gb_fp_totals.s3_em_road+ gb_fp_totals.s3_em_rail + gb_fp_totals.s3_em_air)/
+                            (CASE ${parameters['isGroupPerArea']} 
+                                WHEN 'true' 
+                                    THEN 
+                                        gb_fp_setup.area_gross_ext*0.001
+                                ELSE 1.00
+                            END))
+                    </sql>
+                </field>
+                <field table="gb_fp_totals" name="vf_s3_mat" dataType="number" decimals="1" showTotals="true">
+                    <sql dialect="generic">
+                        (gb_fp_totals.s3_mat/
+                            (CASE ${parameters['isGroupPerArea']} 
+                                WHEN 'true' 
+                                    THEN 
+                                        gb_fp_setup.area_gross_ext*0.001
+                                ELSE 1.00
+                            END))
+                    </sql>
+                </field>
+                <field table="gb_fp_totals" name="vf_s3_cont" dataType="number" decimals="1" showTotals="true">
+                    <sql dialect="generic">
+                        (gb_fp_totals.s3_cont/
+                            (CASE ${parameters['isGroupPerArea']} 
+                                WHEN 'true' 
+                                    THEN 
+                                        gb_fp_setup.area_gross_ext*0.001
+                                ELSE 1.00
+                            END))
+                    </sql>
+                </field>
+                <field table="gb_fp_totals" name="vf_s3_outs" dataType="number" decimals="1" showTotals="true">
+                    <sql dialect="generic">
+                        (gb_fp_totals.s3_outs/
+                            (CASE ${parameters['isGroupPerArea']} 
+                                WHEN 'true' 
+                                    THEN 
+                                        gb_fp_setup.area_gross_ext*0.001
+                                ELSE 1.00
+                            END))
+                    </sql>
+                </field>
+                <field table="gb_fp_totals" name="vf_s3_serv" dataType="number" decimals="1" showTotals="true">
+                    <sql dialect="generic">
+                        (gb_fp_totals.s3_serv/
+                            (CASE ${parameters['isGroupPerArea']} 
+                                WHEN 'true' 
+                                    THEN 
+                                        gb_fp_setup.area_gross_ext*0.001
+                                ELSE 1.00
+                            END))
+                    </sql>
+                </field>
+                <field table="gb_fp_totals" name="vf_s_other" dataType="number" decimals="1" showTotals="true">
+                    <sql dialect="generic">
+                        (gb_fp_totals.s_other/
+                            (CASE ${parameters['isGroupPerArea']} 
+                                WHEN 'true' 
+                                    THEN 
+                                        gb_fp_setup.area_gross_ext*0.001
+                                ELSE 1.00
+                            END))
+                    </sql>
+                </field>
+                <field table="gb_fp_setup" name="area_gross_ext" dataType="number" decimals="1"/>
+                <parameter name="isGroupPerArea" dataType="text" value="false"/>                
+
+                <restriction type="parsed">
+                    <clause table="bl" name="bl_id" op="IS NOT NULL" value=""/>
+                </restriction>
+            </dataSource>
+            
+            <panel type="grid" id="abGbRptFpSrcCat_bl" dataSource="abGbRptFpSrcCat_bl_ds" showOnLoad="false">
+                <title translatable="true">Building Emissions</title>
+                <action id="exportXls">
+                    <title translatable="true">XLS</title>
+                    <command type="callFunction" functionName="generateXLS(abGbRptFpSrcCatCtrl, 'abGbRptFpSrcCat_bl', false, false, 'gb_fp_setup.area_gross_ext')"/>
+                </action>
+                <field table="gb_fp_totals" name="calc_year"/>
+                <field table="bl" name="site_id"/>
+                <field table="gb_fp_totals" name="site_name" dataType="text" readOnly="true">
+                    <title translatable="true">Site Name</title>
+                </field>
+                <field table="gb_fp_totals" name="bl_id"/>
+                <field table="gb_fp_totals" name="scenario_id"/>
+                <field table="gb_fp_totals" name="vf_s1_total" dataType="number" decimals="1" readOnly="true" showTotals="true">
+                    <title translatable="true">Total Emissions</title>
+                </field>
+                <field table="gb_fp_totals" name="vf_s1_fuel_comb" dataType="number" decimals="1" showTotals="true">
+                    <title translatable="true">Stationary Fuel Combustion</title>
+                </field>
+                <field table="gb_fp_totals" name="vf_s1_co_road" dataType="number" decimals="1" showTotals="true">
+                    <title translatable="true">Company-Owned Road Transportation</title>
+                </field>
+                <field table="gb_fp_totals" name="vf_s1_co_airc" dataType="number" decimals="1" showTotals="true">
+                    <title translatable="true">Company-Owned Air Transportation</title>
+                </field>
+                <field table="gb_fp_totals" name="vf_s1_co_transp" dataType="number" decimals="1" readOnly="true" showTotals="true">
+                    <title translatable="true">Company Transportation Total</title>
+                </field>
+                <field table="gb_fp_totals" name="vf_s1_refrig_airc"  dataType="number" decimals="1" showTotals="true">
+                    <title translatable="true">Refrigeration and Air Conditioning</title>
+                </field>
+                <field table="gb_fp_totals" name="vf_s2_purch_e" onclick="showDetails" showTotals="true">
+                    <title translatable="true">Purchased Electricity</title>
+                </field>
+                <field table="gb_fp_totals" name="vf_s3_total" dataType="number" decimals="1" readOnly="true" showTotals="true">
+                    <title translatable="true">Total Emissions</title>
+                </field>
+                <field table="gb_fp_totals" name="vf_s3_waste_sol" dataType="number" decimals="1" showTotals="true">
+                    <title translatable="true">Solid Waste</title>
+                </field>
+                <field table="gb_fp_totals" name="vf_s3_waste_liq" dataType="number" decimals="1" showTotals="true">
+                    <title translatable="true">Liquid Waste</title>
+                </field>
+                <field table="gb_fp_totals" name="vf_s3_waste_total" dataType="number" decimals="1" readOnly="true" showTotals="true">
+                    <title translatable="true">Total Waste</title>
+                </field>
+                <field table="gb_fp_totals" name="vf_s3_em_road" dataType="number" decimals="1" showTotals="true">
+                    <title translatable="true">Employee Road</title>
+                </field>
+                <field table="gb_fp_totals" name="vf_s3_em_rail" dataType="number" decimals="1" showTotals="true">
+                    <title translatable="true">Employee Rail</title>
+                </field>
+                <field table="gb_fp_totals" name="vf_s3_em_air" dataType="number" decimals="1" showTotals="true">
+                    <title translatable="true">Employee Air</title>
+                </field>
+                <field table="gb_fp_totals" name="vf_s3_em_total" dataType="number" decimals="1" readOnly="true" showTotals="true">
+                    <title translatable="true">Employee Total</title>
+                </field>
+                <field table="gb_fp_totals" name="vf_s3_mat" dataType="number" decimals="1" showTotals="true">
+                    <title translatable="true">Materials</title>
+                </field>
+                <field table="gb_fp_totals" name="vf_s3_cont" dataType="number" decimals="1" showTotals="true">
+                    <title translatable="true">Contractor</title>
+                </field>
+                <field table="gb_fp_totals" name="vf_s3_outs" dataType="number" decimals="1" showTotals="true">
+                    <title translatable="true">Outsourced</title>
+                </field>
+                <field table="gb_fp_totals" name="vf_s3_serv" dataType="number" decimals="1" showTotals="true">
+                    <title translatable="true">Servers</title>
+                </field>
+                <field table="gb_fp_totals" name="vf_s_other" showTotals="true">
+                    <title translatable="true">Other Emissions</title>
+                </field>
+                <field table="gb_fp_setup" name="area_gross_ext" dataType="number" decimals="1"/>
+            </panel>
+        </tab>
+    </tabs>
+    
+    <panel type="view" id="abGbRptFpDs" file="ab-gb-rpt-fp-ds.axvw"/>
+    
+</view>

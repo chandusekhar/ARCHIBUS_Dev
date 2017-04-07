@@ -1,0 +1,98 @@
+<view version="2.0">
+    <js file="ab-page-navigation-view-search.js"/>
+    <title translatable="true">View Search Results</title>
+    <!-- View Search DataSource for Page Navigation is similar to Web Central's,
+        only differing in afm_processes.process_type values of the restriction
+    -->
+    <dataSource id="taskTitleSearch_pg_ds">
+        <table name="afm_ptasks" role="main"/>
+        <table name="afm_activities" role="standard"/>
+        <table name="afm_processes" role="standard"/>
+        <table name="afm_products" role="standard"/>
+        <field table="afm_ptasks" name="task_file"/>
+        <field table="afm_ptasks" name="activity_id"/>
+        <field table="afm_ptasks" name="process_id"/>
+        <field table="afm_ptasks" name="task_identifier" dataType="text"/>
+        <field table="afm_ptasks" name="task_title" dataType="text"/>
+        <field table="afm_ptasks" name="product_title" dataType="text"/>
+        <field table="afm_ptasks" name="activity_title" dataType="text"/>
+        <field table="afm_ptasks" name="process_title" dataType="text"/>
+        <parameter name="searchString" dataType="verbatim" value="%"/>
+        <parameter name="taskTitleColumn" dataType="verbatim" value="afm_ptasks.task_id"/>
+        <parameter name="processesTitleColumn" dataType="verbatim" value="afm_processes.title"/>
+        <parameter name="activitiesTitleColumn" dataType="verbatim" value="afm_activities.title"/>
+        <parameter name="productsTitleColumn" dataType="verbatim" value="afm_products.title"/>
+
+        <sql dialect="generic">
+            SELECT DISTINCT afm_ptasks.task_file,afm_ptasks.process_id,afm_ptasks.activity_id,
+            afm_ptasks.task_id ${sql.as} task_identifier,
+            ${parameters['taskTitleColumn']} ${sql.as} task_title,
+            ${parameters['productsTitleColumn']} ${sql.as} product_title,
+            ${parameters['activitiesTitleColumn']} ${sql.as} activity_title,
+            ${parameters['processesTitleColumn']} ${sql.as} process_title
+            FROM afm_ptasks
+            LEFT OUTER JOIN afm_activities ON afm_ptasks.activity_id=afm_activities.activity_id
+            LEFT OUTER JOIN afm_processes ON afm_processes.activity_id=afm_ptasks.activity_id  AND afm_ptasks.process_id=afm_processes.process_id
+            LEFT OUTER JOIN afm_roleprocs ON afm_processes.activity_id=afm_roleprocs.activity_id AND afm_processes.process_id=afm_roleprocs.process_id
+            LEFT OUTER JOIN afm_userprocs ON afm_processes.activity_id=afm_userprocs.activity_id AND afm_processes.process_id=afm_userprocs.process_id
+            LEFT OUTER JOIN afm_actprods ON afm_actprods.activity_id=afm_activities.activity_id
+            LEFT OUTER JOIN afm_products ON afm_actprods.product_id=afm_products.product_id
+            WHERE afm_processes.is_active = '1'  AND (afm_processes.process_type = 'WEB' OR afm_processes.process_type = 'PAGES' OR afm_processes.process_type = 'WEB&amp;PAGES')
+            AND (afm_userprocs.user_name = '${user.name}' OR afm_roleprocs.role_name = '${user.role}')
+            AND afm_ptasks.task_type = 'WEB URL'
+            AND (afm_ptasks.is_hotlist='0' OR afm_ptasks.hot_user_name = '${user.name}')
+            AND ${parameters['taskTitleColumn']} LIKE '%${parameters['searchString']}%'
+        </sql>
+        <sql dialect="oracle">
+            SELECT DISTINCT afm_ptasks.task_file,afm_ptasks.process_id,afm_ptasks.activity_id,
+            afm_ptasks.task_id ${sql.as} task_identifier,
+            ${parameters['taskTitleColumn']} ${sql.as} task_title,
+            ${parameters['productsTitleColumn']} ${sql.as} product_title,
+            ${parameters['activitiesTitleColumn']} ${sql.as} activity_title,
+            ${parameters['processesTitleColumn']} ${sql.as} process_title
+            FROM afm_ptasks
+            LEFT OUTER JOIN afm_activities ON afm_ptasks.activity_id=afm_activities.activity_id
+            LEFT OUTER JOIN afm_processes ON afm_processes.activity_id=afm_ptasks.activity_id  AND afm_ptasks.process_id=afm_processes.process_id
+            LEFT OUTER JOIN afm_roleprocs ON afm_processes.activity_id=afm_roleprocs.activity_id AND afm_processes.process_id=afm_roleprocs.process_id
+            LEFT OUTER JOIN afm_userprocs ON afm_processes.activity_id=afm_userprocs.activity_id AND afm_processes.process_id=afm_userprocs.process_id
+            LEFT OUTER JOIN afm_actprods ON afm_actprods.activity_id=afm_activities.activity_id
+            LEFT OUTER JOIN afm_products ON afm_actprods.product_id=afm_products.product_id
+            WHERE afm_processes.is_active = '1'  AND (afm_processes.process_type = 'WEB' OR afm_processes.process_type = 'PAGES' OR afm_processes.process_type = 'WEB&amp;PAGES')
+            AND (afm_userprocs.user_name = '${user.name}' OR afm_roleprocs.role_name = '${user.role}')
+            AND afm_ptasks.task_type = 'WEB URL'
+            AND (afm_ptasks.is_hotlist='0' OR afm_ptasks.hot_user_name = '${user.name}')
+            AND upper(${parameters['taskTitleColumn']}) LIKE '%' || upper('${parameters['searchString']}') || '%'
+        </sql>
+    </dataSource>
+
+    <panel type="grid" id="taskSearchReportGrid" controlType="reportGrid" dataSource="taskTitleSearch_pg_ds">
+        <field table="afm_ptasks" name="task_title" dataType="text" controlType="link">
+            <title translatable="true">Task</title>
+            <!-- Open the selected work view in the view content region -->
+            <command type="callFunction" functionName="openTaskInViewContent"/>
+            <command type="closeDialog"/>
+        </field>
+        <field table="afm_ptasks" name="product_title" dataType="text">
+            <!-- virtual field for afm_products.title column -->
+            <title translatable="true">Domain</title>
+        </field>
+        <field table="afm_ptasks" name="activity_title" dataType="text">
+            <!-- virtual field for afm_activities.title column -->
+            <title translatable="true">Activity</title>
+        </field>
+        <field table="afm_ptasks" name="process_title" dataType="text">
+            <!-- virtual field for afm_processes.title column -->
+            <title translatable="true">Process</title>
+        </field>
+
+        <field table="afm_ptasks" name="task_identifier" hidden="true"/>
+        <field table="afm_ptasks" name="task_file" hidden="true"/>
+        <field table="afm_ptasks" name="activity_id" hidden="true"/>
+        <field table="afm_ptasks" name="process_id" hidden="true"/>
+
+        <sortField table="afm_ptasks" name="task_title" ascending="true"/>
+        <sortField table="afm_ptasks" name="product_title" ascending="true"/>
+        <sortField table="afm_ptasks" name="activity_title" ascending="true"/>
+        <sortField table="afm_ptasks" name="process_title" ascending="true"/>
+    </panel>
+</view>

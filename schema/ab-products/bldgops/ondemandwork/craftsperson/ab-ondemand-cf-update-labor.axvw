@@ -1,0 +1,161 @@
+<view version="2.0">
+	<title translatable="true">Update labor hours</title>
+	
+	<layout file="console-2panels-stacked.axvw" />
+    <js file="ab-helpdesk-common-v2.js"/>
+	
+	<message name="error_date_range" translatable="true">Given dates are invalid.</message>
+    <message name="substituteLegend" translatable="true">Work Requests assigned to you as substitute</message>
+	
+	<js file="ab-ondemand-cf-update-labor.js" />
+
+	<dataSource id="consoleDS">
+		<table name="wrcf" role="main" />
+		<field table="wrcf" name="date_start" />
+		<field table="wrcf" name="wr_id" />
+
+		<restriction type="parsed">
+			<clause name="wr_id" table="wrcf" op="=" value="" />
+		</restriction>
+	</dataSource>
+
+	<dataSource id="reportDS">
+		<table name="wrcf" role="main" />
+        <table name="cf" role="standard"/>
+        <table name="wr" role="standard"/>
+        
+		<field name="wr_id" table="wrcf" />
+        <field name="prob_type" table="wr" />
+        <field name="description" table="wr" />
+		<field name="cf_id" table="wrcf" />
+		<field name="date_assigned" table="wrcf" />
+		<field name="time_assigned" table="wrcf" />
+		<field name="date_start" table="wrcf" />
+		<field name="work_type" table="wrcf" />
+		<field table="wrcf" name="hours_total" />
+        
+        <field table="cf" name="email"/>
+        <parameter name="cfWorkflowSubstitutes" dataType="verbatim" value="''"/>
+
+		<restriction type="sql"
+			sql="wrcf.wr_id IN (SELECT wr.wr_id FROM wr WHERE wr.status = 'I')
+						AND (wrcf.cf_id IN (SELECT cf_id FROM cf WHERE email  =${sql.literal(user.email)}) OR wrcf.cf_id ${sql.concat} 'craftsperson' IN (${parameters['cfWorkflowSubstitutes']}))">
+		</restriction>
+	</dataSource>
+
+	<dataSource id="editDS">
+		<table name="wrcf" role="main" />
+
+		<field name="wr_id" table="wrcf" />
+		<field name="cf_id" table="wrcf" />
+		<field name="date_assigned" table="wrcf" />
+		<field name="time_assigned" table="wrcf" />
+		<field name="date_start" table="wrcf" />
+		<field name="time_start" table="wrcf" />
+		<field name="date_end" table="wrcf" />
+		<field name="time_end" table="wrcf" />
+		<field name="work_type" table="wrcf" />
+		<field table="wrcf" name="comments" />
+		<field table="wrcf" name="cost_estimated" />
+		<field table="wrcf" name="cost_over" />
+		<field table="wrcf" name="cost_straight" />
+		<field table="wrcf" name="cost_double" />
+		<field table="wrcf" name="cost_total" />
+		<field table="wrcf" name="hours_diff" />
+		<field table="wrcf" name="hours_double" />
+		<field table="wrcf" name="hours_est" />
+		<field table="wrcf" name="hours_over" />
+		<field table="wrcf" name="hours_straight" />
+		<field table="wrcf" name="hours_total" />
+
+	</dataSource>
+
+	<panel type="console" columns="3" labelsPosition="top"
+		id="requestConsole" dataSource="consoleDS" region="north" layout="mainLayout">
+		<title translatable="true">Filter</title>
+		<action id="filter">
+			<title translatable="true">Show</title>
+		</action>
+
+		<action id="clear">
+			<title translatable="true">Clear</title>
+		</action>
+
+		<field table="wrcf" name="wr_id" required="false">
+			<action> 
+				<title translatable="true">...</title>
+				<command type="selectValue" fieldNames="wrcf.wr_id"
+					selectFieldNames="wr.wr_id"
+					visibleFieldNames="wr.wr_id,wr.prob_type,wr.status,wr.description"
+					restriction="wr.status='I' AND wr.wr_id IN (SELECT wr_id FROM wrcf WHERE cf_id IN (SELECT cf_id FROM cf WHERE email=${sql.literal(user.email)}))">
+					<title>Work Request</title>
+				</command>
+					
+			</action>
+		</field>
+		<field table="wrcf" name="date_start"
+			alias="wrcf.date_start.from">
+			<title translatable="true">Date Start From</title>
+		</field>
+		<field table="wrcf" name="date_start"
+			alias="wrcf.date_start.to">
+			<title translatable="true">Date Start To</title>
+		</field>
+	</panel>
+
+	<panel type="grid" controlType="reportGrid" id="requestReportGrid"
+		dataSource="reportDS"  region="north" layout="nestedLayout_1">
+		<title translatable="true">
+			Work Request Craftsperson Assignments
+		</title>
+
+		<field name="wr_id" table="wrcf" />
+        <field name="prob_type" table="wr" />
+        <field name="description" table="wr" />
+		<field name="cf_id" table="wrcf"/>
+		<field name="date_start" table="wrcf" />
+		<field name="work_type" table="wrcf" />
+		<field table="wrcf" name="hours_total" />
+	        <field name="date_assigned" table="wrcf"/>
+	        <field name="time_assigned" table="wrcf"/>
+		<field controlType="button">
+			<command type="showPanel" panelId="assignReportGrid" />
+			<title translatable="true">Edit</title>
+		</field>
+	</panel>
+
+	<panel type="form" id="assignReportGrid" columns="2"
+		showOnLoad="false" dataSource="editDS"   region="center" layout="nestedLayout_1">
+		<title translatable="true">
+			Update Craftsperson Assignment
+		</title>
+		<action id="update">
+			<title translatable="true">Save</title>
+		</action>
+
+		<field name="wr_id" table="wrcf" readOnly="true" />
+		<field name="cf_id" table="wrcf" readOnly="true" />
+		<field name="date_assigned" table="wrcf" readOnly="true" />
+		<field name="time_assigned" table="wrcf" readOnly="true" />
+		<field name="date_start" table="wrcf" />
+		<field name="time_start" table="wrcf" />
+		<field name="date_end" table="wrcf" />
+		<field name="time_end" table="wrcf" />
+		<field name="work_type" table="wrcf" />
+		<field />
+		<field table="wrcf" name="comments" colspan="2" />
+		<field table="wrcf" name="hours_est" readOnly="true" />
+		<field table="wrcf" name="cost_estimated" readOnly="true" />
+		<field table="wrcf" name="hours_straight" required="true" />
+		<field table="wrcf" name="cost_straight" readOnly="true" />
+		<field table="wrcf" name="hours_diff" />
+		<field />
+		<field table="wrcf" name="hours_over" />
+		<field table="wrcf" name="cost_over" readOnly="true" />
+		<field table="wrcf" name="hours_double" />
+		<field table="wrcf" name="cost_double" readOnly="true" />
+		<field table="wrcf" name="hours_total" />
+		<field table="wrcf" name="cost_total" readOnly="true" />
+	</panel>
+	
+</view>

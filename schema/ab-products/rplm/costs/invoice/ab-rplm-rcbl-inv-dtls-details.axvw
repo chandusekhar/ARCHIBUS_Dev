@@ -1,0 +1,259 @@
+<view version="2.0">
+	<title translatable="true">Invoice Details</title>
+	
+	<js file="ab-rplm-rcbl-inv-dtls-details.js"/>
+	
+	<message name="total_costs_for_invoice" translatable="true">Total Costs for this Invoice</message>
+	<message name="total_incomes_for_invoice" translatable="true">Total Payment</message>
+	
+	<dataSource id="dsInvoiceDetails" applyVpaRestrictions="false">
+		<sql dialect="generic">
+			SELECT 
+            	${sql.currentTimestamp} ${sql.as} currentDate,
+				invoice.invoice_id, 
+				invoice.status, 
+				invoice.terms, 
+				invoice.date_sent, 
+				invoice.date_expected_rec,
+                invoice.description,
+                
+                invoice.amount_tot_invoice, 
+                invoice.amount_closed, 
+                (invoice.amount_tot_invoice - invoice.amount_closed) ${sql.as} amount_balance,  
+                invoice.currency_invoice,
+                invoice.amount_base_invoice,
+                invoice.amount_vat_invoice,
+                
+                invoice.contact_id_send_to, 
+				contact_send.address1 ${sql.as} send_to_address1, 
+				contact_send.address2 ${sql.as} send_to_address2, 
+				contact_send.city_id ${sql.as} send_to_city,
+				contact_send.state_id ${sql.as} send_to_state, 
+				contact_send.zip ${sql.as} send_to_zip,
+                
+                invoice.contact_id_remit_to,
+				contact_remit.address1 ${sql.as} remit_to_address1, 
+				contact_remit.address2 ${sql.as} remit_to_address2,
+				contact_remit.city_id ${sql.as} remit_to_city, 
+				contact_remit.state_id ${sql.as} remit_to_state,
+				contact_remit.zip ${sql.as} remit_to_zip
+			FROM invoice
+                LEFT OUTER JOIN contact ${sql.as} contact_send  ON contact_send.contact_id = invoice.contact_id_send_to
+                LEFT OUTER JOIN contact ${sql.as} contact_remit  ON contact_remit.contact_id = invoice.contact_id_remit_to
+            WHERE invoice.invoice_id = ${parameters['invoiceId']}
+		</sql>
+		<table name="invoice" role="main"/>
+		<field name="currentDate" dataType="date"/>
+		<field name="invoice_id"/>
+		<field name="status"/>
+		<field name="terms"/>
+		<field name="date_sent"/>
+		<field name="contact_id_send_to"/>
+		<field name="send_to_address1" dataType="text"/>
+		<field name="send_to_address2" dataType="text"/>
+		<field name="send_to_city" dataType="text"/>
+		<field name="send_to_state" dataType="text"/>
+		<field name="send_to_zip" dataType="text"/>
+		<field name="amount_tot_invoice"/>
+		<field name="amount_closed"/>
+		<field name="amount_balance" dataType="number" size="12" decimals="2" currencyField="invoice.currency_invoice"/>
+		<field name="date_expected_rec"/>
+		<field name="contact_id_remit_to"/>
+		<field name="remit_to_address1" dataType="text"/>
+		<field name="remit_to_address2" dataType="text"/>
+		<field name="remit_to_city" dataType="text"/>
+		<field name="remit_to_state" dataType="text"/>
+		<field name="remit_to_zip" dataType="text"/>
+		<field name="description"/>
+        <field name="currency_invoice"/>
+        <field name="amount_base_invoice"/>
+        <field name="amount_vat_invoice"/>
+		<parameter name="invoiceId" dataType="verbatim" value="-1"/>
+	</dataSource>
+    
+    <!-- Form without Mc & VAT -->
+    <panel type="form" id="formInvoiceDetails" columns="2" dataSource="dsInvoiceDetails" showOnLoad="false" hidden="${View.activityParameters['AbCommonResources-EnableVatAndMultiCurrency'] == 1}">
+        <!--title translatable="true">Invoice Details</title-->
+        <field name="currentDate" dataType="date" readOnly="true" colspan="2">
+            <title translatable="true">Date</title>
+        </field>
+        <field name="invoice_id" readOnly="true"/>
+        <field name="amount_tot_invoice" readOnly="true"/>
+        <field name="status" readOnly="true"/>
+        <field name="amount_closed" readOnly="true"/>
+        <field name="terms" readOnly="true"/>
+        <field name="amount_balance" readOnly="true" dataType="number" size="12" decimals="2">
+            <title translatable="true">Amount Balance</title>
+        </field>
+        <field name="date_sent" readOnly="true"/>
+        <field name="date_expected_rec" readOnly="true"/>
+        <field name="contact_id_send_to" readOnly="true"/>
+        <field name="contact_id_remit_to" readOnly="true"/>
+        <field name="send_to_address1" readOnly="true" dataType="text">
+            <title translatable="true">Send Address1</title>
+        </field>
+        <field name="remit_to_address1" readOnly="true" dataType="text">
+            <title translatable="true">Remit Address1</title>
+        </field>    
+        <field name="send_to_address2" readOnly="true" dataType="text">
+            <title translatable="true">Send Address2</title>
+        </field>
+        <field name="remit_to_address2" readOnly="true" dataType="text">
+            <title translatable="true">Remit Address2</title>
+        </field>    
+        <field name="send_to_city" readOnly="true" dataType="text">
+            <title translatable="true">Send City</title>
+        </field>
+        <field name="remit_to_city" readOnly="true" dataType="text">
+            <title translatable="true">Remit City</title>
+        </field>    
+        <field name="send_to_state" readOnly="true" dataType="text">
+            <title translatable="true">Send State</title>
+        </field>    
+        <field name="remit_to_state" readOnly="true" dataType="text">
+            <title translatable="true">Remit State</title>
+        </field>
+        <field name="send_to_zip" readOnly="true" dataType="text">
+            <title translatable="true">Send Zip Code</title>
+        </field>    
+        <field name="remit_to_zip" readOnly="true" dataType="text">
+            <title translatable="true">Remit Zip Code</title>
+        </field>
+        <field name="description" colspan="2" readOnly="true" style="overflow:hidden"/> 
+    </panel>
+    
+	<!-- Form with MC & VAT -->
+    <panel type="form" id="formInvoiceDetailsMcVat" columns="2" dataSource="dsInvoiceDetails" afterRefresh="formatCurrency"  showOnLoad="false" hidden="${View.activityParameters['AbCommonResources-EnableVatAndMultiCurrency'] == 1}">
+        <!--title translatable="true">Invoice</title-->
+        <field name="currentDate" dataType="date" readOnly="true">
+            <title translatable="true">Date</title>
+        </field>
+        <field name="invoice_id" readOnly="true"/>
+        
+        <field name="status" readOnly="true"/>
+        <field name="terms" readOnly="true"/>
+        
+        <field name="currency_invoice" readOnly="true"/>
+        <field name="amount_tot_invoice" readOnly="true"/>
+        
+        <field name="amount_closed" readOnly="true"/>
+        <field name="amount_vat_invoice" readOnly="true"/>
+        
+        <field name="amount_balance" readOnly="true" dataType="number" size="10" decimals="2">
+            <title translatable="true">Amount Balance</title>
+        </field>
+        <field name="amount_base_invoice" readOnly="true"/>
+        
+        <field name="date_sent" readOnly="true"/>
+        <field name="date_expected_rec" readOnly="true"/>
+        <field name="contact_id_send_to" readOnly="true"/>
+        <field name="contact_id_remit_to" readOnly="true"/>
+        <field name="send_to_address1" readOnly="true" dataType="text">
+            <title translatable="true">Send Address1</title>
+        </field>
+        <field name="remit_to_address1" readOnly="true" dataType="text">
+            <title translatable="true">Remit Address1</title>
+        </field>    
+        <field name="send_to_address2" readOnly="true" dataType="text">
+            <title translatable="true">Send Address2</title>
+        </field>
+        <field name="remit_to_address2" readOnly="true" dataType="text">
+            <title translatable="true">Remit Address2</title>
+        </field>    
+        <field name="send_to_city" readOnly="true" dataType="text">
+            <title translatable="true">Send City</title>
+        </field>
+        <field name="remit_to_city" readOnly="true" dataType="text">
+            <title translatable="true">Remit City</title>
+        </field>    
+        <field name="send_to_state" readOnly="true" dataType="text">
+            <title translatable="true">Send State</title>
+        </field>    
+        <field name="remit_to_state" readOnly="true" dataType="text">
+            <title translatable="true">Remit State</title>
+        </field>
+        <field name="send_to_zip" readOnly="true" dataType="text">
+            <title translatable="true">Send Zip Code</title>
+        </field>    
+        <field name="remit_to_zip" readOnly="true" dataType="text">
+            <title translatable="true">Remit Zip Code</title>
+        </field>
+        <field name="description" colspan="2" readOnly="true" style="overflow:hidden"/>
+    </panel>
+	
+    <!-- Cost details -->
+	<dataSource id="dsCostsInvoiceDetails" applyVpaRestrictions="false">
+        <table name="cost_tran" role="main"/>
+        <field name="date_due"/>
+        <field name="cost_cat_id"/>
+        <field name="description"/>
+        <field name="net_amount" dataType="number" size="10" decimals="2" showTotals="true">
+            <sql dialect="generic">
+                (cost_tran.amount_income - cost_tran.amount_expense)
+            </sql>
+        </field>
+        <field name="net_base_amount" dataType="number" size="10" decimals="2" showTotals="true" currencyField="cost_tran.currency_payment">
+            <sql dialect="generic">
+                (cost_tran.amount_income_base_payment - cost_tran.amount_expense_base_payment)
+            </sql>
+        </field>
+        
+        <field name="net_vat_amount" dataType="number" size="10" decimals="2" showTotals="true" currencyField="cost_tran.currency_payment">
+             <sql dialect="generic">
+                (cost_tran.amount_income_vat_payment - cost_tran.amount_expense_vat_payment)
+            </sql>
+        </field>
+        <field name="net_total_amount" dataType="number" size="10" decimals="2" showTotals="true" currencyField="cost_tran.currency_payment">
+            <sql dialect="generic">
+                (cost_tran.amount_income_base_payment - cost_tran.amount_expense_base_payment + cost_tran.amount_income_vat_payment - cost_tran.amount_expense_vat_payment)
+            </sql>
+        </field>
+        <field name="currency_payment"/>
+        <field name="cam_cost"/>
+	</dataSource>
+
+    <panel type="grid" id="gridCostsInvoiceDetails" dataSource="dsCostsInvoiceDetails" showOnLoad="false" showIfNoData="false">
+        <title translatable="false"></title>
+		<field name="date_due"/>
+		<field name="cost_cat_id"/>
+		<field name="description"/>
+		<field name="net_amount" dataType="number" size="10" decimals="2" showTotals="true" hidden="${View.activityParameters['AbCommonResources-EnableVatAndMultiCurrency'] == 1}">
+			<title translatable="true">Net Amount</title>
+		</field>
+		<field name="net_base_amount" dataType="number" size="10" decimals="2" showTotals="true" hidden="${View.activityParameters['AbCommonResources-EnableVatAndMultiCurrency'] == 0}">
+			<title translatable="true">Net Base</title>
+		</field>
+        <field name="net_vat_amount" dataType="number" size="10" decimals="2" showTotals="true" hidden="${View.activityParameters['AbCommonResources-EnableVatAndMultiCurrency'] == 0}">
+            <title translatable="true">Net VAT</title>
+        </field>
+        <field name="net_total_amount" dataType="number" size="10" decimals="2" showTotals="true" hidden="${View.activityParameters['AbCommonResources-EnableVatAndMultiCurrency'] == 0}">
+            <title translatable="true">Net Total Amount</title>
+        </field>
+        <field name="cam_cost">
+            <title translatable="true">CAM Cost?</title>
+        </field>
+        <field name="currency_payment" hidden="true"/>
+    </panel>
+    
+	<!-- payment details -->
+	<dataSource id="dsPaymentsInvoiceDetails" applyVpaRestrictions="false">
+		<table name="invoice_payment" role="main"/>
+		<field name="date_paid"/>
+		<field name="description"/>
+		<field name="amount_income" showTotals="true"/>
+		<field name="check_number"/>
+        <field name="currency_invoice"/>
+	</dataSource>
+	
+	<panel type="grid" id="gridPaymentsInvoiceDetails" dataSource="dsPaymentsInvoiceDetails" showOnLoad="false" showIfNoData="false">
+        <title translatable="false"></title>
+		<field name="date_paid"/>
+		<field name="description"/>
+		<field name="amount_income" showTotals="true"/>
+        <field name="currency_invoice" hidden="${View.activityParameters['AbCommonResources-EnableVatAndMultiCurrency'] == 0}">
+            <title translatable="true">Payment Currency</title>
+        </field>
+		<field name="check_number"/>
+	</panel>
+    
+</view>

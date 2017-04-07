@@ -1,0 +1,158 @@
+<!-- TODO: replace areaUnitsConversionFactor by core feature when available -->
+<view version="2.0">
+	
+	<panel type="view" id="panel_Filter" file="ab-repm-lsadmin-filter.axvw"/>
+
+	<dataSource id="abRepmLsadminLsBenchmark_ds_grid" applyVpaRestrictions="false">
+        <sql dialect="generic">
+            SELECT 
+                ls.ls_id, ls.bl_id, ls.pr_id,
+                (CASE
+                    WHEN ls.pr_id IS NOT NULL 
+                        THEN (SELECT property.ctry_id FROM property WHERE property.pr_id = ls.pr_id)
+                    WHEN ls.bl_id IS NOT NULL 
+                        THEN (SELECT bl.ctry_id FROM bl WHERE bl.bl_id = ls.bl_id)
+                END) ${sql.as} ctry_code,
+                (CASE
+                    WHEN ls.pr_id IS NOT NULL 
+                        THEN (SELECT property.city_id FROM property WHERE property.pr_id = ls.pr_id)
+                    WHEN ls.bl_id IS NOT NULL 
+                        THEN (SELECT bl.city_id FROM bl WHERE bl.bl_id = ls.bl_id)
+                END) ${sql.as} city_code,
+                ls.area_rentable, ls.area_negotiated, ls.qty_occupancy,
+                (${sql.isNull('ccost_sum.amount_operating', 0)} / (${sql.replaceZero('ls.area_negotiated')} * ${parameters['areaUnitsConversionFactor']}) * (365.25 / (ls.date_cost_anal_end - ls.date_cost_anal_start + 1))) ${sql.as} yearly_op_cost_rentarea,
+                (${sql.isNull('ccost_sum.amount_base_rent', 0)} / (${sql.replaceZero('ls.area_negotiated')} * ${parameters['areaUnitsConversionFactor']}) * (365.25 / (ls.date_cost_anal_end - ls.date_cost_anal_start + 1))) ${sql.as} yearly_base_rent_rentarea,
+                (${sql.isNull('ccost_sum.amount_pct_rent', 0)} / (${sql.replaceZero('ls.area_negotiated')} * ${parameters['areaUnitsConversionFactor']}) * (365.25 / (ls.date_cost_anal_end - ls.date_cost_anal_start + 1))) ${sql.as} yearly_pct_cost_rentarea,
+                ((${sql.isNull('ccost_sum.amount_base_rent + ccost_sum.amount_operating + ccost_sum.amount_taxes + ccost_sum.amount_other + ccost_sum.amount_pct_rent', 0)})  / (${sql.replaceZero('ls.area_negotiated')} * ${parameters['areaUnitsConversionFactor']}) * (365.25 / (ls.date_cost_anal_end - ls.date_cost_anal_start + 1))) ${sql.as} yearly_tot_cost_rentarea,
+                
+                (${sql.isNull('ccost_sum.amount_base_rent', 0)} / ${sql.replaceZero('ls.qty_occupancy')} * (365.25 / (ls.date_cost_anal_end - ls.date_cost_anal_start + 1))) ${sql.as} yearly_base_rent_occ,
+                (${sql.isNull('ccost_sum.amount_pct_rent', 0)} / ${sql.replaceZero('ls.qty_occupancy')} * (365.25 / (ls.date_cost_anal_end - ls.date_cost_anal_start + 1))) ${sql.as} yearly_pct_rent_occ,
+                ((${sql.isNull('ccost_sum.amount_base_rent + ccost_sum.amount_operating + ccost_sum.amount_taxes + ccost_sum.amount_other + ccost_sum.amount_pct_rent', 0)})  / ${sql.replaceZero('ls.qty_occupancy')} * (365.25 / (ls.date_cost_anal_end - ls.date_cost_anal_start + 1))) ${sql.as} yearly_tot_cost_occ,
+                
+                (${sql.isNull('ccost_sum.amount_base_rent + ccost_sum.amount_pct_rent + ccost_sum.amount_operating + ccost_sum.amount_taxes + ccost_sum.amount_other', 0)}) ${sql.as} vf_net_income
+            FROM ls
+                INNER JOIN ccost_sum ON ccost_sum.ls_id = ls.ls_id 
+            WHERE ccost_sum.report_name = 'ls' AND ccost_sum.user_name = '${user.name}' AND ${parameters['net_income']} 
+        </sql>
+        <sql dialect="sqlserver">
+            SELECT 
+                ls.ls_id, ls.bl_id, ls.pr_id,
+                (CASE
+                    WHEN ls.pr_id IS NOT NULL 
+                        THEN (SELECT property.ctry_id FROM property WHERE property.pr_id = ls.pr_id)
+                    WHEN ls.bl_id IS NOT NULL 
+                        THEN (SELECT bl.ctry_id FROM bl WHERE bl.bl_id = ls.bl_id)
+                END) ${sql.as} ctry_code,
+                (CASE
+                    WHEN ls.pr_id IS NOT NULL 
+                        THEN (SELECT property.city_id FROM property WHERE property.pr_id = ls.pr_id)
+                    WHEN ls.bl_id IS NOT NULL 
+                        THEN (SELECT bl.city_id FROM bl WHERE bl.bl_id = ls.bl_id)
+                END) ${sql.as} city_code,
+                ls.area_rentable, ls.area_negotiated, ls.qty_occupancy,
+                (${sql.isNull('ccost_sum.amount_operating', 0)} / (${sql.replaceZero('ls.area_negotiated')} * ${parameters['areaUnitsConversionFactor']}) * (365.25 / (CONVERT(INT,ls.date_cost_anal_end) - CONVERT(INT,ls.date_cost_anal_start) + 1))) ${sql.as} yearly_op_cost_rentarea,
+                (${sql.isNull('ccost_sum.amount_base_rent', 0)} / (${sql.replaceZero('ls.area_negotiated')} * ${parameters['areaUnitsConversionFactor']}) * (365.25 / (CONVERT(INT,ls.date_cost_anal_end) - CONVERT(INT,ls.date_cost_anal_start) + 1))) ${sql.as} yearly_base_rent_rentarea,
+                (${sql.isNull('ccost_sum.amount_pct_rent', 0)} / (${sql.replaceZero('ls.area_negotiated')} * ${parameters['areaUnitsConversionFactor']}) * (365.25 / (CONVERT(INT,ls.date_cost_anal_end) - CONVERT(INT,ls.date_cost_anal_start) + 1))) ${sql.as} yearly_pct_cost_rentarea,
+                ((${sql.isNull('ccost_sum.amount_base_rent + ccost_sum.amount_operating + ccost_sum.amount_taxes + ccost_sum.amount_other + ccost_sum.amount_pct_rent', 0)})  / (${sql.replaceZero('ls.area_negotiated')} * ${parameters['areaUnitsConversionFactor']}) * (365.25 / (CONVERT(INT,ls.date_cost_anal_end) - CONVERT(INT,ls.date_cost_anal_start) + 1))) ${sql.as} yearly_tot_cost_rentarea,
+                
+                (${sql.isNull('ccost_sum.amount_base_rent', 0)} / ${sql.replaceZero('ls.qty_occupancy')} * (365.25 / (CONVERT(INT,ls.date_cost_anal_end) - CONVERT(INT,ls.date_cost_anal_start) + 1))) ${sql.as} yearly_base_rent_occ,
+                (${sql.isNull('ccost_sum.amount_pct_rent', 0)} / ${sql.replaceZero('ls.qty_occupancy')} * (365.25 / (CONVERT(INT,ls.date_cost_anal_end) - CONVERT(INT,ls.date_cost_anal_start) + 1))) ${sql.as} yearly_pct_rent_occ,
+                ((${sql.isNull('ccost_sum.amount_base_rent + ccost_sum.amount_operating + ccost_sum.amount_taxes + ccost_sum.amount_other + ccost_sum.amount_pct_rent', 0)})  / ${sql.replaceZero('ls.qty_occupancy')} * (365.25 / (CONVERT(INT,ls.date_cost_anal_end) - CONVERT(INT,ls.date_cost_anal_start) + 1))) ${sql.as} yearly_tot_cost_occ,
+                
+                (${sql.isNull('ccost_sum.amount_base_rent + ccost_sum.amount_pct_rent + ccost_sum.amount_operating + ccost_sum.amount_taxes + ccost_sum.amount_other', 0)}) ${sql.as} vf_net_income
+            FROM ls
+                INNER JOIN ccost_sum ON ccost_sum.ls_id = ls.ls_id 
+            WHERE ccost_sum.report_name = 'ls' AND ccost_sum.user_name = '${user.name}' AND ${parameters['net_income']} 
+        </sql>
+		<table name="ls" role="main"/>
+		<field table="ls" name="ls_id"/>
+		<field table="ls" name="bl_id"/>
+		<field table="ls" name="pr_id"/>
+		<field table="ls" name="ctry_code" dataType="text"/>
+		<field name="city_code" dataType="text"/>
+        <field table="ls" name="area_negotiated"/>
+		<field table="ls" name="area_rentable"/>
+		<field table="ls" name="qty_occupancy"/>
+		<field name="yearly_op_cost_rentarea" dataType="number" decimals="2" currency="${project.budgetCurrency.code}"/>
+		<field name="yearly_base_rent_rentarea" dataType="number" decimals="2" currency="${project.budgetCurrency.code}"/>
+		<field name="yearly_pct_cost_rentarea" dataType="number" decimals="2" currency="${project.budgetCurrency.code}"/>
+		<field name="yearly_tot_cost_rentarea" dataType="number" decimals="2" currency="${project.budgetCurrency.code}"/>
+		<field name="yearly_base_rent_occ" dataType="number" decimals="2" currency="${project.budgetCurrency.code}"/>
+		<field name="yearly_pct_rent_occ" dataType="number" decimals="2" currency="${project.budgetCurrency.code}"/>
+		<field name="yearly_tot_cost_occ" dataType="number" decimals="2" currency="${project.budgetCurrency.code}"/>
+		<field table="ls" name="vf_net_income" dataType="number" decimals="2" currency="${project.budgetCurrency.code}"/>
+		<parameter name="net_income" dataType="verbatim" value="1 = 1"/>
+        <parameter name="areaUnitsConversionFactor" dataType="verbatim" value="1"/>
+	</dataSource>
+	
+	<panel type="grid" id="abRepmLsadminLsBenchmark_gridPanel" dataSource="abRepmLsadminLsBenchmark_ds_grid" showOnLoad="false">
+		<title translatable="true">Lease Benchmarks Overview</title>
+		<action id="exportDOCX">
+			<title translatable="true">Report</title>
+			<command type="callFunction" functionName="onDocX"/>
+		</action>
+		<action id="exportXLS">
+			<title translatable="true">XLS</title>
+		</action>
+		<field id="details" controlType="button">
+			<title translatable="true">Details</title>
+		</field>
+		<field table="ls" name="ls_id"/>
+		<field name="ctry_code" dataType="text">
+			<title translatable="true">Country Code</title>
+		</field>
+		<field name="city_code" dataType="text">
+			<title translatable="true">City Code</title>
+		</field>
+        <field table="ls" name="area_negotiated"/>
+		<field table="ls" name="area_rentable"/>
+		<field table="ls" name="qty_occupancy"/>
+		<field name="yearly_op_cost_rentarea" dataType="number" decimals="2" currency="${project.budgetCurrency.code}">
+			<title translatable="true">Yearly Oper. Cost per Neg. Rentable Area</title>
+		</field>
+		<field name="yearly_base_rent_rentarea" dataType="number" decimals="2" currency="${project.budgetCurrency.code}">
+			<title translatable="true">Yearly Base Rent per Neg. Rentable Area</title>
+		</field>
+		<field name="yearly_pct_cost_rentarea" dataType="number" decimals="2" currency="${project.budgetCurrency.code}">
+			<title translatable="true">Yearly Pct. Rent per Neg. Rentable Area</title>
+		</field>
+		<field name="yearly_tot_cost_rentarea" dataType="number" decimals="2" currency="${project.budgetCurrency.code}">
+			<title translatable="true">Yearly Total Cost per Neg. Rentable Area</title>
+		</field>
+		<field name="yearly_base_rent_occ" dataType="number" decimals="2" currency="${project.budgetCurrency.code}">
+			<title translatable="true">Yearly Base Rent per Occupant</title>
+		</field>
+		<field name="yearly_pct_rent_occ" dataType="number" decimals="2" currency="${project.budgetCurrency.code}">
+			<title translatable="true">Yearly Pct. Rent per Occupant</title>
+		</field>
+		<field name="yearly_tot_cost_occ" dataType="number" decimals="2" currency="${project.budgetCurrency.code}">
+			<title translatable="true">Yearly Total Cost per Occupant</title>
+		</field>
+		<field table="ls" name="vf_net_income" dataType="number" decimals="2" currency="${project.budgetCurrency.code}">
+			<title translatable="true">Net Income</title>
+		</field>
+    	<sortField table="ls" name="ls_id" ascending="true"/>
+        <field table="ls" name="bl_id" hidden="true"/>
+        <field table="ls" name="pr_id" hidden="true"/>
+	</panel>
+
+    <dataSource id="abRepmLsadminLsBenchmark_ds_report">
+        <table name="ls" role="main"/>
+        <table name="bl" role="standard"/>
+        <table name="property" role="standard"/>
+        <field table="ls" name="ls_id"/>
+        <field table="ls" name="bl_id"/>
+        <field table="bl" name="bl_id"/>
+        <field table="ls" name="pr_id"/>
+        <field table="property" name="pr_id"/>
+        <field table="ls" name="vf_net_income" dataType="number" size="12" decimals="2" showTotals="true">
+            <title translatable="true">Net Income</title>
+            <sql dialect="generic">
+                (ls.amount_base_rent + ls.amount_pct_rent + ls.amount_operating + ls.amount_taxes + ls.amount_other)
+            </sql>
+        </field>
+        <restriction type="sql" sql="${parameters['net_income']}"/>
+        <parameter name="net_income" dataType="verbatim" value=""/>
+    </dataSource>
+
+</view>

@@ -1,0 +1,262 @@
+<view version="2.0">
+	<title translatable="true">Highlight Suites by Lease</title>
+	<js file="ab-sp-hl-su-by-ls.js"/>
+    <layout id="main">
+        <north id="filterPosition" initialSize="10%" split="true"/>
+        <west id="selectedPosition" initialSize="20%" split="true"/>
+        <center/>
+    </layout>
+    
+    <layout id="nested_center" containingLayout="main" region="center">
+        <center id="dwgPosition"/>
+        <south id="legendPosition"  initialSize="20%" split="true"/>
+    </layout>
+    
+    <message name="total" translatable="true">Total</message>
+    <message name="drawingPanelTitle1" translatable="true">Highlight Suites</message>
+    <message name="drawingPanelTitle2" translatable="true">Highlight Suites for Floor: {0}</message>
+	<message name="errToDateSmallerFromDate" translatable="true">&apos;To Date&apos; must be greated than &apos;From Date&apos;</message>
+	
+	<!-- FILTER CONSOLE -->
+	
+    <dataSource id="abSpHlSuByLs_ds_console">
+        <table name="su" role="main"/>
+        <field table="su" name="bl_id"/>
+        <field table="su" name="ls_id"/>
+    </dataSource>
+
+    <panel type="console" id="abSpHlSuByLs_console" columns="2" dataSource="abSpHlSuByLs_ds_console" layoutRegion="filterPosition">
+        <title translatable="true">Filter</title>
+        <action id="showTree">
+            <title translatable="true">Show</title>
+        </action>
+		<action id="clear">
+            <title translatable="true">Clear</title>
+            <command type="clearPanel" panelId="abSpHlSuByLs_console"/>
+        </action>
+		<action>
+            <title translatable="true">Paginated Report</title>
+			<command type="callFunction" functionName="generateReport"/>
+        </action>
+        <field table="su" name="bl_id"/>
+        <field table="su" name="ls_id">
+            <action>
+                <title translatable="false">...</title>
+                <tooltip>Select Value</tooltip>
+                <command 
+                    type="selectValue" 
+                    fieldNames=" su.ls_id" 
+                    selectFieldNames="ls.ls_id" 
+                    visibleFieldNames="ls.ls_id, ls.description" 
+                    applyFilter="false"
+                    restriction="ls.use_as_template = 0"
+                />
+            </action>
+        </field>
+    </panel>
+
+	<!-- TREE CONTROL -->
+    <dataSource id="abSpHlSuByLs_ds_tree_bl">
+        <table name="bl" role="main"/>
+        <field table="bl" name="bl_id"/>
+        <parameter name="blId" dataType="verbatim" value="IS NOT NULL"/>
+		<parameter name="lsId" dataType="verbatim" value="IS NOT NULL"/>
+        <restriction type="sql" sql="bl.bl_id ${parameters['blId']} AND 
+			EXISTS (SELECT 1 FROM su WHERE su.bl_id = bl.bl_id AND su.ls_id ${parameters['lsId']} AND su.dwgname IS NOT NULL)"/>
+        <sortField table="bl" name="bl_id" ascending="true"/>
+    </dataSource>
+    
+    <dataSource id="abSpHlSuByLs_ds_tree_fl">
+         <sql dialect="generic">
+            SELECT
+            	su.bl_id ${sql.as} bl_id,
+            	su.fl_id ${sql.as} fl_id,
+            	su.dwgname ${sql.as} dwgname
+            FROM su 
+			WHERE su.dwgname IS NOT NULL 
+			GROUP BY su.bl_id,su.fl_id,su.dwgname
+        </sql>
+        <table name="fl" role="main"/>
+        <field name="fl_id"/>
+        <field name="dwgname"/>
+        <parameter name="lsId" dataType="verbatim" value="IS NOT NULL"/>
+        <restriction type="sql" sql="EXISTS (SELECT 1 FROM su 
+			WHERE su.fl_id = fl.fl_id AND su.ls_id ${parameters['lsId']})"/>
+        <sortField table="fl" name="fl_id" ascending="true"/>
+    </dataSource>
+
+    <dataSource id="abSpHlSuByLs_ds_tree_rm">
+         <sql dialect="generic">
+            SELECT
+            	su.bl_id ${sql.as} bl_id,
+            	su.fl_id ${sql.as} fl_id,
+				su.ls_id ${sql.as} rm_id
+            FROM su 
+			WHERE su.dwgname IS NOT NULL 
+			GROUP BY su.bl_id,su.fl_id,su.ls_id
+        </sql>
+        <table name="rm" role="main"/>
+        <field name="rm_id"/>
+        <parameter name="lsId" dataType="verbatim" value="IS NOT NULL"/>
+        <restriction type="sql" sql="rm.rm_id ${parameters['lsId']}"/>
+        <sortField table="rm" name="rm_id" ascending="true"/>
+    </dataSource>
+	
+    <panel type="tree" id="abSpHlSuByLs_treeBl" dataSource="abSpHlSuByLs_ds_tree_bl" layoutRegion="selectedPosition">
+        <title translatable="true">Select Floor</title>
+        <panel type="tree" id="abSpHlSuByLs_treeFl" dataSource="abSpHlSuByLs_ds_tree_fl">
+            <event type="onClickNode">
+                <command type="callFunction" functionName="onFlTreeClick"/>
+            </event>
+        </panel>
+         <panel type="tree" id="abSpHlSuByLs_treeRm" dataSource="abSpHlSuByLs_ds_tree_rm">
+            <event type="onClickNode">
+                <command type="callFunction" functionName="onRmTreeClick"/>
+            </event>
+        </panel>
+   </panel>
+
+	<!-- DRAWING PANEL -->
+    <dataSource id="abSpHlSuByLs_ds_drawing_highlight" type="DrawingControlHighlight">
+        <table name="su" role="main"/>
+		<table name="ls" role="standard"/> 
+        <field table="su" name="bl_id"/>
+        <field table="su" name="fl_id"/>
+        <field table="su" name="su_id"/>
+        <field table="ls" name="ls_id" legendKey="true"/>
+		<field table="ls" name="hpattern_acad"/>
+		<parameter name="lsId" dataType="verbatim" value="IS NOT NULL"/>
+        <restriction type="sql" sql="su.ls_id ${parameters['lsId']}"/>
+    </dataSource>
+
+    <dataSource id="abSpHlSuByLs_ds_drawing_Label1" type="DrawingControlLabels">
+    	<title translatable="true">Area - Rentable</title>
+        <table name="su" role="main"/>
+        <field name="bl_id" hidden="true"/>
+        <field name="fl_id" hidden="true"/>
+        <field name="su_id"/>
+        <field name="area_rentable"/>
+    </dataSource>
+	
+    <dataSource id="abSpHlSuByLs_ds_drawing_Label2" type="DrawingControlLabels">
+    	<title translatable="true">Facility - Type</title>
+        <table name="su" role="main"/>
+        <field name="bl_id" hidden="true"/>
+        <field name="fl_id" hidden="true"/>
+        <field name="su_id"/>
+        <field name="facility_type_id"/>
+    </dataSource>
+	
+    <dataSource id="abSpHlSuByLs_ds_drawing_Label3" type="DrawingControlLabels">
+    	<title translatable="true">Suite Name</title>
+        <table name="su" role="main"/>
+        <field name="bl_id" hidden="true"/>
+        <field name="fl_id" hidden="true"/>
+        <field name="su_id"/>
+        <field name="name"/>
+    </dataSource>
+
+    <dataSource id="abSpHlSuByLs_ds_drawing_Label4" type="DrawingControlLabels">
+    	<title translatable="true">Lease Code</title>
+        <table name="su" role="main"/>
+        <field name="bl_id" hidden="true"/>
+        <field name="fl_id" hidden="true"/>
+        <field name="su_id"/>
+        <field name="ls_id"/>
+    </dataSource>
+
+    <dataSource id="abSpHlSuByLs_ds_drawing_Label5" type="DrawingControlLabels">
+    	<title translatable="true">Occupancy</title>
+        <table name="su" role="main"/>
+        <field name="bl_id" hidden="true"/>
+        <field name="fl_id" hidden="true"/>
+        <field name="su_id"/>
+        <field name="occupancy"/>
+    </dataSource>
+
+    <dataSource id="abSpHlSuByLs_ds_drawing_Label6" type="DrawingControlLabels">
+        <title translatable="true">Highlight Suites by Lease</title>
+        <table name="su" role="main"/>
+        <table name="ls" role="standard"/>
+        <field name="bl_id" hidden="true"/>
+        <field name="fl_id" hidden="true"/>
+        <field name="su_id"/>
+        <field name="area_manual"/>
+        <field name="ls_id"/>
+        <field table="ls" name="date_end"/>
+        <field table="ls" name="tn_name"/>
+    </dataSource>
+    
+    <panel type="drawing" id="abSpHlSuByLs_DrawingPanel" layoutRegion="dwgPosition" multiple="false"
+		assetTypes="su"
+     	highlightDataSource="abSpHlSuByLs_ds_drawing_highlight"
+     	labelsDataSource="abSpHlSuByLs_ds_drawing_Label1">
+        <title></title>
+    </panel>
+
+	<!-- GRID PANEL -->
+    <dataSource id="abSpHlSuByLs_ds_gridSu" type="grouping">
+        <table name="su" role="main"/>
+		<table name="ls" role="standard"/>
+		<field name="ls_id" table="ls" groupBy="true"/>
+		<field name="hpattern_acad" table="ls" groupBy="true"/>
+        <field name="total_occupancy" formula="sum" baseField="su.occupancy" dataType="number" decimals="0"/>
+        <field name="total_area_usable" formula="sum" baseField="su.area_usable" dataType="number" decimals="2"/>
+        <field name="total_area_rentable" formula="sum" baseField="su.area_rentable" dataType="number" decimals="2"/>
+    </dataSource>
+
+    <panel type="grid" id="abSpHlSuByLs_gridSu" dataSource="abSpHlSuByLs_ds_gridSu" showOnLoad="false" layoutRegion="legendPosition">
+        <title translatable="true">Summary by Lease</title>
+        <sortField table="ls" name="ls_id" ascending="true"/>
+        <field id="abSpHlSuByLs_gridSu_legend" table="ls" name="hpattern_acad" controlType="color">
+            <title translatable="true">Legend</title>
+        </field>
+		<field name="ls_id" table="ls"/>
+		<field name="total_area_usable" dataType="number" decimals="2">
+			<title translatable="true">Total Area - Usable</title>
+		</field>
+		<field name="total_area_rentable" dataType="number" decimals="2">
+			<title translatable="true">Total Area - Rentable</title>
+		</field>
+		<field name="total_occupancy" dataType="number" decimals="0">
+			<title translatable="true">Total Suite Occupancy</title>
+		</field>
+    </panel>
+	
+	<!-- DETAILS PANEL -->
+    <dataSource id="abSpHlSuByLs_ds_detailSu">
+        <table name="su" role="main"/>
+		<table name="ls" role="standard"/>
+		<field table="su" name="bl_id"/>
+		<field table="su" name="fl_id"/>
+		<field table="su" name="su_id"/>
+		<field table="su" name="name"/>
+		<field table="su" name="ls_id"/>
+		<field table="ls" name="date_end"/>
+		<field table="su" name="facility_type_id"/>
+		<field table="su" name="area_usable"/>
+		<field table="su" name="area_rentable"/>
+		<field table="su" name="area_comn"/>
+		<field table="su" name="area_manual"/>
+		<field table="su" name="occupancy"/>
+		<field table="su" name="description"/>
+    </dataSource>
+	
+    <panel type="columnReport" id="abSpHlSuByLs_detailSu" columns="2" dataSource="abSpHlSuByLs_ds_detailSu" showOnLoad="false" hidden="true" layoutRegion="dwgPosition">
+        <title translatable="true">Suite Details</title>
+		<field table="su" name="bl_id"/>
+		<field table="su" name="fl_id"/>
+		<field table="su" name="su_id"/>
+		<field table="su" name="name"/>
+		<field table="su" name="ls_id"/>
+		<field table="ls" name="date_end"/>
+		<field table="su" name="occupancy"/>
+		<field table="su" name="facility_type_id"/>
+		<field table="su" name="area_usable"/>
+		<field table="su" name="area_rentable"/>
+		<field table="su" name="area_comn"/>
+		<field table="su" name="area_manual"/>
+		<field table="su" name="description" colspan="2"/>
+    </panel>
+	
+</view>

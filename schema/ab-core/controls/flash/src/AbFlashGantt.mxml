@@ -1,0 +1,229 @@
+<?xml version="1.0" encoding="utf-8"?>
+<mx:Application xmlns:mx="http://www.adobe.com/2006/mxml" layout="absolute"
+	xmlns:ilog="http://www.ilog.com/2007/ilog/flex"
+	initialize="myInitialize()">
+	
+	<mx:Script>
+		<![CDATA[
+			import mx.collections.ArrayCollection;
+			import ilog.gantt.ConstraintInfo;
+			import ilog.gantt.ConstraintKind;
+			import ilog.gantt.ConstraintItem;
+			import ilog.gantt.TaskItemArea;
+			import ilog.gantt.TaskItem;
+			import ilog.core.DataItem;
+			import mx.controls.Alert;
+			import mx.events.FlexEvent;
+			import com.adobe.serialization.json.JSON;
+			import ilog.gantt.GanttSheetEvent;
+			import mx.collections.HierarchicalData;
+			private var panelId:String = "";
+			[Bindable]
+			public var tasks:HierarchicalData;
+			[Bindable]
+			public var constraints:Array;
+			
+			public function myInitialize():void{
+				ExternalInterface.addCallback("showData", showData);
+				ExternalInterface.addCallback("setControlProperty",setControlProperty);
+				ExternalInterface.addCallback("setStyleProperty",setStyleProperty);
+				ExternalInterface.addCallback("zoom",zoomGantt);
+				ExternalInterface.addCallback("expandAll",expandAll);
+				ExternalInterface.addCallback("collapseAll",collapseAll);
+				ExternalInterface.addCallback("showConstraints",showConstraints);					
+				
+				panelId = Application.application.parameters.panelId;
+								
+				today.label = ExternalInterface.call("getLocalizedString_gantt_JS", "today");
+				zoomInBtn.label = ExternalInterface.call("getLocalizedString_gantt_JS", "zoomin");
+				zoomOutBtn.label = ExternalInterface.call("getLocalizedString_gantt_JS", "zoomout");
+				taskCol.headerText = ExternalInterface.call("getLocalizedString_gantt_JS", "task");
+				startCol.headerText = ExternalInterface.call("getLocalizedString_gantt_JS", "start");
+				endCol.headerText = ExternalInterface.call("getLocalizedString_gantt_JS", "end");
+				expandBtn.label = ExternalInterface.call("getLocalizedString_gantt_JS", "expandall");
+				collapseBtn.label = ExternalInterface.call("getLocalizedString_gantt_JS", "collapseall");
+				setPredecessorBtn.label = ExternalInterface.call("getLocalizedString_gantt_JS", "setpredecessor");
+				
+			}
+			
+			 /**
+	         * Sets control property specified by name.
+	         * Can be called from JS code to set properties not supported in AXVW format.
+	         */     
+	        public function setControlProperty(propertyName:String, propertyValue:Object):void {
+	            this.taskChart[propertyName] = propertyValue;
+	        }
+	        
+	        /**
+	         * Sets style property specified by name.
+	         * Can be called from JS code to set properties not supported in AXVW format.
+	         */  
+	        public function setStyleProperty(propertyName:String, propertyValue:Object):void {
+	        	this.taskChart.setStyle(propertyName,propertyValue);
+	        }
+        
+			protected function loadComplete(event:FlexEvent):void {
+  				if (ExternalInterface.available) {
+	    			ExternalInterface.call("loadComplete_JS", panelId);
+		  		} 
+			}
+			private function onWheel(e:MouseEvent):void {
+		        e.stopImmediatePropagation();
+		       (e.delta < 0) ? zoomOut() : zoomIn();
+			}
+			private function zoomOut():void {
+				var allowed:Boolean = (ganttSheet.visibleTimeRangeStart.time != ganttSheet.minVisibleTime.time ||
+				ganttSheet.visibleTimeRangeEnd.time != ganttSheet.maxVisibleTime.time);
+				if (allowed)          
+					ganttSheet.zoom(2, null, true);
+			}
+			  
+			private function zoomIn():void {
+				ganttSheet.zoom(0.5, null, true);
+			}  
+			  
+			private function DateFieldChangeCallback():void{
+				ganttSheet.zoom(0,dateField.selectedDate);
+			}
+			private function itemDoubleClick(event:GanttSheetEvent):void{
+				var taskItem:TaskItem = event.itemRenderer.data as TaskItem;				
+				ExternalInterface.call("itemClicked_JS",taskItem.data.level,taskItem.data.id);
+			}
+			private function itemEditEnd(event:GanttSheetEvent):void{
+				var taskItem:TaskItem = event.itemRenderer.data as TaskItem;
+				var linkedTasks:Array = [];
+				
+				//get linked tasks to edit
+				var constraints:Array = taskChart.getToConstraints(taskItem);
+				if(constraints != null){
+					for(var i:int = 0;i<constraints.length;i++){
+						var constraint:ConstraintItem = constraints[i];
+						if( (event.itemArea == TaskItemArea.START && (
+								constraint.kind == ConstraintKind.END_TO_START || constraint.kind == ConstraintKind.START_TO_START))
+							||
+							(event.itemArea == TaskItemArea.END && (						
+								constraint.kind == ConstraintKind.START_TO_END || constraint.kind == ConstraintKind.END_TO_END))
+							|| event.itemArea == TaskItemArea.BAR){
+							var temp:Object = new Object();
+							temp.kind = constraint.kind;
+							temp.id = constraint.fromId;
+							linkedTasks.push(temp);
+						}
+					}
+				}
+				constraints = taskChart.getFromConstraints(taskItem);
+				if(constraints != null){
+					for(var j:int = 0;i<constraints.length;i++){
+						var fromConstraint:ConstraintItem = constraints[j];
+						if( (event.itemArea == TaskItemArea.START && (
+								fromConstraint.kind == ConstraintKind.END_TO_START || fromConstraint.kind == ConstraintKind.START_TO_START))
+							||
+							(event.itemArea == TaskItemArea.END && (						
+								fromConstraint.kind == ConstraintKind.START_TO_END || fromConstraint.kind == ConstraintKind.END_TO_END))
+							|| event.itemArea == TaskItemArea.BAR){
+							var tmp:Object = new Object();
+							tmp.kind = fromConstraint.kind;
+							tmp.id = fromConstraint.fromId;
+							linkedTasks.push(tmp);
+						}
+					}
+				}
+				ExternalInterface.call("itemResized_JS",taskItem.data.level,taskItem.data.id,
+					isoDateFormatter.format(taskItem.startTime),isoDateFormatter.format(taskItem.endTime),
+					event.itemArea,linkedTasks);
+			}
+
+			public function showData(data:String):void{
+				var arrData:Array = (JSON.decode(data) as Array);
+				tasks = new HierarchicalData(arrData);
+			}
+			
+			public function showConstraints(constraints:String):void{
+				var arrData:Array = (JSON.decode(constraints) as Array);
+				this.constraints = arrData;
+			}
+			
+			public function showDataTip(item:Object):String{
+				if(item is TaskItem){
+					var task:TaskItem = item as TaskItem;
+					return task.label + " Start: " + dateFormatter.format(task.startTime) + " End: " + dateFormatter.format(task.endTime);
+				}
+				if(item is ConstraintItem){
+					var constraint:ConstraintItem = item as ConstraintItem;
+					return constraint.fromTask.endTime + " " + constraint.kind + " " + constraint.toTask.startTime;
+				} 
+				return "";
+				
+			}
+
+			public function todayClickCallback():void {
+				dateField.selectedDate = new Date();
+				ganttSheet.zoom(0,dateField.selectedDate);
+			}
+			
+			public function zoomGantt(start:String,end:String):void {			
+				ganttSheet.visibleTimeRangeStart = new Date(start);
+				ganttSheet.visibleTimeRangeEnd = new Date(end);
+			}
+			
+			public function expandAll():void{
+				taskChart.dataGrid.expandAll();
+			}
+			
+			public function collapseAll():void{
+				taskChart.dataGrid.collapseAll()
+			}
+			
+			public function selectionChange(event:GanttSheetEvent):void{
+				trace(ganttSheet.selectedItems.length.toString());
+			}
+			
+			public function setAsPredecessor():void{
+				if(ganttSheet.selectedItems.length == 2){
+					
+					ExternalInterface.call("setAsPredecessor_JS",ganttSheet.selectedItems[0]['id'],ganttSheet.selectedItems[1]['id']);
+				}	
+			}
+		]]>
+	</mx:Script>
+	
+	<mx:HBox>	
+    	<mx:Button id="today" label="today" click="todayClickCallback()" />
+    	<mx:DateField id="dateField" editable="true" change="DateFieldChangeCallback()" width="111"/>
+    	<mx:Button id="zoomInBtn" label="zoomIn" click="zoomIn()"/>
+    	<mx:Button id="zoomOutBtn" label="zoomOut" click="zoomOut()"/>
+    	<mx:Button id="expandBtn" label="expandAll" click="expandAll()"/>
+    	<mx:Button id="collapseBtn" label="collapseAll" click="collapseAll()"/>
+    	<mx:Button id="setPredecessorBtn" label="setAsPredecessor" click="setAsPredecessor()"/>
+    </mx:HBox>
+    <mx:DateFormatter id="isoDateFormatter" formatString="YYYY/MM/DD"/>
+	<mx:DateFormatter id="dateFormatter" formatString="EEE MMM DD YYYY"/>
+	<ilog:TaskChart id="taskChart" width="100%" height="100%" y="{dateField.height}"
+		taskDataProvider="{tasks}" creationComplete="loadComplete(event)"
+		constraintDataProvider="{constraints}">
+		<ilog:dataGrid>
+      		<ilog:GanttDataGrid indentation="2" width="150">
+		        <ilog:columns>
+		        	<mx:AdvancedDataGridColumn id="taskCol" dataField="id" headerText="task" width="100" sortable="false"/>
+		          	<mx:AdvancedDataGridColumn id="startCol" dataField="startTime" headerText="start" width="100" formatter="{dateFormatter}"/>
+		          	<mx:AdvancedDataGridColumn id="endCol" dataField="endTime" headerText="end" width="100" formatter="{dateFormatter}"/>
+		        </ilog:columns>
+	      </ilog:GanttDataGrid>
+	    </ilog:dataGrid>   
+    	<ilog:ganttSheet>
+     		<ilog:GanttSheet id="ganttSheet" allowMultipleSelection="true"
+     				selectable="true"
+                       nonWorkingAlpha="0.1" nonWorkingColor="#FFFFFF" 
+                       mouseWheel="onWheel(event)" minZoomFactor="1728000"
+                       itemDoubleClick="itemDoubleClick(event)" itemEditEnd="itemEditEnd(event)"
+                       dataTipFunction="showDataTip" showDataTips="true"
+                       showCurrentTimeIndicator="true"
+                       change="selectionChange(event)"
+                       />   
+		</ilog:ganttSheet>
+    	<ilog:timeScale>
+    		<ilog:TimeScale mouseWheel="onWheel(event)"/>
+    	</ilog:timeScale> 
+	</ilog:TaskChart>
+	
+</mx:Application>

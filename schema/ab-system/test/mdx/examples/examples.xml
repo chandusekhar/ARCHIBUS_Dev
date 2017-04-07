@@ -1,0 +1,121 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<!-- View Analysis examples:
+     - custom measures;
+     - custom dimensions. -->
+<examples>
+
+	<!-- Example-1: Minimal View Analysis.
+         - can be created from Alter View... or manually;
+         - dimensions and measures can only use columns from "main" table. -->
+	<preferences format="table" dimensions="1">
+		<dimensions>
+			<dimension name="Room Standard" column="rm_std"/>
+		</dimensions>
+		<measures>
+			<measure name="Number of rooms" column="rm_id" aggregator="sum"/>
+			<measure name="Total area PCT" column="area" aggregator="sum-percent"/>
+		</measures>
+	</preferences>
+
+	<!-- Example-2: Calculated measure. 
+         - use when desired measure does not exist in the database;
+         - dimensions and measures can only use columns from SELECT clause;
+         - calculated measures must have "type=calculated" attribute; 
+         - protect from SQL errors (division by 0 etc);
+         - use SQL dialects: "generic" for Sybase/SQL Server, "oracle" for Oracle. -->
+	<preferences format="table" dimensions="1">
+		<query>
+			<sql dialect="generic">
+            SELECT rm_std,rm_id,area,(area/GREATER(count_em,1)) AS area_per_employee FROM rm</sql>
+		</query>
+		<dimensions>
+			<dimension name="Room Standard" column="rm_std"/>
+		</dimensions>
+		<measures>
+			<measure name="Number of rooms" column="rm_id" aggregator="sum"/>
+			<measure name="Total area PCT" column="area" aggregator="sum-percent"/>
+			<measure name="Area per employee" column="area_per_employee" aggregator="avg" type="calculated"/>
+		</measures>
+	</preferences>
+
+	<!-- Example-3: Non-aggregated column.
+         - use when desired measure is associated with dimension values in another table;
+         - use "aggregator=min/max";
+         - all columns names should be qualified to resolve conflicts. -->
+	<preferences format="table" dimensions="1">
+		<query>
+			<sql dialect="generic">
+			SELECT rmstd.description,rm.rm_std,rm.rm_id,rm.area,(rm.area/GREATER(rm.count_em,1)) AS area_per_employee 
+			FROM rm LEFT JOIN rmstd ON rm.rm_std=rmstd.rm_std</sql>
+		</query>
+		<dimensions>
+			<dimension name="Room Standard" column="rm_std"/>
+		</dimensions>
+		<measures>
+			<measure name="Standard Description" column="description" aggregator="min"/>
+			<measure name="Number of rooms" column="rm_id" aggregator="sum"/>
+			<measure name="Total area PCT" column="area" aggregator="sum-percent"/>
+			<measure name="Area per employee" column="area_per_employee" aggregator="avg" type="calculated"/>
+		</measures>
+	</preferences>
+	
+	<!-- Example-4: Second dimension.
+         - cannot use non-aggregated measures;
+         - cannot use non-numeric measures;
+         - cannot use percent-based measures. -->
+	<preferences format="table" dimensions="2">
+		<dimensions>
+			<dimension name="Room Standard" column="rm_std"/>
+			<dimension name="Department" column="dp_id"/>
+		</dimensions>
+		<measures>
+			<measure name="Number of rooms" column="rm_id" aggregator="sum"/>
+			<measure name="Total area" column="area" aggregator="sum"/>
+		</measures>
+	</preferences>
+		
+	<!-- Example-5: Range-based dimension.
+         - one or both dimensions can use ranges;
+         - use "=" for enumerated values;
+         - use <title> without <sql> for SQL ELSE clause.  -->
+	<preferences format="table" dimensions="2">
+		<dimensions>
+			<dimension name="Room Standard" column="rm_std">
+				<ranges>
+					<range>
+						<title>Offices</title>
+						<sql dialect="generic">rm_std LIKE 'OFF-%'</sql>
+					</range>
+					<range>
+						<title>Workstations</title>
+						<sql dialect="generic">rm_std LIKE 'WKSTA-%'</sql>
+					</range>
+					<title>Other rooms</title>
+				</ranges>
+			</dimension>
+          		<dimension name="Department" column="dp_id">
+            			<ranges>
+            				<range>
+            					<title>Engineering or Marketing</title>
+            					<sql dialect="generic">(dp_id = 'ENGINEERING' OR dp_id = 'MARKETING')</sql>
+            				</range>
+            				<title>Other departments</title>
+            			</ranges>
+            		</dimension>
+		</dimensions>
+		<measures>
+			<measure name="Number of rooms" column="rm_id" aggregator="sum"/>
+			<measure name="Total area" column="area" aggregator="sum"/>
+		</measures>
+	</preferences>
+		
+    <!-- Example-6: Same as example-5 displayed as stacked bar chart.
+         - only first measure is displayed;
+         - text and percentage-based measures are not displayed. -->
+
+    <!-- Example-7: Same as example-1 displayed as stacked bar chart. 
+         - measures should use comparable units;
+         - text and percentage-based measures are not displayed. -->
+        
+</examples>

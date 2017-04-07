@@ -1,0 +1,426 @@
+<view version="2.0">
+    <title translatable="true">Footprints Comparison</title>
+    <js file="ab-gb-rpt-fp-chart-compare.js"/>
+    <js file="ab-gb-rpt-fp-common.js"/>
+    <message name="err_value_not_set" translatable="true">Please select {0}.</message>
+    <message name="err_values_not_set" translatable="true">Please select {0} or {1}.</message>
+    <message name="label_scope1" translatable="true">1</message>
+    <message name="label_scope2" translatable="true">2</message>
+    <message name="label_scope3" translatable="true">3</message>
+    <message name="label_other" translatable="true">Other</message>
+    <message name="noEmissionSelected" translatable="true">Please select at least one Emission Scope.</message>
+    <message name="totalEmissDataAxisTitle" translatable="true">Emissions (MTCO2e)</message>
+    <message name="totalEmissPerAreaDataAxisTitle" translatable="true">Emissions (kg CO2e)</message>
+    
+    <!-- Layout -->
+    <layout type="borderLayout" id="mainLayout">
+        <north id="filterPos" initialSize="150" split="true"/>
+        <center id="reportPos" autoScroll="true"/>
+    </layout>
+    
+    <!--  Filter  -->
+    <dataSource id="abGbRptFpChartCompare_filter_ds">
+        <table name="gb_fp_totals" role="main"/>
+        <table name="bl" role="standard"/>
+        <field table="gb_fp_totals" name="vf_calc_year" dataType="text"/>
+        <field table="bl" name="site_id"/>
+        <field table="gb_fp_totals" name="bl_id"/>
+        <field table="gb_fp_totals" name="scenario_id"/>
+    </dataSource>
+    <panel type="console" id="abGbRptFpChartCompare_filter" dataSource="abGbRptFpChartCompare_filter_ds" columns="3" layoutRegion="filterPos">
+        <title translatable="true">Filter</title>
+		<instructions translatable="true">Please select Site Code and/or Building Code</instructions>
+        <action id="show">
+            <title translatable="true">Show</title>
+        </action>
+        <action id="clear">
+            <title translatable="true">Clear</title>
+            <command type="clearPanel" panelId="abGbRptFpChartCompare_filter"/>
+        </action>
+        <field table="bl" name="site_id" selectValueType="multiple">
+            <title translatable="true">Site Code</title>
+            <action>
+                <title translatable="false">...</title>
+                <tooltip translatable="true">Select Value</tooltip>
+                <command type="callFunction" functionName="showSelectValue_Site"/>
+            </action>
+        </field>
+		<field table="gb_fp_totals" name="vf_calc_year" selectValueType="multiple" size="200" dataType="text">
+            <title translatable="true">Calculation Year</title>
+            <action>
+                <title translatable="false">...</title>
+                <tooltip translatable="true">Select Value</tooltip>
+                <command type="callFunction" functionName="showSelectValue_Year(this, 'gb_fp_totals.vf_calc_year', 'multiple')"/>
+            </action>
+        </field>
+        <field id="emission_scopes" rowspan="2">
+            <title translatable="true">Emission Scope #</title>
+            <html>
+                <span class="inputField">
+                &#160;<input type="checkbox" id="emission_scopes_scope1" name="emission_scopes_scope1" value="scope1" checked="true">&#160;<span id="label_emission_scopes_scope1">&#160;</span></input>
+                &#160;<input type="checkbox" id="emission_scopes_scope2" name="emission_scopes_scope2" value="scope2" checked="true">&#160;<span id="label_emission_scopes_scope2">&#160;</span></input>
+                <br />
+                &#160;<input type="checkbox" id="emission_scopes_scope3" name="emission_scopes_scope3" value="scope3" checked="true">&#160;<span id="label_emission_scopes_scope3">&#160;</span></input>
+                &#160;<input type="checkbox" id="emission_scopes_other" name="emission_scopes_other" value="other" checked="true">&#160;<span id="label_emission_scopes_other">&#160;</span></input>
+                </span>
+            </html>
+        </field> 
+		<field table="gb_fp_totals" name="bl_id" selectValueType="multiple">
+            <action>
+                <title translatable="false">...</title>
+                <tooltip translatable="true">Select Value</tooltip>
+                <command type="callFunction" functionName="showSelectValue_Bl"/>
+            </action>
+        </field>
+        <field table="gb_fp_totals" name="scenario_id" selectValueType="multiple">
+            <action>
+                <title translatable="false">...</title>
+                <tooltip translatable="true">Select Value</tooltip>
+                <command type="callFunction" functionName="showSelectValue_Scenario"/>
+            </action>
+        </field>
+    </panel>
+    
+    <!--  Report Datasource -->
+    <dataSource id="abGbRptFpChartCompare_dataReport_ds">
+        <table name="gb_fp_totals" role="main"/>
+        <table name="bl" role="standard"/>
+        <table name="gb_fp_setup" role="standard"/>
+        <field table="gb_fp_totals" name="calc_year"/>
+        <field table="bl" name="site_id"/>
+        <field table="gb_fp_totals" name="site_name" dataType="text">
+            <sql dialect="generic">
+                (SELECT site.name FROM site WHERE site.site_id = bl.site_id)
+            </sql>
+        </field>
+        <field table="gb_fp_totals" name="bl_id"/>
+        <field table="gb_fp_totals" name="scenario_id"/>
+        <field table="gb_fp_setup" name="area_gross_ext"/>
+        <field table="gb_fp_totals" name="vf_ext_gross_area" dataType="number" showTotals="true">
+            <sql dialect="generic">
+                gb_fp_setup.area_gross_ext
+            </sql>
+        </field>
+        <field table="gb_fp_totals" name="vf_total" dataType="number" showTotals="true">
+            <sql dialect="generic">
+                (( 0.0 + 
+                    (CASE ${parameters['isScope1']}  
+                            WHEN 'true' 
+                                THEN (gb_fp_totals.s1_co_airc + gb_fp_totals.s1_co_road + gb_fp_totals.s1_fuel_comb + gb_fp_totals.s1_refrig_airc)
+                         ELSE 0.0
+                      END) +
+                    (CASE ${parameters['isScope2']}  
+                            WHEN 'true' 
+                                THEN (gb_fp_totals.s2_purch_e)
+                         ELSE 0.0
+                      END) +
+                    (CASE ${parameters['isScope3']}  
+                            WHEN 'true' 
+                                THEN (gb_fp_totals.s3_cont + gb_fp_totals.s3_em_air + gb_fp_totals.s3_em_rail + gb_fp_totals.s3_em_road + gb_fp_totals.s3_mat + gb_fp_totals.s3_outs + gb_fp_totals.s3_serv + gb_fp_totals.s3_waste_liq + gb_fp_totals.s3_waste_sol)
+                         ELSE 0.0
+                      END) +
+                    (CASE ${parameters['isScopeOther']}  
+                            WHEN 'true' 
+                                THEN (gb_fp_totals.s_other)
+                         ELSE 0.0
+                      END) 
+                      ) /(CASE ${parameters['isGroupPerArea']} 
+                            WHEN 'true' 
+                                THEN 
+                                    gb_fp_setup.area_gross_ext*0.001
+                            ELSE 1.00
+                        END))
+            </sql>
+        </field>
+        <field table="gb_fp_totals" name="vf_scope1_total" dataType="number" showTotals="true">
+            <sql dialect="generic">
+                ((gb_fp_totals.s1_co_airc + gb_fp_totals.s1_co_road + gb_fp_totals.s1_fuel_comb + gb_fp_totals.s1_refrig_airc)/
+                (CASE ${parameters['isGroupPerArea']} 
+                            WHEN 'true' 
+                                THEN 
+                                    gb_fp_setup.area_gross_ext*0.001
+                            ELSE 1.00
+                        END))
+            </sql>
+        </field>
+        <field table="gb_fp_totals" name="vf_scope2_total" dataType="number" showTotals="true">
+            <sql dialect="generic">
+                ((gb_fp_totals.s2_purch_e)/
+                (CASE ${parameters['isGroupPerArea']} 
+                            WHEN 'true' 
+                                THEN 
+                                    gb_fp_setup.area_gross_ext*0.001
+                            ELSE 1.00
+                        END))
+            </sql>
+        </field>
+        <field table="gb_fp_totals" name="vf_scope3_total" dataType="number" showTotals="true">
+            <sql dialect="generic">
+                ((gb_fp_totals.s3_cont + gb_fp_totals.s3_em_air + gb_fp_totals.s3_em_rail + gb_fp_totals.s3_em_road + gb_fp_totals.s3_mat + gb_fp_totals.s3_outs + gb_fp_totals.s3_serv + gb_fp_totals.s3_waste_liq + gb_fp_totals.s3_waste_sol)/
+                (CASE ${parameters['isGroupPerArea']} 
+                            WHEN 'true' 
+                                THEN 
+                                    gb_fp_setup.area_gross_ext*0.001
+                            ELSE 1.00
+                        END))
+            </sql>
+        </field>
+        <field table="gb_fp_totals" name="vf_other_total" dataType="number" showTotals="true">
+            <sql dialect="generic">
+                ((gb_fp_totals.s_other)/
+                (CASE ${parameters['isGroupPerArea']} 
+                            WHEN 'true' 
+                                THEN 
+                                    gb_fp_setup.area_gross_ext*0.001
+                            ELSE 1.00
+                        END))
+            </sql>
+        </field>
+        
+        <parameter name="isGroupPerArea" dataType="text" value="false"/>
+        <parameter name="isScope1" dataType="text" value="false"/>
+        <parameter name="isScope2" dataType="text" value="false"/>
+        <parameter name="isScope3" dataType="text" value="false"/>
+        <parameter name="isScopeOther" dataType="text" value="false"/>
+    </dataSource>  
+    
+    <tabs  workflow="free" id="abGbRptFpChartCompare_Tabs" tabRefreshPolicy="refreshOnLoad" layoutRegion="reportPos">
+        <tab name="abGbRptFpChartCompare_totalEmissionTab" selected="true">
+            <title translatable="true">Emissions</title>
+            <dataSource id="abGbRptFpChartCompare_totalEmissionChart_ds" type="grouping">
+                <table name="gb_fp_totals" role="main"/>
+                <table name="bl" role="standard"/>
+                <field table="gb_fp_totals" name="vf_grouping_value" dataType="text" groupBy="true">
+                    <sql dialect="generic">
+                        (CASE ${parameters["groupBy"]}
+                            WHEN  'site' THEN bl.site_id ${sql.concat}' - '${sql.concat} CAST(gb_fp_totals.calc_year ${sql.as} VARCHAR)
+                            WHEN 'bl' THEN gb_fp_totals.bl_id ${sql.concat}' - '${sql.concat} CAST(gb_fp_totals.calc_year ${sql.as} VARCHAR)
+                         END)
+                    </sql>
+                    <sql dialect="oracle">
+                        (CASE ${parameters["groupBy"]}
+                            WHEN  'site' THEN bl.site_id ${sql.concat}' - '${sql.concat} TO_CHAR(gb_fp_totals.calc_year)
+                            WHEN 'bl' THEN gb_fp_totals.bl_id ${sql.concat}' - '${sql.concat} TO_CHAR(gb_fp_totals.calc_year)
+                         END)
+                    </sql>
+                </field>
+                <field table="gb_fp_totals" name="vf_scope1" dataType="number" decimals="1">
+                    <sql dialect="generic">
+                        (SUM(gb_fp_totals.s1_co_airc) + SUM(gb_fp_totals.s1_co_road) + SUM(gb_fp_totals.s1_fuel_comb) + SUM(gb_fp_totals.s1_refrig_airc))
+                    </sql>
+                </field>
+                <field table="gb_fp_totals" name="vf_scope2" dataType="number" decimals="1">
+                    <sql dialect="generic">
+                        (SUM(gb_fp_totals.s2_purch_e))
+                    </sql>
+                </field>
+                <field table="gb_fp_totals" name="vf_scope3" dataType="number" decimals="1">
+                    <sql dialect="generic">
+                        (SUM(gb_fp_totals.s3_cont) + SUM(gb_fp_totals.s3_em_air) + SUM(gb_fp_totals.s3_em_rail) + SUM(gb_fp_totals.s3_em_road) + SUM(gb_fp_totals.s3_mat) + SUM(gb_fp_totals.s3_outs) + SUM(gb_fp_totals.s3_serv) + SUM(gb_fp_totals.s3_waste_liq) + SUM(gb_fp_totals.s3_waste_sol))
+                    </sql>
+                </field>
+                <field table="gb_fp_totals" name="vf_other" dataType="number" decimals="1">
+                    <sql dialect="generic">
+                        (SUM(gb_fp_totals.s_other))
+                    </sql>
+                </field>
+                <field table="bl" name="vf_bl_id" dataType="text" formula="max" baseField="bl.bl_id"/>
+                <parameter name="groupBy" dataType="text" value="site"/>
+                <sortField table="gb_fp_totals" name="vf_grouping_value" ascending="true"/>
+            </dataSource>
+            <panel type="chart" controlType="stackedBarChart"  showOnLoad="false"
+                    id="abGbRptFpChartCompare_totalEmissionChart" dataSource="abGbRptFpChartCompare_totalEmissionChart_ds"
+                    showLegendOnLoad="true" 
+                    showLegendAsPopUp="false" 
+                    legendLocation="right" 
+                    showDataTips="true" 
+                    fillType="solid"
+                    percentGradientChange="0.5"
+                    percentTransparency = "1.0">
+                    <title translatable="true">Emissions Chart (MTCO2e)</title>
+                    <instructions>&#160;</instructions>
+                    <action id="exportDOCX">
+                        <title translatable="true">DOC</title>
+                        <command type="exportPanel" outputType="docx" panelId="abGbRptFpChartCompare_totalEmissionChart" printRestriction="true"/>
+                    </action>
+                    <event type="onClickItem"> 
+                        <command type="callFunction" functionName="openSummary" /> 
+                    </event>
+                    <groupingAxis dataSource="abGbRptFpChartCompare_totalEmissionChart_ds" table="gb_fp_totals" field="vf_grouping_value">
+                        <!-- title translatable="true">Site Code (Building Code) and Calculation Year</title-->
+                    </groupingAxis>
+                    
+                    <dataAxis dataSource="abGbRptFpChartCompare_totalEmissionChart_ds" table="gb_fp_totals" field="vf_scope1" labelPosition="inside">
+                        <title translatable="true">Scope 1 Emissions</title>
+                    </dataAxis>
+                    <dataAxis dataSource="abGbRptFpChartCompare_totalEmissionChart_ds" table="gb_fp_totals" field="vf_scope2" labelPosition="inside">
+                        <title translatable="true">Scope 2 Emissions</title>
+                    </dataAxis>
+                    <dataAxis dataSource="abGbRptFpChartCompare_totalEmissionChart_ds" table="gb_fp_totals" field="vf_other" labelPosition="inside">
+                        <title translatable="true">Other Emissions</title>
+                    </dataAxis>
+                    <dataAxis dataSource="abGbRptFpChartCompare_totalEmissionChart_ds" table="gb_fp_totals" field="vf_scope3" labelPosition="inside">
+                        <title translatable="true">Scope 3 Emissions</title>
+                    </dataAxis>
+             </panel>
+
+            <panel type="grid" id="abGbRptFpChartCompare_totalReport" dataSource="abGbRptFpChartCompare_dataReport_ds" showOnLoad="false">
+                <sortField table="gb_fp_totals" name="calc_year" ascending="true"/>
+                <sortField table="bl" name="site_id" ascending="true"/>
+                <title translatable="true">Footprint Data</title>
+                <action id="exportXls">
+                    <title translatable="true">XLS</title>
+                    <command type="exportPanel" outputType="xls" panelId="abGbRptFpChartCompare_totalReport" viewName="ab-gb-rpt-fp-chart-compare.axvw"/>
+                </action>
+                <field table="gb_fp_totals" name="calc_year"/>
+                <field table="bl" name="site_id"/>
+                <field table="gb_fp_totals" name="site_name" dataType="text">
+                    <title translatable="true">Site Name</title>
+                </field>
+                <field table="gb_fp_totals" name="bl_id"/>
+                <field table="gb_fp_totals" name="scenario_id"/>
+                <field table="gb_fp_totals" name="vf_total" dataType="number" showTotals="true">
+                    <title translatable="true">Total Emissions (MTCO2e)</title>
+                </field>
+                <field table="gb_fp_totals" name="vf_scope1_total" dataType="number" showTotals="true">
+                    <title translatable="true">Scope 1 Emissions</title>
+                </field>
+                <field table="gb_fp_totals" name="vf_scope2_total" dataType="number" showTotals="true">
+                    <title translatable="true">Scope 2 Emissions</title>
+                </field>
+                <field table="gb_fp_totals" name="vf_other_total" dataType="number" showTotals="true">
+                    <title translatable="true">Other Emissions</title>
+                </field>
+                <field table="gb_fp_totals" name="vf_scope3_total" dataType="number" showTotals="true">
+                    <title translatable="true">Scope 3 Emissions</title>
+                </field>
+                <field table="gb_fp_totals" name="vf_ext_gross_area" dataType="number" showTotals="true" hidden="true">
+                    <title translatable="true">Ext. Gross Area</title>
+                </field>
+            </panel>                      
+
+        </tab>
+        <tab name="abGbRptFpChartCompare_totalEmissionPerAreaTab">
+            <title translatable="true">Emissions Per Unit Area</title>
+            <dataSource id="abGbRptFpChartCompare_totalEmissionPerAreaChart_ds" type="grouping">
+                <table name="gb_fp_totals" role="main"/>
+                <table name="bl" role="standard"/>
+		        <table name="gb_fp_setup" role="standard"/>
+                <field table="gb_fp_totals" name="vf_grouping_value" dataType="text" groupBy="true">
+                    <sql dialect="generic">
+                        (CASE ${parameters["groupBy"]}
+                            WHEN  'site' THEN bl.site_id ${sql.concat}' - '${sql.concat} CAST(gb_fp_totals.calc_year ${sql.as} VARCHAR)
+                            WHEN 'bl' THEN gb_fp_totals.bl_id ${sql.concat}' - '${sql.concat} CAST(gb_fp_totals.calc_year ${sql.as} VARCHAR)
+                         END)
+                    </sql>
+                    <sql dialect="oracle">
+                        (CASE ${parameters["groupBy"]}
+                            WHEN  'site' THEN bl.site_id ${sql.concat}' - '${sql.concat} TO_CHAR(gb_fp_totals.calc_year)
+                            WHEN 'bl' THEN gb_fp_totals.bl_id ${sql.concat}' - '${sql.concat} TO_CHAR(gb_fp_totals.calc_year)
+                         END)
+                    </sql>
+                </field>
+                <field table="gb_fp_totals" name="vf_scope1" dataType="number" decimals="1">
+                    <sql dialect="generic">
+                        ((SUM(gb_fp_totals.s1_co_airc + gb_fp_totals.s1_co_road + gb_fp_totals.s1_fuel_comb + gb_fp_totals.s1_refrig_airc)/SUM(gb_fp_setup.area_gross_ext))*1000)
+                    </sql>
+                </field>
+                <field table="gb_fp_totals" name="vf_scope2" dataType="number" decimals="1">
+                    <sql dialect="generic">
+                        ((SUM(gb_fp_totals.s2_purch_e)/SUM(gb_fp_setup.area_gross_ext))*1000)
+                    </sql>
+                </field>
+                <field table="gb_fp_totals" name="vf_scope3" dataType="number" decimals="1">
+                    <sql dialect="generic">
+                        ((SUM(gb_fp_totals.s3_cont + gb_fp_totals.s3_em_air + gb_fp_totals.s3_em_rail + gb_fp_totals.s3_em_road + gb_fp_totals.s3_mat + gb_fp_totals.s3_outs + 
+                                gb_fp_totals.s3_serv + gb_fp_totals.s3_waste_liq + gb_fp_totals.s3_waste_sol)/SUM(gb_fp_setup.area_gross_ext))*1000)
+                    </sql>
+                </field>
+                <field table="gb_fp_totals" name="vf_other" dataType="number" decimals="1">
+                    <sql dialect="generic">
+                        ((SUM(gb_fp_totals.s_other)/SUM(gb_fp_setup.area_gross_ext))*1000)
+                    </sql>
+                </field>
+                <field table="bl" name="vf_bl_id" dataType="text" formula="max" baseField="bl.bl_id"/>
+                <field table="gb_fp_setup" name="max_bl_setup" dataType="text" formula="max" baseField="gb_fp_setup.bl_id"/>
+                <parameter name="groupBy" dataType="text" value="site"/>
+                <sortField table="gb_fp_totals" name="vf_grouping_value" ascending="true"/>
+            </dataSource>
+            <panel type="chart" controlType="stackedBarChart"  showOnLoad="false"
+                    id="abGbRptFpChartCompare_totalEmissionPerAreaChart" dataSource="abGbRptFpChartCompare_totalEmissionPerAreaChart_ds"
+                    showLegendOnLoad="true" 
+                    showLegendAsPopUp="false" 
+                    legendLocation="right" 
+                    showDataTips="true" 
+                    fillType="solid"
+                    percentGradientChange="0.5"
+                    percentTransparency = "1.0">
+                    <title translatable="true">Emissions Per Unit Area Chart (kg CO2e)</title>
+                    <instructions>&#160;</instructions>
+                    <action id="exportDOCX">
+                        <title translatable="true">DOC</title>
+                        <command type="exportPanel" outputType="docx" panelId="abGbRptFpChartCompare_totalEmissionPerAreaChart" printRestriction="true"/>
+                    </action>
+                    <event type="onClickItem"> 
+                        <command type="callFunction" functionName="openSummary" /> 
+                    </event>
+                    <groupingAxis dataSource="abGbRptFpChartCompare_totalEmissionPerAreaChart_ds" table="gb_fp_totals" field="vf_grouping_value">
+                        <!-- title translatable="true">Site Code (Building Code) and Calculation Year</title-->
+                    </groupingAxis>
+                    
+                    <dataAxis dataSource="abGbRptFpChartCompare_totalEmissionPerAreaChart_ds" table="gb_fp_totals" field="vf_scope1" labelPosition="inside">
+                        <title translatable="true">Scope 1 Emissions</title>
+                    </dataAxis>
+                    <dataAxis dataSource="abGbRptFpChartCompare_totalEmissionPerAreaChart_ds" table="gb_fp_totals" field="vf_scope2" labelPosition="inside">
+                        <title translatable="true">Scope 2 Emissions</title>
+                    </dataAxis>
+                    <dataAxis dataSource="abGbRptFpChartCompare_totalEmissionPerAreaChart_ds" table="gb_fp_totals" field="vf_other" labelPosition="inside">
+                        <title translatable="true">Other Emissions</title>
+                    </dataAxis>
+                    <dataAxis dataSource="abGbRptFpChartCompare_totalEmissionPerAreaChart_ds" table="gb_fp_totals" field="vf_scope3" labelPosition="inside">
+                        <title translatable="true">Scope 3 Emissions</title>
+                    </dataAxis>
+             </panel>
+            <panel type="grid" id="abGbRptFpChartCompare_totalPerAreaReport" dataSource="abGbRptFpChartCompare_dataReport_ds" showOnLoad="false">
+                <sortField table="gb_fp_totals" name="calc_year" ascending="true"/>
+                <sortField table="bl" name="site_id" ascending="true"/>
+                <title translatable="true">Footprint Data Per Unit Area</title>
+                <action id="exportXls">
+                    <title translatable="true">XLS</title>
+                   <command type="callFunction" functionName="generateXLS(abGbRptFpChartCompareCtrl, 'abGbRptFpChartCompare_totalPerAreaReport', true, true, 'gb_fp_totals.vf_ext_gross_area')"/>
+                </action>
+                <field table="gb_fp_totals" name="calc_year"/>
+                <field table="bl" name="site_id"/>
+                <field table="gb_fp_totals" name="site_name" dataType="text">
+                    <title translatable="true">Site Name</title>
+                </field>
+                <field table="gb_fp_totals" name="bl_id"/>
+                <field table="gb_fp_totals" name="scenario_id"/>
+                <field table="gb_fp_totals" name="vf_ext_gross_area" dataType="number">
+                    <title translatable="true">Ext. Gross Area</title>
+                </field>
+                <field table="gb_fp_totals" name="vf_total" dataType="number">
+                    <title translatable="true">Total Emissions (kg CO2e)</title>
+                </field>
+                <field table="gb_fp_totals" name="vf_scope1_total" dataType="number">
+                    <title translatable="true">Scope 1 Emissions</title>
+                </field>
+                <field table="gb_fp_totals" name="vf_scope2_total" dataType="number">
+                    <title translatable="true">Scope 2 Emissions</title>
+                </field>
+                <field table="gb_fp_totals" name="vf_other_total" dataType="number">
+                    <title translatable="true">Other Emissions</title>
+                </field>
+                <field table="gb_fp_totals" name="vf_scope3_total" dataType="number">
+                    <title translatable="true">Scope 3 Emissions</title>
+                </field>
+            </panel>
+
+        </tab>
+    </tabs>
+    
+    
+    <panel type="view" id="filterCommon" file="ab-gb-rpt-fp-filter-common.axvw"/>
+    <panel type="view" id="abGbRptFpDs" file="ab-gb-rpt-fp-ds.axvw"/>
+    
+</view>

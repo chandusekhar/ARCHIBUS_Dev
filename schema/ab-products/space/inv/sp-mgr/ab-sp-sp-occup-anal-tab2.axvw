@@ -1,0 +1,226 @@
+<view version="2.0">	 
+	<layout>
+		<north id="console" initialSize="122" split="true"/>
+		<center id="chart"/>
+	</layout>
+	<message name="dp" translatable="true">Department</message>
+	<message name="dv" translatable="true">Division</message>
+	<message name="orate" translatable="true">Occupancy Rate</message>
+
+	<message name="pct" translatable="true">Percentage</message>
+	<message name="area" translatable="true">Area</message>
+
+	<message name="Q" translatable="true">Quarter</message>
+	<message name="M" translatable="true">Month</message>
+	<message name="Y" translatable="true">Year</message>
+	<message name="nullGroup" translatable="true">Please make sure select Group By, X-axis, and Y-axis is not empty.</message>
+	<message name="nullDate" translatable="true">Please select a date value for 'Single Date' option.</message>
+
+	<message name="dp_area" translatable="true">Department Area: room area allocated to each department</message>
+	<message name="dplus_area" translatable="true">Department Area and All Other Areas: room area allocated to each area type</message>
+	<message name="dv_area" translatable="true">Division Area: room area allocated to each division</message>
+	<message name="op_count" translatable="true">Occupancy Count: count of rooms in each occupancy category over date range</message>
+	<message name="orate_pct" translatable="true">Occupancy Rate: occupancy count over date range divided by capacity</message>
+
+	<panel type="view" id="sharedDataSourceView" file="ab-sp-sp-occup-anal-share-datasource.axvw"/>
+
+	<dataSource type="grouping" id="dsYears">
+		<table name="afm_cal_dates" />
+		<field name="year" groupBy="true" dataType="text" formula="year" baseField="afm_cal_dates.cal_date">
+			<title translatable="true">Year</title>
+		</field>
+		<sortField name="year" ascending="false" />
+	</dataSource>
+
+	<dataSource id="abSpOccupAnalTab2Ds">
+		<table name="afm_metric_trend_values" role="main" />
+		<table name="bl" role="standard"/>
+		<field table="bl" name="site_id" />
+		<field table="afm_metric_trend_values" name="metric_date" />
+		<field table="afm_metric_trend_values" name="bl_id" />
+		<field table="afm_metric_trend_values" name="dv_id" />
+		<field table="afm_metric_trend_values" name="dp_id" />
+		<field table="afm_metric_trend_values" name="metric_name" />
+	</dataSource>
+
+	<panel type="console" id="abSpOccupAnalTab2Console" layoutRegion="console"  dataSource="abSpOccupAnalTab2Ds" columns="3">
+		<title translatable="true">Filter</title>
+		<action id="show">
+			<title translatable="true">Show</title>
+		</action>
+		<action id="clear">
+			<title translatable="true">Clear</title>
+			<command type="clearPanel" panelId="abSpOccupAnalTab2Console"/>
+		</action>
+
+		<field table="bl" name="site_id" selectValueType="multiple"/>
+		<field table="afm_metric_trend_values" name="bl_id" selectValueType="multiple"/>
+		<field table="afm_metric_trend_values" name="dv_id" selectValueType="multiple"/>
+		<field table="afm_metric_trend_values" name="dp_id" selectValueType="multiple"/>
+		<field>
+			<title>Group By</title>
+			<html>
+				<select id="groupBy" name="groupBy" onChange="abSpOccupAnalTab2Controller.groupChange()">
+				</select>
+			</html>
+		</field>
+		<field>
+			<title>Y-axis Units</title>
+			<html>
+				<select id="dataAxis" name="dataAxis" >
+				</select>
+			</html>
+		</field>
+		<field>
+			<title>X-axis Units</title>
+			<html>
+				<select id="interval" name="interval">
+				</select>
+			</html>
+		</field>
+		<field>
+			<title translatable="true">From Year</title>
+			<html>
+				<select  name="fromYear" id="fromYear">
+				</select>
+			</html>
+		</field>
+		<field>
+			<title translatable="true">To Year</title>
+			<html>
+				<select  name="toYear" id="toYear">
+				</select>
+			</html>
+		</field>
+	</panel>
+
+	<dataSource id="chartStackedArea_GroupingAxisMonth_ds" type="grouping">
+		<table name="afm_cal_dates"/> 
+		<field name="dateValue" groupBy="true" dataType="text">
+			<title translatable="true">Date</title>
+			<sql dialect="generic">
+				 ${parameters['groupDateType']} 
+			</sql>
+		</field>
+		<parameter name="startYear" dataType="text" value="2011"/>
+		<parameter name="endYear" dataType="text" value="2011"/>
+		<parameter name="groupDateType" dataType="verbatim" value=""/>
+		<restriction type="sql" 
+			 sql="${sql.yearOf('cal_date')} &lt;= ${parameters['endYear']} and ${sql.yearOf('cal_date')}&gt;= ${parameters['startYear']}  " />
+		<sortField table="afm_cal_dates" name="dateValue"  ascending="true"/>
+	</dataSource>
+
+	<dataSource id="chartStackedArea_DataAxix_ds" type="grouping">
+		<table name="afm_metric_trend_values" role="main"/>
+		<table name="afm_metric_definitions" role="standard"/>
+		<table name="bl" role="standard"/>
+		<field name="value" dataType="number"  numericFormat="area" decimals="2">
+			<sql dialect="generic">
+				sum(afm_metric_trend_values.metric_value)  
+			</sql>
+		</field>
+		<field table="afm_metric_definitions"  name="metric_name" hidden="true"/>
+		<field table="bl"  name="site_id" hidden="true"/>
+		<field table="afm_metric_trend_values"  name="groupValue"  dataType="text" groupBy="true">
+			<sql dialect="generic">
+			 ${parameters['groupOption']} 
+			</sql>
+		</field>
+		<restriction type="sql" 
+			 sql="  ${parameters['consoleRes']}   and afm_metric_trend_values.metric_name=${parameters['metricName']} 
+						and  ${parameters['groupMetricDateType']}=${parameters['summaryValueForThisGroup']} " />
+		<parameter name="groupOption" dataType="verbatim" value="afm_metric_trend_values.dv_id"/>
+		<parameter name="metricName" dataType="text" value=""/>
+        <parameter name="summaryValueForThisGroup" dataType="text" value=""/>   
+		<parameter name="groupMetricDateType" dataType="verbatim" value=""/>
+		<parameter name="calculationType" dataType="text" value="area"/>
+		<parameter name="consoleRes" dataType="verbatim" value=" 1=1 "/>
+		<parameter name="consoleResForM" dataType="verbatim" value=" 1=1 "/>
+	</dataSource>
+
+	<dataSource id="chartStackedPct_DataAxix_ds" type="grouping">
+		<table name="afm_metric_trend_values" role="main"/>
+		<table name="afm_metric_definitions" role="standard"/>
+		<table name="bl" role="standard"/>
+		<field name="value" dataType="number" decimals="2">
+			<sql dialect="generic">
+							sum(afm_metric_trend_values.metric_value) 
+							/ 
+							( select sum(m.metric_value) from afm_metric_trend_values ${sql.as} m left outer join bl on m.bl_id=bl.bl_id where m.metric_name='em_capacity_x_bl_x_month' and  ${parameters['consoleResForM']}  and ${sql.yearMonthOf('m.metric_date')}=${parameters['summaryValueForThisGroup']} )
+			</sql>
+		</field>
+		<field table="afm_metric_definitions"  name="metric_name" hidden="true"/>
+		<field table="bl"  name="site_id" hidden="true"/>
+		<field table="afm_metric_trend_values"  name="groupValue"  dataType="text" groupBy="true">
+			<sql dialect="generic">
+					 'Occupancy Rate'
+			</sql>
+		</field>
+		<restriction type="sql" 
+			 sql="  ${parameters['consoleRes']}   and afm_metric_trend_values.metric_name=${parameters['metricName']} 
+						and  ${parameters['groupMetricDateType']}=${parameters['summaryValueForThisGroup']} " />
+		<parameter name="groupOption" dataType="verbatim" value="afm_metric_trend_values.dv_id"/>
+		<parameter name="metricName" dataType="text" value=""/>
+        <parameter name="summaryValueForThisGroup" dataType="text" value=""/>   
+		<parameter name="groupMetricDateType" dataType="verbatim" value=""/>
+		<parameter name="calculationType" dataType="text" value="area"/>
+		<parameter name="consoleRes" dataType="verbatim" value=" 1=1 "/>
+		<parameter name="consoleResForM" dataType="verbatim" value=" 1=1 "/>
+	</dataSource>
+
+	<panel 	id="customStackedAareaChart" 
+		type="chart" 
+		dataSource="chartStackedArea_DataAxix_ds"
+		showOnLoad="false" 
+		controlType="stackedAreaChart"  
+		showLegendOnLoad="false" 
+		showLegendAsPopUp="false" 
+		legendLocation="right" 
+		showDataTips="true" 
+		fillType="solid"
+		percentGradientChange="0.5"
+       percentTransparency = "1.0">
+		<title>Results</title>
+		<action id="exportDOCX">
+			<title translatable="true">DOC</title>
+			<command type="exportPanel" outputType="docx" panelId="customStackedAareaChart"/>
+		</action>
+		<groupingAxis dataSource="chartStackedArea_GroupingAxisMonth_ds" table="afm_cal_dates" field="dateValue">
+			<title translatable="true">Date</title>
+		</groupingAxis>
+
+		<secondaryGroupingAxis dataSource="chartStackedArea_DataAxix_ds" table="afm_metric_trend_values"  field="groupValue">
+		</secondaryGroupingAxis>
+		<dataAxis dataSource="chartStackedArea_DataAxix_ds"  table="afm_metric_trend_values" field="value">
+		</dataAxis>
+	</panel>
+
+	<panel 	id="customLineChart" 
+		dataSource="chartStackedPct_DataAxix_ds"
+		type="chart" 
+		showOnLoad="false" 
+		controlType="lineChart"  
+		showLegendOnLoad="false" 
+		showLegendAsPopUp="false" 
+		legendLocation="right" 
+		showDataTips="true" 
+		fillType="solid"
+		percentGradientChange="0.5"
+	    percentTransparency = "1.0">
+		<title>Results</title>
+		<action id="exportDOCX">
+			<title translatable="true">DOC</title>
+			<command type="exportPanel" outputType="docx" panelId="customLineChart"/>
+		</action>
+		<groupingAxis dataSource="chartStackedArea_GroupingAxisMonth_ds" table="afm_cal_dates" field="dateValue">
+			<title translatable="true">Date</title>
+		</groupingAxis>
+		<dataAxis table="afm_metric_trend_values" field="value">
+		</dataAxis>
+	</panel>
+
+	<js file="ab-sp-sp-occup-anal-common.js"/>
+	<js file="ab-sp-sp-occup-anal-tab2.js"/>
+	<js file="ab-sp-common.js"/>
+
+</view>

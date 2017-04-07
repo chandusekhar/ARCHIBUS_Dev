@@ -1,0 +1,221 @@
+<view version="2.0">
+    <js file="ab-proj-report-vendors-performance.js"/>
+    <layout type="borderLayout" id="mainLayout">
+        <north initialSize="100" split="true"/>
+        <center autoScroll="true"/>
+    </layout>
+    <title>Report Vendors Performance</title>
+
+    <dataSource id="projReportVendorsPerformanceDs0">
+        <table name="vn" role="main"/>
+        <field name="state" table="vn"/>
+        <field name="city" table="vn"/>
+        <field name="vn_id" table="vn"/>
+    </dataSource>
+    
+    <panel type="console" id="projReportVendorsPerformanceConsole" dataSource="projReportVendorsPerformanceDs0" region="north">
+        <title>Filter</title>
+        <action id="show">
+            <title>Show</title>
+        </action>
+        <action id="clear">
+            <title>Clear</title>
+            <command type="clearPanel" panelId="projReportVendorsPerformanceConsole"/>
+            <command type="showPanel" panelId="projReportVendorsPerformanceGrid" applyParentRestriction="false" clearRestriction="true"/>
+        </action>
+        <field name="state" table="vn">
+            <title>Vendor State</title>
+            <action>
+                <title>...</title>
+                <command type="selectValue"
+                    fieldNames="vn.state"
+                    selectFieldNames="state.state_id"
+                    visibleFieldNames="state.state_id, state.name"
+                    restriction="EXISTS (SELECT 1 FROM 
+                                    (SELECT vn.state
+                                    FROM vn, work_pkg_bids, work_pkgs
+                                    WHERE work_pkg_bids.work_pkg_id = work_pkgs.work_pkg_id
+                                    AND vn.vn_id = work_pkg_bids.vn_id
+                                    AND work_pkgs.status LIKE 'Completed%' OR work_pkgs.status = 'Closed') 
+                                    work_pkg
+                                    WHERE work_pkg.state = state.state_id)"/>
+            </action>
+        </field>
+        <field name="city" table="vn">
+            <title>Vendor City</title>
+            <action>
+                <title>...</title>
+                <command type="selectValue"
+                    fieldNames="vn.state, vn.city"
+                    selectFieldNames="city.state_id, city.city_id"
+                    visibleFieldNames="city.state_id, city.city_id, city.name"
+                    restriction="EXISTS (SELECT 1 FROM 
+                                    (SELECT vn.city
+                                    FROM vn, work_pkg_bids, work_pkgs
+                                    WHERE work_pkg_bids.work_pkg_id = work_pkgs.work_pkg_id
+                                    AND vn.vn_id = work_pkg_bids.vn_id
+                                    AND work_pkgs.status LIKE 'Completed%' OR work_pkgs.status = 'Closed') 
+                                    work_pkg
+                                    WHERE work_pkg.city = city.city_id)"/>
+            </action>
+        </field>
+    </panel>
+    
+    <dataSource id="projReportVendorsPerformanceDs1" applyVpaRestrictions="false">
+        <sql dialect="generic">
+           SELECT  work_pkg_bids.project_id,
+                    project.project_name,
+                    work_pkg_bids.vn_id,
+                    work_pkg_bids.doc_contract,
+                    work_pkg_bids.work_pkg_id,
+                    work_pkg_bids.cost_contract,
+                    activity_log.actual_cost,
+                    activity_log.completed_actions,
+                    activity_log.actions_over_schedule,
+                    vn.city, vn.state
+            FROM (
+              SELECT  activity_log.project_id,
+                      activity_log.work_pkg_id,
+                      activity_log.actual_cost,
+                      activity_log2.completed_actions AS completed_actions,
+                      activity_log3.actions_over_schedule AS actions_over_schedule
+              FROM (
+                SELECT  activity_log.project_id, activity_log.work_pkg_id,
+                        sum(activity_log.cost_act_cap + activity_log.cost_actual) as actual_cost
+                FROM  activity_log
+                WHERE activity_log.work_pkg_id IS NOT NULL
+                GROUP BY activity_log.project_id, activity_log.work_pkg_id) activity_log
+              LEFT OUTER JOIN (
+                SELECT  activity_log.project_id, activity_log.work_pkg_id,
+                        CASE WHEN count(*) &gt; 0 THEN count(*) ELSE 0 END AS completed_actions
+                FROM activity_log
+                WHERE activity_log.work_pkg_id IS NOT NULL
+                AND activity_log.status IN ('COMPLETED', 'COMPLETED-V', 'CLOSED' )
+                AND activity_log.duration_act &lt;= activity_log.duration
+                GROUP BY activity_log.project_id, activity_log.work_pkg_id) activity_log2
+              ON activity_log.project_id = activity_log2.project_id and activity_log.work_pkg_id = activity_log2.work_pkg_id
+              LEFT OUTER JOIN (
+                SELECT  activity_log.project_id,
+                        activity_log.work_pkg_id,
+                        CASE WHEN count(*) &gt; 0 THEN count(*) ELSE 0 END AS actions_over_schedule
+                FROM activity_log
+                WHERE activity_log.work_pkg_id IS NOT NULL
+                AND activity_log.status IN ('COMPLETED', 'COMPLETED-V', 'CLOSED' )
+                AND activity_log.duration_act &gt; activity_log.duration
+                GROUP BY activity_log.project_id, activity_log.work_pkg_id) activity_log3
+              ON activity_log.project_id = activity_log3.project_id and activity_log.work_pkg_id = activity_log3.work_pkg_id
+              ) activity_log
+            JOIN work_pkgs ON activity_log.work_pkg_id = work_pkgs.work_pkg_id AND activity_log.project_id = work_pkgs.project_id
+            JOIN work_pkg_bids ON activity_log.work_pkg_id = work_pkg_bids.work_pkg_id AND activity_log.project_id = work_pkg_bids.project_id
+            JOIN project ON activity_log.project_id = project.project_id
+            JOIN vn ON vn.vn_id = work_pkg_bids.vn_id
+            WHERE work_pkg_bids.status NOT LIKE 'Rejected%' AND work_pkg_bids.status NOT LIKE 'Submitted%'
+            AND (work_pkgs.status LIKE 'Completed%' OR work_pkgs.status = 'Closed')
+        </sql>
+        <sql dialect="oracle">
+            SELECT  work_pkgs.project_id,
+                    project.project_name,
+                    work_pkg_bids.vn_id,
+                    work_pkg_bids.doc_contract,
+                    work_pkgs.work_pkg_id,
+                    work_pkg_bids.cost_contract,
+                    activity_log.actual_cost,
+                    activity_log.completed_actions,
+                    activity_log.actions_over_schedule,
+                    vn.city, vn.state
+            FROM (
+              SELECT  activity_log.project_id,
+                      activity_log.work_pkg_id,
+                      activity_log.actual_cost,
+                      activity_log2.completed_actions AS completed_actions,
+                      activity_log3.actions_over_schedule AS actions_over_schedule
+              FROM (SELECT  activity_log.project_id, activity_log.work_pkg_id,
+                            sum(activity_log.cost_act_cap + activity_log.cost_actual) as actual_cost
+                     FROM   activity_log
+                     WHERE activity_log.work_pkg_id IS NOT NULL
+                     GROUP BY activity_log.project_id, activity_log.work_pkg_id) activity_log,
+                  (SELECT activity_log.project_id, activity_log.work_pkg_id,
+                            CASE WHEN count(*) &gt; 0 THEN count(*) ELSE 0 END AS completed_actions
+                    FROM activity_log
+                    WHERE activity_log.work_pkg_id IS NOT NULL
+                    AND activity_log.status IN ('COMPLETED', 'COMPLETED-V', 'CLOSED' )
+                    AND activity_log.duration_act &lt;= activity_log.duration
+                    GROUP BY activity_log.project_id, activity_log.work_pkg_id) activity_log2,
+                    (SELECT   activity_log.project_id,
+                            activity_log.work_pkg_id,
+                            CASE WHEN count(*) &gt; 0 THEN count(*) ELSE 0 END AS actions_over_schedule
+                    FROM activity_log
+                    WHERE activity_log.work_pkg_id IS NOT NULL
+                    AND activity_log.status IN ('COMPLETED', 'COMPLETED-V', 'CLOSED' )
+                    AND activity_log.duration_act &gt; activity_log.duration
+                    GROUP BY activity_log.project_id, activity_log.work_pkg_id) activity_log3
+                    WHERE  activity_log.project_id = activity_log2.project_id (+) AND activity_log.work_pkg_id = activity_log2.work_pkg_id (+)
+                     AND   activity_log.project_id = activity_log3.project_id (+) AND activity_log.work_pkg_id = activity_log3.work_pkg_id (+)
+              ) activity_log,work_pkgs,work_pkg_bids,project,vn
+        WHERE   activity_log.work_pkg_id = work_pkgs.work_pkg_id AND activity_log.project_id = work_pkgs.project_id AND
+          activity_log.work_pkg_id = work_pkg_bids.work_pkg_id AND activity_log.project_id = work_pkg_bids.project_id AND
+          activity_log.project_id = project.project_id AND
+          vn.vn_id = work_pkg_bids.vn_id AND
+          work_pkg_bids.status NOT LIKE 'Rejected%' AND work_pkg_bids.status NOT LIKE 'Submitted%'
+          AND (work_pkgs.status LIKE 'Completed%' OR work_pkgs.status = 'Closed')
+        </sql>
+        <table name="work_pkg_bids" role="main"/>
+        <table name="work_pkgs" role="standard"/>
+        <table name="activity_log" role="standard"/>
+        <table name="project" role="standard"/>
+        <table name="vn" role="standard"/>
+        <field table="work_pkg_bids" name="project_id"/>
+        <field table="project" name="project_name"/>
+        <field table="work_pkg_bids" name="work_pkg_id"/>
+        <field table="work_pkg_bids" name="vn_id"/>
+        <field table="work_pkg_bids" name="doc_contract"/>
+        <field table="work_pkg_bids" name="cost_contract"/>
+        <field table="vn" name="city"/>
+        <field table="vn" name="state"/>
+    </dataSource>
+    
+    <panel type="grid" id="projReportVendorsPerformanceGrid" dataSource="projReportVendorsPerformanceDs1" region="center">
+        <title>Vendor Performance on Completed Work Packages</title>
+        <action id="exportDOCX">
+            <title>DOC</title>
+            <command type="exportPanel" outputType="docx" panelId="projReportVendorsPerformanceGrid"/>
+        </action>
+        <action id="exportXLS">
+            <title>XLS</title>
+            <command type="exportPanel" outputType="xls" panelId="projReportVendorsPerformanceGrid"/>
+        </action>  
+        <field controlType="button">
+            <title>Details</title>
+            <command type="openDialog" viewName="ab-proj-report-vendors-performance-drill-down.axvw"/>
+        </field>
+        <field table="work_pkg_bids" name="vn_id" />
+        <field table="work_pkg_bids" name="project_id" />
+        <field table="project" name="project_name"/>
+        <field table="work_pkg_bids" name="work_pkg_id" />
+        <field table="work_pkg_bids" name="cost_contract" />
+        <field table="activity_log" name="actual_cost" dataType="number" size="6" decimals="2" >
+            <title>Actual Cost</title>
+        </field>
+        <field table="activity_log" name="completed_actions" dataType="number" size="6" decimals="0" >
+            <title>Completed Actions Under Schedule</title>
+        </field>
+        <field table="activity_log" name="actions_over_schedule" dataType="number" size="6" decimals="0" >
+            <title>Completed Actions Over Schedule</title>
+        </field>
+        <field table="work_pkg_bids" name="doc_contract" controlType="link">
+            <command type="openDialog" panelId="projReportVendorsPerformanceContractColumnReport" width="600" height="400"/>
+        </field>
+    </panel>
+    
+    <panel type="form" id="projReportVendorsPerformanceContractColumnReport" columns="1" dataSource="projReportVendorsPerformanceDs1" showOnLoad="false">
+        <title>View Contract Details</title>
+        <action>
+            <title>Cancel</title>
+            <command type="closeDialog"/>
+        </action>
+        <field table="work_pkg_bids" name="project_id" readOnly="true"/>
+        <field table="work_pkg_bids" name="work_pkg_id" readOnly="true"/>
+        <field table="work_pkg_bids" name="vn_id" readOnly="true"/>
+        <field table="work_pkg_bids" name="doc_contract" readOnly="true"/>
+    </panel>
+</view>

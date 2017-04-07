@@ -1,0 +1,186 @@
+<view version="2.0">
+    <css file="ab-rplm-pfadmin-dashboard.css"/>
+
+    <js file="ab-rplm-pfadmin-gpd-summary.js"/>
+    
+    <message name="msgMore" translatable="true">more</message>
+    
+    <dataSource id="abRplmGpdSummary_ds" applyVpaRestrictions="false">
+        <sql dialect="generic">
+            SELECT  
+                COUNT(bl_id) ${sql.as} count_bl,
+                SUM(a.area_gross_int) ${sql.as} area_gross_int_sum,
+                AVG(a.leased_percent) ${sql.as} leased_percent_avg,
+                AVG(a.fci) ${sql.as} fci_sum,
+                SUM(a.commitment_cost) ${sql.as} commitment_cost_sum,
+                SUM(a.operating_costs) ${sql.as} operating_costs_sum,
+                SUM(a.active_capital_cost) ${sql.as} active_capital_cost_sum,
+                SUM(a.count_max_occup) ${sql.as} count_max_occup_sum,
+                SUM(a.count_occup) ${sql.as} count_occup_sum,
+                ((1 - SUM(a.count_occup)/ (CASE SUM(a.count_max_occup) WHEN 0 THEN 9999999999 ELSE SUM(a.count_max_occup) END))*100) ${sql.as} vacancy_percent_sum,
+                AVG(a.area_avg_em) ${sql.as} area_avg_em_sum,
+                AVG(a.cost_sqft) ${sql.as} cost_sqft_avg
+            FROM (
+                    SELECT 
+                        bl.bl_id ${sql.as} bl_id,
+                        bl.area_usable ${sql.as} area_usable,  
+                        ( SELECT ( CASE COUNT(*) WHEN 0 THEN bl.area_avg_em ELSE ( bl.area_usable / COUNT(*) ) END ) FROM em WHERE em.bl_id = bl.bl_id ) ${sql.as} area_avg_em,
+                        bl.cost_sqft ${sql.as} cost_sqft,
+                        bl.area_gross_int ${sql.as} area_gross_int,
+                        (SELECT COUNT(*) FROM em WHERE em.bl_id = bl.bl_id) ${sql.as} count_em,
+                        bl.count_max_occup ${sql.as} count_max_occup,
+                        bl.count_occup ${sql.as} count_occup,
+                        (SELECT 
+                            AVG(${sql.getFormula('AbCapitalPlanningCA-FacilityConditionIndex')}) 
+                        FROM activity_log WHERE  activity_log.cost_to_replace > 0 AND activity_log.activity_type = 'ASSESSMENT' 
+                            AND activity_log.bl_id = bl.bl_id) ${sql.as} fci,
+                        (SELECT 
+                            SUM(cost_tran.amount_expense) 
+                        FROM cost_tran, cost_cat WHERE cost_tran.cost_cat_id = cost_cat.cost_cat_id AND cost_tran.bl_id = bl.bl_id ) ${sql.as} operating_costs,
+                        (SELECT 
+                            (CASE 
+                                    WHEN (SUM(activity_log.cost_est_cap) + SUM(activity_log.cost_estimated)) IS NULL THEN 0 
+                                ELSE (SUM(activity_log.cost_est_cap) + SUM(activity_log.cost_estimated)) 
+                             END) 
+                        FROM activity_log, project 
+                        WHERE project.bl_id = bl.bl_id AND activity_log.project_id = project.project_id
+                        	AND ( project.status LIKE 'Approved%' OR project.status LIKE 'Issued%' )) ${sql.as} active_capital_cost,
+                        (CASE WHEN EXISTS(SELECT * FROM ot WHERE ot.status &lt;&gt; 'disposed' AND ot.bl_id = bl.bl_id) THEN  0.0 ELSE 100.0 END) ${sql.as} leased_percent,
+                        (SELECT 
+                             SUM(cost_tran_recur.amount_expense * DATEDIFF(MM,  GETDATE(), cost_tran_recur.date_end )) 
+                         FROM cost_tran_recur 
+                         WHERE cost_tran_recur.ls_id IS NOT NULL AND DATEDIFF(MM,  GETDATE(), cost_tran_recur.date_end ) &gt;= 0 AND EXISTS(SELECT * FROM ls WHERE ls.ls_id = cost_tran_recur.ls_id AND ls.bl_id = bl.bl_id)) ${sql.as} commitment_cost	
+                    FROM bl  
+                    WHERE ${sql.vpaRestriction} AND ${(parameters['filterRestriction'])}
+            ) ${sql.as} a            
+        </sql>
+        <sql dialect="oracle">
+            SELECT  
+			    COUNT(bl_id) ${sql.as} count_bl,
+				SUM(a.area_gross_int) ${sql.as} area_gross_int_sum,
+				AVG(a.leased_percent) ${sql.as} leased_percent_avg,
+				AVG(a.fci) ${sql.as} fci_sum,
+				SUM(a.commitment_cost) ${sql.as} commitment_cost_sum,
+				SUM(a.operating_costs) ${sql.as} operating_costs_sum,
+				SUM(a.active_capital_cost) ${sql.as} active_capital_cost_sum,
+                SUM(a.count_max_occup) ${sql.as} count_max_occup_sum,
+				SUM(a.count_occup) ${sql.as} count_occup_sum,
+                ((1 - SUM(a.count_occup)/ (CASE SUM(a.count_max_occup) WHEN 0 THEN 9999999999 ELSE SUM(a.count_max_occup) END))*100) ${sql.as} vacancy_percent_sum,
+                AVG(a.area_avg_em) ${sql.as} area_avg_em_sum,
+				AVG(a.cost_sqft) ${sql.as} cost_sqft_avg
+           FROM (
+                    SELECT 
+                        bl.bl_id ${sql.as} bl_id,
+                        ( SELECT ( CASE COUNT(*) WHEN 0 THEN bl.area_avg_em ELSE ( bl.area_usable / COUNT(*) ) END ) FROM em WHERE em.bl_id = bl.bl_id ) ${sql.as} area_avg_em,
+                        bl.cost_sqft ${sql.as} cost_sqft,
+                        bl.area_gross_int ${sql.as} area_gross_int,
+                        (SELECT COUNT(*) FROM em WHERE em.bl_id = bl.bl_id) ${sql.as} count_em,
+                        bl.count_max_occup ${sql.as} count_max_occup,
+                        bl.count_occup ${sql.as} count_occup,
+                        (SELECT 
+                            AVG(${sql.getFormula('AbCapitalPlanningCA-FacilityConditionIndex')}) 
+                        FROM activity_log WHERE  activity_log.cost_to_replace > 0 AND activity_log.activity_type = 'ASSESSMENT' 
+                            AND activity_log.bl_id = bl.bl_id) ${sql.as} fci,
+                        (SELECT 
+                            SUM(cost_tran.amount_expense) 
+                        FROM cost_tran, cost_cat WHERE cost_tran.cost_cat_id = cost_cat.cost_cat_id AND cost_tran.bl_id = bl.bl_id ) ${sql.as} operating_costs,
+                        (SELECT 
+                            (CASE 
+                                    WHEN (SUM(activity_log.cost_est_cap) + SUM(activity_log.cost_estimated)) IS NULL THEN 0 
+                                ELSE (SUM(activity_log.cost_est_cap) + SUM(activity_log.cost_estimated)) 
+                             END) 
+                        FROM activity_log, project 
+                        WHERE project.bl_id = bl.bl_id AND activity_log.project_id = project.project_id
+                            AND ( project.status LIKE 'Approved%' OR project.status LIKE 'Issued%' )) ${sql.as} active_capital_cost,
+                        (CASE WHEN EXISTS(SELECT * FROM ot WHERE ot.status &lt;&gt; 'disposed' AND ot.bl_id = bl.bl_id) THEN  0.0 ELSE 100.0 END) ${sql.as} leased_percent,
+                        (SELECT 
+                             SUM(cost_tran_recur.amount_expense * MONTHS_BETWEEN(cost_tran_recur.date_end, SYSDATE)) 
+                         FROM cost_tran_recur 
+                         WHERE cost_tran_recur.ls_id IS NOT NULL AND MONTHS_BETWEEN(cost_tran_recur.date_end, SYSDATE) &gt;= 0  AND EXISTS(SELECT * FROM ls WHERE ls.ls_id = cost_tran_recur.ls_id AND ls.bl_id = bl.bl_id)) ${sql.as} commitment_cost   
+                    FROM bl  
+                    WHERE ${sql.vpaRestriction} AND ${(parameters['filterRestriction'])}
+                    ) ${sql.as} a 
+        </sql>
+        <table name="bl"/>
+		<field name="count_bl" dataType="number" size="16" decimals="0"/>
+    	<field name="area_gross_int_sum" dataType="number" size="16" decimals="0" numericFormat="area"/>
+        <field name="leased_percent_avg" dataType="number" size="16" decimals="1"/>
+        <field name="fci_sum" dataType="number" size="16" decimals="0" />
+        <field name="commitment_cost_sum" dataType="number" size="16" decimals="0" currency="${project.budgetCurrency.code}"/>
+        <field name="operating_costs_sum" dataType="number" size="16" decimals="0" currency="${project.budgetCurrency.code}"/>
+        <field name="active_capital_cost_sum" dataType="number" size="16" decimals="0" currency="${project.budgetCurrency.code}"/>
+        <field name="count_max_occup_sum" dataType="number" size="16" decimals="0" />
+        <field name="count_occup_sum" dataType="number" size="16" decimals="0" />
+        <field name="vacancy_percent_sum" dataType="number" size="16" decimals="0" />
+        <field name="area_avg_em_sum" dataType="number" size="16" decimals="0"  numericFormat="area"/>
+        <field name="cost_sqft_avg" dataType="number" size="16" decimals="2" currency="${project.budgetCurrency.code}"  numericFormat="area"/>
+        <parameter name="filterRestriction" dataType="verbatim" value="1 = 1"/>
+    </dataSource>
+    
+    <panel type="html" id="htmlLogo" layoutRegion="m_c_east">
+        <title>KPI: Real Property</title>
+        <html>
+            <table align="center" valign="top" width="90%" >
+                <tr align="center">
+                    <td>
+                        <!--span align="center" id="Logo"/-->
+                    </td>
+                </tr>
+            </table>
+        </html>
+    </panel>
+    
+    <panel type="columnReport" id="abRplmGpdSummary" dataSource="abRplmGpdSummary_ds" columns="1" showOnLoad="false" layoutRegion="m_w_north">
+        <field name="count_bl">
+            <title translatable="true">Buildings</title>
+        </field>    
+        <field name="area_gross_int_sum">
+            <title translatable="true">Gross Area</title>
+        </field>
+        <field name="leased_percent_avg">
+            <title translatable="true">% Leased</title>
+        </field>
+        <!--field name="fci_sum">
+            <title translatable="true">Facilities Condition Index</title>
+        </field-->            
+        <field name="commitment_cost_sum">
+            <title translatable="true">Total Lease Commitment</title>
+        </field>
+        <field name="operating_costs_sum">
+            <title translatable="true">Total Operating Costs</title>
+        </field>
+        <!--field name="active_capital_cost_sum">
+            <title translatable="true">Total Capital Costs</title>
+        </field-->
+        <field name="count_max_occup_sum">
+            <title translatable="true">Building Maximum Headcount</title>
+        </field> 
+        <field name="count_occup_sum">
+            <title translatable="true">Building Occupancy</title>
+        </field>        
+        <field name="vacancy_percent_sum">
+            <title translatable="true">Vacancy Percent (Seats)</title>
+        </field>        
+        <field name="area_avg_em_sum">
+            <title translatable="true">Avg. Area per Emp.</title>
+        </field>        
+        <field name="cost_sqft_avg">
+            <title translatable="true">Cost per Area</title>
+        </field>
+    </panel>
+    
+    <!-- panel type="html" id="htmlMore" layoutRegion="m_w_north">    
+        <html>
+            <table align="center" valign="top" width="100%">
+                <tr>
+                    <td align="center" class="mainBar">
+                        <A align="center" href="#" onClick="abRplmGpdSummaryCtrl.showDetails();">
+                            <span align="center" id="more" class="mainBar"/>
+                        </A>
+                    </td>
+                </tr>
+            </table> 
+        </html>
+    </panel-->
+    
+</view>

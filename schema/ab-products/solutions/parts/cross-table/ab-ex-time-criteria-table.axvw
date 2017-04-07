@@ -1,0 +1,53 @@
+
+<!-- Cross-table example: 
+     - groups leases by lease start month.
+     - calculates total area per lease start month. -->
+
+<view version="2.0">    
+    <title>Cross-table with Values Grouped by Time Criteria</title>
+
+    <dataSource id="crossTableTimeCriteria_ds" type="grouping">  
+        <table name="ls" role="main"/>
+        
+        <!-- Custom SQL joins afm_cal_dates with ls to ensure that we have records for all months
+             in the data range, even for months in which there are no leases. -->
+        <sql dialect="generic">
+            SELECT afm_cal_dates.cal_date ${sql.as} date_start, ls.date_end, ls.ls_id, ls.area_negotiated, ls.area_usable
+            FROM afm_cal_dates LEFT OUTER JOIN ls ON ls.date_start = afm_cal_dates.cal_date
+        </sql>
+        
+        <!-- Grouping calculated field - groups leases by month. -->
+        <field name="lease_start" groupBy="true" formula="month" dataType="text" baseField="ls.date_start">
+            <title>Lease Start</title>
+        </field>
+        
+        <!-- Calculated fields. -->
+        <field name="total_area_negotiated" formula="sum" baseField="ls.area_negotiated" dataType="number"> 
+            <title>Total Negotiated Area</title>
+        </field>  
+        <field name="total_area_usable"  formula="sum"  baseField="ls.area_usable" dataType="number" showTotals="true"> 
+            <title>Total Usable Area</title>
+        </field>
+        
+        <!-- Parameters specify the range of years to get displayed.
+             The client can override parameter values using addParameter() function. -->
+        <parameter name="yearStart" dataType="number" value="2005"/>
+        <parameter name="yearEnd" dataType="number" value="2008"/>
+        
+        <!-- Restrict the grouping field values by the year range. -->
+        <restriction type="sql" 
+             sql="${sql.yearOf('date_start')} &gt;= ${parameters['yearStart']} AND ${sql.yearOf('date_start')} &lt;= ${parameters['yearEnd']}" />      
+
+        <!-- Define sort on the base field of the calculated grouping field. -->
+        <sortField table="ls" name="lease_start" ascending="true"/>       
+    </dataSource>   
+    
+    <panel id="timeCriteria_crossTable" type="crossTable" dataSource="crossTableTimeCriteria_ds">
+        <title>Total Negotiated Area And Total Usable Area by Month</title>
+        
+        <action id="exportXLS">
+            <title>Print</title>
+            <command type="exportPanel" outputType="xls" panelId="timeCriteria_crossTable"/>
+        </action>
+    </panel>
+</view>

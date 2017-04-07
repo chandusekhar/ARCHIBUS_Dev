@@ -1,0 +1,329 @@
+<view version="2.0">
+	<title>Recurring Demand Reporting</title>
+   <js file="uc_ca_recurring_demand.js" />
+   
+   <!-- ${parameters['row1zeroCond_param']} -->
+    
+ 	<dataSource id="wpPanel_ds11">
+	<!--
+		<sql dialect="generic">
+			SELECT
+				e.eq_id s1,
+				1 s2,
+				'[View]' eq_view,
+				CASE WHEN rtrim(isnull((select count(*) from wrhwr where wrhwr.eq_id=e.eq_id),0)) &gt; 0 then '+' else 'hide' end state,
+				'Eq. Barcode: ' + e.eq_id eq_id,
+				e.eq_std status,
+				NULL date_assigned,
+				NULL discipline,
+				NULL type,
+				NULL location,
+				CASE WHEN rtrim(isnull((select count(*) from wrhwr where wrhwr.eq_id=e.eq_id),0)) &gt; 0 then 'Total Count: ' + str(rtrim(isnull((select count(*) from wrhwr where wrhwr.eq_id=e.eq_id ${parameters['wrCount_param']}),0))) end date_fwc,
+				NULL date_req,
+				CASE WHEN (SELECT SUM(cost_total) from wrhwr where wrhwr.eq_id=e.eq_id) &gt; 0 then 'Total Cost: $' + convert(varchar, cast(str(rtrim(isnull((select SUM(cost_total) from wrhwr where wrhwr.eq_id=e.eq_id ${parameters['wrCost_param']}),0))) as money), 1) else '' end cost
+				FROM eq e INNER JOIN wrhwr on e.eq_id = wrhwr.eq_id
+				${parameters['row1_param']}  
+				group by e.eq_id, e.eq_std, wrhwr.eq_id, wrhwr.cost_total, e.status
+				${parameters['row1Cost_param']}
+			UNION
+-->
+		<sql dialect="generic">
+			SELECT
+				e.eq_id s1,
+				1 s2,
+				'[View]' eq_view,
+				CASE WHEN count(*) &gt; 0 then '+' else 'hide' end state,
+				'Eq. Barcode: ' + e.eq_id eq_id,
+				e.eq_std status,
+				NULL date_assigned,
+				NULL discipline,
+				NULL type,
+				NULL location,
+				CASE WHEN count(*) &gt; 0 then 'Total Count: ' + str(rtrim(count(*))) end date_fwc,
+				NULL date_req,
+				CASE WHEN SUM(cost_total) &gt; 0 then 'Total Cost: $' + convert(varchar, cast(str(rtrim(SUM(cost_total))) as money), 1) else '' end cost
+				FROM eq e INNER JOIN wrhwr on e.eq_id = wrhwr.eq_id
+				${parameters['row1_param']}  
+				group by e.eq_id, e.eq_std, e.eq_id, e.status
+				
+			UNION
+			SELECT 
+				eq.eq_id s1,
+				2 s2,
+				NULL eq_view,
+				'View' state,
+				CAST(wrhwr.wr_id as char(50)) eq_id,
+				CASE 
+					WHEN wrhwr.status = 'R' then 'Requested' 
+					WHEN wrhwr.status = 'Rev' then 'Reviewed but On Hold' 
+					WHEN wrhwr.status = 'Rej' then 'Rejected' 
+					WHEN wrhwr.status = 'A' then 'Approved' 
+					WHEN wrhwr.status = 'AA' then 'Requested'
+					WHEN wrhwr.status = 'Prj' then 'Project'
+					WHEN wrhwr.status = 'I' then 'Issued and In Process'
+					WHEN wrhwr.status = 'HP' then 'On Hold for Parts'
+					WHEN wrhwr.status = 'HA' then 'On Hold for Access'
+					WHEN wrhwr.status = 'HL' then 'On Hold for Labor'
+					WHEN wrhwr.status = 'HD' then 'On Hold for Date'
+					WHEN wrhwr.status = 'PC' then 'Parts Completed'
+					WHEN wrhwr.status = 'CPA' then 'Campus Planning Approval'
+					WHEN wrhwr.status = 'S' then 'Stopped'
+					WHEN wrhwr.status = 'Can' then 'Rejected'
+					WHEN wrhwr.status = 'FWC' then 'Field Work Completed'
+					WHEN wrhwr.status = 'IN' then 'Completed-Info Needed'
+					WHEN wrhwr.status = 'IR' then 'Complete-Info Returned'
+					WHEN wrhwr.status = 'POL' then 'FMIT Polyline'
+					WHEN wrhwr.status = 'Com' then 'Completed'
+					WHEN wrhwr.status = 'Clo' then 'Closed'
+					end status,
+				CONVERT(varchar(12), wrhwr.date_assigned, 100) date_assigned,
+				wrhwr.tr_id discipline,
+				wrhwr.prob_type type,
+				CASE WHEN 
+					wrhwr.bl_id+wrhwr.fl_id+wrhwr.rm_id &lt;&gt; '' then rtrim(wrhwr.bl_id)+' | '+rtrim(wrhwr.fl_id)+' | '+rtrim(wrhwr.rm_id) else '' end location,
+				LEFT(CONVERT(VARCHAR(12), wrhwr.date_completed, 100), 11) date_fwc,
+				LEFT(CONVERT(VARCHAR(12), wrhwr.date_requested, 100), 11) date_req,
+				CASE WHEN wrhwr.cost_total &gt; 0 then '$' + convert(varchar, cast(str(wrhwr.cost_total) as money), 1) else '' end cost
+				FROM wrhwr INNER JOIN eq ON wrhwr.eq_id=eq.eq_id 
+				${parameters['row2_param']}  
+				group by wrhwr.cost_total, wrhwr.date_requested, wrhwr.date_completed, wrhwr.bl_id, wrhwr.fl_id, wrhwr.rm_id, wrhwr.prob_type, wrhwr.tr_id, wrhwr.wr_id, wrhwr.status, wrhwr.eq_id, eq.eq_id, wrhwr.date_assigned
+				
+		</sql>
+		<parameter name="row1_param" dataType="verbatim" value="" />
+		<parameter name="row2_param" dataType="verbatim" value="" />
+		<!--parameter name="row1Cost_param" dataType="verbatim" value="" /-->
+		<!--parameter name="row2Cost_param" dataType="verbatim" value="" /-->
+		<!--parameter name="wrCount_param" dataType="verbatim" value="" /-->
+		<!--parameter name="wrCost_param" dataType="verbatim" value="" /-->
+		
+		<table name="eq" role="main"/>
+		<field name="eq_view" dataType="text"/>
+		<field name="state" dataType="text"/>
+		<field name="eq_id" dataType="text"/>
+		<field name="date_assigned" dataType="text"/>
+		<field name="discipline" dataType="text"/>
+		<field name="type" dataType="text"/>
+		<field name="location" dataType="text"/>
+		<field name="date_fwc" dataType="text"/>
+		<field name="date_req" dataType="text"/>
+		<field name="cost" dataType="text"/>
+		
+		<field name="s1" dataType="text"/>
+		<field name="s2" dataType="text"/>
+	</dataSource>
+
+	<dataSource id="wpConsole_ds">
+		<table name="wrhwr" role="main"/>
+		<table name="eq" role="standard"/>
+		
+		<field name="wr_id" table="wrhwr"/>
+		<field name="bl_id" table="wrhwr" />
+		<field name="fl_id" table="wrhwr" />
+		<field name="rm_id" table="wrhwr" />
+		<field name="status" table="wrhwr" />
+		<field name="tr_id" table="wrhwr" />
+		<field name="cost_total" table="wrhwr" />
+		<field name="date_requested" table="wrhwr"/>
+		
+		<field name="eq_id" table="eq" />
+		<field name="eq_std" table="eq" />
+		<field name="status" table="eq" />
+		<field name="prob_type" table="wrhwr" />
+	</dataSource>
+	
+	<panel id="wpConsole" type="console" columns="4"  dataSource="wpConsole_ds" labelsPosition="top">
+		<title>Filter</title>
+		<action id="search">
+			<title>Show</title>
+		</action>
+		<action id="clearSearch">
+		  <title>Clear Restrictions</title>
+		  <command type="clearPanel" panelId="wpConsole"/>
+		</action>
+		
+		<field name="wr_id" table="wrhwr">
+			<title>WR Code</title>
+			<action>
+				<title translatable="false">...</title>
+					<command type="selectValue"
+						fieldNames="wrhwr.wr_id"
+						selectFieldNames="wrhwr.wr_id"
+						visibleFieldNames="wrhwr.wr_id"
+						restriction="wrhwr.wr_id is not null"
+					/>
+			</action>
+		</field>
+		<field name="prob_type" table="wrhwr">
+			<title>Problem Type</title>
+		</field>
+		<field name="bl_id" table="wrhwr">
+		</field>
+		<field name="eq_id" table="eq">
+			<title>Equipment</title>
+			<action>
+				<title translatable="false">...</title>
+					<command type="selectValue"
+						fieldNames="eq.eq_id, eq.eq_std"
+						selectFieldNames="eq.eq_id, eq.eq_std"
+						visibleFieldNames="eq.eq_id, eq.eq_std"
+					/>
+			</action>
+		</field>
+		
+		<field name="tr_id" table="wrhwr">
+			<title>Discipline</title>
+		</field>
+		<field name="status" table="wrhwr">
+			<title>WR Status</title>
+		</field>
+		<field name="fl_id" table="wrhwr">
+			<action>
+				<title translatable="false">...</title>
+					<command type="selectValue"
+						fieldNames="wrhwr.bl_id, wrhwr.fl_id"
+						selectFieldNames="fl.bl_id, fl.fl_id"
+						visibleFieldNames="fl.fl_id, fl.bl_id"
+					/>
+			</action>
+		</field>
+		<field name="eq_std" table="eq">
+			<title>Eq Standard</title>
+			<action id="selEqStd">
+				<command type="callFunction" functionName="selectEqStd"/>
+			</action>
+			<!-- <action>
+				<title translatable="false">...</title>
+					<command type="selectValue"
+						fieldNames="eq.eq_std"
+						selectFieldNames="eq.eq_std"
+						visibleFieldNames="eq.eq_std"
+						restriction="eq.eq_std LIKE 'PVARX%'"
+					/>
+				</action> -->
+		</field>
+		
+		<field name="date_requested" table="wrhwr" alias="date_requested.from" required="false" >
+			<title>Date From</title>
+		</field>
+		<field name="date_requested" table="wrhwr" alias="date_requested.to" required="false" >
+			<title>To</title>
+		</field>
+		<field name="rm_id" table="wrhwr">
+			<action>
+				<title translatable="false">...</title>
+					<command type="selectValue"
+						fieldNames="wrhwr.bl_id, wrhwr.fl_id, wrhwr.rm_id"
+						selectFieldNames="rm.bl_id, rm.fl_id, rm.rm_id"
+						visibleFieldNames="rm.rm_id, rm.fl_id, rm.bl_id"
+					/>
+			</action>
+		</field>	
+		<field name="status" table="eq">
+			<title>Eq Status</title>
+		</field>
+
+		<field name="cost_total" table="wrhwr"   alias="cost_total.from" required="false"  >
+			<title>Cost Between</title>
+		</field>
+		<field name="cost_total" table="wrhwr" alias="cost_total.to" required="false" >
+			<title>And</title>
+		</field>
+	</panel>
+    
+	<panel id="wpPanel" type="grid" controlType="reportGrid" dataSource="wpPanel_ds11">
+		<title translatable="true">Report</title>
+		
+ 		<action id="expandAll">
+			<title>Expand All</title>
+		</action>
+		
+		<action id="exportXLS">
+			<title translatable="true">XLS</title>
+			<command type="callFunction" functionName="ucCaRecurringDemandController.exportgrid(false)"/> 
+			<command type="exportPanel" outputType="xls" panelId="wpPanelExport"/>
+		</action>
+		<action id="exportXLS">
+			<title translatable="true">XLS Expanded Streams</title>
+			<command type="callFunction" functionName="ucCaRecurringDemandController.exportgrid(true)"/> 
+			<command type="exportPanel" outputType="xls" panelId="wpPanelExport"/>
+		</action>
+		
+		<sortField name="s1" ascending="true" />
+		<sortField name="s2" ascending="true" />
+		
+		<field controlType="image" id="changeState" imageName="edit.gif" />
+		
+		<field name="eq_id" dataType="text" controlType="link">
+			<title>WR Code</title>
+			<command type="callFunction" functionName="openEquipmentDetails"/>
+		</field>
+		<field name="status" dataType="text">
+			<title>Status</title>
+		</field>
+		<field name="date_assigned" dataType="text">
+			<title>Date</title>
+		</field>
+		<field name="discipline" dataType="text" >
+			<title>Discipline</title>
+		</field>
+		<field name="type" dataType="text" >
+			<title>Type</title>
+		</field>
+		<field name="location" dataType="text" >
+			<title>Location</title>
+		</field>
+		<field name="date_fwc" dataType="text">
+			<title>Date FWC</title>
+		</field>
+		<field name="date_req" dataType="text">
+			<title>Date REQ</title>
+		</field>
+		<field name="cost" dataType="text">
+			<title>Cost</title>
+		</field>
+		
+		<field name="s2" dataType="text" groupBy="true" hidden="true"/>
+		<field name="s1" dataType="text" groupBy="true" hidden="true"/>
+	</panel>
+	
+	<panel id="wpPanelExport" type="grid" controlType="reportGrid" showOnLoad="false" dataSource="wpPanel_ds11">
+		<title translatable="true">Recurring Demand</title>
+		
+		<sortField name="s1" ascending="true" />
+		<sortField name="s2" ascending="true" />
+		
+		<field controlType="image" id="changeState" imageName="edit.gif" />
+		
+		<field name="eq_id" dataType="text" controlType="link">
+			<title>WR Code</title>
+			<command type="callFunction" functionName="openEquipmentDetails"/>
+		</field>
+		<field name="status" dataType="text">
+			<title>Status</title>
+		</field>
+		<field name="date_assigned" dataType="text">
+			<title>Date</title>
+		</field>
+		<field name="discipline" dataType="text" >
+			<title>Discipline</title>
+		</field>
+		<field name="type" dataType="text" >
+			<title>Type</title>
+		</field>
+		<field name="location" dataType="text" >
+			<title>Location</title>
+		</field>
+		<field name="date_fwc" dataType="text">
+			<title>Date FWC</title>
+		</field>
+		<field name="date_req" dataType="text">
+			<title>Date REQ</title>
+		</field>
+		<field name="cost" dataType="text">
+			<title>Cost</title>
+		</field>
+		
+		<field name="s2" dataType="text" groupBy="true" hidden="true"/>
+		<field name="s1" dataType="text" groupBy="true" hidden="true"/>
+	</panel>
+</view>

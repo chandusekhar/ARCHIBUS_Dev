@@ -1,0 +1,174 @@
+<view version="2.0">
+    <title>Assign PM Procedures to Compliance Requirement</title>
+    <message name="errorDelete" translatable="true">Error happened when unassign procedures.</message>
+    <message name="noPmp" translatable="true">Before you can assign PM Procedures to Compliance Requirements, your Maintenance Manager must first define PM Procedures using the Preventive Maintenance activity in the Building Operations module.  If you do not have a license for that activity, contact your ARCHIBUS Business Partner.</message>
+    <message name="selectNoPmp" translatable="true">You must select one or more PM Procedures.</message>
+   
+    <layout type="borderLayout" id="mainLayout">
+        <west autoScroll="true" split="true" initialSize="50%"/>
+        <center autoScroll="true"/>
+    </layout>
+    <layout type="borderLayout" id="centerLayout" containingLayout="mainLayout" region="center">
+        <north autoScroll="true" split="true" initialSize="70%"/>
+        <center autoScroll="true"/>
+        <south autoScroll="true"/>
+    </layout>
+    
+    <dataSource id="ds_ab-comp-asgn-procs-to-requirement_pmp">
+        <table name="pmp" role="main"/>
+        <field name="pmp_id"/>
+        <field name="description"/>
+        <field name="pmp_type"/>
+        <field name="eq_std"/>
+        <field name="tr_id"/>
+		<restriction type="sql" sql=" NOT EXISTS ( select 1 from regreq_pmp where regreq_pmp.pmp_id=pmp.pmp_id and regreq_pmp.regulation=${parameters['regulation']} and  regreq_pmp.reg_program=${parameters['reg_program']}  and regreq_pmp.reg_requirement=${parameters['reg_requirement']} )" />
+        <parameter name="regulation" dataType="text" value="1"/>
+        <parameter name="reg_program" dataType="text" value="1"/>
+        <parameter name="reg_requirement" dataType="text" value="1"/>
+    </dataSource>
+    
+    <panel type="grid" id="pmp_list" dataSource="ds_ab-comp-asgn-procs-to-requirement_pmp"  multipleSelectionEnabled="true" layout="mainLayout" region="west" showOnLoad="false">
+        <title translatable="true">Select PM Procedures To Assign</title>
+        <action id="assignSelected">
+            <title translatable="true">Assign Selected</title>
+        </action>
+        <action id="clearAll">
+            <title translatable="true">Clear All</title>
+        </action>
+        <indexField table="pmp" name="pmp_id"/>
+    </panel>
+
+	<dataSource id="ds_ab-comp-asgn-procs-to-requirement_regreq_pmp">
+        <table name="regreq_pmp" role="main"/>
+        <table name="pmp" role="standard"/>
+        <field table="regreq_pmp" name="pmp_id"/>
+        <field table="pmp" name="pmp_type"/>
+        <field table="regreq_pmp" name="update_status"/>
+        <field table="regreq_pmp" name="regulation" hidden="true"/>
+        <field table="regreq_pmp" name="reg_program" hidden="true"/>
+        <field table="regreq_pmp" name="reg_requirement" hidden="true"/>
+		<restriction type="sql" sql=" regreq_pmp.regulation=${parameters['regulation']} and  regreq_pmp.reg_program=${parameters['reg_program']}  and regreq_pmp.reg_requirement=${parameters['reg_requirement']} "/>
+        <parameter name="regulation" dataType="text" value="1"/>
+        <parameter name="reg_program" dataType="text" value="1"/>
+        <parameter name="reg_requirement" dataType="text" value="1"/>
+    </dataSource>
+    
+    <panel type="grid" id="regreq_pmp_list" dataSource="ds_ab-comp-asgn-procs-to-requirement_regreq_pmp"  multipleSelectionEnabled="true" layout="centerLayout" region="north" showOnLoad="false">
+        <title translatable="true">Assigned PM Procedures</title>
+        <action id="unassignSelected">
+            <title translatable="true">Unassign Selected</title>
+        </action>
+        <action id="clearAll">
+            <title translatable="true">Clear All</title>
+        </action>
+        <indexField table="regreq_pmp" name="pmp_id"/>
+        <field controlType="button">
+			<title>Edit</title>
+			<command type="showPanel" panelId="regreq_pmp_form"  applyParentRestriction="true"/>
+		</field>
+    </panel>
+
+    <panel type="form" id="regreq_pmp_form" showOnLoad="false" columns="1" dataSource="ds_ab-comp-asgn-procs-to-requirement_regreq_pmp" layout="centerLayout" region="center">
+        <title translatable="true">Edit Assignment</title>
+        <action id="save">
+            <title translatable="true">Save</title>
+            <command type="saveForm"/>
+            <command type="showPanel" panelId="regreq_pmp_list"  applyParentRestriction="false"/>
+        </action>
+        <action id="cancel">
+            <title translatable="true">Cancel</title>
+            <command type="showPanel" panelId="regreq_pmp_form" show="false"/>
+        </action>
+        <action id="unassign">
+            <title translatable="true">Unassign</title>
+            <command type="deleteRecord"/>
+            <command type="showPanel" panelId="regreq_pmp_form" show="false"/>
+            <command type="showPanel" panelId="regreq_pmp_list"  applyParentRestriction="false"/>
+            <command type="showPanel" panelId="pmp_list"  applyParentRestriction="false"/>
+        </action>
+        <action id="showSchedules">
+            <title translatable="true">Schedules</title>
+        </action>
+
+        <field table="regreq_pmp" name="pmp_id" readOnly="true"/>
+        <field table="regreq_pmp" name="update_status"/>
+        <field table="regreq_pmp" name="regulation" hidden="true"/>
+        <field table="regreq_pmp" name="reg_program" hidden="true"/>
+        <field table="regreq_pmp" name="reg_requirement" hidden="true"/>
+   </panel>
+
+	<dataSource id="ds_ab-comp-asgn-procs-to-requirement_pms">
+		<sql dialect="generic">
+				SELECT DISTINCT pms.pms_id, pms.eq_id, pms.site_id, pms.bl_id, pms.fl_id, pms.rm_id, pms.pmp_id, pms.date_last_completed, pms.date_next_todo, pms.pm_group, 
+												eq.eq_std, eqstd.category	, regreq_pmp.update_status, 
+												(SELECT COUNT(wr.wr_id) FROM wr WHERE wr.pms_id= pms.pms_id AND wr.status NOT IN ('Com','Clo')) ${sql.as} nactive 
+				FROM regreq_pmp 
+				JOIN pmp ON pmp.pmp_id = regreq_pmp.pmp_id
+				JOIN pms ON pms.pmp_id = regreq_pmp.pmp_id
+				LEFT JOIN regloc rl ON regreq_pmp.regulation=rl.regulation AND regreq_pmp.reg_program=rl.reg_program AND regreq_pmp.reg_requirement=rl.reg_requirement
+				LEFT JOIN compliance_locations cl ON rl.location_id = cl.location_id
+				LEFT JOIN eq ON pms.eq_id = eq.eq_id
+				LEFT JOIN eqstd ON eqstd.eq_std = eq.eq_std
+				WHERE (pms.site_id=cl.site_id OR cl.site_id IS NULL)
+				AND (pms.bl_id=cl.bl_id OR cl.bl_id IS NULL)
+				AND (pms.fl_id=cl.fl_id OR cl.fl_id IS NULL)
+				AND (pms.rm_id=cl.rm_id OR cl.rm_id IS NULL)
+				AND (pms.eq_id=cl.eq_id OR cl.eq_id IS NULL)
+				AND (eq.eq_std=cl.eq_std OR cl.eq_std IS NULL)
+				AND regreq_pmp.regulation=${parameters['regulation']} AND regreq_pmp.reg_program=${parameters['reg_program']} AND regreq_pmp.reg_requirement=${parameters['reg_requirement']}
+				AND regreq_pmp.pmp_id=${parameters['procedure']}
+		</sql>
+		
+		<table name="pms" role="main"/>
+ 		<table name="pmp" role="standard"/>
+ 		<table name="wr" role="standard"/>
+
+		<field table="pms" name="pms_id" dataType="text" hidden="true"/>
+		<field table="pms" name="eq_id" dataType="text"/>
+		<field table="pms" name="bl_id" dataType="text"/>
+		<field table="pms" name="fl_id" dataType="text"/>
+ 		<field table="pms" name="rm_id" dataType="text"/>
+		<field table="pms" name="pmp_id" dataType="text"/>
+		<field table="pms" name="nactive" dataType="text"/>
+		<field table="pms" name="date_last_completed" dataType="date"/>
+		<field table="pms" name="date_next_todo" dataType="date"/>
+		<field table="pms" name="pm_group" dataType="text"/>
+		<field table="pms" name="eq_std" dataType="text">
+			<title>Equipment Standard</title>
+		</field>
+		<field table="pms" name="category" dataType="text">
+			<title>Equipment Category</title>
+		</field>
+		<field table="pms" name="site_id" dataType="text"/>
+		<field table="pms" name="update_status" dataType="text">
+			<title>Auto-Update Event Status?</title>
+		</field>
+		<parameter name="procedure" dataType="text" value=" 1=1 "/>
+		<parameter name="regulation" dataType="text" value="Asbestos"/>
+		<parameter name="reg_program" dataType="text" value="ASBESTOS SUPERVISOR LICENSE"/>
+		<parameter name="reg_requirement" dataType="text" value="CERTIFICATION EXAM"/>
+	</dataSource>
+
+    <panel type="grid" controlType="reportGrid" id="pms_list" dataSource="ds_ab-comp-asgn-procs-to-requirement_pms"  showOnLoad="false" layout="centerLayout" region="south">
+        <title translatable="true">View PM Schedules for PM Procedure</title>
+        <action id="docx">
+            <title translatable="true">DOCX</title>
+			<command type="exportPanel" outputType="docx" panelId="pms_list"/>
+        </action>
+        <action id="xls">
+            <title translatable="true">XLS</title>
+			<command type="exportPanel" outputType="xls" panelId="pms_list"/>
+        </action>
+        <action id="pdf">
+            <title translatable="true">PDF</title>
+			<command type="exportPanel" outputType="pdf" panelId="pms_list"/>
+        </action>
+        <indexField table="pms" name="bl_id"/>
+    </panel>
+
+    <dataSource id="pmpDS">
+        <table name="pmp" role="main"/>
+        <field name="pmp_id"/>
+    </dataSource>
+   <js file="ab-comp-asgn-procs-to-requirement.js"/>
+</view>

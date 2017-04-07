@@ -1,0 +1,80 @@
+<view version="2.0">
+		<message name="expandAll">Expand All</message>
+		<message name="collapseAll">Collapse All</message>
+    <js file="ab-proj-mng-projs-alert-log-hi.js"/>
+    
+    <dataSource id="projMngProjsAlertLogHi_dsProj" applyVpaRestrictions="false">
+    		<table name="project" role="main"/>
+    		<sql dialect="generic">
+    		SELECT project.project_id, 
+    		CASE WHEN (project.date_commence_work IS NULL OR project.date_target_end IS NULL) 
+    				THEN project.date_start ELSE project.date_commence_work END ${sql.as} start_date,
+    		CASE WHEN (project.date_commence_work IS NULL OR project.date_target_end IS NULL) 
+            THEN project.date_end ELSE project.date_target_end END ${sql.as} end_date,
+        project.project_name, project.project_type, project.summary, project.proj_mgr
+        FROM project
+        LEFT OUTER JOIN program ON program.program_id = project.program_id
+        LEFT OUTER JOIN bl ON bl.bl_id = project.bl_id
+        LEFT OUTER JOIN site on site.site_id = project.site_id
+        LEFT OUTER JOIN ctry ON ctry.ctry_id = bl.ctry_id
+        WHERE ${parameters['projRestriction']} AND ${sql.vpaRestriction}
+    		</sql>
+    		<field table="project" name="project_id" dataType="text"/>
+    		<field table="project" name="start_date" dataType="date"/>
+    		<field table="project" name="end_date" dataType="date"/>
+        <field table="project" name="project_name" dataType="text"/>
+        <field table="project" name="project_type" dataType="text"/>
+        <field table="project" name="summary" dataType="text"/>
+        <field table="project" name="proj_mgr" dataType="text"/>
+        <restriction type="sql" sql="EXISTS (SELECT 1 FROM ls_comm WHERE ls_comm.priority IN ('High') AND ls_comm.project_id = project.project_id)"/>
+        <parameter name="projRestriction" dataType="verbatim" value=" 1=1 "/>
+    </dataSource>
+    
+    <dataSource id="projMngProjsAlertLogHi_dsLog" applyVpaRestrictions="false">
+        <table name="ls_comm" role="main"/>
+        <table name="project" role="standard"/>
+        <table name="activity_log" role="standard"/>
+        <field table="ls_comm" name="project_id"/>
+        <field table="project" name="project_name" />
+        <field table="ls_comm" name="comm_id"/>
+        <field table="ls_comm" name="comm_type"/>
+        <field table="ls_comm" name="summary"/>
+        <field table="ls_comm" name="contact_id"/>
+        <field table="ls_comm" name="date_of_comm"/>
+        <field table="ls_comm" name="time_of_comm"/>
+        <field table="ls_comm" name="priority"/>
+        <field table="ls_comm" name="activity_log_id"/>
+        <field name="auto_number" table="ls_comm" />
+        <field name="work_pkg_id" table="activity_log" />
+        <restriction type="sql" sql="ls_comm.priority IN ('High') AND ls_comm.project_id IS NOT NULL"/>
+        <sortField table="ls_comm" name="date_of_comm" ascending="false"/>
+		    <sortField table="ls_comm" name="time_of_comm" ascending="false"/>
+    </dataSource>
+    
+    <panel type="tree" controlType="table" id="projMngProjsAlertLogHi_projTree" dataSource="projMngProjsAlertLogHi_dsProj">
+        <title>High Priority Logs</title>
+        <action id="collapse">
+        		<title>Collapse All</title>
+        </action>
+        <field table="project" name="project_id"/>
+        <field table="project" name="project_name"/>
+
+        <panel type="tree" controlType="table" id="projMngProjsAlertLogHi_logTree" dataSource="projMngProjsAlertLogHi_dsLog" showLabels="true">
+		        <sortField table="ls_comm" name="date_of_comm" ascending="false"/>
+		        <sortField table="ls_comm" name="time_of_comm" ascending="false"/>
+            <field table="ls_comm" name="project_id" hidden="true"/>
+            <field table="ls_comm" name="auto_number" hidden="true"/>
+            <field table="ls_comm" name="date_of_comm"/>
+		        <field table="ls_comm" name="time_of_comm"/>
+		        <field table="ls_comm" name="summary"/>
+		        <field table="ls_comm" name="comm_id"/>
+		        <field table="ls_comm" name="comm_type"/>
+		        <field table="activity_log" name="work_pkg_id" />
+		        <field table="ls_comm" name="contact_id"/>
+		        <field table="ls_comm" name="priority"/>		        
+            <event type="onClickNode">
+                <command type="callFunction" functionName="projMngProjsAlertLogHi_logTree_select"/>
+            </event>
+        </panel>
+    </panel>  
+</view>

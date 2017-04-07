@@ -1,0 +1,93 @@
+<!-- Test view for the Process Navigator data sources -->
+
+<view version="2.0">
+    <title>Products, Applications, Processes, and Tasks assigned to ${user.name}</title>
+    
+    <layout>
+        <west id="row1col1" initialSize="30%" split="true"/>
+        <center id="row1col2"/>
+    </layout>
+    
+    <js file="ab-navigator-browser.js"/>
+    
+    <dataSource id="product_ds">
+        <table name="afm_products" role="main"/>
+        <field table="afm_products" name="title"/>
+        <field table="afm_products" name="product_id"/>
+        <restriction type="sql" sql="EXISTS(SELECT 1 FROM afm_actprods WHERE afm_actprods.product_id=afm_products.product_id AND EXISTS(SELECT 1 FROM afm_activities WHERE afm_actprods.activity_id=afm_activities.activity_id AND EXISTS(SELECT 1 FROM afm_processes WHERE afm_processes.activity_id=afm_activities.activity_id AND (EXISTS(SELECT 1 FROM afm_userprocs WHERE afm_processes.activity_id=afm_userprocs.activity_id AND afm_processes.process_id=afm_userprocs.process_id AND user_name='${user.name}' AND afm_processes.is_active='1' AND (afm_processes.process_type='WEB' OR afm_processes.process_type='WEB URL')) OR EXISTS(SELECT 1 FROM afm_roleprocs WHERE afm_processes.activity_id=afm_roleprocs.activity_id AND afm_processes.process_id=afm_roleprocs.process_id AND role_name='${user.role}' AND afm_processes.is_active='1' AND (afm_processes.process_type='WEB' OR afm_processes.process_type='WEB URL'))))))"/>
+        <sortField name="display_order"/>
+    </dataSource>
+    
+    <dataSource id="activity_ds">
+        <table name="afm_activities" role="main"/>
+        <table name="afm_actprods" role="standard"/>
+
+        <field table="afm_activities" name="activity_id"/>
+        <field table="afm_activities" name="title"/>
+
+        <!-- to enable Core to add JOIN from standard tables -->
+        <field table="afm_actprods" name="product_id" hidden="true"/>
+        <field table="afm_actprods" name="activity_id" hidden="true"/>
+
+        <restriction type="sql" sql="EXISTS(SELECT 1 FROM afm_processes WHERE afm_processes.activity_id=afm_activities.activity_id AND (EXISTS(SELECT 1 FROM afm_userprocs WHERE afm_processes.activity_id=afm_userprocs.activity_id AND afm_processes.process_id=afm_userprocs.process_id AND user_name='${user.name}' AND afm_processes.is_active='1' AND (afm_processes.process_type='WEB' OR afm_processes.process_type='WEB URL')) OR EXISTS(SELECT 1 FROM afm_roleprocs WHERE afm_processes.activity_id=afm_roleprocs.activity_id AND afm_processes.process_id=afm_roleprocs.process_id AND role_name='${user.role}' AND afm_processes.is_active='1' AND (afm_processes.process_type='WEB' OR afm_processes.process_type='WEB URL'))))"/>
+        <restriction type="sql" sql="is_active='1'"/>
+
+        <sortField table="afm_activities" name="display_order"/>
+    </dataSource>
+    
+    <dataSource id="process_ds" distinct="true">
+        <table name="afm_processes" role="main"/>
+        <table name="afm_userprocs" role="standard"/>
+        <table name="afm_roleprocs" role="standard"/>
+        <field table="afm_processes" name="process_id"/>
+        <field table="afm_processes" name="activity_id" hidden="true"/>
+         
+        <!-- to enable Core to add JOIN from standard tables -->
+        <field table="afm_userprocs" name="process_id"/>
+        <field table="afm_roleprocs" name="process_id"/>
+       
+        <restriction type="sql" sql="afm_processes.is_active = '1'  AND (afm_processes.process_type = 'WEB' OR afm_processes.process_type = 'WEB URL')  AND (afm_userprocs.user_name = '${user.name}' OR afm_roleprocs.role_name = '${user.role}')"/>       
+    </dataSource>
+
+    <dataSource id="task_ds">
+        <table name="afm_ptasks" role="main"/>
+        <table name="afm_activities" role="standard"/>
+        <field table="afm_ptasks" name="task_id"/>
+        <field table="afm_ptasks" name="task_file"/>
+        <field table="afm_ptasks" name="activity_id"/>
+        <field table="afm_ptasks" name="process_id"/>
+        
+        <restriction type="parsed" relop="OR">
+           <clause op="=" value="WEB" name="task_type" table="afm_ptasks"/>
+           <clause op="=" value="WEB URL" name="task_type" table="afm_ptasks"/>
+           <clause op="=" value="LABEL" name="task_type" table="afm_ptasks"/>
+        </restriction>
+        <restriction type="sql" sql="is_hotlist='0'"/>
+        
+        <sortField table="afm_ptasks" name="display_order"/>
+    </dataSource>
+    
+    <panel type="tree" id="products_tree" dataSource="product_ds" layoutRegion="row1col1">
+        <title>Products</title>
+
+        <panel type="tree" id="activities_tree" dataSource="activity_ds">
+            <title>Applications</title>
+        </panel>
+        
+        <panel type="tree" id="processes_tree" dataSource="process_ds">
+            <title>Processes or Roles</title>
+            <event type="onClickNode">
+                <command type="showPanel" panelId="tasks_tree"/>
+            </event>
+        </panel>
+    </panel>
+
+    <panel type="grid" id="tasks_tree" dataSource="task_ds" showOnLoad="false" layoutRegion="row1col2">
+        <title>Tasks</title>
+        
+        <action id="exportXLS">
+            <title>XLS</title>
+            <command type="exportPanel" outputType="xls" panelId="tasks_tree"/>
+        </action>
+    </panel>
+</view>

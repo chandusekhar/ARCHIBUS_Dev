@@ -1,0 +1,298 @@
+<view version="2.0">
+    <message name="formMissingValues">One or more fields contain incorrect or missing values. Form was not saved. Please correct values and save again.</message>
+	<message name="msg_no_project_id" translatable="true">No Project</message> 
+	<message name="msg_no_workpkg_id" translatable="true">No Work Package</message>	
+	<message name="menu_add_project" translatable="true">Project</message>
+	<message name="menu_add_workpkg" translatable="true">Work Package</message> 
+	<message name="menu_add_action" translatable="true">Action</message>
+    <message name="errorDelete" translatable="true">Could not delete '{0}'.</message>
+    <message name="menu_delete_workpkg" translatable="true">Work Package</message>
+    <message name="menu_delete_workpkg_actions" translatable="true">Work Package and Actions</message>	
+	<message name="formSaved" translatable="true">Form saved successfully.</message>
+	<message name="msg_confirm_delete" translatable="true">Are you sure you want to delete &apos;{0}&apos; ?</message>
+    <message name="msg_confirm_delete_workpkg" translatable="true">Are you sure you want to delete &apos;{0}&apos; without deleting its associated Action Items?  The Action Items will be unassigned to the Work Package but will remain in the project.</message>
+    <message name="msg_confirm_delete_workpkg_actions">Are you sure you want to delete &apos;{0}&apos; and all included Action Items?</message>
+	<message name="endBeforeStart">Invalid date input.  End date cannot precede start date.</message>
+    <message name="dateBeforeCurrent">You have entered a start date that has occurred in the past.  Press OK to continue and save, or Cancel to return to form.</message>
+	<layout type="borderLayout" id="mainLayout">
+	    <north initialSize="60px" split="true"/>
+	    <center autoScroll="true"/>
+	</layout>
+    <layout id="nestedLayout_1" containingLayout="mainLayout" region="center">
+        <west initialSize="30%" split="true"/>
+	    <center autoScroll="true"/>
+    </layout>
+	<title translatable="true">Define Template Projects</title>
+	<js file="ab-project-templates-edit.js"/>
+		
+	<dataSource id="projectTemplatesEdit_consoleDs">
+		<table name="project"/>
+		<field table="project" name="project_id"/>
+        <field table="project" name="project_type"/>
+		<sortField table="project" name="project_id" ascending="true"/>
+		<restriction type="sql" sql="project.is_template = 1"/>
+	</dataSource>
+	
+	<panel type="console" id="projectTemplatesEdit_console" dataSource="projectTemplatesEdit_consoleDs" columns="2" showOnLoad="true" layout="mainLayout" region="north">
+		<title translatable="true">Filter</title>
+		<action id="show">
+			<title translatable="true">Show</title>
+		</action>
+        <action id="clear">
+            <title>Clear</title>
+        </action>
+        <field table="project" name="project_type"/>
+		<field name="project_id" table="project" op="=">
+		        	<action id="projectTemplatesEdit_console_selValProjectId">
+		                <title>...</title>
+		                <command type="selectValue"
+		                	selectValueType="grid"
+		                    fieldNames="project.project_id"
+		                    selectFieldNames="project.project_id, project.project_name, project.project_type, project.description, project.summary, project.requestor"
+		                    visibleFieldNames="project.project_id, project.project_name, project.project_type, project.description, project.summary, project.requestor"
+		                    restriction="project.is_template = 1">
+		                    <title>Project Code</title>  
+		                </command>         
+		            </action>
+		</field>
+	</panel>
+	
+    <dataSource id="projectTemplatesEdit_projectTreeDs">
+        <table name="project"/>
+        <field table="project" name="project_id"/>
+        <field table="project" name="project_name" />
+        <field table="project" name="project_type"/>
+        <sortField table="project" name="project_id" ascending="true"/>
+        <parameter name="project_restriction" dataType="verbatim" value="1=1"/>
+        <restriction type="sql" sql="${parameters['project_restriction']}" />
+        <restriction type="sql" sql="project.is_template = 1"/>
+    </dataSource>
+    
+	<dataSource id="projectTemplatesEdit_workpkgTreeDs">
+		<sql dialect="generic">
+			SELECT 
+				work_pkgs.work_pkg_id ${sql.as} work_pkg_id,				
+				work_pkgs.project_id ${sql.as} project_id 
+			FROM work_pkgs
+		    UNION
+		    SELECT 
+		        'WW99' ${sql.as} work_pkg_id,		        
+		        ${sql.isNull('activity_log.project_id', '\'WW99\'')} ${sql.as} project_id
+		    FROM activity_log
+		    WHERE activity_log.work_pkg_id IS NULL
+		</sql>
+		<table name="work_pkgs"/>
+		<field table="work_pkgs" name="work_pkg_id"/>		
+		<sortField table="work_pkgs" name="work_pkg_id" ascending="true"/>
+	</dataSource>
+	
+	<dataSource id="projectTemplatesEdit_actionTreeDs">
+		<sql dialect="generic">
+			SELECT 
+				activity_log.activity_log_id ${sql.as} activity_log_id,
+                activity_log.wbs_id ${sql.as} wbs_id,
+				activity_log.action_title ${sql.as} action_title,
+				${sql.isNull('activity_log.work_pkg_id', '\'WW99\'')} ${sql.as} work_pkg_id,
+				${sql.isNull('activity_log.project_id', '\'WW99\'')} ${sql.as} project_id
+			FROM activity_log
+		</sql>
+		<table name="activity_log"/>
+		<field table="activity_log" name="activity_log_id"/>
+        <field table="activity_log" name="wbs_id"/>
+		<field table="activity_log" name="action_title"/>
+		<sortField table="activity_log" name="wbs_id" ascending="true"/>
+	</dataSource>
+	
+	<panel type="tree" id="projectTemplatesEdit_projectTree" dataSource="projectTemplatesEdit_projectTreeDs" layout="nestedLayout_1" region="west">
+		<title translatable="true">Template Projects</title>
+		<action id="addNew">
+			<title translatable="true">Add New</title>
+		</action>
+        <event type="onClickNode">
+            <command type="callFunction" functionName="onClickTreeNode"/>
+        </event>
+		<panel type="tree" id="projectTemplatesEdit_workpkgTree" dataSource="projectTemplatesEdit_workpkgTreeDs">
+	        <event type="onClickNode">
+	            <command type="callFunction" functionName="onClickTreeNode"/>
+	        </event>
+			<field table="work_pkgs" name="work_pkg_id"/>			
+		</panel>
+		<panel type="tree" id="projectTemplatesEdit_actionTree" dataSource="projectTemplatesEdit_actionTreeDs">
+	        <event type="onClickNode">
+	            <command type="callFunction" functionName="onClickTreeNode"/>
+	        </event>
+            <field table="activity_log" name="wbs_id"/>
+			<field table="activity_log" name="action_title"/>
+			<field table="activity_log" name="activity_log_id" hidden="true"/>
+		</panel>
+		<field table="project" name="project_id"/>
+        <field table="project" name="project_name"/>
+		<field table="project" name="project_type"/>
+	</panel>
+	
+	<tabs id="projectTemplatesEditTabs" workflow="enforced" layout="nestedLayout_1" region="center">
+		<tab name="projectTemplatesEdit_projectTab" selected="true">
+			<title translatable="true">Project</title>
+			<dataSource id="projectTemplatesEdit_projectDs">
+		        <table name="project" role="main" />
+		        <field name="project_id" table="project" />
+                <field name="project_name" table="project" />
+		        <field name="project_type" table="project" />
+		        <field name="status" table="project" />
+		        <field name="cost_budget" table="project" />
+		        <field name="days_per_week" table="project" />
+                <field name="duration_est" table="project"/>
+		        <field name="requestor" table="project" />
+		        <field name="phone_req" table="project" />
+		        <field name="date_created" table="project" />   
+		        <field name="summary" table="project"/>
+		        <field name="description" table="project" />        
+		        <field name="scope" table="project" />  
+		        <field name="benefit" table="project" />
+		        <field name="contact_id" table="project"/>
+                <field name="doc" table="project"/>
+                <field name="doc_risk_mgmt" table="project"/>
+                <field name="doc_charter" table="project"/>
+                <field name="doc_impl_plan" table="project"/>
+                <field name="is_template" table="project"/>
+		    </dataSource>
+			<panel type="form" id="projectTemplatesEdit_projectForm" columns="2" dataSource="projectTemplatesEdit_projectDs" showOnLoad="false">
+		        <title>Edit Template Project Profile</title>
+                <action id="save" >
+                    <title>Save</title>
+                </action>
+                <action id="delete" >
+                    <title>Delete</title>
+                </action>
+		        <field name="project_id" table="project" readOnly="true" />   
+                <field name="cost_budget" table="project" />             
+                <field name="project_name" table="project" />
+                <field name="duration_est" table="project"/>
+                <field name="project_type" table="project" required="true" />
+                <field name="days_per_week" table="project" />
+                <field name="doc" table="project"/>
+                <field name="doc_risk_mgmt" table="project"/>
+                <field name="doc_charter" table="project"/>
+                <field name="doc_impl_plan" table="project"/>
+                <field/><field/>                                                         
+                <field name="summary" table="project" colspan="2"/>
+                <field name="description" table="project" colspan="2" />      
+                <field name="scope" table="project" colspan="2" />                 
+                <field name="benefit" table="project" colspan="2"/>
+                <field name="requestor" table="project" readOnly="true">
+                    <title translatable="true">Created by</title>
+                </field>
+                <field name="date_created" table="project" readOnly="true"/>
+		    </panel>
+		</tab>
+		<tab name="projectTemplatesEdit_workpkgTab">
+			<title translatable="true">Work Package</title>
+			<dataSource id="projectTemplatesEdit_workpkgDs">
+				<table name="work_pkgs"/>
+				<field name="work_pkg_id" table="work_pkgs"/>
+		    	<field name="project_id" table="work_pkgs"/>
+		        <field name="status" table="work_pkgs"/>
+		        <field name="summary" table="work_pkgs"/>
+		        <field name="description" table="work_pkgs"/>
+		        <field name="days_per_week" table="work_pkgs"/>
+			</dataSource>
+			<panel type="form" id="projectTemplatesEdit_workpkgForm" dataSource="projectTemplatesEdit_workpkgDs" showOnLoad="false">
+				<title translatable="true">Edit Work Package</title>
+				<action id="save">
+					<title translatable="true">Save</title>
+				</action>
+				<action id="deleteWorkpkg">
+					<title translatable="true">Delete</title>
+				</action>
+		        <field name="work_pkg_id" table="work_pkgs" required="true"/>
+		        <field name="project_id" table="work_pkgs" required="true">
+		            <action id="projectTemplatesEdit_selValProjectId">
+		                <title>...</title>
+		                <command type="selectValue"
+		                    fieldNames="work_pkgs.project_id"
+		                    selectFieldNames="project.project_id"
+		                    visibleFieldNames="project.project_id, project.project_name, project.description, project.summary, project.requestor"
+		                    restriction="project.is_template = 1">
+                            <title translatable="true">Template Project Code</title>
+                        </command>
+		            </action>
+		        </field>
+                <field/>
+		        <field name="days_per_week" table="work_pkgs"/>
+		        <field name="summary" table="work_pkgs" style="height:2em"/>
+		        <field name="description" table="work_pkgs"/>
+		        <field name="status" table="work_pkgs" hidden="true" value="Created"/>
+			</panel>
+		</tab>
+		<tab name="projectTemplatesEdit_actionTab">
+			<title translatable="true">Action</title>
+			<dataSource id="projectTemplatesEdit_actionDs">
+                <table name="activity_log" role="main"/>
+                <field name="activity_log_id" table="activity_log" />
+                <field name="project_id" table="activity_log" />
+                <field name="work_pkg_id" table="activity_log" />
+                <field name="action_title" table="activity_log" />
+                <field name="activity_type" table="activity_log" />
+                <field name="cost_estimated" table="activity_log" />
+                <field name="cost_est_cap" table="activity_log" />
+                <field name="duration_est_baseline" table="activity_log" />
+                <field name="duration" table="activity_log" />
+                <field name="hours_est_baseline" table="activity_log"/>
+                <field name="hours_est_design" table="activity_log"/>
+                <field name="wbs_id" table="activity_log" />
+                <field name="description" table="activity_log" />
+                <field name="doc" table="activity_log"/>
+			</dataSource>
+			<panel type="form" id="projectTemplatesEdit_actionForm" columns="1" dataSource="projectTemplatesEdit_actionDs" showOnLoad="false">
+				<title translatable="true">Edit Action</title>
+				<action id="save">
+					<title translatable="true">Save</title>
+				</action>
+				<action id="delete">
+					<title translatable="true">Delete</title>
+				</action>
+				<field name="wbs_id" table="activity_log" />
+				<field name="action_title" table="activity_log" required="true"/>
+				<field name="activity_log_id" table="activity_log" readOnly="true" hidden="${record['activity_log.activity_log_id'] == ''}"/>
+		        <field name="activity_type" table="activity_log" required="true"/>		        
+		        <field name="project_id" table="activity_log" required="true">
+		            <action id="projectTemplatesEdit_selValActionProjectId">
+		                <title>...</title>
+		                <command type="selectValue"
+		                    fieldNames="activity_log.project_id"
+		                    selectFieldNames="project.project_id"
+		                    visibleFieldNames="project.project_id, project.project_name, project.description, project.summary, project.requestor"
+                            restriction="project.is_template = 1">
+                            <title translatable="true">Template Project Code</title>
+                        </command>
+		            </action>
+		        </field>
+		        <field name="work_pkg_id" table="activity_log" required="false"/>
+		        
+		        <field/>             
+		        <field name="duration_est_baseline" table="activity_log" required="true"/>
+                <field name="hours_est_baseline" table="activity_log"/>
+		        <field name="cost_estimated" table="activity_log" required="true"/>
+		        <field name="cost_est_cap" table="activity_log" required="true"/>	
+                <field/>
+                <field name="doc" table="activity_log"/>        		               
+		        <field name="description" table="activity_log" />
+                <field name="duration" table="activity_log" hidden="true"/>
+                <field name="hours_est_design" table="activity_log" hidden="true"/>
+			</panel>
+		</tab>
+	</tabs>
+	<panel type="form" id="projectTemplatesEdit_createProjectForm" hidden="true" showOnLoad="false" dataSource="projectTemplatesEdit_projectDs" newRecord="true">
+		<title translatable="true">Create New Template Project</title>
+		<action id="save">
+			<title translatable="true">Create New Project</title>
+		</action>
+		<field name="project_id" table="project" required="true" hidden="true"/>
+        <field name="project_name" table="project" /> 
+		<field name="project_type" table="project" required="true"/>
+        <field name="requestor" table="project" value="${user.employee.id}" hidden="true"/> 
+		<field name="contact_id" table="project" value="TBD" hidden="true"/>
+        <field name="is_template" table="project" value="1" hidden="true"/>
+	</panel>
+</view>
+

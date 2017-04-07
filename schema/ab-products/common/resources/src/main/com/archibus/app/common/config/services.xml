@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<beans
+    xmlns="http://www.springframework.org/schema/beans"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xmlns:context="http://www.springframework.org/schema/context"
+    xmlns:p="http://www.springframework.org/schema/p"
+    xmlns:security="http://www.springframework.org/schema/security"
+    xmlns:soap="http://cxf.apache.org/bindings/soap"
+    xmlns:jaxws="http://cxf.apache.org/jaxws"
+    xmlns:jaxrs="http://cxf.apache.org/jaxrs"
+    xsi:schemaLocation="http://www.archibus.com/schema/archibus http://www.archibus.com/schema/archibus/webcentral-namespace.xsd
+	http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans.xsd
+	http://www.springframework.org/schema/context http://www.springframework.org/schema/context/spring-context.xsd
+	http://www.springframework.org/schema/security http://www.springframework.org/schema/security/spring-security.xsd
+    http://cxf.apache.org/jaxws
+    http://cxf.apache.org/schemas/jaxws.xsd
+    http://cxf.apache.org/jaxrs
+    http://cxf.apache.org/schemas/jaxrs.xsd">
+
+    <import resource="classpath:META-INF/cxf/cxf.xml"/>
+
+    <!-- Config Service. Used by Mobile client. Exposed as RESTful service using CXF. -->
+    <bean
+        id="configService-remote"
+        class="org.springframework.aop.framework.ProxyFactoryBean"
+        p:proxyInterfaces="com.archibus.app.common.config.service.IConfigService">
+        <property name="target">
+            <bean
+                class="com.archibus.app.common.config.service.impl.ConfigService"
+                p:project-ref="project"
+                p:configManager-ref="configManager"
+                p:cordovaVersion="$Applications{configService.cordovaLibraryVersion}">
+            </bean>
+        </property>
+        <property name="interceptorNames">
+            <list>
+                <value>contextInterceptor</value>
+                <value>projectPopulatingContextInterceptorForConfigService</value>
+                <value>exceptionHandlingInterceptor</value>
+            </list>
+        </property>
+    </bean>
+    <jaxrs:server
+        id="configService-rs"
+        address="/">
+        <jaxrs:serviceBeans>
+            <ref bean="configService-remote"/>
+        </jaxrs:serviceBeans>
+    </jaxrs:server>
+
+    <!-- ProjectPopulatingContextInterceptor populates Context with specified Project. Context must already exist. The specified projectId must exist in the ConfigManager. -->
+    <bean
+        id="projectPopulatingContextInterceptorForConfigService"
+        class="com.archibus.app.common.mobile.security.service.impl.ProjectPopulatingContextInterceptor"
+        p:configManager-ref="configManager"
+        p:projectId="$Applications{configService.projectId}">
+    </bean>
+
+</beans>

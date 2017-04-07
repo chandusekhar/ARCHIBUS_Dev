@@ -1,0 +1,139 @@
+<view version="2.0">
+    <js file="ab-eam-cpt-proj-console-select.js"/>
+    <js file="ab-eam-common.js"/>
+    <css file="ab-sp-console.css"/>
+    
+    <message name="buttonLabel_reports" translatable="true">Reports</message>
+    <!-- Layout -->
+    <layout id="mainLayout">
+        <north id="filterPos" initialSize="90" split="false"/>
+        <center id="projectListPos"/>
+        <south initialSize="50%" split="true"/>
+    </layout>
+    <layout id="nestedLayout" containingLayout="mainLayout" region="south">
+        <center id="locationPos" />
+        <east id="scorecardPos" initialSize="50%" split="true"/>
+    </layout>
+
+    <!--  Filter console -->
+    <panel type="view" id="abProjectFilter" file="ab-eam-project-filter.axvw" layoutRegion="filterPos"/>        
+
+    <dataSource id="abEamProjectStatus_ds" type="grouping">
+        <table name="project"/>
+        <field name="status" groupBy="true"/>
+    </dataSource>
+    
+    <dataSource id="abEamProject_ds">
+        <table name="project"/>
+        <field name="project_id"/>
+        <field name="vf_in_project_team" dataType="number" decimals="0">
+            <title></title>
+            <sql dialect="generic">
+                (CASE 
+                    WHEN (EXISTS(SELECT 1 FROM projteam WHERE projteam.project_id = project.project_id AND projteam.member_id = '${user.employee.id}') 
+                                OR project.requestor = '${user.employee.id}' OR project.dept_contact = '${user.employee.id}' OR project.apprv_mgr1 = '${user.employee.id}' OR project.proj_mgr = '${user.employee.id}')
+                        THEN 1
+                    ELSE 0 END)
+            </sql>
+        </field>
+        <field name="project_name"/>
+        <field name="status"/>
+        <field name="cost_est_baseline"/>
+        <field name="criticality"/>
+        <field name="score"/>
+        <field name="date_start"/>
+        <field name="date_end"/>
+        <field name="proj_mgr"/>
+        <restriction type="sql" sql="${parameters['filter_restriction']}"/>
+        <parameter name="filter_restriction" dataType="verbatim" value="1=1"/>
+    </dataSource>
+    
+    <panel type="grid" id="abEamProject_projects" controlType="category" categoryDataSource="abEamProjectStatus_ds" dataSource="abEamProject_ds" showOnLoad="false" multipleSelectionEnabled="true" layoutRegion="projectListPos" showIndexAndFilterOnLoad="false">
+        <sortField table="project" name="project_id" ascending="true"/>
+        <action id="clearSelection" imageName="/schema/ab-core/graphics/icons/view/ab-filter-clear.png">
+            <tooltip>Clear Selection</tooltip>
+            <command type="callFunction" functionName="clearSelectedRecords"/>
+        </action>
+        <action id="refresh" imageName="/schema/ab-core/graphics/icons/view/refresh-icon.png">
+            <tooltip>Refresh</tooltip>
+            <command type="showPanel" panelId="abEamProject_projects" show="true" includeHeader="true" applySelectionRestriction="false" applyParentRestriction="false" applyMultipleSelectionRestriction="false"/>
+        </action>
+        <action type="menu" id="export" imageName="/schema/ab-core/graphics/icons/view/export.png">
+            <tooltip>Export</tooltip>
+            <action id="docx">
+                <title>DOCX</title>
+                <command type="exportPanel" panelId="abEamProject_projects" outputType="docx" printRestriction="true" orientation="landscape"/>
+            </action>
+            <action id="xls">
+                <title>XLS</title>
+                <command type="exportPanel" panelId="abEamProject_projects" outputType="xls"/>
+            </action>
+        </action>
+        <action id="tools" imageName="/schema/ab-core/graphics/icons/view/gear.png">
+            <tooltip>Tools</tooltip>
+            <command type="selectFields" panelId="abEamProject_projects"/>
+        </action>
+        <event type="onClickItem">
+            <command type="callFunction" functionName="abEamCptProjConsoleSelectCtrl.showProjectDetails(this)"/>
+        </event>
+        <field id="projectTeamIcon" controlType="image" imageName="/schema/ab-system/graphics/ab-icon-proj-team.gif" width="25px" style="width:25px;">
+            <title></title>
+        </field>        
+        <field name="project_id"/>
+        <field name="project_name"/>
+        <field name="status"/>
+        <field name="cost_est_baseline"/>
+        <field name="criticality"/>
+        <field name="score"/>
+        <field name="date_start"/>
+        <field name="date_end"/>
+        <field name="proj_mgr"/>
+        <field name="vf_in_project_team" hidden="true"/>
+    </panel>
+
+    
+    
+    <dataSource id="abEamProjectScorecard_ds">
+        <table name="project"/>
+        <field name="project_id"/>
+        <field name="doc_scorecard"/>
+    </dataSource>
+    
+    
+    <panel type="form" id="abEamProjectScorecard_form" dataSource="abEamProjectScorecard_ds" columns="2" showOnLoad="false" layoutRegion="scorecardPos"> 
+        <title>Project Scorecard ${record['project.project_id']}</title>
+        <action id="refreshImage">
+            <title>Show Image Document</title>
+            <command type="callFunction" functionName="View.controllers.get('abEamCptProjConsoleSelectCtrl').abEamProjectScorecard_form_afterRefresh()"/> 
+        </action>
+        <field id="dummy_field" showLabel="false"/>
+        <field name="doc_scorecard" table="project" displayField="doc_scorecard_img" onchange="View.panels.get('abEamProjectScorecard_form').refresh();"/>
+        <field id="doc_scorecard_img" controlType="image" showLabel="false" colspan="2"/>
+        <field name="project_id" hidden="true"/>
+    </panel>
+    
+    <dataSource id="abEamProjectEvaluation_ds">
+        <table name="project"/>
+        <field name="project_id"/>
+        <field name="score" showTotals="true"/>
+        <field name="criticality"/>
+        <field name="cost_est_baseline" showTotals="true"/>
+        <field name="area_affected" showTotals="true"/>
+        <field name="emp_affected" showTotals="true"/>
+    </dataSource>
+    
+    <panel type="grid" id="abEamProjectEvaluation_list" dataSource="abEamProjectEvaluation_ds" showOnLoad="false" layoutRegion="scorecardPos" showCounts="true">
+        <title>Project Evaluation</title>
+        <field name="project_id"/>
+        <field name="score" showTotals="true"/>
+        <field name="criticality"/>
+        <field name="cost_est_baseline" showTotals="true"/>
+        <field name="area_affected" showTotals="true"/>
+        <field name="emp_affected" showTotals="true"/>
+    </panel>
+    
+    <panel type="view" id="abProjectSelectLocation" file="ab-eam-gis-map.axvw" layoutRegion="locationPos"/> 
+    <panel type="view" id="abProjectSelectReportHelper" file="ab-eam-reports-common.axvw"/>
+
+    <panel type="view" id="abEamSelectGenericHelper" file="ab-eam-common-ds-and-panels.axvw" hidden="true"/>
+</view>

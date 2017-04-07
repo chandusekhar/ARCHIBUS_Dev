@@ -1,0 +1,149 @@
+<view version="2.0">
+    <layout id="mainLayout">
+        <west initialSize="30%" split="true"/>
+        <center/>
+    </layout>
+    <layout id="nestedLayout1_center" containingLayout="nestedLayout_center" region="center">
+        <center/>
+        <south initialSize="50%" split="true"/>
+    </layout>
+    <layout id="nestedLayout_drawing" containingLayout="nestedLayout1_center" region="center">
+        <center id="mapPosition"/>
+        <east initialSize="15%" split="true" id="legendPosition"/>
+    </layout>
+	<js file="ab-proj-projects-map-page2.js"/>
+    
+	<dataSource type="grouping" id="projProjectsMapPage2_floorsDS">
+	    <table name="activity_log" role="main"/>
+	    <table name="rm" role="standard"/>
+	    <field table="activity_log" name="bl_id" groupBy="true"/>
+	    <field table="activity_log" name="fl_id" groupBy="true"/>
+	    <field table="rm" name="dwgname" dataType="text" groupBy="true">
+	    	<sql dialect="generic">CASE WHEN rm.dwgname IS NULL THEN activity_log.dwgname ELSE rm.dwgname END</sql>
+	    </field>
+	    <restriction type="sql" sql="rm.dwgname IS NOT NULL OR activity_log.dwgname IS NOT NULL"/>
+	    <restriction type="sql" sql="activity_log.project_id IS NOT NULL"/>
+	</dataSource>
+	
+	<dataSource id="projProjectsMapPage2_highlightDs" type="DrawingControlHighlight">
+	     <title>Projects</title>
+	     <table name="rm" role="main"/>
+	     <field name="bl_id" table="rm"/>
+	     <field name="fl_id" table="rm"/> 
+	     <field name="rm_id" table="rm"/>
+	     <field name="project_id" table="rm" dataType="text" legendKey="true">
+             <title translatable="true">Project Code</title>
+            <sql dialect="generic">
+               (CASE WHEN 
+                  (SELECT COUNT(DISTINCT activity_log.project_id) FROM activity_log WHERE activity_log.bl_id = rm.bl_id 
+                                 AND activity_log.fl_id = rm.fl_id AND activity_log.rm_id = rm.rm_id
+                                 AND activity_log.project_id IS NOT NULL)>1 THEN 'MULTIPLE'
+                ELSE (SELECT DISTINCT activity_log.project_id FROM activity_log WHERE activity_log.bl_id = rm.bl_id 
+                                 AND activity_log.fl_id = rm.fl_id AND activity_log.rm_id = rm.rm_id
+                                 AND activity_log.project_id IS NOT NULL)
+                END)
+            </sql>
+         </field>
+          <restriction type="sql"
+                    sql="EXISTS (SELECT 1 FROM activity_log WHERE activity_log.bl_id = rm.bl_id 
+                                 AND activity_log.fl_id = rm.fl_id AND activity_log.rm_id = rm.rm_id
+                                 AND activity_log.project_id IS NOT NULL)"/>
+	</dataSource>
+	
+	<dataSource id="projProjectsMapPage2_legendDs" distinct="true">
+	    <table name="rm" role="main"/>
+	</dataSource>
+	
+	<dataSource id="projProjectsMapPage2_detailsDS">
+        <table name="activity_log" role="main"/>
+        <table name="project" role="standard"/>
+        <table name="rm" role="standard"/>
+        <field name="action_title" table="activity_log"/>
+		<field name="activity_log_id" table="activity_log"/>
+		<field name="wbs_id" table="activity_log"/>
+		<field name="activity_type" table="activity_log"/>
+		<field name="site_id" table="activity_log"/>
+		<field name="bl_id" table="activity_log"/>
+		<field name="fl_id" table="activity_log"/>
+		<field name="rm_id" table="rm"/>
+		<field table="activity_log" name="rm_activity_dwgname" dataType="text">
+	    	<sql dialect="generic">CASE WHEN rm.dwgname IS NULL THEN activity_log.dwgname ELSE rm.dwgname END</sql>
+	    </field>
+		<field name="project_id" table="project"/>
+        <field name="project_name" table="project"/>
+		<field name="status" table="activity_log"/>
+		<field name="date_scheduled" table="activity_log"/>
+		<field name="date_scheduled_end" table="activity_log"/>
+		<field name="work_pkg_id" table="activity_log"/>
+		<restriction type="sql" sql="rm.dwgname IS NOT NULL OR activity_log.dwgname IS NOT NULL"/>
+		<restriction type="sql" sql="project.is_template = 0"/>
+    </dataSource>
+    
+	<panel type="grid" id="projProjectsMapPage2_floorsGrid" multipleSelectionEnabled="false" dataSource="projProjectsMapPage2_floorsDS" layout="mainLayout" region="west">
+	    <title translatable="true">Highlight Actions by Project</title>
+	    <action id="clearDrawings">
+			<title translatable="true">Clear Drawings</title>
+		</action>
+	    <field controlType="button" id="showFloors">
+			<title translatable="true">Show</title>
+		</field>
+	    <field table="activity_log" name="bl_id"/>
+	    <field table="activity_log" name="fl_id"/>
+	    <field table="rm" name="dwgname">
+			<title translatable="true">Drawing Name</title>
+		</field>
+	</panel>
+	
+	<panel type="drawing" id="projProjectsMapPage2_cadPanel" highlightDataSource="projProjectsMapPage2_highlightDs" 
+		labelsDataSource="labelDetailsDs" legendPanel="projProjectsMapPage2_legendGrid" layoutRegion="mapPosition">
+		<title translatable="true">[]</title>
+	</panel>
+	
+	<panel type="grid" controlType="reportGrid" id="projProjectsMapPage2_legendGrid" dataSource="projProjectsMapPage2_legendDs" layoutRegion="legendPosition" showOnLoad="false">
+	    <title translatable="true">Project Name</title>
+	    <field table="legend" name="color" controlType="color">
+	    	<title translatable="true"> </title>
+	    </field>
+	    <field table="legend" name="value" width="80%">
+	    	<title translatable="true">Value</title>
+	    </field>
+	</panel>
+	
+    <panel type="grid" id="projProjectsMapPage2_itemsDetails" multipleSelectionEnabled="true" showOnLoad="true" dataSource="projProjectsMapPage2_detailsDS" layout="nestedLayout1_center" region="south">
+        <title translatable="true">Highlight Actions by Room</title>
+		<sortField name="action_title" table="activity_log" ascending="true"/>
+		<action id="exportDOCX">
+            <title>DOC</title>
+            <command type="exportPanel" outputType="docx" panelId="projProjectsMapPage2_itemsDetails"/>
+        </action>
+        <action id="exportXLS">
+            <title>XLS</title>
+            <command type="exportPanel" outputType="xls" panelId="projProjectsMapPage2_itemsDetails"/>
+        </action>
+        <field table="activity_log" name="action_title"/>
+		<field table="activity_log" name="activity_log_id"/>
+		<field table="activity_log" name="wbs_id"/>
+		<field table="activity_log" name="activity_type"/>
+		<field table="activity_log" name="site_id"/>
+		<field table="activity_log" name="bl_id"/>
+		<field table="activity_log" name="fl_id"/>
+		<field table="rm" name="rm_id"/>
+		<field table="activity_log" name="rm_activity_dwgname">
+			<title translatable="true">Drawing Name</title>
+		</field>
+		<field table="project" name="project_id"/>
+        <field name="project_name" table="project"/>
+		<field table="activity_log" name="work_pkg_id"/>
+		<field table="activity_log" name="status">
+        	<title>Action Item Status</title>
+    	</field>
+		<field table="activity_log" name="date_scheduled"/>
+		<field table="activity_log" name="date_scheduled_end"/>
+    </panel>
+	  
+	<!-- Include a list of commonly used highlight styles -->
+	<panel type="view" id="highlightStylesView" file="ab-datasource-highlights.axvw"/>
+	  
+	<!-- Include a list of commonly used label styles -->
+	<panel type="view" id="labelStylesView" file="ab-datasource-labels.axvw"/>
+</view>

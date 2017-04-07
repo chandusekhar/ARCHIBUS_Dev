@@ -1,0 +1,407 @@
+<view version="2.0">
+    <js file="ab-cb-assess-edit.js"/>
+    <js file="ab-cb-track-common.js"/>
+    <js file="ab-cb-select-values-common.js"/>
+    
+    
+    <!-- Messages -->
+    <message name="error_copy_as_new" translatable="true">You must select an Assessment Item first.</message>
+    <message name="confirm_delete" translatable="true">Do you want to delete '{0}'?</message>
+    <message name="msg_field_smaller_or_equal_than" translatable="true">{0} must be smaller or equal than {1}</message>
+    <message name="no_match_bl_site" translatable="true">Selected building is assigned to another site</message>
+    <message name="no_match_bl_site_multiple" translatable="true">Selected building(s) does not match selected sites.</message>
+    <message name="titleHazardResponseCode" translatable="true">Hazard Response Code</message>
+    <message name="titleHazardResponseDescription" translatable="true">Hazard Response Description</message>
+    <message name="titleAbatementReasonCode" translatable="true">Abatement Reason Code</message>
+    <message name="titleAbatementReasonDescription" translatable="true">Abatement Reason Description</message>
+    <message name="tooltipScoreboardOnly" translatable="true">Required only for the Hazard Assessment Scoreboard Report</message>
+
+    <!-- Edit form -->
+    <dataSource id="abCbAssessAddEditForm_ds">
+        <table name="activity_log"/>
+        <field name="activity_log_id"/>
+        <field name="project_id"/>
+        <field name="assessment_id"/>
+        <field name="site_id"/>
+        <field name="bl_id"/>
+        <field name="fl_id"/>
+        <field name="rm_id"/>
+        <field name="hcm_loc_typ_id"/>
+        <field name="hcm_harea_id"/>
+        <field name="location"/>
+        <field name="doc"/>
+        <field name="lat"/>
+        <field name="lon"/>
+        <field name="doc1"/>
+        <field name="doc2"/>
+        <field name="hcm_loc_notes"/>
+        <field name="date_assessed"/>
+        <field name="date_review"/>
+        <field name="date_installed"/>
+        <field name="date_closed"/>
+        <field name="assessed_by"/>
+        <field name="cond_priority"/>
+        <field name="assigned_to"/>
+        <field name="hcm_abate_by"/>
+        <field name="inspect_certificate" dataType="text">
+            <title translatable="true">Inspector Certificate #</title>
+            <sql dialect="generic">
+                (SELECT cb_accredit_person.cert_num FROM cb_accredit_person WHERE cb_accredit_person.person_id = activity_log.assigned_to)
+            </sql>
+        </field>
+        <field name="inspect_certificate_exp" dataType="date">
+            <title translatable="true">Expiration Date</title>
+            <sql dialect="generic">
+                (SELECT cb_accredit_person.date_expire FROM cb_accredit_person WHERE cb_accredit_person.person_id = activity_log.assigned_to)
+            </sql>
+        </field>
+        <field name="worker_certificate" dataType="text">
+            <title translatable="true">Worker Certificate #</title>
+            <sql dialect="generic">
+                (SELECT cb_accredit_person.cert_num FROM cb_accredit_person WHERE cb_accredit_person.person_id = activity_log.hcm_abate_by)
+            </sql>
+        </field>
+        <field name="worker_certificate_exp" dataType="date">
+            <title translatable="true">Expiration Date</title>
+            <sql dialect="generic">
+                (SELECT cb_accredit_person.date_expire FROM cb_accredit_person WHERE cb_accredit_person.person_id = activity_log.hcm_abate_by)
+            </sql>
+        </field>
+        <field name="prob_type"/>
+        <field name="hcm_haz_status_id"/>
+        <field name="hcm_id"/>
+        <field name="hcm_qty"/>
+        <field name="action_title"/>
+        <field name="cb_units_id"/>
+        <field name="hcm_is_hazard"/>
+        <field name="hcm_pipe_cnt"/>
+        <field name="hcm_friable"/>
+        <field name="hcm_fittings_num"/>
+        <field name="hcm_haz_rank_id"/>
+        <field name="hcm_class1_id"/>
+        <field name="hcm_haz_rating_id"/>
+        <field name="hcm_class2_id"/>
+        <field name="hcm_cond_id"/>
+        <field name="hcm_class3_id"/>
+        <field name="cond_value"/>
+        <field name="hcm_pending_act"/>
+        <field name="repair_type"/>
+        <field name="rec_action"/>
+        <field name="cause_type"/>
+        <field name="hcm_labeled"/>
+        <field name="doc3"/>
+        <field name="doc4"/>
+        <field name="description"/>
+        
+        <field name="date_required"/>
+        <field name="date_started"/>
+        <field name="date_verified"/>
+        <field name="date_completed"/>
+        <field name="cost_estimated"/>
+        <field name="cost_actual"/>
+        <field name="cost_est_cap"/>
+        <field name="cost_act_cap"/>
+        
+        <field name="activity_type"/>
+        <field name="copied_from"/>
+    </dataSource>
+    
+    <dataSource id="abCbAssessAddEditFormRiskFactors_ds">
+        <table name="uc_env_assess_factor"/>
+        <field name="activity_log_id" table="uc_env_assess_factor"/>
+        <field name="factor_id" table="uc_env_assess_factor"/>
+        <field name="level_id" table="uc_env_assess_factor"/>
+    </dataSource>
+    <panel type="form" id="abCbAssessAddEditForm" dataSource="abCbAssessAddEditForm_ds" columns="2" showOnLoad="false">
+        <title translatable="true">Add/Edit Assessment</title>
+        <action id="showRooms" enabled="${!panel.newRecord &amp;&amp; (view.taskInfo.taskId == 'Manage Hazard Assessment Items' || view.taskInfo.taskId == 'Manage My Hazard Assessment Items' || view.taskInfo.taskId == 'Manage My Hazard Abatement Items')}" hidden="${abCbAssesssSamplesHideForWorker}">
+            <title translatable="true">Rooms</title>
+            <command type="openDialog" viewName="ab-cb-assess-places-edit.axvw"/>
+        </action>
+        <action id="saveAndNew" hidden="${abCbAssesssSamplesHideForWorker}">
+            <title translatable="true">Save and Add New</title>
+        </action>
+        <action id="copyAsNew" enabled="${!panel.newRecord}" hidden="${abCbAssesssSamplesHideForWorker}">
+            <title translatable="true">Copy As New</title>
+        </action>
+        <action id="save">
+            <title translatable="true">Save</title>
+        </action>
+        <action id="delete" enabled="${!panel.newRecord}" hidden="${abCbAssesssSamplesHideForWorker}">
+            <title translatable="true">Delete</title>
+        </action>
+        <action id="cancel">
+            <title translatable="true">Cancel</title>
+        </action>
+
+        <field name="project_id" readOnly="true"/>
+        <field name="activity_log_id">
+            <title translatable="true">Assessment ID</title>
+        </field>
+        <field id="labelLocation">
+            <title translatable="true" cssClass="label_bold">Location Information</title>
+        </field>
+        <field name="assessment_id">
+            <title translatable="true">Initial Assessment ID</title>
+        </field>
+        <field name="site_id" required="true" readOnly="${((view.taskInfo.taskId == 'Manage My Hazard Abatement Items' &amp;&amp; !panel.newRecord) || view.taskInfo.taskId == 'Manage My Abatement Activity Items')}"/>
+        <field name="bl_id" readOnly="${((view.taskInfo.taskId == 'Manage My Hazard Abatement Items' &amp;&amp; !panel.newRecord) || view.taskInfo.taskId == 'Manage My Abatement Activity Items')}">
+            <action hidden="${((view.taskInfo.taskId == 'Manage My Hazard Abatement Items' &amp;&amp; !panel.newRecord) || view.taskInfo.taskId == 'Manage My Abatement Activity Items')}">
+                <title translatable="false">...</title>
+                <tooltip>Select Value</tooltip>
+                <command type="selectValue"
+                    selectValueType="grid"
+                    fieldNames="activity_log.site_id, activity_log.bl_id"
+                    selectFieldNames="bl.site_id,bl.bl_id"
+                    visibleFieldNames="bl.site_id, bl.bl_id, bl.name"/>
+            </action>
+        </field>
+        <field name="fl_id" readOnly="${((view.taskInfo.taskId == 'Manage My Hazard Abatement Items' &amp;&amp; !panel.newRecord) || view.taskInfo.taskId == 'Manage My Abatement Activity Items')}"/>
+        <field name="rm_id" readOnly="${((view.taskInfo.taskId == 'Manage My Hazard Abatement Items' &amp;&amp; !panel.newRecord) || view.taskInfo.taskId == 'Manage My Abatement Activity Items')}"/>
+        <field name="hcm_loc_typ_id" readOnly="${((view.taskInfo.taskId == 'Manage My Hazard Abatement Items' &amp;&amp; !panel.newRecord) || view.taskInfo.taskId == 'Manage My Abatement Activity Items')}">
+            <title translatable="true">Location of Material</title>
+            <action hidden="${((view.taskInfo.taskId == 'Manage My Hazard Abatement Items' &amp;&amp; !panel.newRecord) || view.taskInfo.taskId == 'Manage My Abatement Activity Items')}">
+                <title translatable="false">...</title>
+                <tooltip>Select Value</tooltip>
+                <command type="callFunction" functionName="selectValue_HcmLocTypId('abCbAssessAddEditForm', 'activity_log.hcm_loc_typ_id',  View.panels.get('abCbAssessAddEditForm').getFieldValue('activity_log.prob_type'),'grid')"/>
+            </action>
+        </field>
+        <field name="hcm_harea_id" readOnly="${((view.taskInfo.taskId == 'Manage My Hazard Abatement Items' &amp;&amp; !panel.newRecord) || view.taskInfo.taskId == 'Manage My Abatement Activity Items' || view.taskInfo.taskId == 'Manage Hazard Assessment Items')}"/>
+        <field name="location" readOnly="${((view.taskInfo.taskId == 'Manage My Hazard Abatement Items' &amp;&amp; !panel.newRecord) || view.taskInfo.taskId == 'Manage My Abatement Activity Items')}" showSelectValueAction="true">
+            <title translatable="true">Location Detail</title>
+        </field>
+        <field name="doc" readOnly="${((view.taskInfo.taskId == 'Manage My Hazard Abatement Items' &amp;&amp; !panel.newRecord) || view.taskInfo.taskId == 'Manage My Abatement Activity Items')}">
+            <title translatable="true">Location Drawing</title>
+        </field>
+        <field name="lat" readOnly="${((view.taskInfo.taskId == 'Manage My Hazard Abatement Items' &amp;&amp; !panel.newRecord) || view.taskInfo.taskId == 'Manage My Abatement Activity Items' || view.taskInfo.taskId == 'Manage Hazard Assessment Items')}"/>
+        <field name="lon" readOnly="${((view.taskInfo.taskId == 'Manage My Hazard Abatement Items' &amp;&amp; !panel.newRecord) || view.taskInfo.taskId == 'Manage My Abatement Activity Items' || view.taskInfo.taskId == 'Manage Hazard Assessment Items')}"/>
+        <field name="doc1" readOnly="${((view.taskInfo.taskId == 'Manage My Hazard Abatement Items' &amp;&amp; !panel.newRecord) || view.taskInfo.taskId == 'Manage My Abatement Activity Items')}">
+            <title translatable="true">Location Photo</title>
+        </field>
+        <field name="doc2" readOnly="${((view.taskInfo.taskId == 'Manage My Hazard Abatement Items' &amp;&amp; !panel.newRecord) || view.taskInfo.taskId == 'Manage My Abatement Activity Items')}">
+            <title translatable="true">Location Document</title>
+        </field>
+        <field name="hcm_loc_notes" colspan="2"/>
+
+        <field id="labelSurvey">
+            <title translatable="true">Survey Information</title>
+        </field>
+        <field/>
+        
+        <field name="date_assessed" readOnly="${((view.taskInfo.taskId == 'Manage My Hazard Abatement Items' &amp;&amp; !panel.newRecord) || view.taskInfo.taskId == 'Manage My Abatement Activity Items')}"/>
+        <field name="date_review" readOnly="${((view.taskInfo.taskId == 'Manage My Hazard Abatement Items' &amp;&amp; !panel.newRecord) || view.taskInfo.taskId == 'Manage My Abatement Activity Items')}">
+            <title translatable="true">Date Inspected</title>
+        </field>
+        <field name="date_installed">
+            <title translatable="true">Date Abated</title>
+        </field>
+        <field name="date_closed" readOnly="${abCbAssesssSamplesHideForWorker}"/>
+        <field name="assessed_by" readOnly="${((view.taskInfo.taskId == 'Manage My Hazard Abatement Items' &amp;&amp; !panel.newRecord) || view.taskInfo.taskId == 'Manage My Abatement Activity Items')}">
+            <action hidden="${((view.taskInfo.taskId == 'Manage My Hazard Abatement Items' &amp;&amp; !panel.newRecord) || view.taskInfo.taskId == 'Manage My Abatement Activity Items')}">
+                <title translatable="true">...</title>
+                <tooltip>Select Value</tooltip>
+                <command type="callFunction" functionName="selectValue_AssessedBy('abCbAssessAddEditForm', 'activity_log.assessed_by')"/>
+            </action>
+        </field>
+        <field name="hcm_pending_act" readOnly="${((view.taskInfo.taskId == 'Manage My Hazard Abatement Items' &amp;&amp; !panel.newRecord) || view.taskInfo.taskId == 'Manage My Abatement Activity Items')}">
+            <action hidden="${((view.taskInfo.taskId == 'Manage My Hazard Abatement Items' &amp;&amp; !panel.newRecord) || view.taskInfo.taskId == 'Manage My Abatement Activity Items')}">
+                <title translatable="false">...</title>
+                <tooltip>Select Value</tooltip>
+                <command type="selectValue"
+                    selectValueType="hierTree"
+                    fieldNames="activity_log.hcm_pending_act"
+                    selectFieldNames="probtype.prob_type"
+                    visibleFieldNames="probtype.prob_type, probtype.description"
+                    restriction="probtype.prob_class = 'CB-ACTION'"/>
+            </action>
+        </field>
+        <field name="assigned_to" readOnly="${abCbAssesssSamplesHideForWorker}">
+            <title translatable="true">Inspector/Assigned To</title>
+            <action hidden="${abCbAssesssSamplesHideForWorker}">
+                <title translatable="true">...</title>
+                <tooltip>Select Value</tooltip>
+                <command type="callFunction" functionName="selectValue_CbAccreditPerson('abCbAssessAddEditForm', 'activity_log.assigned_to',  View.panels.get('abCbAssessAddEditForm').getFieldValue('activity_log.prob_type'),'grid')"/>
+            </action>
+        </field>
+        <field name="hcm_abate_by" readOnly="${abCbAssesssSamplesHideForWorker}">
+            <title translatable="true">Abatement Worker</title>
+            <action hidden="${abCbAssesssSamplesHideForWorker}">
+                <title translatable="true">...</title>
+                <tooltip>Select Value</tooltip>
+                <command type="callFunction" functionName="selectValue_CbAccreditPerson('abCbAssessAddEditForm', 'activity_log.hcm_abate_by',  View.panels.get('abCbAssessAddEditForm').getFieldValue('activity_log.prob_type'),'grid')"/>
+            </action>
+        </field>
+        <field name="inspect_certificate" readOnly="true" dataType="text">
+            <title translatable="true">Inspector Certificate #</title>
+        </field>
+        <field name="worker_certificate" readOnly="true" dataType="text">
+            <title translatable="true">Worker Certificate #</title>
+        </field>
+        <field name="inspect_certificate_exp" readOnly="true" dataType="date">
+            <title translatable="true">Expiration Date</title>
+        </field>
+        <field name="worker_certificate_exp" readOnly="true" dataType="date">
+            <title translatable="true">Expiration Date</title>
+        </field>
+        
+        <field id="labelHazard">
+            <title translatable="true">Hazard Information</title>
+        </field>
+        <field/>
+        
+        <field name="prob_type" readOnly="true">
+            <title translatable="true">Substance</title>
+            <action hidden="${((view.taskInfo.taskId == 'Manage My Hazard Abatement Items' &amp;&amp; !panel.newRecord) || view.taskInfo.taskId == 'Manage My Abatement Activity Items')}">
+                <title translatable="false">...</title>
+                <tooltip translatable="true">Select Value</tooltip>
+                <command type="callFunction" functionName="selectValue_Substance('abCbAssessAddEditForm', 'activity_log.prob_type', View.panels.get('abCbAssessAddEditForm').getFieldValue('activity_log.prob_type'), 'hierTree')"/>
+            </action>
+        </field>
+        <field name="hcm_haz_status_id" readOnly="${((view.taskInfo.taskId == 'Manage My Hazard Abatement Items' &amp;&amp; !panel.newRecord) || view.taskInfo.taskId == 'Manage My Abatement Activity Items')}">
+            <title translatable="true">Hazard Status</title>
+            <action hidden="${((view.taskInfo.taskId == 'Manage My Hazard Abatement Items' &amp;&amp; !panel.newRecord) || view.taskInfo.taskId == 'Manage My Abatement Activity Items')}">
+                <title translatable="true">...</title>
+                <tooltip>Select Value</tooltip>
+                <command type="callFunction" functionName="selectValue_HazardStatusId('abCbAssessAddEditForm', 'activity_log.hcm_haz_status_id',  View.panels.get('abCbAssessAddEditForm').getFieldValue('activity_log.prob_type'),'grid')"/>
+            </action>
+        </field>
+        <field name="hcm_id" readOnly="${((view.taskInfo.taskId == 'Manage My Hazard Abatement Items' &amp;&amp; !panel.newRecord) || view.taskInfo.taskId == 'Manage My Abatement Activity Items')}">
+            <action hidden="${((view.taskInfo.taskId == 'Manage My Hazard Abatement Items' &amp;&amp; !panel.newRecord) || view.taskInfo.taskId == 'Manage My Abatement Activity Items')}">
+                <title translatable="true">...</title>
+                <tooltip>Select Value</tooltip>
+                <command type="callFunction" functionName="selectValue_HcmId('abCbAssessAddEditForm', 'activity_log.hcm_id',  View.panels.get('abCbAssessAddEditForm').getFieldValue('activity_log.prob_type'),'grid')"/>
+            </action>
+       </field>
+        <field name="hcm_qty" readOnly="${((view.taskInfo.taskId == 'Manage My Hazard Abatement Items' &amp;&amp; !panel.newRecord) || view.taskInfo.taskId == 'Manage My Abatement Activity Items')}">
+            <title translatable="true">Quantity</title>
+        </field>
+        <field name="action_title" readOnly="${((view.taskInfo.taskId == 'Manage My Hazard Abatement Items' &amp;&amp; !panel.newRecord) || view.taskInfo.taskId == 'Manage My Abatement Activity Items')}">
+            <title translatable="true">Material Description</title>
+        </field>
+        <field name="cb_units_id" readOnly="${((view.taskInfo.taskId == 'Manage My Hazard Abatement Items' &amp;&amp; !panel.newRecord) || view.taskInfo.taskId == 'Manage My Abatement Activity Items')}">
+            <title translatable="true">Units</title>
+            <action hidden="${((view.taskInfo.taskId == 'Manage My Hazard Abatement Items' &amp;&amp; !panel.newRecord) || view.taskInfo.taskId == 'Manage My Abatement Activity Items')}">
+                <title translatable="true">...</title>
+                <tooltip>Select Value</tooltip>
+                <command type="callFunction" functionName="selectValue_CbUnitsId('abCbAssessAddEditForm', 'activity_log.cb_units_id',  View.panels.get('abCbAssessAddEditForm').getFieldValue('activity_log.prob_type'),'grid')"/>
+            </action>
+        </field>
+        <field name="hcm_is_hazard" readOnly="${((view.taskInfo.taskId == 'Manage My Hazard Abatement Items' &amp;&amp; !panel.newRecord) || view.taskInfo.taskId == 'Manage My Abatement Activity Items' || view.taskInfo.taskId == 'Manage Hazard Assessment Items')}"/>
+        <field name="hcm_pipe_cnt" readOnly="${((view.taskInfo.taskId == 'Manage My Hazard Abatement Items' &amp;&amp; !panel.newRecord) || view.taskInfo.taskId == 'Manage My Abatement Activity Items')}"/>
+        <field name="hcm_friable" readOnly="${((view.taskInfo.taskId == 'Manage My Hazard Abatement Items' &amp;&amp; !panel.newRecord) || view.taskInfo.taskId == 'Manage My Abatement Activity Items')}">
+            <title translatable="true">Friability</title>
+        </field>
+        <field name="hcm_fittings_num" readOnly="${((view.taskInfo.taskId == 'Manage My Hazard Abatement Items' &amp;&amp; !panel.newRecord) || view.taskInfo.taskId == 'Manage My Abatement Activity Items')}"/>
+        <field name="hcm_cond_id" readOnly="${((view.taskInfo.taskId == 'Manage My Hazard Abatement Items' &amp;&amp; !panel.newRecord) || view.taskInfo.taskId == 'Manage My Abatement Activity Items')}">
+            <title translatable="true">Material Condition</title>
+            <action hidden="${((view.taskInfo.taskId == 'Manage My Hazard Abatement Items' &amp;&amp; !panel.newRecord) || view.taskInfo.taskId == 'Manage My Abatement Activity Items')}">
+                <title translatable="true">...</title>
+                <tooltip>Select Value</tooltip>
+                <command type="callFunction" functionName="selectValue_HcmCondId('abCbAssessAddEditForm', 'activity_log.hcm_cond_id',  View.panels.get('abCbAssessAddEditForm').getFieldValue('activity_log.prob_type'),'grid')"/>
+            </action>
+        </field>
+        <field name="hcm_class1_id" readOnly="${((view.taskInfo.taskId == 'Manage My Hazard Abatement Items' &amp;&amp; !panel.newRecord) || view.taskInfo.taskId == 'Manage My Abatement Activity Items')}">
+            <title translatable="true">Classification I</title>
+            <action hidden="${((view.taskInfo.taskId == 'Manage My Hazard Abatement Items' &amp;&amp; !panel.newRecord) || view.taskInfo.taskId == 'Manage My Abatement Activity Items')}">
+                <title translatable="true">...</title>
+                <tooltip>Select Value</tooltip>
+                <command type="callFunction" functionName="selectValue_HcmClassId('abCbAssessAddEditForm', 'activity_log.hcm_class1_id',  View.panels.get('abCbAssessAddEditForm').getFieldValue('activity_log.prob_type'),'grid')"/>
+            </action>
+        </field>
+        <field name="hcm_haz_rating_id" readOnly="${((view.taskInfo.taskId == 'Manage My Hazard Abatement Items' &amp;&amp; !panel.newRecord) || view.taskInfo.taskId == 'Manage My Abatement Activity Items')}">
+            <title translatable="true">Hazard Rating</title>
+            <action hidden="${((view.taskInfo.taskId == 'Manage My Hazard Abatement Items' &amp;&amp; !panel.newRecord) || view.taskInfo.taskId == 'Manage My Abatement Activity Items')}">
+                <title translatable="true">...</title>
+                <tooltip>Select Value</tooltip>
+                <command type="callFunction" functionName="selectValue_HcmHazRatingId('abCbAssessAddEditForm', 'activity_log.hcm_haz_rating_id',  View.panels.get('abCbAssessAddEditForm').getFieldValue('activity_log.prob_type'),'grid')"/>
+            </action>
+        </field>
+        <field name="hcm_class2_id" readOnly="${((view.taskInfo.taskId == 'Manage My Hazard Abatement Items' &amp;&amp; !panel.newRecord) || view.taskInfo.taskId == 'Manage My Abatement Activity Items')}">
+            <title translatable="true">Classification II</title>
+            <action hidden="${((view.taskInfo.taskId == 'Manage My Hazard Abatement Items' &amp;&amp; !panel.newRecord) || view.taskInfo.taskId == 'Manage My Abatement Activity Items')}">
+                <title translatable="true">...</title>
+                <tooltip>Select Value</tooltip>
+                <command type="callFunction" functionName="selectValue_HcmClassId('abCbAssessAddEditForm', 'activity_log.hcm_class2_id',  View.panels.get('abCbAssessAddEditForm').getFieldValue('activity_log.prob_type'),'grid')"/>
+            </action>
+        </field>
+        <field name="hcm_haz_rank_id" readOnly="${((view.taskInfo.taskId == 'Manage My Hazard Abatement Items' &amp;&amp; !panel.newRecord) || view.taskInfo.taskId == 'Manage My Abatement Activity Items')}">
+            <title translatable="true">Hazard Rank</title>
+            <action hidden="${((view.taskInfo.taskId == 'Manage My Hazard Abatement Items' &amp;&amp; !panel.newRecord) || view.taskInfo.taskId == 'Manage My Abatement Activity Items')}">
+                <title translatable="true">...</title>
+                <tooltip>Select Value</tooltip>
+                <command type="callFunction" functionName="selectValue_HcmHazRankId('abCbAssessAddEditForm', 'activity_log.hcm_haz_rank_id',  View.panels.get('abCbAssessAddEditForm').getFieldValue('activity_log.prob_type'),'grid')"/>
+            </action>
+        </field>
+        <field name="hcm_class3_id" readOnly="${((view.taskInfo.taskId == 'Manage My Hazard Abatement Items' &amp;&amp; !panel.newRecord) || view.taskInfo.taskId == 'Manage My Abatement Activity Items')}">
+            <title translatable="true">Classification III</title>
+            <action hidden="${((view.taskInfo.taskId == 'Manage My Hazard Abatement Items' &amp;&amp; !panel.newRecord) || view.taskInfo.taskId == 'Manage My Abatement Activity Items')}">
+                <title translatable="true">...</title>
+                <tooltip>Select Value</tooltip>
+                <command type="callFunction" functionName="selectValue_HcmClassId('abCbAssessAddEditForm', 'activity_log.hcm_class3_id',  View.panels.get('abCbAssessAddEditForm').getFieldValue('activity_log.prob_type'),'grid')"/>
+            </action>
+        </field>
+        <field name="cond_value" readOnly="${abCbAssesssSamplesHideForWorker}">
+            <title translatable="true">Condition Value (Scoreboard)</title>
+        </field>
+        <field name="cond_priority" readOnly="${abCbAssesssSamplesHideForWorker}">
+            <title translatable="true">Condition Priority (Scoreboard)</title>
+        </field>
+        <field name="repair_type" readOnly="${((view.taskInfo.taskId == 'Manage My Hazard Abatement Items' &amp;&amp; !panel.newRecord) || view.taskInfo.taskId == 'Manage My Abatement Activity Items')}">
+            <title translatable="true">Hazard Response</title>
+            <action hidden="${((view.taskInfo.taskId == 'Manage My Hazard Abatement Items' &amp;&amp; !panel.newRecord) || view.taskInfo.taskId == 'Manage My Abatement Activity Items')}">
+                <title translatable="false">...</title>
+                <tooltip>Select Value</tooltip>
+                <command type="callFunction" functionName="selectValue_HazardResponse('abCbAssessAddEditForm', 'activity_log.repair_type', View.panels.get('abCbAssessAddEditForm').getFieldValue('activity_log.prob_type'), 'grid')"/>
+            </action>
+        </field>
+        <field name="rec_action" readOnly="${((view.taskInfo.taskId == 'Manage My Hazard Abatement Items' &amp;&amp; !panel.newRecord) || view.taskInfo.taskId == 'Manage My Abatement Activity Items')}"/>
+        <field name="cause_type" readOnly="${((view.taskInfo.taskId == 'Manage My Hazard Abatement Items' &amp;&amp; !panel.newRecord) || view.taskInfo.taskId == 'Manage My Abatement Activity Items')}">
+            <title translatable="true">Abatement Reason</title>
+            <action hidden="${((view.taskInfo.taskId == 'Manage My Hazard Abatement Items' &amp;&amp; !panel.newRecord) || view.taskInfo.taskId == 'Manage My Abatement Activity Items')}">
+                <title translatable="false">...</title>
+                <tooltip>Select Value</tooltip>
+                <command type="callFunction" functionName="selectValue_AbatementReason('abCbAssessAddEditForm', 'activity_log.cause_type', View.panels.get('abCbAssessAddEditForm').getFieldValue('activity_log.prob_type'), 'grid')"/>
+            </action>
+        </field>
+        <field name="hcm_labeled" readOnly="${((view.taskInfo.taskId == 'Manage My Hazard Abatement Items' &amp;&amp; !panel.newRecord) || view.taskInfo.taskId == 'Manage My Abatement Activity Items')}"/>
+        <field name="doc3" readOnly="${((view.taskInfo.taskId == 'Manage My Hazard Abatement Items' &amp;&amp; !panel.newRecord) || view.taskInfo.taskId == 'Manage My Abatement Activity Items')}">
+            <title translatable="true">Material Photo</title>
+        </field>
+        <field name="doc4" readOnly="${((view.taskInfo.taskId == 'Manage My Hazard Abatement Items' &amp;&amp; !panel.newRecord) || view.taskInfo.taskId == 'Manage My Abatement Activity Items')}">
+            <title translatable="true">Material Document</title>
+        </field>
+        <field name="description" colspan="2">
+            <title translatable="true">Material Notes</title>
+        </field>
+        
+        <field id="labelDates">
+            <title translatable="true">Dates and Costs</title>
+        </field>
+        <field/>
+        
+        <field name="date_required" readOnly="${((view.taskInfo.taskId == 'Manage My Hazard Abatement Items' &amp;&amp; !panel.newRecord) || view.taskInfo.taskId == 'Manage My Abatement Activity Items')}"/>
+        <field name="date_started" readOnly="${((view.taskInfo.taskId == 'Manage My Hazard Abatement Items' &amp;&amp; !panel.newRecord) || view.taskInfo.taskId == 'Manage My Abatement Activity Items')}"/>
+        <field name="date_verified" readOnly="${((view.taskInfo.taskId == 'Manage My Hazard Abatement Items' &amp;&amp; !panel.newRecord) || view.taskInfo.taskId == 'Manage My Abatement Activity Items')}"/>
+        <field name="date_completed" readOnly="${((view.taskInfo.taskId == 'Manage My Hazard Abatement Items' &amp;&amp; !panel.newRecord) || view.taskInfo.taskId == 'Manage My Abatement Activity Items')}"/>
+        <field name="cost_estimated" readOnly="${((view.taskInfo.taskId == 'Manage My Hazard Abatement Items' &amp;&amp; !panel.newRecord) || view.taskInfo.taskId == 'Manage My Abatement Activity Items')}"/>
+        <field name="cost_actual" readOnly="${((view.taskInfo.taskId == 'Manage My Hazard Abatement Items' &amp;&amp; !panel.newRecord) || view.taskInfo.taskId == 'Manage My Abatement Activity Items')}"/>
+        <field name="cost_est_cap" readOnly="${((view.taskInfo.taskId == 'Manage My Hazard Abatement Items' &amp;&amp; !panel.newRecord) || view.taskInfo.taskId == 'Manage My Abatement Activity Items')}"/>
+        <field name="cost_act_cap" readOnly="${((view.taskInfo.taskId == 'Manage My Hazard Abatement Items' &amp;&amp; !panel.newRecord) || view.taskInfo.taskId == 'Manage My Abatement Activity Items')}"/>
+        
+        <field id="labelRiskFactors">
+            <title>Risk Factors</title>
+        </field>
+        <field/>
+        <field id="labelRiskAssessment">
+            <title>Risk Assessment</title>
+            <html>
+                <input type="text" readonly="true" id="riskAssessmentField" />
+            </html>
+        </field>
+        <field/>
+        <field name="activity_type" hidden="true" value="ASSESSMENT - HAZMAT"/>
+        <field name="copied_from" hidden="true" />
+    </panel>
+    
+    <panel type="view" id="hiddenPanels" file="ab-cb-select-values-common.axvw"/>   
+</view>

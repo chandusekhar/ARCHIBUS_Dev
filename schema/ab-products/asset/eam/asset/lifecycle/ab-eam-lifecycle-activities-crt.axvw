@@ -1,0 +1,140 @@
+<view version="2.0">
+    <js file="ab-eam-lifecycle-activities-crt.js"/>
+    <!-- translatable messages -->
+    <message name="labelActivityType_project_action" translatable="true">Project Actions</message>
+    <message name="labelActivityType_assessment" translatable="true">Assessments</message>
+    <message name="labelActivityType_sustainability_assessment" translatable="true">Sustainability Assessments</message>
+    <message name="labelActivityType_commissioning" translatable="true">Commissioning</message>
+    <message name="labelActivityType_empty" translatable="true">Other</message>
+    <message name="labelActivityType_moves" translatable="true">Moves</message>
+    <message name="labelActivityType_survey" translatable="true">Surveys</message>
+    <message name="labelActivityType_work_request" translatable="true">Work Request</message>
+    <message name="labelActivityType_owner_transaction" translatable="true">Owner Transactions</message>
+    <message name="labelActivityType_waste_out" translatable="true">Waste out</message>
+    <message name="labelActivityType_sd_furniture" translatable="true">Service Desk Furniture</message>
+    <message name="labelActivityType_sd_group_move" translatable="true">Service Desk Group Move</message>
+    <message name="labelActivityType_sd_individual_move" translatable="true">Service Desk Individual Move</message>
+    
+    
+    <panel type="html" id="abEamLifecycleCrtActivitiesRefresh" dataSource="none" showOnLoad="false" hidden="true">
+        <html></html>
+    </panel>
+    
+    <dataSource id="abEamLifecycleActivitiesCrt_ds" type="grouping">
+        <sql dialect="generic">
+            SELECT 
+                (CASE 
+                    WHEN (activity_log.project_id IS NOT NULL AND project.project_type NOT IN ('ASSESSMENT', 'ASSESSMENT - ENVIRONMENTAL', 'ASSESSMENT - HAZMAT', 'COMMISSIONING') AND project.status NOT IN ('Completed', 'Completed-Verified','Closed'))
+                        THEN 'project_action'
+                    WHEN (activity_log.project_id IS NOT NULL AND project.project_type IN ('ASSESSMENT - ENVIRONMENTAL', 'ASSESSMENT - HAZMAT') AND project.status NOT IN ('Completed', 'Completed-Verified','Closed'))
+                        THEN 'sustainability_assessment'
+                    WHEN (activity_log.project_id IS NOT NULL AND project.project_type='ASSESSMENT' AND project.status NOT IN ('Completed', 'Completed-Verified','Closed'))
+                        THEN 'assessment'
+                    WHEN (activity_log.project_id IS NOT NULL AND project.project_type='COMMISSIONING' AND project.status NOT IN ('Completed', 'Completed-Verified','Closed'))
+                        THEN 'commissioning'
+                    WHEN (activity_log.activity_type='SERVICE DESK - FURNITURE' AND activity_log.wr_id IS NULL)
+                        THEN 'sd_furniture'
+                    WHEN (activity_log.activity_type='SERVICE DESK - GROUP MOVE' AND activity_log.wr_id IS NULL)
+                        THEN 'sd_group_move'
+                    WHEN (activity_log.activity_type='SERVICE DESK - INDIVIDUAL MOVE' AND activity_log.wr_id IS NULL)
+                        THEN 'sd_individual_move'
+                    ELSE ''    
+                END) ${sql.as} activity_type,
+                ${sql.convertToString('activity_log.activity_log_id')} ${sql.as} item_id,
+                activity_log.bl_id ${sql.as} bl_id,
+                activity_log.pr_id ${sql.as} pr_id,
+                activity_log.eq_id ${sql.as} eq_id,
+                activity_log.ta_id ${sql.as} ta_id
+            FROM activity_log
+                LEFT OUTER JOIN project ON project.is_template = 0 AND activity_log.project_id = project.project_id
+                WHERE activity_log.activity_type NOT IN ('SERVICE DESK - MAINTENANCE') AND activity_log.status NOT IN ('COMPLETED', 'COMPLETED-V', 'CLOSED')
+            UNION 
+            SELECT 
+                'moves' ${sql.as} activity_type,
+                 ${sql.convertToString('mo_eq.eq_id')} ${sql.as} item_id,
+                NULL ${sql.as} bl_id,
+                NULL ${sql.as} pr_id,
+                mo_eq.eq_id ${sql.as} eq_id,
+                NULL  ${sql.as} ta_id
+            FROM mo_eq 
+            UNION 
+            SELECT 
+                'moves' ${sql.as} activity_type,
+                ${sql.convertToString('mo_ta.ta_id')} ${sql.as} item_id,
+                NULL ${sql.as} bl_id,
+                NULL ${sql.as} pr_id,
+                NULL ${sql.as} eq_id,
+                mo_ta.ta_id ${sql.as} ta_id
+            FROM mo_ta 
+            UNION 
+            SELECT 
+                'survey' ${sql.as} activity_type,
+                ${sql.convertToString('eq_audit.eq_id')} ${sql.as} item_id,
+                NULL ${sql.as} bl_id,
+                NULL ${sql.as} pr_id,
+                eq_audit.eq_id ${sql.as} eq_id,
+                NULL ${sql.as} ta_id
+            FROM eq_audit 
+            UNION 
+            SELECT 
+                'survey' ${sql.as} activity_type,
+                ${sql.convertToString('ta_audit.ta_id')} ${sql.as} item_id,
+                NULL ${sql.as} bl_id,
+                NULL ${sql.as} pr_id,
+                NULL ${sql.as} eq_id,
+                ta_audit.ta_id ${sql.as} ta_id
+            FROM ta_audit
+            UNION 
+            SELECT 
+                'work_request' ${sql.as} activity_type,
+                ${sql.convertToString('wrhwr.wr_id')} ${sql.as} item_id,
+                wrhwr.bl_id ${sql.as} bl_id,
+                NULL ${sql.as} pr_id,
+                wrhwr.eq_id ${sql.as} eq_id,
+                NULL ${sql.as} ta_id
+            FROM wrhwr
+            WHERE wrhwr.status IN ('R','Rev','A','AA','I','HP','HA','HL')
+            UNION 
+            SELECT 
+                'owner_transaction' ${sql.as} activity_type,
+                ${sql.convertToString('ot.ot_id')} ${sql.as} item_id,
+                ot.bl_id ${sql.as} bl_id,
+                ot.pr_id ${sql.as} pr_id,
+                NULL ${sql.as} eq_id,
+                NULL ${sql.as} ta_id
+            FROM ot 
+            UNION 
+            SELECT 
+                'waste_out' ${sql.as} activity_type,
+                ${sql.convertToString('waste_out.waste_id')} ${sql.as} item_id,
+                waste_out.bl_id ${sql.as} bl_id,
+                waste_out.pr_id ${sql.as} pr_id,
+                waste_out.eq_id ${sql.as} eq_id,
+                NULL ${sql.as} ta_id
+            FROM waste_out
+            WHERE waste_out.status IN ('A', 'S') 
+        </sql>
+        <table name="activity_log"/>
+        <field name="activity_type" dataType="text" groupBy="true">
+            <title>Transaction Type</title>
+        </field>
+        <field name="activities_count" dataType="number" size="9" decimals="0">
+            <title>Count</title>
+            <sql dialect="generic">
+                (COUNT(activity_log.item_id))
+            </sql>
+        </field>
+        <parameter name="sqlRestriction" dataType="verbatim" value="1=1"/>
+        <restriction type="sql" sql="${parameters['sqlRestriction']}"/>
+    </dataSource>
+
+    <panel type="crossTable" id="abEamLifecycleActivitiesCrt_form" dataSource="abEamLifecycleActivitiesCrt_ds" showOnLoad="false">
+         <title>Count by Transaction Type</title>
+         
+         <!-- Drill-down action. -->
+         <event type="onClickItem">
+            <command type="callFunction" functionName="onDrillDown"/>
+         </event>
+    </panel>
+    
+</view>

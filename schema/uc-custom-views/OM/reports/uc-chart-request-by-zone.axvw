@@ -1,0 +1,102 @@
+<view version="2.0">
+	<title>Request Summary by Zone</title>
+	<preferences>
+		<viewTitleBar show="false" />
+	</preferences>
+
+	<layout file="console-small.axvw" />
+	<js file="ab-ondemand-common.js" />
+	<js file="ab-ondemand-report-common.js" />
+	<js file="uc-chart-request-by-zone.js" />
+	<js file="uc-common-functions-data.js"/>
+
+	<message name="selectTitle" translatable="true">-select-</message>
+
+	<dataSource id="consoleDS1">
+		<table name="wrhwr" role="main" />
+		<field table="wrhwr" name="wr_id" />
+		<field table="wrhwr" name="date_requested" />
+	</dataSource>
+
+	<dataSource id="requestByZone_groupAxis_ds" type="grouping">
+		<table name="wrhwr"/>
+		<field table="wrhwr" name="status_e" groupBy="true" dataType="text">
+			<title>Status</title>
+			<sql dialect="generic">(status)</sql>
+		</field>
+		<restriction type="sql" sql="status IN ('AA','I','HP','FWC','Com')"/>
+
+	</dataSource>
+
+
+	<dataSource id="requestByZone_dataAxis_ds" type="grouping">
+		<table name="wrhwr" role="main" />
+		<table name="bl" role="standard" />
+
+		<field name="zone_id" table="bl" groupBy="true">
+			<title translatable="true">Zone</title>
+		</field>
+
+		<field name="wr_count" table="wrhwr" formula="count" dataType="number" baseField="wrhwr.wr_id">
+			<title translatable="true"># of Requests</title>
+		</field>
+
+		<parameter name="summaryValueForThisGroup" dataType="text" value=""/>
+		<parameter name="dateRest" dataType="verbatim" value=""/>
+		<restriction type="sql"
+			sql="wrhwr.status = ${parameters['summaryValueForThisGroup']} ${parameters['dateRest']}"/>
+		<sortField table="bl" name="zone_id" />
+	</dataSource>
+
+	<panel type="console" columns="2" id="requestConsole"
+		dataSource="consoleDS1" region="north">
+		<title translatable="true">Filter</title>
+		<action id="filter">
+			<title translatable="true">Show</title>
+			<command type="callFunction"
+				functionName="apply_console_restriction()" />
+		</action>
+		<action id="clear">
+			<title translatable="true">Clear</title>
+			<command type="clearForm"
+				panelId="reportPanel" />
+		</action>
+		<field table="wrhwr" name="date_requested" alias="wrhwr.date_requested.from" >
+			<title>Requested Date From</title>
+		</field>
+		<field table="wrhwr" name="date_requested" alias="wrhwr.date_requested.to" >
+			<title>To</title>
+		</field>
+	</panel>
+
+	<panel id="requestByZone_chart" type="chart" controlType="columnChart"
+		dataSource="requestByZone_dataAxis_ds"
+		legendLocation="right" showLegendAsPopUp="false"
+		region="center" showOnLoad="false">
+		<title translatable="true">
+			Work Requests by Zone
+		</title>
+		<action id="exportXLS">
+			<title>XLS</title>
+			<command type="exportPanel" outputType="docx" panelId="requestByZone_chart"/>
+		</action>
+
+		<groupingAxis table="wrhwr" field="status_e" dataSource="requestByZone_groupAxis_ds">
+			<title>Status</title>
+		</groupingAxis>
+
+		<!-- secondaryGroupingAxis must have the same dataSource as all dataAxis -->
+		<secondaryGroupingAxis table="bl" field="zone_id">
+			<title>Zone</title>
+		</secondaryGroupingAxis>
+
+		<!-- if there is no dataSource attribute setting-up, it will inherit the panel's dataSource -->
+		<dataAxis table="wrhwr" field="wr_count">
+			<title>Number of Requests</title>
+		</dataAxis>
+
+		<event type="onClickItem">
+			<command type="callFunction" functionName="onChartClick"/>
+		</event>
+	</panel>
+</view>

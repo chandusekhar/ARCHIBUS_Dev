@@ -1,0 +1,233 @@
+<view version="2.0">
+    <message name="noRecordSelected" translatable="true">Please make selection first.</message>
+    <message name="msg_service_gap" translatable="true">The Date Service Starts, Date Service Ends, and  Billing Period values seem to be out of sequence, would you still like the save this bill as it is?</message>
+    <message name="msg_roll_up" translatable="true">We were unable to update the Bill totals, please update the totals for Bill Code: &apos;{0}&apos; manually.</message>
+    <message name="msg_vnRateId" translatable="true">Vendor Rate ID</message>
+    <message name="msg_vnMeterId" translatable="true">Vendor Meter ID</message>
+    
+    <layout id="mainLayout">
+        <north id="northPos" initialSize="55%" split="true"/>
+        <center id="centerPos"/>
+    </layout>
+    
+    <dataSource id="ds_bill" applyVpaRestrictions="false">
+    	<table name="bill" role="main"/>
+    	<field table="bill" name="vn_id"/>
+    	<field table="bill" name="vn_ac_id"/>
+    	<field table="bill" name="bill_id"/>
+    	<field table="bill" name="bill_type_id"/>
+    	<field table="bill" name="site_id"/>
+    	<field table="bill" name="bl_id"/>
+    	<field table="bill" name="amount_expense"/>
+    	<field table="bill" name="amount_income"/>
+    	<field table="bill" name="status"/>
+        <field name="qty_energy" dataType="number" decimals="6">
+            <sql dialect="generic">
+                (qty_energy /
+                            (CASE WHEN (SELECT conversion_factor FROM bill_unit WHERE bill_unit.bill_type_id = 'ELECTRIC' AND bill_unit.rollup_type = 'Energy' AND bill_unit.is_dflt = 1) IS NULL
+                                  THEN ${sql.replaceZero('0')}
+                                  ELSE (SELECT ${sql.replaceZero('conversion_factor')} FROM bill_unit WHERE bill_unit.bill_type_id = 'ELECTRIC' AND bill_unit.rollup_type = 'Energy' AND bill_unit.is_dflt = 1)
+                            END))
+            </sql>
+        </field>
+    	<field table="bill" name="qty_power"/>
+    	<field table="bill" name="qty_volume"/>
+    	<field table="bill" name="date_service_start"/>
+    	<field table="bill" name="date_service_end"/>
+    	<field table="bill" name="date_issued"/>
+    	<field table="bill" name="date_due"/>
+    	<field table="bill" name="time_period"/>
+    	<field table="bill" name="date_approved"/>
+    	<field table="bill" name="doc"/>
+    	<field table="bill" name="count_lines"/>
+    	<field table="bill" name="description"/>
+    </dataSource>
+    <panel type="form" columns="2" id="bill_form" dataSource="ds_bill" layoutRegion="northPos">
+        <title translatable="true">Bill</title>
+    	<action id="prevSelect">
+    	    <title translatable="true">&lt;&lt; Select</title>
+            <command type="selectTabPage" tabPanelId="billLineTabs" tabPageName="billLineListTab" applyParentRestriction="false"/>
+    	    <command type="selectTabPage" tabPanelId="tabsFrame" tabPageName="select" applyParentRestriction="false"/>
+    	    <command type="callFunction" functionName="clearRestriction"/>
+    	    <command type="callFunction" functionName="setRestriction"/>
+    	</action>
+    	<action id="save">
+    			<title translatable="true">Save</title>
+    			<command type="callFunction" functionName="checkServiceGap"/>
+    			<command type="saveForm"/>
+    	</action>
+    	<action id="new">
+    		<title translatable="true">Add a Line</title>
+    		<command type="selectTabPage" tabPageName="billLineTab" newRecord="true" applyParentRestriction="true"/>
+    	</action>	
+    	<action id="printBill">
+    		<title translatable="true">Print</title>
+    		<command type="callFunction" functionName="printBill"/>
+    	</action>
+    	<action id="reject">
+    	    <title translatable="true">Reject</title>
+    	    <command type="callFunction" functionName="rejectBill"/>
+    	    <command type="saveForm"/>
+    	    <command type="selectTabPage" tabPanelId="tabsFrame" tabPageName="select" applyParentRestriction="false"/>
+    	    <command type="callFunction" functionName="clearRestriction"/>
+    	    <command type="callFunction" functionName="setRestriction"/>
+            </action>	
+    	<action id="delete">
+    	    <title translatable="true">Delete</title>
+    	    <command type="deleteRecord"/>
+    	    <command type="selectTabPage" tabPanelId="tabsFrame" tabPageName="select" applyParentRestriction="false"/>
+    	    <command type="callFunction" functionName="clearRestriction"/>
+    	    <command type="callFunction" functionName="setRestriction"/>
+            </action>        
+    	<field table="bill" name="vn_id" readOnly="true"/>
+    	<field table="bill" name="vn_ac_id" readOnly="true"/>
+    	<field table="bill" name="bill_id"/>
+    	<field table="bill" name="bill_type_id" readOnly="true"/>
+    	<field table="bill" name="site_id" required="true" readOnly="true"/>
+    
+    	<field table="bill" name="bl_id" required="true" readOnly="true"/>
+    
+    	<field table="bill" name="amount_expense" readOnly="true"/>
+    	<field table="bill" name="amount_income" readOnly="true"/>
+    	<field table="bill" name="status" readOnly="true"/>
+    	<field/>
+    	<field table="bill" name="date_service_start" required="true"/>
+    	<field table="bill" name="date_service_end" required="true"/>
+    	<field table="bill" name="date_issued"/>
+    	<field table="bill" name="date_due"/>
+    	<field table="bill" name="time_period" required="true"/>
+    	<field table="bill" name="date_approved" readOnly="true"/>
+    	<field table="bill" name="doc"/>
+    	<field/>
+    	<field table="bill" name="description" colspan="2">
+    		<action>
+    			<title>Select Recently Entered Descriptions</title>
+    				<command type="selectValue" fieldNames="bill.description" selectFieldNames="bill.description"/>
+    		</action>
+    	</field>
+        <field name="qty_energy" dataType="number" decimals="6" readOnly="true">
+            <title>Energy / Consumption (${view.dataSources.get('abEnergyBillCommon_ds').getRecord().getValue('bill_unit.vf_qty_energy_unit')})</title>
+        </field>
+    	<field table="bill" name="qty_power" readOnly="true"/>
+    	<field table="bill" name="qty_volume" readOnly="true"/>
+    	<field table="bill" name="count_lines" readOnly="true"/>
+    </panel>
+    
+    <dataSource id="ds_bill_line">
+        <table name="bill_line" role="main"/>
+        <table name="vn_rate" role="standard"/>
+        <field table="bill_line" name="bill_id"/>
+        <field table="vn_rate" name="vn_rate_desc"/>
+        <field table="bill_line" name="vn_rate_id"/>
+        <field table="bill_line" name="vn_meter_id"/>
+		<field table="bill_line" name="vn_id"/>		
+		<field table="bill_line" name="bill_line_id"/>
+		<field table="bill_line" name="amount_expense"/>
+		<field table="bill_line" name="amount_income"/>
+		<field table="bill_line" name="bill_type_id"/>
+		<field table="bill_line" name="bill_unit_id"/>
+		<field table="bill_line" name="qty"/>
+        <field name="qty_energy" dataType="number" decimals="6">
+            <sql dialect="generic">
+                (qty_energy /
+                            (CASE WHEN (SELECT conversion_factor FROM bill_unit WHERE bill_unit.bill_type_id = 'ELECTRIC' AND bill_unit.rollup_type = 'Energy' AND bill_unit.is_dflt = 1) IS NULL
+                                  THEN ${sql.replaceZero('0')}
+                                  ELSE (SELECT ${sql.replaceZero('conversion_factor')} FROM bill_unit WHERE bill_unit.bill_type_id = 'ELECTRIC' AND bill_unit.rollup_type = 'Energy' AND bill_unit.is_dflt = 1)
+                            END))
+            </sql>
+        </field>
+		<field table="bill_line" name="qty_power"/>
+		<field table="bill_line" name="qty_volume"/>
+		<field table="bill_line" name="description"/>
+    </dataSource>    
+	<tabs workflow="enforced" id="billLineTabs"  layoutRegion="centerPos">
+		<tab name="billLineListTab" useFrame="false" selected="true"> 
+			<title translatable="true">Bill Line List</title>
+			<panel type="grid" showOnLoad="false" id="bill_line_report" dataSource="ds_bill_line">
+				<title translatable="true"></title>
+					<sortField table="bill_line" name="bill_line_id" ascending="true"/>
+				<field controlType="button">
+				    <command type="selectTabPage" tabPageName="billLineTab"/>
+				    <title translatable="true">Edit</title>
+				</field>
+				<field table="bill_line" name="vn_id"/>
+				<field table="bill_line" name="bill_id"/>				
+				<field table="bill_line" name="bill_line_id"/>
+                <field table="vn_rate" name="vn_rate_desc"/>
+				<field table="bill_line" name="amount_expense"/>
+				<field table="bill_line" name="amount_income"/>
+				<field table="bill_line" name="qty"/>
+				<field table="bill_line" name="bill_unit_id"/>
+				<field table="bill_line" name="bill_type_id"/>
+                <field name="qty_energy" dataType="number" decimals="6" readOnly="true">
+                    <title>Energy / Consumption (${view.dataSources.get('abEnergyBillCommon_ds').getRecord().getValue('bill_unit.vf_qty_energy_unit')})</title>
+                </field>
+				<field table="bill_line" name="qty_power"/>
+				<field table="bill_line" name="qty_volume"/>
+                <field table="bill_line" name="vn_meter_id"/>
+				<field table="bill_line" name="description"/>
+			</panel>			
+		</tab>
+		<tab name="billLineTab" useFrame="false"> 
+			<title translatable="true">Bill Line</title>
+			<panel type="form" columns="2" id="bill_line_form" dataSource="ds_bill_line">
+				<title translatable="true"></title>
+				<action id="prev">
+				    <title translatable="true">&lt;&lt; Line List</title>
+				    <command type="selectTabPage" tabPanelId="billLineTabs" tabPageName="billLineListTab" applyParentRestriction="false"/>
+				</action>
+				<action id="save">
+				    <title translatable="true">Save</title>				    
+				    <command type="saveForm"/>
+				    <command type="callFunction" functionName="rollUp"/>
+				    <command type="showPanel" panelId="bill_line_form"/>
+				    <command type="showPanel" panelId="bill_form" applyParentRestriction="false"/>
+				</action>
+				<action id="delete">
+				    <title translatable="true">Delete</title>
+				    <command type="deleteRecord"/>
+				    <command type="callFunction" functionName="rollUp"/>
+				    <command type="selectTabPage" tabPanelId="billLineTabs" tabPageName="billLineListTab" applyParentRestriction="false"/>
+					<command type="showPanel" panelId="bill_form" applyParentRestriction="false"/>
+				</action>        
+			        <field table="bill_line" name="vn_id" readOnly="true"/>
+			        <field table="bill_line" name="bill_id"/>
+			        <field table="bill_line" name="bill_line_id" showSelectValueAction="true"/>
+			        <field table="bill_line" name="bill_type_id" showSelectValueAction="false"/>
+                    <field table="bill_line" name="qty"/>
+			        <field table="bill_line" name="bill_unit_id"/>
+			        <field table="bill_line" name="amount_expense"/>
+			        <field table="bill_line" name="amount_income"/>
+                    <field table="bill_line" name="vn_meter_id">
+                        <tooltip>Select from a list of Utility Vendor Meter IDs or type in a new value.</tooltip>
+                        <action>
+                            <title>...</title>
+                            <command type="callFunction" functionName="billLine_onSelectVnMeterId"/>
+                        </action>
+                    </field>
+                    <field table="bill_line" name="vn_rate_id">
+                        <tooltip>Specify your Utility Contract using the Define Utility Rates view.</tooltip>
+                        <action>
+                            <title>...</title>
+                            <command type="callFunction" functionName="billLine_onSelectVnRateId"/>
+                        </action>
+                    </field> 
+				<field table="bill_line" name="description" colspan="2">
+					<action>
+						<title>Select Recently Entered Descriptions</title>
+							<command type="selectValue" fieldNames="bill_line.description" selectFieldNames="bill_line.description"/>
+					</action>
+				</field>
+                <field name="qty_energy" dataType="number" decimals="6" readOnly="true">
+                    <title>Energy / Consumption (${view.dataSources.get('abEnergyBillCommon_ds').getRecord().getValue('bill_unit.vf_qty_energy_unit')})</title>
+                </field>
+		        <field table="bill_line" name="qty_power" readOnly="true"/>
+		        <field table="bill_line" name="qty_volume" readOnly="true"/>
+				<field/>
+			</panel>			
+		</tab>
+	</tabs>
+	
+    <js file="ab-energy-bill-upd.js"/>
+    <panel type="view" id="commonView" file="ab-energy-bill-common.axvw"/>
+</view>

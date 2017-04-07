@@ -1,0 +1,461 @@
+<view version="2.0"> 
+
+	<message translatable="true" name="confirmEditReservation">Confirm edit reservations</message>
+ 	<message translatable="true" name="confirmCancelReservation">Confirm cancel reservations</message>
+ 	<message translatable="true" name="confirmSelectOption">Please select an option</message>
+ 	
+
+	<message translatable="true" name="cancelAllOccurences">Do you want to cancel this reservation and all future occurrences?</message>
+ 	<message translatable="true" name="confirmCancel">Are you sure to cancel this single reservation?</message>
+	<message translatable="true" name="editRecurring">Do you want to edit this reservation and all future occurrences?</message>
+	<message translatable="true" name="copyReservation">Copy Reservation</message>
+	<message translatable="true" name="reservationDetails">Resource Reservation</message>
+	
+	<message translatable="true" name="reservationCancelled">Reservation is cancelled</message>
+	<message translatable="true" name="allReservationsCancelled">All chosen reservations are cancelled</message>
+	<message translatable="true" name="notAllReservationsCancelled">The following reservations could not be cancelled: {0}</message>	
+	<message translatable="true" name="reservationCopied">Reservation is copied</message>
+	<message translatable="true" name="copyToFutureDate">The new reservation date should be in the future</message>
+	
+	<message translatable="true" name="selectReservationsToCancel">Please select reservations to cancel</message> 
+	<message translatable="true" name="enterCommentsToCancel">Enter comments to cancel</message> 
+	<message translatable="true" name="cancelMultiple">Cancel Reservations</message>
+	<message translatable="true" name="regular">Regular</message>
+	<message translatable="true" name="recurring">Recurring</message>
+	
+	<layout id="main">
+        <north initialSize="154" split="true"/>
+        <center/>
+    </layout>
+	
+	<dataSource id="reserve_console_ds">
+		<table name="reserve_rs" role="main" />
+		<field table="reserve_rs" name="bl_id" />
+		<field table="reserve_rs" name="fl_id" />
+		<field table="reserve_rs" name="rm_id" />
+		
+		<field table="reserve_rs" name="resource_id"/>
+		
+		<table name="bl" role="standard"/>
+        <field table="bl" name="ctry_id"/>
+        <field table="bl" name="regn_id"/>
+        <field table="bl" name="state_id"/>
+        <field table="bl" name="city_id"/>
+        <field table="bl" name="site_id"/>
+			
+		<table name="reserve" role="standard" />
+		<field table="reserve" name="res_id" />
+		<field table="reserve" name="res_parent" />
+		<field table="reserve" name="res_type" />
+		<field table="reserve" name="reservation_name" />
+		
+		<field table="reserve" name="comments" />
+		<field table="reserve" name="email" />
+		<field table="reserve" name="phone" />
+		<field table="reserve" name="user_requested_by" />
+		<field table="reserve" name="user_requested_for" />
+		<field table="reserve" name="user_created_by" />
+
+		<field table="reserve" name="date_start"/>
+		<field table="reserve" name="date_end" />
+
+		<field table="reserve" name="time_start" />
+		<field table="reserve" name="time_end" />
+		
+		<field table="reserve" name="status"/>
+ 	</dataSource>
+	
+	<dataSource id="reserve_ds" distinct="true" applyVpaRestrictions="false">
+		<table name="reserve_rs" role="main" />
+		<field table="reserve_rs" name="rsres_id" />
+		<field table="reserve_rs" name="bl_id" />
+		<field table="reserve_rs" name="fl_id" />
+		<field table="reserve_rs" name="rm_id" />
+		
+		<field name="room" dataType="text">
+			<sql dialect="generic">
+				(reserve_rs.bl_id ${sql.concat} '-' ${sql.concat} reserve_rs.fl_id ${sql.concat} '-' ${sql.concat} reserve_rs.rm_id)
+			</sql>
+		</field>
+		
+		<field name="resources" dataType="text">
+			<sql dialect="generic">
+				CASE WHEN (SELECT COUNT(*) FROM reserve_rs
+					WHERE reserve_rs.res_id = reserve.res_id
+					AND ((reserve_rs.status IN ('Awaiting App.','Confirmed') AND reserve.status IN ('Awaiting App.','Confirmed'))
+						OR reserve.status NOT IN ('Awaiting App.','Confirmed'))
+				) = 1 
+				THEN (reserve_rs.resource_id)
+				ELSE (SELECT CAST(COUNT(*) as char(10)) FROM reserve_rs
+					WHERE reserve_rs.res_id = reserve.res_id
+					AND ((reserve_rs.status IN ('Awaiting App.','Confirmed') AND reserve.status IN ('Awaiting App.','Confirmed'))
+						OR reserve.status NOT IN ('Awaiting App.','Confirmed'))
+				) END
+			</sql>
+		</field>
+		
+		<table name="bl" role="standard"/>
+        <field table="bl" name="ctry_id"/>
+        <field table="bl" name="regn_id"/>
+        <field table="bl" name="state_id"/>
+        <field table="bl" name="city_id"/>
+        <field table="bl" name="site_id"/>
+		
+		<table name="reserve" role="standard" />
+		<field table="reserve" name="res_id" />
+		<field table="reserve" name="res_parent" />
+		<field table="reserve" name="res_type" />
+		<field table="reserve" name="reservation_name" />
+		
+		<field table="reserve" name="comments" />
+		<field table="reserve" name="email" />
+		<field table="reserve" name="phone" />
+		<field table="reserve" name="user_requested_by" />
+		<field table="reserve" name="user_requested_for" />
+		<field table="reserve" name="user_created_by" />
+
+		<field table="reserve" name="date_start"/>
+		<field table="reserve" name="date_end" />
+
+		<field table="reserve" name="time_start" />
+		<field table="reserve" name="time_end" />
+		
+		<field table="reserve" name="status"/>
+ 
+ 		<!-- Show the location of the resource allocation with the same status.
+ 			Cancelled resource allocations can have a different location. -->
+		<restriction type="sql" sql=" reserve_rs.rsres_id = (SELECT MAX(rsres_id) FROM reserve_rs rrs WHERE rrs.res_id = reserve.res_id AND rrs.status = reserve.status) " />
+		<restriction type="sql" sql=" NOT EXISTS (select 1 from reserve_rm where reserve_rm.res_id = reserve_rs.res_id) " />
+		
+		<!-- Filter on all reserve_rs records linked to the reserve record -->
+		<parameter name="resource_id_filter" dataType="text" value=""/>
+		<restriction type="sql" sql=" ${parameters['resource_id_filter']} IS NULL OR EXISTS (select 1 from reserve_rs where reserve_rs.res_id = reserve.res_id AND reserve_rs.resource_id = ${parameters['resource_id_filter']} ) " />
+ 		
+		<sortField name="date_start" table="reserve" ascending="false"/>
+		
+		<restriction type="sql" sql="${sql.literal(activityParameters['AbWorkplaceReservations-ApplyVpaRestrictions'] == null ? 1 : activityParameters['AbWorkplaceReservations-ApplyVpaRestrictions'].value)} = '0' OR (${sql.vpaRestriction} AND ${sql.getVpaRestrictionForTable('bl')})"/>
+	</dataSource>
+	
+	
+	<dataSource id="reserve_rs_ds" applyVpaRestrictions="false">
+		<table name="reserve_rs" role="main" />
+		<field table="reserve_rs" name="bl_id" />
+		<field table="reserve_rs" name="fl_id" />
+		<field table="reserve_rs" name="rm_id" />
+		
+		<field table="reserve_rs" name="res_id" />
+		<field table="reserve_rs" name="resource_id" />
+		
+		<table name="bl" role="standard"/>
+        <field table="bl" name="ctry_id"/>
+        <field table="bl" name="regn_id"/>
+        <field table="bl" name="state_id"/>
+        <field table="bl" name="city_id"/>
+        <field table="bl" name="site_id"/>
+		
+		<table name="resources" role="standard" />
+		<field table="resources" name="cancel_days" />
+		<field table="resources" name="cancel_time" />
+		<field table="resources" name="announce_days" />
+		<field table="resources" name="announce_time" />
+		<field table="resources" name="max_days_ahead" />
+
+		<field table="reserve_rs" name="date_start"/>
+		<field table="reserve_rs" name="time_start" />
+		<field table="reserve_rs" name="time_end" />
+		
+		<field table="reserve_rs" name="status"/>
+		
+		<restriction type="sql" sql="reserve_rs.status IN ('Awaiting App.', 'Confirmed')" />
+	</dataSource>
+	
+	
+	<panel type="console" id="consolePanel" dataSource="reserve_console_ds" showOnLoad="true" columns="3" region="north">
+		 <title translatable="true">Filter</title>
+		 
+        <action id="search" mainAction="true">
+            <title translatable="true">Show</title>
+        </action>
+        <action id="clear">
+            <title translatable="true">Clear</title>
+            <command type="clearPanel" panelId="consolePanel" />
+        </action>
+        
+   		<field table="bl" name="ctry_id">
+   			<action>
+	            <title>...</title>
+	   			<command type="selectValue"
+	   				applyVpaRestrictions="false"
+	   				fieldNames="bl.ctry_id"
+	   				selectFieldNames="bl.ctry_id"
+                    visibleFieldNames="bl.ctry_id, ctry.name"
+	   				restriction="${sql.literal(activityParameters['AbWorkplaceReservations-ApplyVpaRestrictions'] == null ? 1 : activityParameters['AbWorkplaceReservations-ApplyVpaRestrictions'].value)} = '0' OR ${sql.vpaRestriction}"
+	   			/>
+   			</action>
+   		</field>
+        <field table="bl" name="regn_id" hidden="true"/>
+        <field table="bl" name="state_id" hidden="true"/>
+        <field table="bl" name="city_id" hidden="true"/>
+        <field table="bl" name="site_id">
+   			<action>
+	            <title>...</title>
+	   			<command type="selectValue"
+	   				applyVpaRestrictions="false"
+	   				fieldNames="bl.site_id"
+                    selectFieldNames="bl.site_id"
+                    visibleFieldNames="bl.site_id, site.name"
+	   				restriction="${sql.literal(activityParameters['AbWorkplaceReservations-ApplyVpaRestrictions'] == null ? 1 : activityParameters['AbWorkplaceReservations-ApplyVpaRestrictions'].value)} = '0' OR ${sql.vpaRestriction}"
+	   			/>
+   			</action>
+   		</field>
+        
+        <field table="reserve_rs" name="bl_id" hidden="false">
+   			<action>
+	            <title>...</title>
+	   			<command type="selectValue"
+	   				applyVpaRestrictions="false"
+	   				fieldNames="reserve_rs.bl_id"
+                    selectFieldNames="bl.bl_id"
+                    visibleFieldNames="bl.bl_id, bl.name"
+                    restriction="${sql.literal(activityParameters['AbWorkplaceReservations-ApplyVpaRestrictions'] == null ? 1 : activityParameters['AbWorkplaceReservations-ApplyVpaRestrictions'].value)} = '0' OR ${sql.vpaRestriction}"
+	   			/>
+   			</action>
+   		</field>
+        <field table="reserve_rs" name="fl_id" hidden="false">
+            <action>
+                <title translatable="false">...</title>
+                <command type="openDialog" viewName="ab-rr-select-floor.axvw" applyParentRestriction="false">
+                    <title translatable="true">Select Floor</title>    
+                </command>
+            </action>
+        </field>
+        <field table="reserve_rs" name="rm_id" hidden="false">
+            <action>
+                <title translatable="false">...</title>
+                <command type="openDialog" viewName="ab-rr-select-room.axvw" applyParentRestriction="false">
+                    <title translatable="true">Select Room</title>    
+                </command>
+            </action>
+        </field>
+
+		<field table="reserve_rs" name="resource_id" />
+		
+		<field table="reserve" name="user_requested_by" />
+		<field table="reserve" name="status" controlType="comboBox">
+			<title translatable="true">Status</title>
+		</field>
+	  	<field table="reserve" name="res_id">
+	  		<action>
+	            <title>...</title>
+	   			<command type="selectValue"
+	   				fieldNames="reserve.res_id"
+                    selectFieldNames="reserve.res_id"
+                    visibleFieldNames="reserve.res_id,reserve.reservation_name"
+                    restriction="res_id IN (SELECT res_id FROM reserve_rs) AND res_id NOT IN (SELECT res_id FROM reserve_rm)"
+	   			/>
+   			</action>
+   		</field>
+	  	
+        <field table="reserve" name="date_start" alias="reserve.date_start.from" op="&gt;=">
+            <title translatable="true">From</title>
+        </field>
+        <field table="reserve" name="date_start" alias="reserve.date_start.to" op="&lt;=">
+            <title translatable="true">To</title>
+        </field>
+        <field table="reserve" name="res_parent">
+        	<title translatable="true">Parent Code</title>
+        </field>
+	</panel>
+	
+	<panel type="grid" id="selectPanel" dataSource="reserve_ds" showOnLoad="false" multipleSelectionEnabled="true"
+		showIndexAndFilterOnLoad="false" useParentRestriction="false" region="center">
+		
+		<title translatable="true">Resource Reservations</title>
+		
+		<action id="cancelSelected" hidden="${!user.isMemberOfGroup('RESERVATION MANAGER')}">
+			<title translatable="true">Cancel Selected</title>
+		</action>
+		
+		<action id="create">
+			<title translatable="true">Create Resource Reservation</title>
+		</action>
+		
+	 	<field table="reserve" name="res_id">
+	 		<title>Code</title>
+	 	</field>
+	 	<field table="reserve" name="res_parent" hidden="false">
+	 		<title>Parent</title>
+	 	</field>
+	 	
+		<field table="reserve" name="res_type" hidden="true" />
+		<field id="res_type_image" controlType="image">
+    		<title>Type</title>
+		</field>
+		<field table="reserve" name="reservation_name" hidden="true"/>
+
+		<field table="reserve_rs" name="bl_id" hidden="true"/>
+		<field table="reserve_rs" name="fl_id" hidden="true"/>
+		<field table="reserve_rs" name="rm_id" hidden="true"/>
+		
+		<field name="room" dataType="text">
+			<title translatable="true">Room</title>
+		</field>
+		
+		<field name="resources" dataType="text">
+			<title translatable="true">Resources</title>
+		</field>
+
+		<field table="reserve" name="date_start" />
+		<field table="reserve" name="time_start" />
+		<field table="reserve" name="time_end" />
+
+		<field table="reserve" name="status">
+			<title translatable="true">Status</title>
+		</field>
+		
+		<field id="details" controlType="button">
+			<title translatable="true">Details</title>
+		</field>
+		
+		<field id="edit" controlType="button">
+			<title translatable="true">Edit</title>
+		</field>
+		
+		<field id="cancel" controlType="button">
+			<title translatable="true">Cancel</title>
+		</field>
+		
+		<field id="copy" controlType="button">
+			<title translatable="true">Copy</title>
+		</field>
+		
+		<sortField name="res_id" table="reserve" ascending="false"/>
+		<indexField name="rsres_id" table="reserve_rs"/>
+	</panel>
+	
+	<dataSource id="reserve_copy_ds">
+        <table name="reserve" role="main"/>
+        <field table="reserve" name="date_start"/>
+        <field table="reserve" name="res_id"/>
+        <field table="reserve" name="reservation_name"/>
+    </dataSource>
+    
+    <panel id="copyReservationPanel" type="form" dataSource="reserve_copy_ds" hidden="true"
+    	showOnLoad="false" buttonsPosition="footer">
+        
+        <action id="submit" mainAction="true">
+            <title translatable="true">Submit</title>
+        </action>
+        <action id="close">
+            <title translatable="true">Cancel</title>
+			<command type="closeDialog"/>
+        </action>
+        <instructions>Select a date to copy the currently selected reservation to</instructions>
+       <field table="reserve" name="res_id" readOnly="true"/>
+       <field table="reserve" name="reservation_name"/>
+       <field table="reserve" name="date_start" readOnly="false" required="true"/>
+    </panel>
+    
+    <panel id="confirmCancelPanel" type="html" hidden="true" showOnLoad="false" buttonsPosition="footer">
+		<action id="confirm" mainAction="true">
+			<title translatable="true">Confirm</title>
+		</action>
+		<action id="close">
+			<title translatable="true">Close</title>
+			<command type="closeDialog" />
+		</action>
+		<html>
+			<div>
+				<span translatable="true">Do you want to cancel this reservation?</span><br/>
+			</div>
+			
+			<div>
+				<br/><span translatable="true">Enter comments</span><br/>
+				<textarea id="cancelComments" rows="5" cols="80"></textarea>
+			</div>
+		</html>
+	</panel>
+	
+	<panel id="confirmCancelMultiplePanel" type="html" hidden="true" showOnLoad="false" buttonsPosition="footer">
+		<action id="confirm" mainAction="true">
+			<title translatable="true">Confirm</title>
+		</action>
+		<action id="close">
+			<title translatable="true">Close</title>
+			<command type="closeDialog" />
+		</action>
+		<html>
+			<div>
+				<span translatable="true">Do you want to cancel the selected reservations?</span><br/>
+			</div>
+			
+			<div>
+				<br/><span translatable="true">Enter comments</span><br/>
+				<textarea id="cancelMultipleComments" rows="5" cols="80"></textarea>
+			</div>
+		</html>
+	</panel>
+
+	<panel id="confirmCancelRecurringPanel" type="html" hidden="true" showOnLoad="false" buttonsPosition="footer">
+		<action id="confirm" mainAction="true">
+			<title translatable="true">Confirm</title>
+		</action>
+		<action id="close">
+			<title translatable="true">Close</title>
+			<command type="closeDialog" />
+		</action>
+		<html>
+			<div>
+				<span translatable="true">Do you want to cancel all occurrences of the recurring reservation or just this one?</span><br/>
+			</div>
+			<div style="margin-left: 20px">
+				<p>
+					<input type="radio" name="cancelOption" value="single" />
+					<span translatable="true">Cancel this occurrence only</span>
+				</p>
+				<p>
+					<input type="radio" name="cancelOption" value="serie" />
+					<span translatable="true">Cancel this reservation and all future occurrences</span>
+				</p>
+			</div>
+			<div>
+				<br/><span translatable="true">Enter comments</span><br/>
+				<textarea id="cancelRecurringComments" rows="5" cols="80"></textarea>
+			</div>
+		</html>
+
+	</panel>
+    
+    <panel id="confirmEditRecurringPanel" type="html" hidden="true" showOnLoad="false" buttonsPosition="footer">
+    	<action id="confirm" mainAction="true">
+            <title translatable="true">Confirm</title>
+        </action>
+        <action id="close">
+            <title translatable="true">Close</title>
+			<command type="closeDialog"/>
+        </action>
+		<html>
+			<div>
+				<span translatable="true">Do you want to edit all occurrences of the recurring reservation or just this one?</span>
+				<br />
+			</div>
+			<div style="margin-left: 20px">
+				<p>
+					<input type="radio" name="editOption" value="single" />
+					<span translatable="true">Edit this occurrence only</span>
+				</p>
+				<p>
+					<input type="radio" name="editOption" value="serie" />
+					<span translatable="true">Edit this reservation and all future occurrences</span>
+				</p>
+			</div>
+		</html>
+    </panel>
+	
+	<js file="ab-rr-my-reservations-select-base.js" />
+    <js file="ab-rr-my-resource-reservations-select.js" />
+    <js file="ab-rr-common.js" />
+    
+    <js file="ab-viewdef-common-console.js"/>
+	
+</view>

@@ -1,0 +1,79 @@
+<view version="2.0">
+	<title>On Demand Cycle Hours</title>
+	<preferences>
+		<viewTitleBar show="false" />
+	</preferences>
+
+	<layout file="console-small.axvw" />
+	<js file="ab-ondemand-common.js" />
+	<js file="ab-ondemand-report-common.js" />
+	<js file="uc-ondemand-cycle-hours-mat-on-hand.js" />
+
+	<message name="selectTitle" translatable="true">-select-</message>
+
+	<dataSource id="consoleDS">
+		<table name="wrhwr" role="main" />
+		<field table="wrhwr" name="prob_type" />
+        <field table="wrhwr" name="date_requested" />
+	</dataSource>
+
+	<dataSource id="crossTableDS" type="grouping">
+		<table name="wrhwr" role="main" />
+		<sortField name="prob_type" ascending="true" />
+
+		<restriction type="sql" sql="prob_type &lt;&gt; 'PREVENTIVE MAINT' AND status IN ('Com','Clo')" />
+
+		<field name="prob_type" table="wrhwr" groupBy="true">
+			<title translatable="true">Problem Type</title>
+		</field>
+
+		<field name="wr_count" formula="count" dataType="number"
+			baseField="wrhwr.wr_id" size="6" decimals="0">
+			<title translatable="true">#</title>
+		</field>
+
+		<field name="avg_complete" formula="avg" dataType="number">
+			<title translatable="true">Average Days to Complete</title>
+			<sql dialect="sqlserver">AVG(DATEDIFF(day, date_requested, date_completed))</sql>
+		</field>
+
+		<field name="avg_days_fwc" formula="avg" dataType="number">
+			<title translatable="true">Average Days to FWC</title>
+			<sql dialect="sqlserver">AVG(DATEDIFF(day, date_requested, date_fwc))</sql>
+		</field>
+	</dataSource>
+
+	<panel type="console" columns="3" id="requestConsole"
+		dataSource="consoleDS" region="north">
+		<title translatable="true">Filter</title>
+		<action id="filter">
+			<title translatable="true">Show</title>
+			<!--command type="callFunction"
+				functionName="ABODRPTC_setRestriction('wrhwr.month','reportPanel')" /-->
+			<command type="callFunction"
+				functionName="apply_console_restriction()" />
+		</action>
+		<action id="clear">
+			<title translatable="true">Clear</title>
+			<command type="clearForm"
+				panelId="reportPanel" />
+		</action>
+		<field table="wrhwr" name="date_requested" alias="wrhwr.date_requested.from" >
+			<title>Date From:</title>
+		</field>
+		<field table="wrhwr" name="date_requested" alias="wrhwr.date_requested.to" >
+			<title>To:</title>
+		</field>
+		<field table="wrhwr" name="prob_type" hidden="true" />
+	</panel>
+
+	<panel id="reportPanel" type="crossTable"
+		dataSource="crossTableDS" region="center">
+		<title translatable="true">
+			Total Work Requests
+		</title>
+		<event type="onClickItem">
+		    <command type="callFunction" functionName="onCrossTableClick"/>
+		</event>
+	</panel>
+</view>

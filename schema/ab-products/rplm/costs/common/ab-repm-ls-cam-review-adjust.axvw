@@ -1,0 +1,264 @@
+<view version="2.0">
+    <js file="ab-repm-ls-cam-review-adjust.js"/>
+    
+    <title translatable="true">Review CAM Reconciliation Adjustments</title>
+    
+    <!-- Messages -->
+    <message name="title_CamAdjustForLeaseAndYear" translatable="true">CAM Reconciliation Adjustments for Lease Code {0}, Lease Year {1}</message>
+    <message name="cost_cat" translatable="true">Cost Category</message>
+    <message name="error_no_cost_associated" translatable="true">Please associate a cost to this CAM Reconciliation Adjustment</message>
+    <message name="confirmDelete" translatable="true">Do you want to delete this CAM Reconciliation Adjustment?</message>
+    <message name="amount_income_total_payment" translatable="true">Amount Income - Total (Payment)</message>
+    <message name="amount_expense_total_payment" translatable="true">Amount Expense - Total (Payment)</message>
+    <message name="confirmAddCancellation" translatable="true">You have created a Scheduled Cost that is not associated to this CAM Adjustment and will be deleted unless you save this CAM Adjustment. Do you want to save this CAM Adjustment?</message>
+    
+    <!-- Layout -->
+    <layout type="borderLayout" id="mainLayout">
+        <north id="gridPos" initialSize="40%" split="true"/>
+        <center id="formPos"/>
+    </layout>
+    
+    <!-- Adjustments grid -->
+    <dataSource id="abRepmLsCamReviewAdjust_ds">
+        <table name="ls_cam_rec_report" role="main"/>
+        <table name="cost_tran_sched" role="standard"/>
+        <table name="cost_tran" role="standard"/>
+        
+        <field table="ls_cam_rec_report" name="ls_cam_rec_report_id"/>
+        <field table="ls_cam_rec_report" name="ll_invoice_no"/>
+        <field table="ls_cam_rec_report" name="ll_invoice_doc"/>
+                
+        <field table="ls_cam_rec_report" name="ls_id"/>
+        <field table="ls_cam_rec_report" name="invoice_date_received"/>
+        <field table="ls_cam_rec_report" name="ll_cam_report_doc"/>
+        
+        <field table="ls_cam_rec_report" name="ls_rent_year"/>
+        <field table="ls_cam_rec_report" name="support_doc1_id"/>
+        
+        <field table="ls_cam_rec_report" name="support_doc2_id"/>
+        
+        <field table="ls_cam_rec_report" name="cost_tran_sched_id"/>
+        <field table="ls_cam_rec_report" name="support_doc3_id"/>
+        
+        <field table="ls_cam_rec_report" name="cost_tran_id"/>
+        <field table="ls_cam_rec_report" name="support_doc4_id"/>
+        
+        <field table="ls_cam_rec_report" name="description"/>
+        
+        <field table="cost_tran_sched" name="cost_cat_id"/>
+        <field table="cost_tran" name="cost_cat_id"/>
+        <field name="vf_cost_cat_id" dataType="text" size="32">
+            <sql dialect="generic">(CASE WHEN ls_cam_rec_report.cost_tran_sched_id IS NOT NULL THEN cost_tran_sched.cost_cat_id ELSE cost_tran.cost_cat_id END)</sql>
+        </field>
+        <field name="vf_cost_type" dataType="text" size="16">
+            <sql dialect="generic">
+                (SELECT cost_cat.cost_type
+                FROM cost_cat
+                WHERE cost_cat.cost_cat_id = (CASE WHEN ls_cam_rec_report.cost_tran_sched_id IS NOT NULL THEN cost_tran_sched.cost_cat_id ELSE cost_tran.cost_cat_id END))
+            </sql>
+        </field>
+        <field name="vf_amount_income" dataType="number" decimals="2" currency="${user.userCurrency.code}">
+            <sql dialect="generic">(CASE WHEN ls_cam_rec_report.cost_tran_sched_id IS NOT NULL THEN cost_tran_sched.amount_income ELSE cost_tran.amount_income END)</sql>
+        </field>
+        <field name="vf_amount_expense" dataType="number" decimals="2" currency="${user.userCurrency.code}">
+            <sql dialect="generic">(CASE WHEN ls_cam_rec_report.cost_tran_sched_id IS NOT NULL THEN cost_tran_sched.amount_expense ELSE cost_tran.amount_expense END)</sql>
+        </field>
+        <field name="vf_amount_income_total_pay" dataType="number" decimals="2" currency="${user.userCurrency.code}">
+            <sql dialect="generic">
+                (CASE WHEN ls_cam_rec_report.cost_tran_sched_id IS NOT NULL
+                THEN cost_tran_sched.amount_income_total_payment * ${parameters['exchangeRateCostTranSched']}
+                ELSE cost_tran.amount_income_total_payment * ${parameters['exchangeRateCostTran']}
+                END)
+            </sql>
+        </field>
+        <field name="vf_amount_expense_total_pay" dataType="number" decimals="2" currency="${user.userCurrency.code}">
+            <sql dialect="generic">
+                (CASE WHEN ls_cam_rec_report.cost_tran_sched_id IS NOT NULL
+                THEN cost_tran_sched.amount_expense_total_payment * ${parameters['exchangeRateCostTranSched']}
+                ELSE cost_tran.amount_expense_total_payment * ${parameters['exchangeRateCostTran']}
+                END)
+            </sql>
+        </field>
+        <field name="vf_date_due" dataType="date">
+            <sql dialect="generic">(CASE WHEN ls_cam_rec_report.cost_tran_sched_id IS NOT NULL THEN cost_tran_sched.date_due ELSE cost_tran.date_due END)</sql>
+        </field>
+        <field name="vf_date_paid" dataType="date">
+            <sql dialect="generic">(CASE WHEN ls_cam_rec_report.cost_tran_sched_id IS NOT NULL THEN cost_tran_sched.date_paid ELSE cost_tran.date_paid END)</sql>
+        </field>
+        
+        <field table="cost_tran" name="currency_payment" hidden="true"/>
+        <field table="cost_tran_sched" name="currency_payment" hidden="true"/>
+        
+        <parameter name="exchangeRateCostTran" dataType="verbatim" value="1"/>
+        <parameter name="exchangeRateCostTranSched" dataType="verbatim" value="1"/>
+    </dataSource>
+    
+    <panel type="grid" id="abRepmLsCamReviewAdjust_grid" dataSource="abRepmLsCamReviewAdjust_ds" layoutRegion="gridPos" showOnLoad="false">
+        <title translatable="true">CAM Reconciliation Adjustments for</title>
+
+        <action id="addNew">
+            <title translatable="true">Add New</title>
+        </action>
+        <action id="close">
+            <title translatable="true">Close</title>
+            <command type="callFunction" functionName="onAddAdjustmentCancellation('close')"/>
+        </action>
+        
+        <field controlType="button" id="edit">
+            <title translatable="true">Edit</title>
+            <command type="showPanel" panelId="abRepmLsCamReviewAdjust_form"/>
+        </field>
+
+        <field name="vf_cost_cat_id" dataType="text" controlType="link">
+            <title>Cost Category</title>
+            <command type="showPanel" panelId="abRepmLsCamReviewAdjust_form"/>
+        </field>
+        <field table="ls_cam_rec_report" name="ls_rent_year" controlType="link">
+            <command type="showPanel" panelId="abRepmLsCamReviewAdjust_form"/>
+        </field>
+        <field name="vf_date_due" dataType="date" controlType="link">
+            <title>Date Due</title>
+            <command type="showPanel" panelId="abRepmLsCamReviewAdjust_form"/>
+        </field>
+        <field name="vf_amount_income" dataType="number" decimals="2" currency="${user.userCurrency.code}" controlType="link" hidden="${View.activityParameters['AbCommonResources-EnableVatAndMultiCurrency'] == 1}">
+            <title>Amount Income</title>
+            <command type="showPanel" panelId="abRepmLsCamReviewAdjust_form"/>
+        </field>
+        <field name="vf_amount_income_total_pay" dataType="number" decimals="2" currency="${user.userCurrency.code}" controlType="link" hidden="${View.activityParameters['AbCommonResources-EnableVatAndMultiCurrency'] == 0}">
+            <title>Amount Income - Total (Payment)</title>
+            <command type="showPanel" panelId="abRepmLsCamReviewAdjust_form"/>
+        </field>
+        <field name="vf_amount_expense" dataType="number" decimals="2" currency="${user.userCurrency.code}" controlType="link" hidden="${View.activityParameters['AbCommonResources-EnableVatAndMultiCurrency'] == 1}">
+            <title>Amount Expense</title>
+            <command type="showPanel" panelId="abRepmLsCamReviewAdjust_form"/>
+        </field>
+        <field name="vf_amount_expense_total_pay" dataType="number" decimals="2" currency="${user.userCurrency.code}" controlType="link" hidden="${View.activityParameters['AbCommonResources-EnableVatAndMultiCurrency'] == 0}">
+            <title>Amount Expense - Total (Payment)</title>
+            <command type="showPanel" panelId="abRepmLsCamReviewAdjust_form"/>
+        </field>
+        <field table="ls_cam_rec_report" name="ll_invoice_doc" controlType="link"/>
+        <field table="ls_cam_rec_report" name="ll_cam_report_doc" controlType="link"/>
+        
+        <field table="ls_cam_rec_report" name="ls_cam_rec_report_id" hidden="true"/>
+    </panel>
+
+    <panel type="form" id="abRepmLsCamReviewAdjust_form" dataSource="abRepmLsCamReviewAdjust_ds" showOnLoad="false" columns="3">
+        <title translatable="true">CAM Reconciliation Adjustment</title>
+        
+        <action id="save">
+            <title translatable="true">Save</title>
+            <command type="saveForm"/>
+            <command type="showPanel" panelId="abRepmLsCamReviewAdjust_grid" applyParentRestriction="false"/>
+            <command type="callFunction" functionName="abRepmLsCamReviewAdjustController.openerController.abRepmLsCamReportFilter_onFilter();"/>
+        </action>
+        <action id="delete" enabled="${!panel.newRecord}">
+            <title translatable="true">Delete</title>
+        </action>
+        <action id="cancel">
+            <title translatable="true">Cancel</title>
+            <command type="callFunction" functionName="onAddAdjustmentCancellation('cancel')"/>
+        </action>
+        
+        <field table="ls_cam_rec_report" name="cost_tran_sched_id" hidden="true"/>
+
+        <field table="ls_cam_rec_report" name="ls_cam_rec_report_id"/>
+        <field table="ls_cam_rec_report" name="ll_invoice_no"/>
+        <field table="ls_cam_rec_report" name="ll_invoice_doc"/>
+                
+        <field table="ls_cam_rec_report" name="ls_id" readOnly="true"/>
+        <field table="ls_cam_rec_report" name="invoice_date_received"/>
+        <field table="ls_cam_rec_report" name="ll_cam_report_doc"/>
+        
+        <field table="ls_cam_rec_report" name="ls_rent_year"/>
+        <field name="vf_amount_income_text" dataType="text" readOnly="true">
+            <title>Amount Income</title>
+        </field>
+        <field table="ls_cam_rec_report" name="support_doc1_id"/>
+        
+        <field name="vf_cost_cat_id" dataType="text" size="32" readOnly="true">
+            <title>Cost Category</title>
+        </field>
+
+        <field name="vf_amount_expense_text" dataType="text" readOnly="true">
+            <title>Amount Expense</title>
+        </field>
+        <field table="ls_cam_rec_report" name="support_doc2_id"/>
+        
+        <field name="vf_cost_type" dataType="text" size="16" readOnly="true">
+            <title>Cost Type</title>
+        </field>
+        <field name="vf_date_due" dataType="date" readOnly="true">
+            <title>Date Due</title>
+        </field>
+        <field table="ls_cam_rec_report" name="support_doc3_id"/>
+        
+        <field id="vf_cost_tran_sched_id">
+            <title>Scheduled Cost Code</title>
+            <action id="addScheduledCost" enabled="${panel.newRecord || record['ls_cam_rec_report.cost_tran_sched_id'] != ''}">
+                <title translatable="true">Add/Edit</title>
+                <tooltip>Add/Edit Scheduled Cost</tooltip>
+                <command type="callFunction" functionName="addEditScheduledCost"/>
+            </action>
+        </field>
+        <field name="vf_date_paid" dataType="date" readOnly="true">
+            <title>Date Paid</title>
+        </field>
+        <field table="ls_cam_rec_report" name="support_doc4_id"/>
+        
+        <field table="ls_cam_rec_report" name="cost_tran_id" readOnly="true"/>
+        <field/>
+        <field/>
+        
+        <field table="ls_cam_rec_report" name="description" colspan="3"/>
+    </panel>
+    
+    <!-- Utility data source for scheduled cost -->
+    <dataSource id="abRepmLsCamReviewAdjust_dsSchedCost">
+        <table name="cost_tran_sched"/>
+        <field name="cost_tran_sched_id"/>
+        <field name="cost_cat_id"/>
+        <field name="vf_amount_income" dataType="number" decimals="2">
+            <sql dialect="generic">cost_tran_sched.amount_income</sql>
+        </field>
+        <field name="vf_amount_expense" dataType="number" decimals="2">
+            <sql dialect="generic">cost_tran_sched.amount_expense</sql>
+        </field>
+
+        <field name="vf_amount_income_total_pay" dataType="number" decimals="2">
+            <sql dialect="generic">(cost_tran_sched.amount_income_total_payment * ${parameters['exchangeRateCostTranSched']})</sql>
+        </field>
+        <field name="vf_amount_expense_total_pay" dataType="number" decimals="2">
+            <sql dialect="generic">(cost_tran_sched.amount_expense_total_payment * ${parameters['exchangeRateCostTranSched']})</sql>
+        </field>
+        <field name="date_due"/>
+        <field name="date_paid"/>
+        <field name="vf_cost_type" dataType="text" size="16">
+            <sql dialect="generic">
+                (SELECT cost_cat.cost_type
+                FROM cost_cat
+                WHERE cost_cat.cost_cat_id = cost_tran_sched.cost_cat_id)
+            </sql>
+        </field>
+        
+        <parameter name="exchangeRateCostTranSched" dataType="verbatim" value="1"/>
+    </dataSource>
+
+    <!-- Utility data source for cost -->
+    <dataSource id="abRepmLsCamReviewAdjust_dsCost">
+        <table name="cost_tran"/>
+        <field name="cost_tran_id"/>
+    </dataSource>
+
+    <!-- Utility data source for adjustments -->
+    <dataSource id="abRepmLsCamReviewAdjust_dsAdjust">
+        <table name="ls_cam_rec_report"/>
+        <field name="ls_cam_rec_report_id"/>
+    </dataSource>
+
+    <!-- Utility data source for cost category -->
+    <dataSource id="abRepmLsCamReviewAdjust_dsCostCat">
+        <table name="cost_cat"/>
+        <field name="cost_cat_id"/>
+        <field name="cost_type"/>
+    </dataSource>
+</view>

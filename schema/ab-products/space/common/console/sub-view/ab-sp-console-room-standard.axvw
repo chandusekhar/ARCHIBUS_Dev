@@ -1,0 +1,238 @@
+<view version="2.0">
+     <js file="ab-sp-console-room-standard.js"/> 
+    <dataSource id="roomStandardDs" applyVpaRestrictions="false">
+        <sql dialect="generic">
+          SELECT * FROM 
+             (SELECT
+                '' ${sql.as} rm_std,
+                '' ${sql.as} description,
+                0  ${sql.as} std_area,
+                0.00 ${sql.as} std_em,
+                '' ${sql.as} hpattern_acad,
+                (SELECT  SUM(rm.area)
+					FROM rmstd
+					RIGHT OUTER JOIN rm ON rm.rm_std = rmstd.rm_std
+                    WHERE ${parameters['commonParameters']} AND ${sql.vpaRestriction}  AND ${parameters['teamRmRestriction']} 
+                     AND (rm.rm_cat IS NULL OR EXISTS (SELECT 1 FROM rmcat WHERE
+                    rm.rm_cat= rmcat.rm_cat AND rmcat.used_in_calcs !='no_totals'))
+                    AND rm.rm_std is null  ) ${sql.as} total_area
+             FROM rmstd
+                    RIGHT OUTER JOIN rm ON rm.rm_std = rmstd.rm_std
+                    WHERE ${parameters['commonParameters']} AND ${sql.vpaRestriction}  AND ${parameters['teamRmRestriction']} 
+                    AND rm.rm_std is null 
+                ) ${sql.as} wraped_dp WHERE total_area !=0 
+            UNION 
+             SELECT 
+                wraped_rm.rm_std,
+                wraped_rm.description,
+                wraped_rm.std_area,
+                wraped_rm.std_em,
+                wraped_rm.hpattern_acad,
+                (SELECT  SUM(rm.area)
+                    FROM rm  RIGHT OUTER JOIN rmstd on rm.rm_std = rmstd.rm_std 
+                    WHERE ${parameters['commonParameters']}  AND ${sql.vpaRestriction}  AND ${parameters['teamRmRestriction']} 
+                     AND (rm.rm_cat IS NULL OR EXISTS (SELECT 1 FROM rmcat WHERE
+                    rm.rm_cat= rmcat.rm_cat AND rmcat.used_in_calcs !='no_totals'))
+                    AND wraped_rm.rm_std = rm.rm_std 
+                     GROUP BY rmstd.rm_std,
+                      rmstd.description,
+                      rmstd.std_area,
+                      rmstd.std_em, 
+                      rmstd.hpattern_acad) ${sql.as} total_area 
+                FROM 
+                   (SELECT 
+                        rmstd.rm_std ${sql.as} rm_std,
+                        rmstd.description ${sql.as} description,
+                        rmstd.std_area ${sql.as} std_area,
+                        rmstd.std_em ${sql.as} std_em,
+                        rmstd.hpattern_acad ${sql.as} hpattern_acad
+                    FROM rm
+                    RIGHT OUTER JOIN rmstd on rm.rm_std = rmstd.rm_std
+                    WHERE ${parameters['commonParameters']} AND ${sql.vpaRestriction}  AND ${parameters['teamRmRestriction']} 
+                    GROUP BY rmstd.rm_std,
+                      rmstd.description,
+                      rmstd.std_area,
+                      rmstd.std_em, 
+                      rmstd.hpattern_acad) ${sql.as} wraped_rm 
+        </sql>
+        
+        <table name="rm" role="main"/>
+        <field name="rm_std" table="rm"/>
+        <field name="description" dataType="text" table="rm"/>
+        <field name="std_area" table="rm" dataType="number" numericFormat="area"/>
+        <field name="std_em" table="rm" dataType="number"/>
+        <field name="hpattern_acad" dataType="text" table="rm">
+            <title>Highlight Pattern</title>
+        </field>
+        <field table="rm" name="total_area" dataType="number" size="8" decimals="2" showTotals="true" numericFormat="area">
+            <title>Total Area ${user.areaUnits.title}</title>
+        </field>
+        
+        <sortField table="rm" name="rm_std"/>
+        <sortField table="rm" name="description"/>
+        <sortField table="rm" name="std_area"/>
+        <sortField table="rm" name="std_em"/>
+        <sortField table="rm" name="hpattern_acad"/>
+        
+        <parameter name="commonParameters" dataType="verbatim" value="2=2"/>
+        <parameter name="dv_id" dataType="verbatim" value="1=1"/>
+        <parameter name="dp_id" dataType="verbatim" value="1=1"/>
+        <parameter name="bl_id" dataType="verbatim" value="1=1"/>
+        <parameter name="fl_id" dataType="verbatim" value="1=1"/>
+        <parameter name="rm_id" dataType="verbatim" value="1=1"/>
+        <parameter name="rm_cat" dataType="verbatim" value="1=1"/>
+        <parameter name="rm_type" dataType="verbatim" value="1=1"/>
+        <parameter name="rm_std" dataType="verbatim" value="1=1"/>
+        <parameter name="occupancy" dataType="verbatim" value="1=1"/>
+        <parameter name="organizationUnassigned" dataType="verbatim" value="1=1"/>
+        <parameter name="typeUnassigned" dataType="verbatim" value="1=1"/>
+        <parameter name="totalArea" dataType="verbatim" value="1=1"/>
+        <parameter name="teamRmRestriction" dataType="verbatim" value="6=6"/>
+    </dataSource>
+    
+    <dataSource id="roomStandardDetailDs">
+        <table name="rmstd" role="main"/>
+        <field table="rmstd" name="rm_std"/>
+        <field table="rmstd" name="std_area" numericFormat="area"/>
+        <field table="rmstd" name="hpattern_acad"/>
+        <field table="rmstd" name="description"/>
+        <field table="rmstd" name="width"/>
+        <field table="rmstd" name="std_em"/>
+        <field table="rmstd" name="length"/>
+        <field table="rmstd" name="doc_block"/>
+        <field table="rmstd" name="doc_graphic"/>
+    </dataSource>
+    
+    <dataSource id="roomstdPendingAssignmentDs">
+        <table name="rm" role="main"/>
+        <field table="rm" name="bl_id"/>
+        <field table="rm" name="fl_id"/>
+        <field table="rm" name="rm_id"/>
+        <field table="rm" name="rm_std"/>
+    </dataSource>
+    
+    <panel type="grid" id="roomStandardGrid" dataSource="roomStandardDs" showOnLoad="false">
+        <action id="addNewRoomStandard" enabled="${user.isMemberOfGroup('SPACE-CONSOLE-ALL-ACCESS')}">
+            <title translatable="true">Add New</title>
+            <command type="openDialog" panelId="roomStandardDetailPanel" newRecord="true" closeButton="false">
+                <title>New Room Standard</title>
+            </command>
+        </action>
+        
+        <action type="menu" id="exportRoomStandardMenu"  imageName="/schema/ab-core/graphics/icons/view/export.png">
+            <title></title>
+            <action id="roomStandardExportDOCX">
+                <title>Export to DOCX</title>
+                <command type="callFunction" functionName="exportRoomStandardToDOCX"/>
+            </action>
+            <action id="roomStandardExportXLS">
+                <title>Export to XLS</title>
+                <command type="callFunction" functionName="exportRoomStandardToXLS()"/>
+            </action>
+        </action>
+        
+        <action type="menu" id="roomStandardMenu" imageName="/schema/ab-core/graphics/icons/view/gear.png">
+            <action id="selectFields">
+                <title>Select Fields</title>
+                <command type="selectFields" panelId="roomStandardGrid"/>
+            </action>
+        </action>
+        <field name="rm_std" table="rm" controlType="link" legendKey="true" enabled="${user.isMemberOfGroup('SPACE-CONSOLE-ALL-ACCESS')}">
+            <command type="callFunction" functionName="filterDrawingByRoomStd"/>
+        </field>
+        <field name="description" table="rm" controlType="link" hidden="true" enabled="${user.isMemberOfGroup('SPACE-CONSOLE-ALL-ACCESS')}">
+            <title>Standard Description</title>
+            <command type="callFunction" functionName="filterDrawingByRoomStd"/>
+        </field>
+        <field name="std_area" dataType="number" enabled="${user.isMemberOfGroup('SPACE-CONSOLE-ALL-ACCESS')}">
+            <title>Standard Area ${user.areaUnits.title}</title>
+            <command type="callFunction" functionName="filterDrawingByRoomStd"/>
+        </field>
+        <field name="std_em" controlType="link" dataType="number" size="8" decimals="0" enabled="${user.isMemberOfGroup('SPACE-CONSOLE-ALL-ACCESS')}">
+            <title>Employee Headcount</title>
+            <command type="callFunction" functionName="filterDrawingByRoomStd"/>
+        </field>
+        <field name="total_area" dataType="number" showTotals="true" enabled="${user.isMemberOfGroup('SPACE-CONSOLE-ALL-ACCESS')}">
+            <title>Total Area ${user.areaUnits.title}</title>
+            <command type="callFunction" functionName="filterDrawingByRoomStd"/>
+        </field>
+        <field name="hpattern_acad" table="rm" controlType="color">
+            <title>Highlight Pattern</title>
+        </field>
+        
+        <field name="editRoomStd" controlType="image" imageName="pencil.png" hidden="${!user.isMemberOfGroup('SPACE-CONSOLE-ALL-ACCESS')}" 
+             enabled="${user.isMemberOfGroup('SPACE-CONSOLE-ALL-ACCESS')}">
+            <command type="callFunction" functionName="editRoomStandard" closeButton="false"/>
+            <title>Edit</title>
+        </field>
+        
+        <field id="assignRoomStandard" controlType="button" hidden="${!user.isMemberOfGroup('SPACE-CONSOLE-ALL-ACCESS')}" 
+            enabled="${user.isMemberOfGroup('SPACE-CONSOLE-ALL-ACCESS')}">
+            <title>Assign</title>
+        </field>
+        
+    </panel>
+    
+    <panel type="form" id="roomStandardDetailPanel" hidden="true" showOnLoad="false" columns="2" dataSource="roomStandardDetailDs" buttonsPosition="footer">
+        <action id="save" enabled="${user.isMemberOfGroup('SPACE-CONSOLE-ALL-ACCESS')}">
+            <title translatable="true">Save</title>
+            <command type="saveForm"/>
+            <command type="closeDialog"/>
+            <command type="showPanel" panelId="roomStandardGrid" applyParentRestriction="false"/>
+        </action>
+        <action id="delete" enabled="${user.isMemberOfGroup('SPACE-CONSOLE-ALL-ACCESS') &amp;&amp; !panel.newRecord}">
+            <title translatable="true">Delete</title>
+            <command type="deleteRecord"/>
+            <command type="closeDialog"/>
+            <command type="showPanel" panelId="roomStandardGrid" applyParentRestriction="false"/>       
+        </action>
+        <action id="cancel" enabled="${user.isMemberOfGroup('SPACE-CONSOLE-ALL-ACCESS')}">
+            <title translatable="true">Cancel</title>
+            <command type="closeDialog"/>
+        </action>
+        
+        <field table="rmstd" name="rm_std"/>
+        <field table="rmstd" name="description"/>
+        <field table="rmstd" name="width"/>
+        <field table="rmstd" name="length"/>
+        <field table="rmstd" name="std_area">
+            <title>Standard Area ${user.areaUnits.title}</title>
+        </field>
+        <field table="rmstd" name="std_em"/>
+        <field table="rmstd" name="hpattern_acad" readOnly="false">
+            <action id="openRoomStandardHpattern" enabled="${user.isMemberOfGroup('SPACE-CONSOLE-ALL-ACCESS')}">
+                <title>...</title>
+                <command type="callFunction" functionName="abSpConsole_openHpatternDialog('roomStandardDetailPanel', 'rmstd.hpattern_acad')"/>
+            </action>
+        </field>
+        <field table="rmstd" name="doc_block"/>
+        <field table="rmstd" name="doc_graphic"/>
+    </panel>
+    
+    <panel type="grid" id="roomstdPendingAssignmentPanel" showOnLoad="false" dataSource="roomstdPendingAssignmentDs" hidden="true"
+            controlType="reportGrid" sortEnabled="false" buttonsPosition="footer">
+        <action id="commitRoomStdPendingAssignments" mainAction="true" enabled="${user.isMemberOfGroup('SPACE-CONSOLE-ALL-ACCESS')}">
+            <title>Commit Assignments</title>
+            <command type="closeDialog"/>
+        </action>
+        <action id="cancelRoomStdPendingAssignments">
+            <title>Cancel Assignments</title>
+            <command type="closeDialog"/>
+        </action>
+        <action id="hideRoomStdPendingAssignments">
+            <title>Close</title>
+            <command type="closeDialog"/>
+        </action>
+        
+        <field name="bl_id"/>
+        <field name="fl_id"/>
+        <field name="rm_id"/>
+        <field name="rm_std">
+            <title>Original Room Standard</title>
+        </field>
+        <field name="assigned_rm_std">
+            <title>Assigned Room Standard</title>
+        </field>
+        <field id="removeRoomStdPendingAssignment" controlType="image" imageName="delete.gif" enabled="${user.isMemberOfGroup('SPACE-CONSOLE-ALL-ACCESS')}"/>
+    </panel>
+</view>

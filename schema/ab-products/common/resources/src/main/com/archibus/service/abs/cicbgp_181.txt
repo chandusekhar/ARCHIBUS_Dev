@@ -1,0 +1,320 @@
+'CICBGP.ABS
+'Composite Inventory
+'Chargeback
+'Group Method 
+'10.26.94
+'06.21.96 - JH - resolved Oracle SQL issues
+'03.19.97 - JH - Added entry point to call externally
+'09.16.99 - JH - MSSQL - Added case for MSSQL
+ 
+
+Option Explicit
+
+'---- External Functions
+Declare Function SqlFunc_SQLIsNull() As String
+
+'---- Internal Functions
+Declare Sub cicbgp_CompInvGPChargeback
+Declare Sub cicbgp()
+
+
+'------------------------------------------------------------------------------
+'----                                    TRANSLATE
+Const kPleaseWaitMsg$              = "Please wait ... "
+Const kPerformingGroupCbMsg$       = "Performing Group Chargeback"
+
+'------------------------------------------------------------------------------
+
+Sub cicbgp_CompInvGPChargeback
+	cicbgp
+End Sub
+
+'-----------------------------------------------------------------------------
+Sub cicbgp()
+
+     MsgOpen kPerformingGroupCbMsg & BASIC.EOLN$ & _
+             kPleaseWaitMsg, 0, FALSE, TRUE
+
+     Dim ff As New FieldFormula
+     Dim fo As New FieldOperation
+     Dim sSqlStatement As String
+
+     '--- Initialize certain group fields to 0
+
+     ff.Assigned =  "gp"
+     ff.AddFormula  "gp.cost","0.0"
+     ff.AddFormula  "gp.area_chargable","0.0"
+     ff.AddFormula  "gp.area_comn","0.0"
+     ff.AddFormula  "gp.area_comn_gp","0.0" 
+     ff.AddFormula  "gp.area_comn_serv","0.0" 
+     ff.Calculate
+     ff.Clear
+
+     MsgSetThermometer 5
+
+     '--- Sum TOTAL and DEPARTMENT area from GP to FL
+
+     fo.Owner     = "fl"
+     fo.Assigned  = "gp"
+     fo.Calculate "fl.area_gp", "SUM", "gp.area"
+     fo.InpFilter = "gp.dp_id IS NOT NULL"
+     fo.Calculate "fl.area_gp_dp", "SUM", "gp.area"
+     fo.Clear
+
+     '--- Sum DEPARTMENT area from FL to BL
+
+     fo.Owner = "bl"
+     fo.Assigned = "fl"
+     fo.Calculate "bl.area_gp_dp", "SUM", "fl.area_gp_dp"
+     fo.Clear
+
+     MsgSetThermometer 20
+  
+     '--- Sum DEPARTMENT area from BL to SITE
+
+     fo.Owner = "site"
+     fo.Assigned = "bl"
+     fo.Calculate "site.area_gp_dp", "SUM", "bl.area_gp_dp"
+     fo.Clear
+
+     MsgSetThermometer 25
+
+     '--- Sum SERVICE FLOOR COMMON area from SERV to FL 
+
+     fo.Owner    = "fl"
+     fo.Assigned = "rm"
+     fo.Standard = "rmcat"
+     fo.InpFilter = "rmcat.supercat = 'SERV' AND rm.prorate = 'FLOOR'"
+     fo.Calculate "fl.area_fl_comn_serv", "SUM", "rm.area"
+     fo.Clear 
+
+     MsgSetThermometer 30
+
+     '--- Sum SERVICE BLDG. COMMON area from SERV to BL
+
+     fo.Owner    = "bl"
+     fo.Assigned = "rm"
+     fo.Standard = "rmcat"
+     fo.InpFilter = "rmcat.supercat = 'SERV' AND rm.prorate = 'BUILDING'"
+     fo.Calculate "bl.area_bl_comn_serv", "SUM", "rm.area"
+     fo.Clear 
+
+     MsgSetThermometer 35
+
+     '--- Sum SERVICE SITE COMMON area from SERV to SITE 
+
+     sSqlStatement = "UPDATE site SET area_st_comn_serv = (SELECT " & _
+                     SqlFunc_SQLIsNull() & "(SUM(rm.area), 0.0)" & _
+                    " FROM bl, rm, rmcat" & _
+                    " WHERE site.site_id = bl.site_id" & _
+                    " AND bl.bl_id = rm.bl_id" & _
+		    " AND rmcat.rm_cat = rm.rm_cat" & _
+		    " AND rmcat.supercat = 'SERV'" & _ 
+                    " AND rm.prorate = 'SITE')"
+     ProjDb.ExecuteSql sSqlStatement
+
+     MsgSetThermometer 40
+
+     '--- Sum FLOOR COMMON area from GP to FL 
+
+     fo.Owner    = "fl"
+     fo.Assigned = "gp"
+     fo.InpFilter = "gp.prorate='FLOOR'"
+     fo.Calculate "fl.area_fl_comn_gp", "SUM", "gp.area"
+     fo.Clear 
+
+     MsgSetThermometer 45
+
+     '--- Calculate FLOOR COMMON and REMAINING AREA
+
+     ff.Assigned = "fl"
+     ff.OutFilter = "fl.prorate_remain = 'FLOOR'"
+     ff.Calculate "fl.area_fl_comn_gp", "fl.area_remain + fl.area_fl_comn_gp"
+     ff.Clear 
+
+     MsgSetThermometer 50
+
+     '--- Sum BUILDING COMMON AREA from FL REMAINING AREA
+
+     fo.Owner    = "bl"
+     fo.Assigned = "gp"
+     fo.InpFilter = "gp.prorate='BUILDING'"
+     fo.Calculate "bl.area_bl_comn_gp", "SUM", "gp.area"
+     fo.Clear 
+
+'    ---- Have to add in fl.area_remain in separate statement because of Oracle
+     sSqlStatement = "UPDATE bl SET area_bl_comn_gp = " & _
+               "(SELECT bl.area_bl_comn_gp + " & _
+               SqlFunc_SQLIsNull() & "(SUM(fl.area_remain), 0.0)" & _
+               " FROM fl " & _
+               " WHERE bl.bl_id = fl.bl_id" & _
+               " AND fl.prorate_remain = 'BUILDING')"
+     ProjDb.ExecuteSql sSqlStatement
+
+     MsgSetThermometer 55
+
+     '--- Sum SITE COMMON area from GP to SITE
+
+     sSqlStatement = "UPDATE site SET area_st_comn_gp = " & _
+               "(SELECT " & SqlFunc_SQLIsNull() & "(SUM(gp.area), 0.0)" & _
+               " FROM bl, gp" & _
+               " WHERE site.site_id = bl.site_id" & _
+               " AND bl.bl_id = gp.bl_id" & _
+               " AND gp.prorate = 'SITE')"
+     ProjDb.ExecuteSql sSqlStatement
+
+'    ---- Have to add in fl.area_remain in separate statement because of Oracle
+     sSqlStatement = "UPDATE site SET area_st_comn_gp = " & _
+               "(SELECT site.area_st_comn_gp + " & _
+               SqlFunc_SQLIsNull() & "(SUM(fl.area_remain), 0.0)" & _
+               " FROM bl, fl" & _
+               " WHERE site.site_id = bl.site_id" & _
+               " AND bl.bl_id = fl.bl_id" & _
+               " AND fl.prorate_remain = 'SITE')"
+     ProjDb.ExecuteSql sSqlStatement
+
+     MsgSetThermometer 60
+
+     '--- PRORATE COMMON AREA
+     '--- Only update dept. groups
+     '--- See SPSUP.ABS for definition of sql view: gpc
+
+     sSqlStatement = "UPDATE gp SET" & _
+                " gp.area_comn_gp =" & _
+                     " (SELECT (gpc.flcomgp + gpc.blcomgp + gpc.stcomgp)" & _
+                     " FROM gpc WHERE gpc.gp_id = gp.gp_id)," & _
+                " gp.area_comn_serv =" & _
+                     " (SELECT (gpc.flcomsrv + gpc.blcomsrv +gpc.stcomsrv)" & _
+                     " FROM gpc WHERE gpc.gp_id = gp.gp_id)" & _
+                " WHERE gp.dp_id IS NOT NULL"
+     ProjDb.ExecuteSql sSqlStatement
+
+     MsgSetThermometer 65
+
+     '--- Calculate TOTAL COMMON & CHARGEABLE area
+     '--- Only update dept. groups
+
+     ff.Assigned = "gp"
+     ff.OutFilter = "gp.dp_id IS NOT NULL"
+     ff.Calculate "gp.area_comn","gp.area_comn_gp + gp.area_comn_serv"
+     ff.Calculate "gp.area_chargable","gp.area + gp.area_comn"
+     ff.Clear
+
+     MsgSetThermometer 70
+
+     '--- Calculate COST
+     '--- Only update dept. groups
+     '--- Oracle has to be calc'd differently due to its limitations
+
+/*****************************************************************************************
+SERGEY - NOTE: the calcs below have a second case which uses a field formula for Sybase.
+As in arcb.abs the Field Formula can probably be modified to use a CASE statement and
+then that should work on all db servers. The non-Sybase calcs below can then be eliminated.
+******************************************************************************************/
+
+     If ProjDb.ServerType <> "Sybase" Then
+
+          sSqlStatement = "UPDATE gp SET gp.cost =" & _
+                              " (SELECT " & SqlFunc_SQLIsNull() & _
+                                   " (gp.area_chargable * fl.cost_sqft,0)" & _
+                              " FROM fl" & _
+                              " WHERE gp.bl_id = fl.bl_id" & _
+                              " AND gp.fl_id = fl.fl_id)" & _
+                         " WHERE gp.dp_id IS NOT NULL"
+          ProjDb.ExecuteSQL sSqlStatement
+
+          sSqlStatement = "UPDATE gp SET gp.cost =" & _
+                              " (SELECT " & SqlFunc_SQLIsNull() & _
+                                   " (gp.area_chargable * bl.cost_sqft,0)" & _
+                              " FROM bl" & _
+                              " WHERE gp.bl_id = bl.bl_id)" & _
+                         " WHERE gp.dp_id IS NOT NULL" & _
+                         " AND gp.cost = 0"
+          ProjDb.ExecuteSQL sSqlStatement
+
+     Else      '---- Sybase
+
+          ff.Owner = "bl"
+          ff.Assigned = "gp"
+          ff.Standard = "fl"
+          ff.OutFilter = "gp.dp_id IS NOT NULL"
+          ff.Calculate "gp.cost","IF fl.cost_sqft <> 0 THEN " + _
+                                 "gp.area_chargable * fl.cost_sqft ELSE " + _
+                                 "gp.area_chargable * bl.cost_sqft ENDIF"
+          ff.Clear
+
+     End If
+
+     MsgSetThermometer 75
+
+     '--- Sum GROUP AREAs from GP to DP
+
+     fo.Owner    = "dp"
+     fo.Assigned = "gp"
+     fo.AddOperation "dp.area_gp", "SUM", "gp.area"
+     fo.AddOperation "dp.area_comn_gp", "SUM", "gp.area_comn_gp"
+     fo.AddOperation "dp.area_comn_serv", "SUM", "gp.area_comn_serv"
+     fo.Calculate
+     fo.Clear 
+
+     '--- Sum COST, CHARGABLE area, and COMMON area from GP to DP. We must add to existing values 
+     '---   because some departments may already have costs, common, and chargeable ares summed from rooms also.
+     sSqlStatement = "UPDATE dp SET " & _
+				dp.cost = dp.cost + " & _
+					"( SELECT SUM(gp.cost) FROM gp" & _
+					"  WHERE gp.dv_id = dp.dv_id AND gp.dp_id = dp.dp_id )" & _
+				dp.area_chargeable = dp.area_chargeable + " & _
+					"( SELECT SUM(gp.area_chargeable) FROM gp" & _
+					"  WHERE gp.dv_id = dp.dv_id AND gp.dp_id = dp.dp_id )" & _
+				dp.area_comn = dp.area_comn + " & _
+					"( SELECT SUM(gp.area_comn) FROM gp" & _
+					"  WHERE gp.dv_id = dp.dv_id AND gp.dp_id = dp.dp_id )" & _
+
+     ProjDb.ExecuteSQL sSqlStatement
+
+
+     MsgSetThermometer 80
+
+     '--- Sum COST, CHARGABLE area, COMMON area, and GROUP AREA, from DP to DV
+
+     fo.Owner    = "dv"
+     fo.Assigned = "dp"
+     fo.AddOperation "dv.cost", "SUM", "dp.cost"
+     fo.AddOperation "dv.area_chargable", "SUM", "dp.area_chargable"
+     fo.AddOperation "dv.area_gp", "SUM", "dp.area_gp"
+     fo.AddOperation "dv.area_comn", "SUM", "dp.area_comn"
+     fo.AddOperation "dv.area_comn_gp", "SUM", "dp.area_comn_gp"
+     fo.AddOperation "dv.area_comn_serv", "SUM", "dp.area_comn_serv"
+     fo.Calculate
+     fo.Clear 
+
+     MsgSetThermometer 85
+
+     '--- Sum COST, CHARGABLE area, COMMON area, and GROUP AREA, from DV to BU
+
+     fo.Owner    = "bu"
+     fo.Assigned = "dv"
+     fo.AddOperation "bu.cost", "SUM", "dv.cost"
+     fo.AddOperation "bu.area_chargable", "SUM", "dv.area_chargable"
+     fo.AddOperation "bu.area_gp", "SUM", "dv.area_gp"
+     fo.AddOperation "bu.area_comn", "SUM", "dv.area_comn"
+     fo.AddOperation "bu.area_comn_gp", "SUM", "dv.area_comn_gp"
+     fo.AddOperation "bu.area_comn_serv", "SUM", "dv.area_comn_serv"
+     fo.Calculate
+     fo.Clear 
+
+     MsgSetThermometer 90
+
+     Avw.SetTblChanged "gp", AVW_TBLCHANGE_UPDATE
+     Avw.SetTblChanged "site", AVW_TBLCHANGE_UPDATE
+     Avw.SetTblChanged "bl", AVW_TBLCHANGE_UPDATE
+     Avw.SetTblChanged "fl", AVW_TBLCHANGE_UPDATE
+     Avw.SetTblChanged "bu", AVW_TBLCHANGE_UPDATE
+     Avw.SetTblChanged "dv", AVW_TBLCHANGE_UPDATE
+     Avw.SetTblChanged "dp", AVW_TBLCHANGE_UPDATE
+     Avw.ReQuery
+
+     MsgSetThermometer 100
+     MsgClose
+
+End Sub

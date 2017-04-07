@@ -1,0 +1,164 @@
+
+<!-- Example: 
+     Using tree control to select a location (country, region, state, city, site, or building).
+     Applying selected location as a restriction to the chart data. -->
+     
+<view version="2.0">
+    <title translatable="true">Work Requests by Location and Status</title>
+     
+    <layout file="2panels.axvw"/>
+    
+    <js file="ab-ex-tree-chart.js"/>
+    
+    <!-- Console to select date range for work requests -->
+    
+    <dataSource id="consoleDS">
+        <table name="wr"/>
+        <field name="date_requested"/>
+    </dataSource>
+    
+    <panel type="console" id="consolePanel" dataSource="consoleDS" region="west">
+        <title>1: Enter the date range, or leave it empty</title>
+        
+        <!-- Aliased fields based on wr.date_requested -->
+        <field table="wr" name="date_requested" alias="wr.date_requested.from">
+            <title>From</title>
+        </field>
+        <field table="wr" name="date_requested" alias="wr.date_requested.to">
+            <title>To</title>
+        </field>
+    </panel>
+    
+    <!-- Location tree -->
+    
+    <dataSource id="countryDS">
+        <table name="ctry"/>
+        <field name="ctry_id"/>
+        <field name="name"/>
+        <sortField table="ctry" name="ctry_id" ascending="true"/>
+        <restriction type="sql" sql="EXISTS (SELECT bl_id FROM bl WHERE bl.ctry_id = ctry.ctry_id)"/>
+    </dataSource>
+
+    <dataSource id="regionDS">
+        <table name="regn"/>
+        <field name="regn_id"/>
+        <field name="name"/>
+        <sortField table="regn" name="regn_id" ascending="true"/>
+        <restriction type="sql" sql="EXISTS (SELECT bl_id FROM bl WHERE bl.regn_id = regn.regn_id)"/>
+    </dataSource>
+    
+    <dataSource id="stateDS">
+        <table name="state"/>
+        <field name="state_id"/>
+        <field name="name"/>
+        <sortField table="state" name="state_id" ascending="true"/>
+        <restriction type="sql" sql="EXISTS (SELECT bl_id FROM bl WHERE bl.state_id = state.state_id)"/>
+    </dataSource>
+
+    <dataSource id="cityDS">
+        <table name="city"/>
+        <field name="city_id"/>
+        <field name="name"/>
+        <sortField table="city" name="city_id" ascending="true"/>
+        <restriction type="sql" sql="EXISTS (SELECT bl_id FROM bl WHERE bl.city_id = city.city_id)"/>
+    </dataSource>
+    
+    <dataSource id="siteDS">
+        <table name="site"/>
+        <field name="site_id"/>
+        <field name="name"/>
+        <sortField table="site" name="site_id" ascending="true"/>
+        <restriction type="sql" sql="EXISTS (SELECT bl_id FROM bl WHERE bl.site_id = site.site_id)"/>
+    </dataSource>
+    
+    <dataSource id="buildingDS">
+        <table name="bl"/>
+        <field name="bl_id"/>
+        <field name="name"/>
+        <sortField table="bl" name="bl_id" ascending="true"/>
+    </dataSource>
+    
+    <panel type="tree" id="locationTree" dataSource="countryDS" region="west">
+        <title translatable="true">2: Then select Country/Region/State/City/Site/Building</title>
+
+        <field table="ctry" name="ctry_id"/>
+        <field table="ctry" name="name"/>
+        <event type="onClickNode">
+            <command type="callFunction" functionName="selectLocation"/>
+        </event>
+
+        <panel type="tree" id="regionTree" dataSource="regionDS">
+            <field table="regn" name="regn_id"/>
+            <field table="regn" name="name"/>
+	        <event type="onClickNode">
+	            <command type="callFunction" functionName="selectLocation"/>
+	        </event>
+        </panel>
+        
+        <panel type="tree" id="stateTree" dataSource="stateDS">
+            <field table="state" name="state_id"/>
+            <field table="state" name="name"/>
+            <event type="onClickNode">
+                <command type="callFunction" functionName="selectLocation"/>
+            </event>
+        </panel>
+        
+        <panel type="tree" id="cityTree" dataSource="cityDS">
+            <field table="city" name="city_id"/>
+            <field table="city" name="name"/>
+            <event type="onClickNode">
+                <command type="callFunction" functionName="selectLocation"/>
+            </event>
+        </panel>
+        
+        <panel type="tree" id="siteTree" dataSource="siteDS">
+            <field table="site" name="site_id"/>
+            <field table="site" name="name"/>
+            <event type="onClickNode">
+                <command type="callFunction" functionName="selectLocation"/>
+            </event>
+        </panel>
+        
+        <panel type="tree" id="buildingTree" dataSource="buildingDS">
+            <field table="bl" name="bl_id"/>
+            <field table="bl" name="name"/>
+            <event type="onClickNode">
+                <command type="callFunction" functionName="selectLocation"/>
+            </event>
+        </panel>
+    </panel>
+     
+    <!-- Data chart --> 
+     
+    <dataSource id="dataDS" type="grouping">    
+        <table name="wr"/>
+
+        <!-- Group by status -->         
+        <field name="status" groupBy="true"/>
+        <sortField name="status" ascending="true"/>
+        
+        <!-- Display the total count of records for each status value -->
+        <field name="total_requests" formula="count" baseField="wr.wr_id" dataType="number" size="6" decimals="0" /> 
+        
+        <!-- Define a custom SQL query that can be restricted by various location values.
+             Include date_requested because the console restriction may be applied on it. -->
+        <sql dialect="generic">SELECT wr_id, status, date_requested FROM wr WHERE wr.bl_id IN (SELECT bl_id FROM bl WHERE ${parameters['locationField']} = ${parameters['locationValue']})</sql>
+
+        <!-- Define parameters for the custom SQL query -->
+        <parameter name="locationField" dataType="verbatim" value="ctry_id"/>
+        <parameter name="locationValue" dataType="text" value="USA"/>
+    </dataSource>
+    
+    <panel id="dataChart" type="chart" controlType="columnLineChart" dataSource="dataDS" showLegendAsPopUp="false" 
+           showOnLoad="false" region="center">
+        <title>Work Requests by Status</title>
+        
+        <groupingAxis table="wr" field="status">
+            <title>Status</title>
+        </groupingAxis>
+        
+        <dataAxis  table="wr" field="total_requests" showLabel="true">
+            <title>Total Requests</title>
+        </dataAxis>
+    </panel>
+</view>

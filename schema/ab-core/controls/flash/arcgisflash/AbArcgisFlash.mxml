@@ -1,0 +1,1614 @@
+<?xml version="1.0" encoding="utf-8"?>
+<mx:Application
+    xmlns:mx="http://www.adobe.com/2006/mxml"
+    xmlns:esri="http://www.esri.com/2008/ags"
+    layout="absolute"
+    initialize="init()"
+    >
+
+    <mx:Script>
+        <![CDATA[
+        	import mx.formatters.NumberFormatter;
+			import com.adobe.serialization.json.JSON;
+			import com.esri.ags.Graphic;
+			import com.esri.ags.SpatialReference;
+			import com.esri.ags.controls.InfoWindow;
+			import com.esri.ags.events.ExtentEvent;
+			import com.esri.ags.events.GraphicEvent;
+			import com.esri.ags.events.LocatorEvent;
+			import com.esri.ags.events.MapEvent;
+			import com.esri.ags.events.QueryEvent;
+			import com.esri.ags.geometry.Extent;
+			import com.esri.ags.geometry.MapPoint;
+			import com.esri.ags.geometry.Multipoint;
+			import com.esri.ags.geometry.Polygon;
+			import com.esri.ags.layers.ArcGISDynamicMapServiceLayer;
+			import com.esri.ags.layers.DynamicMapServiceLayer;
+			import com.esri.ags.layers.GraphicsLayer;
+			import com.esri.ags.layers.LOD;
+			import com.esri.ags.layers.Layer;
+			import com.esri.ags.layers.LayerInfo;
+			import com.esri.ags.symbol.CompositeSymbol;
+			import com.esri.ags.symbol.InfoSymbol;
+			import com.esri.ags.symbol.SimpleFillSymbol;
+			import com.esri.ags.symbol.SimpleLineSymbol;
+			import com.esri.ags.symbol.SimpleMarkerSymbol;
+			import com.esri.ags.symbol.Symbol;
+			import com.esri.ags.symbol.TextSymbol;
+			import com.esri.ags.tasks.AddressCandidate;
+			import com.esri.ags.tasks.Query;
+			import com.esri.ags.tasks.QueryTask;
+			import com.esri.ags.utils.WebMercatorUtil;
+			
+			import flash.external.*;
+			
+			import mx.collections.ArrayCollection;
+			import mx.containers.VBox;
+			import mx.controls.Alert;
+			import mx.controls.Label;
+			import mx.core.IToolTip;
+			import mx.events.FlexEvent;
+			import mx.events.ToolTipEvent;
+			import mx.managers.PopUpManager;
+			import mx.messaging.AbstractConsumer;
+			import mx.messaging.channels.StreamingAMFChannel;
+			import mx.messaging.management.Attribute;
+			import mx.rpc.AsyncResponder;
+			
+			private var HYBRID_LAYER:String = "World Imagery and Street Hybrid";
+			private var DYNAMIC_LAYER:String = "dynamic";
+			private var TILED_LAYER:String = "tiled";
+			private var panelId:String = "";
+			private var mapId:String = "";
+			private var divId:String = "";
+			private var license_type:String = "";
+						
+			private var mouseClickEnabled:Boolean = false;
+			[Bindable]	
+			private var queryURL:String = null;
+			private var highlightStructureEnabled:Boolean = false;
+			private var highlightStructureByDataEnabled:Boolean = false;
+			private var highlightStructureButtonShown:Boolean;						
+			private var lineSymbol:SimpleLineSymbol = new SimpleLineSymbol("solid", 0x000000);
+            private var noDataSymbol:Symbol = new SimpleFillSymbol("solid", 0x000000, 1.0, lineSymbol);
+            private var simpleLineSymbol:SimpleLineSymbol = new SimpleLineSymbol(SimpleLineSymbol.STYLE_SOLID, 0, 2, 1);								
+
+            private var structureSymbols:Array = [];
+            
+            private var records:Array = [];
+			private var availableMapLayerListItems:Array = [];
+			private var availableMapLayerListKeys:Array = [];
+            private var thematicBuckets:Array;
+            private var thematicColors:Array;
+            private var infoWindowTitleField:Array;
+            private var infoWindowAttribute:Array;
+            private var showThematicSymbol:Boolean;
+            private var thematicField:String;
+            private var thematicFieldIsNumber:Boolean;     	
+           	private var markerProperty:Object;
+           	private var defaultLayer:String;
+
+           	public var geocodedRecords:Array = [];
+
+           	public var notGeocodedRecords:Array = [];
+
+           	public var geocodeIndex:int = 0;
+
+			[Bindable]
+           	public var geocodeTargetRecords:Array;
+
+           	public var geocodePkeyField:String = null;
+           	
+           	// query
+           	[Bindable]
+           	public var where:String = "";
+           	[Bindable]
+           	public var outFields:Array = [];
+           	
+           	public var showLabels:Boolean;
+           	
+           	public var labelTextFormatProperties:Object;
+           	
+           	public var autoZoomLevelLimit:Number;
+           	
+           	public var thematicColorSizeMapEnabled:Boolean;
+
+			private var markerSymbol:SimpleMarkerSymbol;
+			           	
+           	// evacuation center feature
+           	private var numberOfCirclePoints:int= 100;
+			private var fillSymbol:SimpleFillSymbol;
+			private var fillSymbolPolygon:Polygon;
+			private var fillSymbolGraphic:Graphic;			
+			private var bFillSymbolEnabled:Boolean = false;
+ 			private var fillSymbolRadius:Number= 100;
+ 			private var radiusField:String;	   
+ 			     
+	        /**
+	        * on initialize, set callbacks and get parameters
+	        */
+			private function init():void
+			{
+			  if (ExternalInterface.available){
+			    ExternalInterface.addCallback("changeExtent", changeExtent); 
+			    ExternalInterface.addCallback("removeAllMapLayers", removeAllMapLayers);  
+			    ExternalInterface.addCallback("addLayer", addLayer);
+			    ExternalInterface.addCallback("isMapLoaded", isMapLoaded);
+			    ExternalInterface.addCallback("RefreshData", RefreshData);
+			    ExternalInterface.addCallback("clearGraphics", clearGraphics);
+			    ExternalInterface.addCallback("switchMapLayer", switchMapLayer);
+			    ExternalInterface.addCallback("getMapLevel", getMapLevel);
+			    ExternalInterface.addCallback("setMapLevel", setMapLevel);
+			    ExternalInterface.addCallback("highlightStructure", highlightStructure);
+			    ExternalInterface.addCallback("centerMap", centerMap);
+			    ExternalInterface.addCallback("getScale", getScale);	
+			    ExternalInterface.addCallback("setScale", setScale);			    
+			    ExternalInterface.addCallback("zoomIn", zoomIn);
+			    ExternalInterface.addCallback("zoomOut", zoomOut);
+			    ExternalInterface.addCallback("zoomToPoint", zoomToPoint);			    
+			    ExternalInterface.addCallback("getLods", getLods);				    
+			    ExternalInterface.addCallback("setLods", setLods);		    
+			    ExternalInterface.addCallback("toggleLayers", toggleLayers);	
+			    ExternalInterface.addCallback("processParameters", processParameters);	
+			    ExternalInterface.addCallback("getGeocodes", getGeocodes);
+			    ExternalInterface.addCallback("drilldownToGraphic", drilldownToGraphic);				    			    
+			    getParameters();
+			  }   
+			}
+			
+	        /**
+	        * get swf parameters
+	        */														
+			private function getParameters():void{
+				if (ExternalInterface.available){
+					license_type = Application.application.parameters.license_type;
+					panelId = Application.application.parameters.panelId;
+					mapId = Application.application.parameters.mapId;
+					divId = Application.application.parameters.divId;					
+					showLabels = Application.application.parameters.showLabels;
+				}
+			}
+
+	        /**
+	        * switch map layer
+	        */	
+			public function switchMapLayer(layerName:String):void{
+				var license_type:String = Application.application.parameters.license_type;	
+				
+				//if HYBRID_LAYER: 'World Imagery and Street Hybrid'	
+				if(layerName == HYBRID_LAYER){
+					var baseLayer:String = "";
+					var transportationLayer:String = "";
+					var placeNameLayer:String = "";
+					
+					if(license_type =='demo'){				
+						baseLayer = "http://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer";
+						addLayer(TILED_LAYER, baseLayer); 	
+					
+						transportationLayer = "http://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Transportation/MapServer";
+						addLayer(TILED_LAYER, transportationLayer); 	
+					
+						placeNameLayer = "http://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer";
+						addLayer(TILED_LAYER, placeNameLayer); 
+					}
+				
+					if(license_type =='prod'){
+						baseLayer = "http://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer?appId=esriAI2010";
+						addLayer(TILED_LAYER, baseLayer); 	
+					
+						transportationLayer = "http://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Transportation/MapServer?appId=esriAI2010";
+						addLayer(TILED_LAYER, transportationLayer); 	
+					
+						placeNameLayer = "http://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer?appId=esriAI2010";
+						addLayer(TILED_LAYER, placeNameLayer); 
+					}
+				} else {
+					if(myMap.loaded == true){
+						var index:int = availableMapLayerListKeys.indexOf(layerName);
+						var url:String = availableMapLayerListItems[index].url;
+						var layerType:String = availableMapLayerListItems[index].type;
+
+						var newLayer:Layer = addLayer(layerType, url);
+						newLayer.id = layerName;											
+					}
+   				}
+   				
+   				// set default extent to North America
+				myMap.extent = new Extent(-9177000, 4317000, -7639000, 5417000, new SpatialReference(102100));  				
+			}
+
+	        /**
+	        * remove all map layers
+	        */	
+			public function removeAllMapLayers():void
+			{			
+				myMap.removeAllLayers();
+            }
+ 
+ 	        /**
+	        * adds a layer, setting it and the graphics layers to the top
+	        */	           			
+			public function addLayer(layerType:String, url:String):Layer
+			{
+				var layer:Layer = new Layer();				
+				if(layerType == DYNAMIC_LAYER){
+					layer = new ArcGISDynamicMapServiceLayer(url);
+				} else if (layerType == TILED_LAYER){				
+					layer = new ArcGISTiledMapServiceLayer(url);
+				}				
+				
+				if (ExternalInterface.available){
+					myMap.addLayer(layer);
+					layer.visible = true;
+					myMap.reorderLayer(url, myMap.layers.length);
+					myMap.reorderLayer("graphicsLayer", myMap.layers.length);
+					myMap.reorderLayer("textGraphicsLayer", myMap.layers.length);
+				}
+				return layer;
+            }
+
+	        /**
+	        * after the map is loaded, get data from js and add callback to js
+	        */	            						
+			private function afterMapLoad():void{
+				switchMapLayer(HYBRID_LAYER);
+				RefreshData();
+				
+				ExternalInterface.call("afterMapLoad_JS",panelId, mapId);
+            }
+ 
+ 	        /**
+	        * get data from js, switch map layers, and process
+	        */	           
+			public function RefreshData():void
+			{
+				try {				
+					// get data from JavaScript
+					var mapAttributesStr:String = ExternalInterface.call("getMapProperties_JS", panelId);
+					if (mapAttributesStr==null || mapAttributesStr=="null" || mapAttributesStr=="") {
+						return;
+					}
+
+					var mapAttributes:Object = (JSON.decode(mapAttributesStr) as Object);
+					if(mapAttributes == null || mapAttributes == "null" || mapAttributes == ""  ){
+						return;
+					}
+															
+					availableMapLayerListItems = mapAttributes['availableMapLayerListItems'];
+					availableMapLayerListKeys = mapAttributes['availableMapLayerListKeys'];
+					
+					defaultLayer = mapAttributes['defaultLayer'];					
+					if(defaultLayer != ''){
+						switchMapLayer(defaultLayer);	
+					}
+					
+					processParameters(mapAttributesStr);
+					
+				}catch (e: Error) {
+					Alert.show( "[RefreshData (" + mapAttributesStr + ")] " + e.toString(), "ERROR" );
+				} 
+			}
+
+ 	        /**
+	        * process parameters and perform request action (ie. show marker or highlight assets
+	        */	
+			public function processParameters(mapAttributesStr:String):Boolean
+			{
+				try {				
+					if (mapAttributesStr==null || mapAttributesStr=="null" || mapAttributesStr=="") {
+						return false;
+					}
+
+					var mapAttributes:Object = (JSON.decode(mapAttributesStr) as Object);
+					if(mapAttributes == null || mapAttributes == "null" || mapAttributes == ""  ){
+						return false;
+					}
+															
+					availableMapLayerListItems = mapAttributes['availableMapLayerListItems'];
+					availableMapLayerListKeys = mapAttributes['availableMapLayerListKeys'];					
+					defaultLayer = mapAttributes['defaultLayer'];
+									
+					var arrData:Array = mapAttributes['data'];
+					highlightStructureEnabled = mapAttributes['highlightStructureEnabled'];
+					highlightStructureByDataEnabled = mapAttributes['highlightStructureByDataEnabled'];					
+					highlightStructureButtonShown = mapAttributes['highlightStructureButtonShown'];
+					if ((arrData==null || arrData.toString() == "") && (highlightStructureEnabled != true)) {
+					//if (arrData==null || arrData.toString() == "") {
+					// if (arrData==null || arrData.toString()=="null" || arrData.toString()=="" || data.length == 0) {
+						return false;
+					}
+
+					var dataSourceMarkerPairs:Object = mapAttributes['dataSourceMarkerPairs'];
+					autoZoomLevelLimit = mapAttributes['autoZoomLevelLimit'];
+									
+					mouseClickEnabled = Boolean(mapAttributes['mouseClickEnabled']);
+					queryURL = mapAttributes['queryURL'];
+					highlightStructureEnabled = mapAttributes['highlightStructureEnabled'];
+					highlightStructureByDataEnabled = mapAttributes['highlightStructureByDataEnabled'];					
+					highlightStructureButtonShown = mapAttributes['highlightStructureButtonShown'];
+					showLabels = mapAttributes['showLabels'];
+					labelTextFormatProperties = mapAttributes['labelTextFormatProperties'];
+					
+					// heatMap properties
+					thematicColorSizeMapEnabled = mapAttributes['thematicColorSizeMapEnabled'];
+					
+					// fillSymbol properties
+					bFillSymbolEnabled = mapAttributes['bFillSymbolEnabled'];
+
+					if(highlightStructureEnabled){
+						showStructures(arrData, dataSourceMarkerPairs);
+						vBox.visible = true;
+						
+						if(highlightStructureButtonShown){							
+							vBox.alpha = 1.0;
+							highlight.label = "Highlight";
+							highlight.enabled = true;
+						}else{
+							vBox.alpha = 0.0;
+							highlight.label = "";
+							highlight.enabled = false;
+						}
+					} else {
+						showAllMarkers(arrData, dataSourceMarkerPairs);	
+						vBox.visible = false;			
+					}
+
+				}catch (e: Error) {
+					Alert.show( "[RefreshData ( " + e.toString(), "ERROR" );
+				}
+				return true; 
+			}
+			
+ 	        /**
+	        * called when highlight assets
+	        */				
+			private function showStructures(data:Array, dataSourceMarkerPairs:Object):void{
+				// get markerProperty
+				clearGraphics();
+            	var index:int = 0;
+            	markerProperty = new Object();
+				for(var attr:String in dataSourceMarkerPairs){
+					if(index == 0){
+						markerProperty = dataSourceMarkerPairs[attr];
+					}
+					index += 1;
+				}
+
+            	// get properties of marker property			
+            	infoWindowTitleField = markerProperty['infoWindowTitleField'];
+            	infoWindowAttribute = markerProperty['infoWindowAttribute'];
+            	showThematicSymbol = markerProperty['showThematicSymbol'];           	
+            	thematicField = markerProperty['thematicField'];
+            	thematicBuckets = markerProperty['thematicBuckets'];
+            	thematicColors = markerProperty['thematicColors'];
+            	thematicFieldIsNumber = markerProperty['thematicFieldIsNumber'];
+            	
+            	// create array of symbols based on thematic colors
+            	for(var i:int=0; i<thematicColors.length; i++){
+            		var color:Array = thematicColors[i];
+            		var hexColor:Number = Number("0x" + RGBtoHex(color[0], color[1], color[2]));
+            		structureSymbols.push(new SimpleFillSymbol("solid", hexColor, 1.0, lineSymbol));
+            	}
+            	
+            	// identify by data
+            	if(highlightStructureByDataEnabled){				
+					records = data;
+					if(records.length > 0){
+						setQueryByData(records, dataSourceMarkerPairs);
+						setQueryTask();
+						graphicsLayer.symbolFunction = getStructureSymbol;
+					}
+
+				// identify by query
+            	}else{
+					setQuery(dataSourceMarkerPairs);
+					setQueryTask();
+					graphicsLayer.symbolFunction = getStructureSymbol;
+            	}									
+			}	
+
+ 	        /**
+	        * assign a symbol from the thematic bucket based on thematic value
+	        */	
+            private function getStructureSymbol(graphic:Graphic):Symbol
+            {
+               var symbol:Symbol = noDataSymbol;
+               var record:Object = graphic.attributes['values'];
+               
+               if(record == null){
+               		return symbol;
+               }
+
+               var fieldTitles:Array = graphic.attributes['titles'];
+             
+               // search records for attribute              
+               if(thematicFieldIsNumber){
+               	
+               		// handle as number
+               		var thematicValue:Number = record[thematicField];
+               		if( thematicValue < thematicBuckets[0] ){
+               			symbol = structureSymbols[0];
+               		} else if( thematicValue >= thematicBuckets[thematicBuckets.length-1] ){
+               			symbol = structureSymbols[thematicBuckets.length];
+               		} else {
+               			for (var k:int = 0; k < thematicBuckets.length-1; k++) {
+               				if(thematicValue >= thematicBuckets[k] && thematicValue < thematicBuckets[k+1] ){
+               					symbol = structureSymbols[k+1];
+							}
+						}	
+				   }//end else     
+               } else {
+               	
+               	   // handle as text              	   
+               	   var value:String = record[thematicField];
+               	   var msg:String = "";
+               	   for(var i:int; i<thematicBuckets.length; i++){
+               	        if(value == thematicBuckets[i]){ 
+               	        	var symbolArray:ArrayCollection= new ArrayCollection();
+               	   			symbol = structureSymbols[i];             	   			         	   			
+               	   		}              	   	
+               	   }       
+               }  
+                                 
+               return symbol;               
+            }
+
+ 	        /**
+	        * from the infoWindowTitleField array (ie. *.axvw fields), generate the key for lookup in the map service
+	        * multi-part primary keys are concatenated with an "_" and the ending "id"'s are removed except for the last
+	        * for example, for rooms, the *.axvw fields are BL_ID, FL_ID, and RM_ID.  The resulting key for lookup
+	        * will be BL_FL_RM_ID.  For buildings, the lookup key will be BL_ID.
+	        */	 
+            private function getQueryFieldName(infoWindowTitleField:Array):String{
+            	var queryFieldName:String = "";
+            	if(infoWindowTitleField.length > 1){
+            		for(var z:int=0; z<infoWindowTitleField.length;z++){
+            			queryFieldName += trimOffId(getFieldNameWithoutTableName(infoWindowTitleField[z]));
+            			if(z<infoWindowTitleField.length-1){
+            				queryFieldName += "_";
+            			}           		
+            		}
+            		queryFieldName += "_id";
+            	}else{
+            		queryFieldName = getFieldNameWithoutTableName(infoWindowTitleField[0]);
+            	}
+            	return queryFieldName;            	
+            }
+
+ 	        /**
+	        * remove the ending "_id"
+	        */	
+            private function trimOffId(str:String):String{
+            	return str.substring(0, str.lastIndexOf("_id"));
+            } 
+
+ 	        /**
+	        * generate query clause and outfields for the highlighting by data
+	        */	                      			
+			private function setQueryByData(data:Array, dataSourceMarkerPairs:Object):void{				
+				var queryFieldName:String = getQueryFieldName(infoWindowTitleField);
+			        	
+            	// set outfields
+            	outFields = [queryFieldName];
+				where = "";			
+            	// generate where clause, where is already restricted to get records           	
+            	for(var i:int = 0; i<data.length; i++){           		           		
+            		where += "(" + queryFieldName  + " = '";
+             		for(var j:int=0; j<infoWindowTitleField.length; j++){       			
+            			where += data[i].values[infoWindowTitleField[j]]; 
+            			if(j < infoWindowTitleField.length-1){
+            				where += "_";
+            			}
+            		}             		           		
+            		where += "')";
+            		if(i < data.length-1){
+            			where += " OR ";
+            		}              		
+            	} 
+
+            	//query.where = where;
+            	// query.returnGeometry = true;            	          	
+          	
+            	/*
+            	var where:String = getFieldNameWithoutTableName(infoWindowTitleField) + " IN( ";
+            	for(var i:int = 0; i<data.length; i++){
+            		where += "'" + data[i].values[infoWindowTitleField] + "'";
+            		if(i < data.length-1){
+            			where += ", ";
+            		}              		
+            	}
+            	where += ")";        	          	
+            	query.where = where;
+            	query.returnGeometry = true;
+            	*/				
+			}
+
+ 	        /**
+	        * generate query and outfields for highlighting by query
+	        */				
+			private function setQuery(dataSourceMarkerPairs:Object):void{
+            	// set outfields
+				var queryFieldName:String = getQueryFieldName(infoWindowTitleField);				        	
+            	outFields = [queryFieldName];
+            	where = queryFieldName + " IS NOT NULL";  
+        	    	
+            	// query.where = where
+            	//query.returnGeometry = true;            	
+          					           	           					
+				/*
+				query.outFields = ['bl_id'];
+				query.where = "bl_id IS NOT NULL";				
+				myMap.level = 6;
+				myMap.centerAt(new MapPoint(1911387.8147,797556.8114));
+				*/		
+			}	
+
+ 	        /**
+	        * setting the query task
+	        */				
+			private function setQueryTask(): void
+			{				
+				// set query url
+				//queryTask.url = queryURL;	
+			}
+
+ 	        /**
+	        * handler after the query has executed.  matches query results with
+	        * WebCentral records.  generate and assign graphics and text labels
+	        */						            
+            private function queryExecuteCompleteHandler(event:QueryEvent):void
+            {     
+            	cursorManager.setBusyCursor();         	     	
+                var features:Array = event.featureSet.features;
+                 
+                var queryFieldName:String = getQueryFieldName(infoWindowTitleField).toUpperCase();
+
+                var fieldTitles:Array = markerProperty['titles'];
+ 
+                if(highlightStructureByDataEnabled == false){
+                	// form restriction
+                	//var restriction:Object =  createRestrictionFromQueryResults(features);
+                	var restriction:String = createRestrictionFromQueryResults(features);
+                	
+                	// get records based on restriction
+                	records = ExternalInterface.call("getDataFromQueryResults_JS", infoWindowTitleField, restriction);
+                }
+
+                for each (var graphic:Graphic in features)
+                {   
+                	var obj:Object = new Object();
+                	var key:String = graphic.attributes[queryFieldName];
+                	obj.key = key; 
+                	
+                	// add geometry info
+                	var mapPoint:MapPoint = determineMapPointFromGraphic(graphic);
+                	var bFound:Boolean = false;
+               	             	               	
+                	// match graphic in map query results to *.axvw records               	
+                	for(var i:int = 0; i<records.length; i++){
+                		var record:Object = records[i];
+                		var recordSearchValue:String = "";
+                		for(var j:int=0; j<infoWindowTitleField.length; j++){
+                			recordSearchValue += record[infoWindowTitleField[j]];
+                			if (j < infoWindowTitleField.length-1){
+                				recordSearchValue += "_";
+                			}                			               			
+                		}
+                		
+                		if(recordSearchValue == graphic.attributes[queryFieldName]){ 
+                			bFound = true;               		
+							for(var k:Number=0; k<infoWindowAttribute.length; k++){
+								obj[infoWindowAttribute[k]] = record[infoWindowAttribute[k]];
+							}																	
+                		}             	
+            		}
+            		
+            		// in the event that there isn't a db record that matches the query record
+            		if(bFound == false){
+            			for(var m:Number=0; m<infoWindowAttribute.length; m++){
+            				obj[infoWindowAttribute[m]] = "";
+            			}
+            		}
+            		
+            		graphic.attributes = {values: obj, infoWindowAttribute: infoWindowAttribute, titles: markerProperty['titles'], x:mapPoint.x, y:mapPoint.y, wkid:mapPoint.spatialReference.wkid};	
+
+
+					// if graphic is a point, add symbol
+            		if(graphic.geometry.type == "esriGeometryPoint"){
+            			//var symbol:SimpleMarkerSymbol= new SimpleMarkerSymbol(getSymbolStyle(markerProperty, SimpleMarkerSymbol.STYLE_CIRCLE), 28, 0xFF0000, 0.8); 
+            			//var symbol:SimpleMarkerSymbol= new SimpleMarkerSymbol(getSymbolStyle(markerProperty, SimpleMarkerSymbol.STYLE_CIRCLE), markerProperty['symbolSize'],  (markerProperty['color'] == null) ? 0xFF0000 : markerProperty['color'], markerProperty['symbolAlpha'], markerProperty['symbolXOffset'], markerProperty['symbolYOffset'], markerProperty['symbolAngle']);
+   			
+            			var simpleLineSymbol:SimpleLineSymbol = new SimpleLineSymbol(SimpleLineSymbol.STYLE_SOLID, 0, 2, 1);
+						if(bFillSymbolEnabled == true){
+							fillSymbol =  new SimpleFillSymbol(SimpleFillSymbol.STYLE_SOLID, (markerProperty['color'] == null) ? 0xFF0000 : markerProperty['color'], markerProperty['symbolAlpha'], simpleLineSymbol);							
+							graphic.symbol = fillSymbol;					
+						}else{
+							markerSymbol =  new SimpleMarkerSymbol(getSymbolStyle(markerProperty, SimpleMarkerSymbol.STYLE_CIRCLE), markerProperty['symbolSize'],  (markerProperty['color'] == null) ? 0xFF0000 : markerProperty['color'], markerProperty['symbolAlpha'], markerProperty['symbolXOffset'], markerProperty['symbolYOffset'], markerProperty['symbolAngle'], simpleLineSymbol);							
+							graphic.symbol = markerSymbol;
+						}				            			
+            		}
+            		           					
+                    graphic.addEventListener(MouseEvent.MOUSE_OVER, graphicsMouseOverHandler, false, 0, true);
+                    graphic.addEventListener(MouseEvent.MOUSE_OUT, graphicsMouseOutHandler, false, 0, true);
+                    graphic.addEventListener(MouseEvent.CLICK, graphicsMouseClickHandler, false, 0, true);
+                    graphicsLayer.add(graphic);
+     
+     	
+                    var textSymbol:TextSymbol = showLabels ? createTextSymbol(key) : createTextSymbol("");   
+                    var myTextGraphic:Graphic = new Graphic(mapPoint, textSymbol);
+                    textGraphicsLayer.add(myTextGraphic);  
+                
+                }
+                
+                cursorManager.removeBusyCursor();
+                //status.text = " ";
+                // status.text = "Highlighting " + queryFieldName + " completed.";
+                // graphicsLayer.graphicProvider = features; // faster than adding one at a time         
+            }
+ 
+  	        /**
+	        * determine the map point from a graphic.  used to determine the location of the text label
+	        */	           
+            private function determineMapPointFromGraphic(graphic:Graphic):MapPoint{
+            	var mapPoint:MapPoint;
+            	if(graphic.geometry.type == "esriGeometryPoint"){           		
+            		// basic point with x (often longitude), y (often latitude) and an optional spatial reference
+            		mapPoint = MapPoint(graphic.geometry);        		                	                   	
+            	} else {
+            		// treat as polygon
+            		mapPoint = graphic.geometry.extent.center;            		
+            	}
+       	
+            	return mapPoint;            	
+            }            
+
+ 	        /**
+	        * used in identify by query.  generates a comma delimited string of keys/ids from
+	        * query results.  
+	        */	            
+            private function createRestrictionFromQueryResults(features:Array):String{            	
+            	var queryFieldName:String = getQueryFieldName(infoWindowTitleField).toUpperCase();           	
+            	var restriction:String = "";
+            	var index:int = 0;
+
+            	for each (var graphic:Graphic in features)
+                {
+                	restriction += graphic.attributes[queryFieldName] + ",";           	             	
+                }
+                restriction = restriction.substr(0, restriction.length -2); 
+                return restriction;                           	
+            }
+
+ 	        /**
+	        * show all markers
+	        */	            				
+			private function showAllMarkers(data:Array, dataSourceMarkerPairs:Object):void{
+				clearGraphics();
+
+				var index:Number = 0;
+				for(var attr:String in dataSourceMarkerPairs){
+					index += 1;
+					showDSMarker(data, dataSourceMarkerPairs[attr], index);
+				}									
+			}
+
+ 	        /**
+	        * used in identify by markers
+	        */				           			
+			private function showDSMarker(arrData:Array, markerProperty:Object, index:int):void{
+					var dataSourceName:String = markerProperty['dataSourceName'];
+					// var restriction = markerProperty.restriction;
+					var geometryFields:Array = markerProperty['geometryFields'];
+					var infoWindowTitleField:String = markerProperty['infoWindowTitleField'].toString();
+					var infoWindowAttribute:Array = markerProperty['infoWindowAttribute'];
+
+					var symbolType:String = markerProperty['symbolType'];										
+					var thematicSymbols:Array = new Array();
+					var showThematicSymbol:Boolean = markerProperty['showThematicSymbol'];
+					
+					var thematicField:String = "";
+					var thematicBuckets:Array = new Array();
+					var thematicColors:Array = new Array();
+					radiusField = markerProperty['radiusField'];
+
+					//the property for each marker
+					//var lat:Number;  //Y
+					//var lon:Number;  //X
+					var point:MapPoint = new MapPoint();
+					var attributes:Object = new Object();
+					var content:String = "";
+					var title:String = "";
+					
+					var simpleSymbol:Symbol;
+					var tempSymbol:Symbol;
+					var symbol:Symbol;
+										
+					if(!showThematicSymbol){
+						// var color:Array= markerProperty.colors[index%markerProperty.colorNumber];
+						//var hexColor:Number = Number("0x" + RGBtoHex(color[0], color[1], color[2]));
+						//simpleSymbol= new SimpleMarkerSymbol(getSymbolStyle(markerProperty, symbolType), 15, hexColor, 1.0);
+						//simpleSymbol= new SimpleMarkerSymbol(getSymbolStyle(markerProperty, symbolType), 15, 0xFF0000, 0.8);
+						//simpleSymbol= new SimpleMarkerSymbol(getSymbolStyle(markerProperty, symbolType), markerProperty['symbolSize'],  (markerProperty['color'] == null) ? 0xFF0000 : markerProperty['color'], markerProperty['symbolAlpha'], markerProperty['symbolXOffset'], markerProperty['symbolYOffset'], markerProperty['symbolAngle']);
+
+						if(bFillSymbolEnabled == true){
+							simpleSymbol = new SimpleFillSymbol(SimpleFillSymbol.STYLE_SOLID, (markerProperty['color'] == null) ? 0xFF0000 : markerProperty['color'], markerProperty['symbolAlpha'], simpleLineSymbol);
+						}else{
+							simpleSymbol = new SimpleMarkerSymbol(getSymbolStyle(markerProperty, symbolType), markerProperty['symbolSize'],  (markerProperty['color'] == null) ? 0xFF0000 : markerProperty['color'], markerProperty['symbolAlpha'], markerProperty['symbolXOffset'], markerProperty['symbolYOffset'], markerProperty['symbolAngle'], simpleLineSymbol);							
+						} 
+						
+						thematicField = markerProperty['thematicField'];
+					} else {
+						thematicField = markerProperty['thematicField'];
+						thematicBuckets = markerProperty['thematicBuckets'];
+						thematicColors = markerProperty['thematicColors'];
+						thematicSymbols = new Array(thematicBuckets.length+1);
+
+						//define symbol for each individual thematic bucket
+						for (var x:int = 0; x <= thematicBuckets.length; x++) {														
+						   //for thematic marker, we use the predefined colors rotately for thematic bucket
+							var colorThematic:Array = thematicColors[x];
+							var hexColorThematic:Number = Number("0x" + RGBtoHex(colorThematic[0], colorThematic[1], colorThematic[2]));
+							//var tempSymbol:SimpleMarkerSymbol= new SimpleMarkerSymbol(getSymbolStyle(markerProperty, symbolType), 15, hexColorThematic, 1.0);						
+
+							if(bFillSymbolEnabled){
+								tempSymbol = new SimpleFillSymbol(SimpleFillSymbol.STYLE_SOLID, hexColorThematic, markerProperty['symbolAlpha'], simpleLineSymbol);								
+							}else{
+								tempSymbol = new SimpleMarkerSymbol(getSymbolStyle(markerProperty, symbolType), markerProperty['symbolSize'], hexColorThematic, markerProperty['symbolAlpha'], markerProperty['symbolXOffset'], markerProperty['symbolYOffset'], markerProperty['symbolAngle'], simpleLineSymbol);									
+							}
+							
+							thematicSymbols[x] = tempSymbol;
+						}
+					}
+																												
+					var points:Array = new Array();	
+					
+					// heatMap
+					var sizeMultiplier:Number = (markerProperty.hasOwnProperty('sizeMultiplier')) ? markerProperty['sizeMultiplier'] : 1;
+					var sizeField:String = (markerProperty.hasOwnProperty('sizeField')) ? markerProperty['sizeField'] : '';
+					var bApplySizeLimits:Boolean = (markerProperty.hasOwnProperty('bApplySizeLimits')) ? markerProperty['bApplySizeLimits'] : false;
+					var maxSizeValueLimit:Number = (markerProperty.hasOwnProperty('maxSizeValueLimit')) ? markerProperty['maxSizeValueLimit'] : -1;
+					var minSizeValueLimit:Number = (markerProperty.hasOwnProperty('minSizeValueLimit')) ? markerProperty['minSizeValueLimit'] : 0;	
+					var sizeBuckets:Array = (markerProperty.hasOwnProperty('sizeBuckets')) ? markerProperty['sizeBuckets'] : null;	
+					
+					for (var i:int=0; i<arrData.length; ++i) {
+						var record:Object = arrData[i];
+						var key:String = record[infoWindowTitleField];
+						var lonStr:String = record[geometryFields[1]];
+						var latStr:String = record[geometryFields[0]];
+						// skip if there's no coordinates
+						if((latStr == null) || (latStr == 'null') || (latStr == '') || (lonStr == null) || (lonStr == '') || (lonStr == 'null')){
+						} else {
+							var lat:Number = Number(formatGeometryFieldValues(record[geometryFields[0]]));
+							var lon:Number = Number(formatGeometryFieldValues(record[geometryFields[1]]));
+							// create geographical map point																																					
+							var geoMapPoint:MapPoint = createMapPoint(lat, lon);	
+							// convert to Web Mercator
+							var myMapPoint:MapPoint = WebMercatorUtil.geographicToWebMercator(geoMapPoint) as MapPoint;
+							// points.push(myMapPoint);
+							
+							// create infoWindow contents
+							var obj:Object = new Object();
+							obj.key = key;
+							for(var j:Number=0; j<infoWindowAttribute.length; j++)
+							{
+								obj[infoWindowAttribute[j]] = record[infoWindowAttribute[j]];
+							}
+						 	obj.lat = lat;
+							obj.lon = lon;
+							
+							var graphicAttributes:Object = {values: obj, infoWindowAttribute: infoWindowAttribute, titles: markerProperty['titles'], x:myMapPoint.x, y:myMapPoint.y, wkid:myMapPoint.spatialReference.wkid}
+															
+							if( !showThematicSymbol ){
+								symbol = simpleSymbol;	
+								if(bFillSymbolEnabled){
+									createFillSymbol(myMapPoint, simpleSymbol as SimpleFillSymbol, graphicAttributes);		
+								}																	
+							} else {
+								var thematicValue:String = (record[thematicField + ".raw"]) ? record[thematicField + ".raw"]: record[thematicField];
+								
+								
+								//find the right bucket and set the sybmol
+								//e.g. 	if thematicBuckets has 3 values: 10, 20, 30
+								//		then there are 4 actual buckets
+								//		0:  value < 10
+								//		1:  10 <= value < 20
+								//		2:  20 <= value < 30
+								//		3:  30 <= value 								
+								if( thematicValue < thematicBuckets[0] ){
+									symbol = thematicSymbols[0];
+								} else if( thematicValue >= thematicBuckets[thematicBuckets.length-1] ){
+									symbol = thematicSymbols[thematicBuckets.length];
+								} else {
+									for (var k:int = 0; k < thematicBuckets.length-1; k++) {
+										if(thematicValue >= thematicBuckets[k] && thematicValue < thematicBuckets[k+1] ){
+											symbol = thematicSymbols[k+1];
+										}
+									}
+								}//end else
+
+								if(bFillSymbolEnabled){
+									createFillSymbol(myMapPoint, symbol as SimpleFillSymbol, graphicAttributes);
+								}	
+								
+								// if heatmap enabled, override symbol size 
+								if(thematicColorSizeMapEnabled == true  && !bFillSymbolEnabled){
+									var initialSize:Number = Number(formatGeometryFieldValues(record[sizeField]));
+									var symbolSize:Number =  initialSize * sizeMultiplier;
+									
+									if(sizeBuckets != null){
+										if( initialSize <= sizeBuckets[0].limit ){
+											symbolSize = sizeBuckets[0].symbolSize;
+										} else if( initialSize > sizeBuckets[sizeBuckets.length-1].limit ){
+											symbolSize = sizeBuckets[sizeBuckets.length-1].symbolSize;
+										} else {
+											for (var q:int = 0; q < sizeBuckets.length-1; q++) {
+												if(initialSize > sizeBuckets[q].limit && initialSize <= sizeBuckets[q+1].limit ){
+													symbolSize = sizeBuckets[q+1].symbolSize;
+												}
+											}	
+										}//end else							
+									} else {
+										if(bApplySizeLimits == true){
+											if(symbolSize > maxSizeValueLimit){
+												symbolSize = maxSizeValueLimit;
+											}
+											if(symbolSize < minSizeValueLimit){
+												symbolSize = minSizeValueLimit;
+											}
+										}	
+									}	
+											
+									(symbol as SimpleMarkerSymbol).size = symbolSize;														
+								}
+							}
+							
+							var myGraphicSymbol:SimpleMarkerSymbol = new SimpleMarkerSymbol(symbol['style'], (symbol.hasOwnProperty('size')) ? symbol['size'] : 15, symbol['color'], symbol['alpha']);
+							myGraphicSymbol.outline = simpleLineSymbol;													
+							var myGraphic:Graphic = new Graphic();
+							myGraphic.symbol = myGraphicSymbol;
+							//symbol;						
+							myGraphic.geometry = myMapPoint;
+							myGraphic.attributes = graphicAttributes;
+							myGraphic.addEventListener(MouseEvent.MOUSE_OVER, graphicsMouseOverHandler);
+							myGraphic.addEventListener(MouseEvent.MOUSE_OUT, graphicsMouseOutHandler);
+							myGraphic.addEventListener(MouseEvent.CLICK, graphicsMouseClickHandler);
+							graphicsLayer.add(myGraphic);
+		
+							var textSymbol:TextSymbol = showLabels ? createTextSymbol(key) : createTextSymbol("");  							
+							var myTextGraphic:Graphic = new Graphic(myMapPoint, textSymbol);
+							textGraphicsLayer.add(myTextGraphic);
+							
+							points.push(myMapPoint);												
+						}					
+					}
+					if(points.length == 0){
+					//	Alert.show("Coordinates have not been specified for selected structure(s).");					
+					} else {
+						zoomToPoints(points);
+					}								
+			}
+
+ 	        /**
+	        * create text symbol, setting properties
+	        */				
+			private function createTextSymbol(id:String):TextSymbol{
+				var textSymbol:TextSymbol = new TextSymbol(id);
+				if(highlightStructureEnabled){
+					textSymbol.color = 0xffffff;
+				} else {
+					textSymbol.color = 0xfff000;
+				}
+				
+				textSymbol.xoffset = 0;
+				textSymbol.yoffset = 15;
+				textSymbol.alpha = 1.0;
+				
+				var textFormat:TextFormat = new TextFormat();			
+				textFormat.bold = true;				
+				textFormat.font = "ARIAL";
+				textFormat.size = 13;
+				textFormat.blockIndent = true;
+				
+				for(var i:String in labelTextFormatProperties){					
+					if(textFormat.hasOwnProperty(i)){
+						textFormat[i] = labelTextFormatProperties[i];
+					}
+				}
+				textSymbol.textFormat = textFormat;
+								
+				return textSymbol;				
+			}
+
+ 	        /**
+	        * convert rgb to hex
+	        */				
+			private function RGBtoHex(R:int,G:int,B:int):String {
+				return toHex(R) + toHex(G) + toHex(B);
+			}
+
+ 	        /**
+	        * turn int to hex
+	        */				
+			private function toHex(N:int):String {
+				if (N==0) return "00";
+				N=Math.max(0,N);
+				N=Math.min(N,255);
+				N=Math.round(N);
+				var tempStr:String = "0123456789ABCDEF";
+				return tempStr.charAt((N-N%16)/16) + tempStr.charAt(N%16);
+			}
+
+ 	        /**
+	        * getting the symbol style
+	        */				
+			private function getSymbolStyle(markerProperty:Object, style:String):String{
+				switch (style){
+					case markerProperty.SYMBOLTYPE_CIRCLE:
+						return SimpleMarkerSymbol.STYLE_CIRCLE;
+  					break;
+  					case markerProperty.SYMBOLTYPE_CROSS:
+  						return SimpleMarkerSymbol.STYLE_CROSS;
+  					break;
+  					case markerProperty.SYMBOLTYPE_DIAMOND:
+  						return SimpleMarkerSymbol.STYLE_DIAMOND;
+  					break;
+  					case markerProperty.SYMBOLTYPE_SQUARE:
+  						return SimpleMarkerSymbol.STYLE_SQUARE;
+  					break;
+  					case markerProperty.SYMBOLTYPE_X:
+  						return SimpleMarkerSymbol.STYLE_X;
+  					break;
+					default:
+  						return SimpleMarkerSymbol.STYLE_CIRCLE;
+				}
+   			}
+   			
+ 	        /**
+	        * creating a mappoint from lon and lat
+	        */				
+			private function createMapPoint(lat:Number, lon:Number):MapPoint{
+				var mapPoint:MapPoint = new MapPoint();						
+				mapPoint.x = lon;
+				mapPoint.y = lat;
+				mapPoint.spatialReference = new SpatialReference(102100);	
+				return mapPoint;				
+			}
+
+ 	        /**
+	        * zooming to a point with x and y coordinates, such as that from a graphic
+	        */	
+			public function zoomToPoint(x:Number, y:Number, wkid:Number):void{
+				var mapPoint:MapPoint = new MapPoint(x, y, new SpatialReference(wkid));
+				zoomToPoints([mapPoint]);
+				defer(200);					
+			}		
+				
+   			public function defer(num:int):void{
+				for(var i:int=0; i<num; i++){
+				}							
+			}	
+			
+ 	        /**
+	        * zooming to an array of map points. if only one point in the array,
+	        * four other points (topleft, topright, bottomleft, and bottom right)
+	        * are generated to anchor and center that point 
+	        */	
+			public function zoomToPoints(points:Array):void{
+				// zoom						
+				if( points.length != 0 ) {
+					var tempPoints:Array = points;
+						
+					if(points.length == 1){
+					    var singlePoint:MapPoint = points[0];
+					    var spLat:Number = singlePoint.y;
+					    var spLon:Number = singlePoint.x;
+					    
+					    // bottom left point
+					    var  pointBottomLeft:MapPoint = createMapPoint(spLat - 0.001, spLon - 0.001);	
+						    						    
+					    // top right point
+					    var  pointTopRight:MapPoint = createMapPoint(spLat + 0.001, spLon + 0.001);	
+
+					    // top left  point
+					    var  pointTopLeft:MapPoint = createMapPoint(spLat + 0.001, spLon - 0.001);	
+						    						    						    
+					    // bottom point
+					    var  pointBottomRight:MapPoint = createMapPoint(spLat - 0.001, spLon + 0.001);	
+											    						    					    
+					    tempPoints.push(pointBottomLeft);
+					    tempPoints.push(pointTopRight);						    
+					    tempPoints.push(pointTopLeft);
+					    tempPoints.push(pointBottomRight);						    				    						    						    						    
+					}
+						
+					var allPoints:Multipoint = new Multipoint(tempPoints, myMap.spatialReference);
+					var pointsExtent:Extent = allPoints.extent;
+					var mapExtent:Extent = pointsExtent.expand(1.5);
+					myMap.extent = mapExtent;
+			
+					if((autoZoomLevelLimit != -1) && (myMap.level > autoZoomLevelLimit)){
+						myMap.level = autoZoomLevelLimit;
+					}						
+				}	
+			}	
+
+ 	        /**
+	        * on mouse over, generate infowindow
+	        */				
+            private function graphicsMouseOverHandler(event:MouseEvent):void
+			{
+				var graphic:Graphic = Graphic(event.target);	
+				var values:Object = Graphic( event.target ).attributes.values;
+				var infoWindowAttribute:Array = Graphic(event.target).attributes.infoWindowAttribute;
+				var fieldTitles:Array = Graphic(event.target).attributes.titles;
+
+				var infoBox:VBox = new VBox();
+				infoBox.id = "myInfoBox";
+				var key:String = ""
+				if((values != null) && values.hasOwnProperty("key")){
+					key = values['key'];	
+				}
+				
+				infoBox.label = key;
+				infoBox.setStyle("backgroundColor", "0xEEEEEE");
+				infoBox.setStyle("verticalGap", "-5");											
+				if(myMap.infoWindow.getChildren().length > 1){
+				   myMap.infoWindow.removeChildAt(myMap.infoWindow.getChildren().length - 1);
+				}
+				
+				if((infoWindowAttribute != null) && (fieldTitles != null)){
+					var msg:String = '';	
+					for(var i:Number=0; i<infoWindowAttribute.length; i++){					
+						// msg += '<b>' + fieldTitles[i] + ':  </b>' + values[infoWindowAttribute[i]] + '    \n';						
+						var infoText:Label = new Label();
+						infoText.htmlText = '<b>' + fieldTitles[i] + ':  </b>' + values[infoWindowAttribute[i]] + '      \n';	
+						infoBox.addChild(infoText);
+					}
+					
+					infoBox.addChild(new Label());	
+				}
+				infoBox.alpha = 1;
+			
+				myMap.infoWindow.alpha = 0.7;
+				myMap.infoWindow.setStyle("backgroundColor", "0xEEEEEE");
+				myMap.infoWindow.content = infoBox;
+
+				myMap.infoWindow.label = key;								
+				var mapLocalPixelPoint:Point = myMap.globalToLocal( new Point(event.stageX, event.stageY) );
+				var mapPoint:MapPoint = myMap.toMap( mapLocalPixelPoint );
+				myMap.infoWindow.show(mapPoint); 
+			}           
+
+ 	        /**
+	        * on mouseout, hide window
+	        */				
+			private function graphicsMouseOutHandler(event:MouseEvent):void			
+			{
+				myMap.infoWindow.hide();
+				var graphic:Graphic = Graphic(event.target);
+				graphic.filters = [];
+			}
+
+ 	        /**
+	        * on mouseclick, enable access to attributes and allow custom js function
+	        */				
+			private function graphicsMouseClickHandler(event:MouseEvent):void
+			{
+				if(mouseClickEnabled == true){
+					var graphic:Graphic = Graphic(event.target);					
+					var mapPoint:MapPoint = determineMapPointFromGraphic(graphic);                                      
+					var title:String = myMap.infoWindow.label;
+					var attributes:Object = graphic.attributes;					
+					//attributes.x = mapPoint.x;
+					//attributes.y = mapPoint.y;
+					//attributes.wkid = mapPoint.spatialReference.wkid;
+					var attributesStr:String = (JSON.encode(attributes) as String);
+					
+					ExternalInterface.call("graphicsMouseClickHandler_JS", title, attributesStr);	
+				} else {					
+				}	
+			}
+																						
+ 	        /**
+	        * change extent of map
+	        */	
+			public function changeExtent(xmin:Number, ymin:Number, xmax:Number, ymax:Number):void	
+			{
+			  if (ExternalInterface.available){
+				//var ext:Extent = new Extent(xmin, ymin, xmax, ymax, myMap.spatialReference);
+				var ext:Extent = new Extent(xmin, ymin, xmax, ymax);
+				ext.spatialReference = myMap.spatialReference;
+				myMap.extent = ext;
+			  }
+			}				
+
+ 	        /**
+	        * allow for changing extent
+	        */	                        						
+            private function onBasemapCreationComplete():void
+			{
+				/*
+				if (ExternalInterface.available){
+            		myMap.addEventListener(ExtentEvent.EXTENT_CHANGE, pushExtentEvent);
+    			}
+    			*/
+            }
+ 
+  	        /**
+	        * send extents to html/js
+	        */	    		
+     		private function pushExtentEvent(event:ExtentEvent):void           
+      	 	{
+      	 		if (flash.external.ExternalInterface.available){
+			       var extent:Array = new Array();
+			       ExternalInterface.call("displayExtent", event.extent.xmin.toString(), event.extent.xmax.toString(), event.extent.ymin.toString(), event.extent.ymax.toString());
+			    }        
+      	 	}			
+
+  	        /**
+	        * check if map is loaded
+	        */	                                                                    
+			public function isMapLoaded():Boolean{
+				return myMap.loaded;
+			}
+
+  	        /**
+	        * from fullfieldname, return only the fieldname
+	        */				
+			public function getFieldNameWithoutTableName(fieldName:String):String{
+            	return fieldName.substring(fieldName.lastIndexOf(".") + 1, fieldName.length);
+            }
+
+  	        /**
+	        * centers map according to a point
+	        */	            
+            public function centerMap(x:Number, y:Number, spatialReference:Number):void{
+            	if(spatialReference != 0){
+            		myMap.centerAt(new MapPoint(x, y, new SpatialReference(spatialReference)));	
+            	} else {
+            		myMap.centerAt(new MapPoint(x, y));
+            	}
+			}
+
+  	        /**
+	        * clears the graphics layers
+	        */				
+			public function clearGraphics():void{
+				graphicsLayer.clear(); 
+				textGraphicsLayer.clear();
+				graphicsLayer.graphics.clear();
+				textGraphicsLayer.graphics.clear();
+            }
+
+  	        /**
+	        * get map level
+	        */				
+			public function getMapLevel():Number{			
+				return myMap.level;
+			}
+			
+  	        /**
+	        * setting the map level
+	        */				
+			public function setMapLevel(level:Number):void{			
+				myMap.level = level;
+			}
+
+  	        /**
+	        * perform highlight
+	        */				
+			public function highlightStructure():void{
+				clearGraphics();
+				queryTask.execute(query);				
+			}
+
+            public function drilldownToGraphic(x:Number, y:Number, wkid:Number, parameters:String):void{
+				zoomToPoint(x, y, wkid);	
+				query.geometry = new MapPoint(x, y, new SpatialReference(wkid));
+				processParameters(parameters);		
+				/*		
+				var bFinished:Boolean = false;
+				bFinished = processParameters(parameters);
+				var count:int = 0;
+				while(bFinished == false){
+					defer(1);
+					count += 1;
+				}
+				*/
+				queryTask.execute(query);				
+			}    
+			
+  	        /**
+	        * get scale
+	        */				
+			public function getScale():Number{			
+				return myMap.scale;
+			}
+						
+  	        /**
+	        * set scale
+	        */				
+			public function setScale(scale:Number):void{			
+				myMap.scale = scale;
+			}
+
+  	        /**
+	        * zoom in
+	        */				
+			public function zoomIn():void{			
+				myMap.zoomIn();
+			}
+
+  	        /**
+	        * zoom out
+	        */	
+			public function zoomOut():void{			
+				myMap.zoomOut();
+			}
+
+  	        /**
+	        * get lods
+	        */				
+			public function getLods():Array{											
+				return myMap.lods;
+			}
+
+  	        /**
+	        * set lods
+	        */	
+			public function setLods(lods:Array):void{			
+				myMap.lods = lods;
+			}
+
+  	        /**
+	        * toggle layers
+	        */				
+			public function toggleLayers(layers:ArrayCollection):void{		
+				//var layers:Array = myMap.layerIds;
+				for each(var layerObj:Object in layers){				
+				//for(var i:String in layers){
+					var active:Boolean = layerObj.active;
+					var layerName:String = layerObj.name;
+					var layer:Layer = myMap.getLayer(layerName);
+					/*														
+					var layerInfos:Array;					
+					if (layer is ArcGISDynamicMapServiceLayer){
+						layerInfos = ArcGISDynamicMapServiceLayer(layer).layerInfos;
+					} else if (layer is ArcGISTiledMapServiceLayer){
+						layerInfos = ArcGISTiledMapServiceLayer(layer).layerInfos;
+					}
+					*/
+					layer.visible = active;
+				}								
+			}				
+
+  	        /**
+	        * show layer
+	        */	
+            public function showLayer(layer:Layer, layerInfo:LayerInfo):void
+            {
+                var visibleLayers:ArrayCollection;
+                if (layer is ArcGISDynamicMapServiceLayer){
+                    visibleLayers = ArcGISDynamicMapServiceLayer(layer).visibleLayers;
+                    visibleLayers.addItem(layerInfo.id); // add id
+                } else if (layer is ArcGISTiledMapServiceLayer) {
+                    visibleLayers = ArcGISTiledMapServiceLayer(layer).visibleLayers;
+                    visibleLayers.addItem(layerInfo.name); // add name
+                }
+                if (visibleLayers){
+                    cursorManager.setBusyCursor();
+                }
+            }
+
+  	        /**
+	        * hide layer
+	        */	
+            public function hideLayer(layer:Layer, layerInfo:LayerInfo):void
+            {
+                var visibleLayers:ArrayCollection;
+                if (layer is ArcGISDynamicMapServiceLayer){
+                    visibleLayers = ArcGISDynamicMapServiceLayer(layer).visibleLayers;
+                    var idIndex:int = visibleLayers.getItemIndex(layerInfo.id);
+                    if (idIndex != -1){
+                        visibleLayers.removeItemAt(idIndex);
+                    }
+                } else if (layer is ArcGISTiledMapServiceLayer){
+                    visibleLayers = ArcGISTiledMapServiceLayer(layer).visibleLayers;
+                    var nameIndex:int = visibleLayers.getItemIndex(layerInfo.name);
+                    if (nameIndex != -1){
+                        visibleLayers.removeItemAt(nameIndex);
+                    }
+                }
+                if (visibleLayers){
+                    cursorManager.setBusyCursor();
+                }
+            }
+
+   	        /**
+	        * remove busy cursor
+	        */	
+            private function removeBusyCursor(event:Event):void
+            {
+                cursorManager.removeBusyCursor();
+            }
+            
+            private function setLocatorURLs():void{
+            	if(geoCodeLocatorNA && geoCodeLocatorEU){
+            		if(license_type=='demo'){
+            			geoCodeLocatorNA.url = "http://tasks.arcgisonline.com/ArcGIS/rest/services/Locators/TA_Address_NA/GeocodeServer";
+            			geoCodeLocatorEU.url = "http://tasks.arcgisonline.com/arcgis/rest/services/Locators/TA_Address_EU/GeocodeServer";
+            		}
+            		
+            		if(license_type=='prod'){
+            			geoCodeLocatorNA.url = "http://tasks.arcgisonline.com/ArcGIS/rest/services/Locators/TA_Address_NA/GeocodeServer?appId=esriAI2010";				
+            			geoCodeLocatorEU.url = "http://tasks.arcgisonline.com/arcgis/rest/services/Locators/TA_Address_EU/GeocodeServer?appId=esriAI2010);" 
+            			
+            			//The following Locator may be substituted for the geoCodeLocators above if needed to process data outside North America or the EU.  Additional configuration required to pass search criteria to this locator.
+            			//geoCodeLocator = "http://tasks.arcgisonline.com/arcgis/rest/services/Locators/ESRI_Places_World/GeocodeServer";
+            		}
+				}          	
+            }
+                                 
+            public function getGeocodes(targetRecords:Array, tableName:String, pkeyFieldName:String, latFieldName:String, lonFieldName:String, addressFields:Array):void{
+            	geocodePanel.visible = true;
+            	geocodedRecords = [];
+            	notGeocodedRecords = [];
+            	geocodeIndex = 0;
+            	geocodeTargetRecords = targetRecords;
+            	geocodePkeyField = pkeyFieldName;
+            	var addresses:Array = new Array();
+            	myInfo.htmlText = "";
+            	
+            	setLocatorURLs();
+            	clearGraphics();
+            	            	
+            	//for each record which needs GeoCoding operation.
+            	for (var i:int = 0; i < targetRecords.length; i++) {
+            		var finalAddress:Object = new Object();	
+            		var record:Object = targetRecords[i];       
+            		
+            		//The address argument is data object that contains properties representing 
+            		//the various address fields accepted by the corresponding geocode service. 
+            		//These fields are listed in the addressFields property of the associated 
+            		//geocode service resource. 
+            		//The "ESRI_Geocode_USA" service requires: Street, City, State and Zone, 
+            		//then the address argument is of the form:
+            		//{
+            		//	Street: "<street>",
+            		//	City: "<city>",
+            		//	State: "<state>",
+            		//	Zone: "<zone>"
+            		//}  							
+            		//use explicit field references, if possible, else use indexed fields
+            		finalAddress["Address"] = record.values[addressFields[0]];
+            		finalAddress["City"] = record.values[addressFields[1]];
+            		
+            		//Determine state	    		
+            		var country:String = record.values[addressFields[4]]; 
+            		if (country == "USA" || country == "CANADA" || country == null) {
+            			finalAddress["State"] = record.values[addressFields[2]];
+            		}
+
+            		finalAddress["Zip"] = record.values[addressFields[3]];
+            		finalAddress["Country"] = country;
+            		finalAddress["pkey"] = record.values[pkeyFieldName];
+            		finalAddress["latFieldName"] = latFieldName;
+             		finalAddress["lonFieldName"] = lonFieldName;
+             		finalAddress["pkeyFieldName"] = pkeyFieldName; 
+             		finalAddress["tableName"] = tableName;             		           		
+            		addresses.push(finalAddress);           				
+            	}//for (var i = 0; i < this.targetRecords.length; i++)
+				
+				/*
+                var address2:Object = {
+                    Address: "1802 Market Street",
+                    City: "PHILADELPHIA",
+                    State: "PA",
+                    Zip: "19103",
+                    Country: "USA"
+                };
+                */                  
+                doFind(addresses);                               	
+            }
+
+            private function doFind(addresses:Array):void
+            {
+            	for(var i:Number=0; i<addresses.length; i++){
+            		var myAddress:Object = addresses[i];
+            		var isNA:Boolean = false;
+            		
+            		// Use outFields to get back extra information
+            		// The exact fields available depends on the specific Locator used.
+            		var myOutFields:Array = ["Loc_name"];
+            		
+            		//Determine which geocode locator to use and the input format according to country field	    		
+            		var country:String = myAddress['Country']; 
+            		if (country == "USA" || country == "CANADA" || country == null) {
+            			isNA = true;
+            		}
+            		
+            		//call the actual GeoCode function. 
+            		if(isNA){
+            			geoCodeLocatorNA.addressToLocations(myAddress, myOutFields, new AsyncResponder(onResult, onFault, myAddress));           		
+            		} else {
+            			geoCodeLocatorEU.addressToLocations(myAddress, myOutFields, new AsyncResponder(onResult, onFault, myAddress));
+            		}
+            		
+            		function onResult(candidates:Array, token:Object):void{
+            			
+            			//each geoCodeLocator.addressToLocations operation will return multiple candidates
+            			//each candidate has different level of accuracy-->score, and different "loc_name".
+            			//"loc_name" could be street_address, city_state, etc.  Since we need the geometry information
+            			//for an address, we want Loc_name == "Street_Address".  And since we want a close match for the address,
+            			//we need high score.
+            			var bMatch:Boolean = false;
+                     		
+            			for (var j:int = 0; j < candidates.length; j++) {
+            				var candidate:Object = candidates[j];           				
+                       		           				
+            				//Logic here will prioritize rooftop over street address over sample server results.  
+            				// EU and World Loc_name values may be different.
+            				if (
+            					(candidate.attributes.Loc_name == "US_RoofTop"
+            					|| candidate.attributes.Loc_name == "US_Streets"
+            					|| candidate.attributes.Loc_name == "CAN_Streets"		     		 
+            					|| candidate.attributes.Loc_name.match("_Streets")
+            					|| candidate.attributes.Loc_name.match("Street_Addr")
+            					) && 
+            					candidate.score > 80 &&
+            					candidate.location.x &&
+            					candidate.location.y) 
+            					{
+            						bMatch = true;
+            					}
+                        }
+                        
+                        if(bMatch == true){
+                        		// var addressCandidate:AddressCandidate = candidates[0];
+                        		var newRecord:Object = new Object();                        
+                        		newRecord[token['pkeyFieldName']] = token['pkey'];
+                        		newRecord[token['latFieldName']] = candidate.location.y;
+                        		newRecord[token['lonFieldName']] = candidate.location.x;                                                 
+                        		geocodedRecords.push(newRecord); 
+                        		
+                        		myInfo.htmlText += "<b>Found:</b><br/>" 
+                        		+ '(' + token.pkey + ') '
+                        		+ "\n" + token['Address']
+                       	    	+ "\n" + token['City']
+                           	 	+ " " + token['State']
+                           	 	+ " " + token['Zip']                          	 	
+                            	+ " " + token['Country']                      	    	
+                        		+ " " + candidate.location.x.toString() + " " 
+                        		+ " " + candidate.location.y.toString() 
+                        		+ "<br/><br/>";  // formated address
+                        		var tableName:String = token['tableName'];
+                        		ExternalInterface.call("saveGeocodeRecords", tableName, JSON.encode(newRecord));
+                        }else{
+            					myInfo.htmlText += "<b><font color='#FF0000'>Not found:</b>"
+            					+ "\n(" + token.pkey + ")"           					
+            					//+ "\n" + token['Address']
+                       	    	//+ "\n" + token['City']
+                           	 	//+ " " + token['Zip']
+                           	 	//+ " " + token['State']
+                            	//+ " " + token['Country']
+                             	+ "</font><br/><br/>";
+                		}
+                  }
+                  
+                  function onFault(info:Object, token:Object = null):void{
+                  		myInfo.htmlText = "<b>Failure</b>" + info.toString();
+                  		Alert.show("Failure: \n" + info.toString());
+                  }
+                }
+            }
+            
+            //create the circle polygon
+	        private function createCirclePoints(centerPoint:MapPoint):Array {                       
+	            var cosinus:Number;
+	            var sinus:Number;
+	            var x:Number;
+	            var y:Number;
+	            var arrayOfPoints:Array = new Array();
+	            
+	            //create array of point that will compose the circle
+	            for (var i:int = 0; i < numberOfCirclePoints; i++) {
+	            	sinus = Math.sin((Math.PI*2.0)*(i/numberOfCirclePoints));
+	            	cosinus = Math.cos((Math.PI*2.0)*(i/numberOfCirclePoints));
+	            	x = centerPoint.x + fillSymbolRadius*cosinus;
+	            	y = centerPoint.y + fillSymbolRadius*sinus;
+	            	arrayOfPoints[i] = new MapPoint(x, y);            	        
+	            }
+	            
+	            //add the first point at the end of the array to close the polygon
+	            arrayOfPoints.push(arrayOfPoints[0]);
+	            arrayOfPoints.reverse();
+	            return arrayOfPoints;
+	        }
+
+			private function createFillSymbol(point:MapPoint, fillSymbol:SimpleFillSymbol, attributes:Object):void{
+				fillSymbolPolygon = new Polygon();
+				fillSymbolRadius = attributes.values[radiusField];
+				fillSymbolPolygon.addRing(createCirclePoints(point));
+				fillSymbolGraphic = new Graphic(fillSymbolPolygon,fillSymbol);
+				fillSymbolGraphic.attributes = attributes;
+				fillSymbolGraphic.addEventListener(MouseEvent.MOUSE_OVER, graphicsMouseOverHandler);
+				fillSymbolGraphic.addEventListener(MouseEvent.MOUSE_OUT, graphicsMouseOutHandler);
+				fillSymbolGraphic.addEventListener(MouseEvent.CLICK, graphicsMouseClickHandler);
+				graphicsLayer.add(fillSymbolGraphic);
+			}      
+			                						
+			public function getDecimalSeparator():String{
+				try{
+					if (ExternalInterface.available) {
+						return ExternalInterface.call("getDecimalSeparator_JS");
+					} 
+				} catch(error:Error){}
+				
+				//default separator
+				return ".";
+			}
+			
+			public function getGroupingSeparator():String{
+				try{
+					if (ExternalInterface.available) {
+	    	     	 	return ExternalInterface.call("getGroupingSeparator_JS");
+	    			} 
+	    		} catch(error:Error){}
+	    		//default separator
+	    		return ",";
+	    	}
+			
+			protected function formatGeometryFieldValues(value:String):String{
+				var decimalSeparator:String = getDecimalSeparator();
+				var groupingSeparator:String = getGroupingSeparator();	
+							
+				var formatter:NumberFormatter = new NumberFormatter();				
+				formatter.decimalSeparatorFrom = decimalSeparator;				
+				formatter.thousandsSeparatorFrom = groupingSeparator;				
+				formatter.decimalSeparatorTo = ".";
+				formatter.thousandsSeparatorTo =  "";
+							
+				var decimals:int = value.substring(value.indexOf(decimalSeparator), value.length-1).length;
+				formatter.precision = decimals;
+				return formatter.format(value);
+			}
+			
+        ]]>
+    </mx:Script>
+    
+    <esri:Query id="query"
+        returnGeometry="true"
+        geometry="{myMap.extent}"
+        outSpatialReference="{myMap.spatialReference}"
+        where="{where}"
+        outFields="{outFields}"
+        />  
+        
+    <esri:QueryTask id="queryTask"
+    	url="{queryURL}"
+        executeComplete="queryExecuteCompleteHandler(event)"/>
+        
+    <esri:Locator
+   		id="geoCodeLocatorNA"/>
+   	
+   	<esri:Locator
+   		id="geoCodeLocatorEU"/>
+                                                 
+    <mx:Canvas width="100%" height="100%">
+     <esri:Map id="myMap" load="afterMapLoad()" logoVisible="false">
+        <esri:ArcGISTiledMapServiceLayer id="baseMap" url="http://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer"  creationComplete="onBasemapCreationComplete()"/>
+        <esri:GraphicsLayer id="graphicsLayer" alpha="0.60"/> 	
+        <esri:GraphicsLayer id="textGraphicsLayer" alpha="1.0"/>													   
+    </esri:Map>
+    </mx:Canvas>
+
+    <mx:VBox id="vBox" visible="false" x="45" y="7" alpha="1.0">
+        <mx:Spacer height="5"/>       
+        <mx:Button id="highlight" label="Highlight" click="highlightStructure()" alpha="1.0"/>
+        <mx:Text id="status" alpha="0.5" />
+    </mx:VBox> 
+
+    <mx:TitleWindow id="geocodePanel" showCloseButton="true" title="Search Results" backgroundAlpha="0.3" width="50%" visible="false" close="geocodePanel.visible=false">
+        <mx:Text id="myInfo" width="100%" color="0x00FF00" textAlign="center"/>   	   	
+    </mx:TitleWindow>        
+</mx:Application>

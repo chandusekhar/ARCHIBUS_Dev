@@ -1,0 +1,177 @@
+<view version="2.0">
+    <js file="ab-repm-ls-cam-report.js"/>
+    <js file="ab-repm-cost-mgmt-common.js"/>
+    
+    <title translatable="true">Lease CAM Reconciliation Report</title>
+    
+    <!-- Messages -->
+    <message name="msgSelectLease" translatable="true">Please select a lease code</message>
+    <message name="msgSelectYearRange" translatable="true">The Lease Year - From must be smaller or equal to Lease Year - To</message>
+    <message name="title_CamReportForLease" translatable="true">CAM Reconciliation Report for Lease {0}</message>
+    <message name="infoNoActivityParameter" translatable="true">{0} application parameter is not set, '{1}' value will be used</message>
+    <message name="pagRepRestriction_lease" translatable="true">Lease Code</message>
+    <message name="pagRepRestriction_fromYear" translatable="true">From Lease Year</message>
+    <message name="pagRepRestriction_toYear" translatable="true">To Lease Year</message>
+    <message name="errorMissingExchangeRate" translatable="true">A required exchange rate is missing. Default value of 1 was used in cost calculation.</message>
+    <message name="searchMessage" translatable="true">Searching</message>
+    
+    <!-- Layout -->
+    <layout type="borderLayout" id="mainLayout">
+        <north id="filterPos" initialSize="15%"/>
+        <center id="costsPos"/>
+    </layout>
+    
+    <!-- Utility data source for years -->
+    <dataSource id="abRepmLsCamReportYears_ds" type="grouping">
+        <table name="afm_cal_dates" />
+        <field name="year" groupBy="true" dataType="text" formula="year" baseField="afm_cal_dates.cal_date"/>
+        <field name="cal_date" dataType="date" formula="max" baseField="afm_cal_dates.cal_date"/>
+        <sortField name="year" ascending="false" />
+    </dataSource>
+
+    <!-- Filter -->
+    <dataSource id="abRepmLsCamReportFilter_ds" applyVpaRestrictions="false">
+        <table name="ls" role="main"/>
+        <table name="property" role="standard"/>
+        <table name="bl" role="standard"/>
+        <field table="ls" name="ls_id"/>
+        <field table="bl" name="bl_id"/>
+        <field table="property" name="pr_id"/>
+        <field table="ls" name="ctry_id" dataType="text">
+            <title>Country Code</title>
+            <sql dialect="generic">
+                (CASE WHEN ls.bl_id IS NOT NULL THEN bl.ctry_id WHEN ls.pr_id IS NOT NULL THEN property.ctry_id END)
+            </sql>
+        </field>
+        <field table="ls" name="city_id" dataType="text">
+            <title>City Code</title>
+            <sql dialect="generic">
+                (CASE WHEN ls.bl_id IS NOT NULL THEN bl.city_id WHEN ls.pr_id IS NOT NULL THEN property.city_id END)
+            </sql>
+        </field>
+        <field name="vf_start_year" dataType="text" hidden="true">
+            <sql dialect="generic">(${sql.yearOf('ls.date_start')})</sql>
+        </field>
+        <restriction type="sql" sql="ls.use_as_template = 0 AND ((ls.bl_id IS NOT NULL AND ${sql.getVpaRestrictionForTable('bl')}) OR (ls.pr_id IS NOT NULL AND ${sql.getVpaRestrictionForTable('property')})) AND ${sql.vpaRestriction}"/>
+    </dataSource>
+    
+    <panel type="console" id="abRepmLsCamReportFilter" dataSource="abRepmLsCamReportFilter_ds" columns="2" layoutRegion="filterPos">
+        <title>Filter</title>
+        <action id="selectVAT" hidden="${View.activityParameters['AbCommonResources-EnableVatAndMultiCurrency'] == 0}">
+            <title translatable="true">VAT</title>
+            <command type="openDialog" viewName="ab-rplm-select-vat.axvw" width="400" height="200" closeButton="false"/>
+        </action>
+        <action id="selectCurrency" hidden="${View.activityParameters['AbCommonResources-EnableVatAndMultiCurrency'] == 0}">
+            <title translatable="true">Currency</title>
+            <command type="openDialog" viewName="ab-rplm-select-currency.axvw" width="800" height="200" closeButton="false"/>
+        </action>
+        <action id="filter">
+            <title>Show</title>
+        </action>
+        <action id="clear">
+            <title>Clear</title>
+        </action>
+        <field table="ls" name="ls_id" onchange="abRepmLsCamReportController.onChangeLeaseId();" onblur="abRepmLsCamReportController.onChangeLeaseId();">
+            <action>
+                <title translatable="false">...</title>
+                <tooltip>Select Value</tooltip>
+                <!--command type="selectValue" dataSource="abRepmLsCamReportFilter_ds" fieldNames="ls.ls_id" selectFieldNames="ls.ls_id" showDialog="false"/ -->
+                <command type="selectValue" fieldNames="ls.ls_id" selectFieldNames="ls.ls_id" showDialog="false"/>
+                <command type="openDialog" panelId="abRepmLsCamReportFilterDetails" width="800" height="600" closeButton="true" applyParentRestriction="false"/>
+            </action>
+        </field>
+        <field>
+            <title translatable="true">Lease Year - From</title>
+            <html>
+                <select class="inputField_box" name="console_cost.year" id="console_cost.year" />
+            </html>
+        </field>
+        <field/>
+        <field>
+            <title translatable="true">To</title>
+            <html>
+                <select class="inputField_box" name="console_cost.toyear" id="console_cost.toyear"/>
+            </html>
+        </field>
+    </panel>
+    
+    <!-- Select value panel -->
+    <panel type="grid" id="abRepmLsCamReportFilterDetails" dataSource="abRepmLsCamReportFilter_ds" showOnLoad="false" hidden="true">
+        <sortField table="ls" name="ls_id" ascending="true"/>
+        <title>Leases</title>
+        <field table="ls" name="ls_id" controlType="link">
+            <command type="showPanel" panelId="abRepmLsCamReportFilter"/>
+            <command type="callFunction" functionName="abRepmLsCamReportController.setLeaseYearFrom(this)"/>
+            <command type="closeDialog"/>
+        </field>
+        <field table="ls" name="ctry_id" dataType="text" controlType="link">
+            <title>Country Code</title>
+            <command type="showPanel" panelId="abRepmLsCamReportFilter"/>
+            <command type="callFunction" functionName="abRepmLsCamReportController.setLeaseYearFrom(this)"/>
+            <command type="closeDialog"/>
+        </field>
+        <field table="ls" name="city_id" dataType="text" controlType="link">
+            <title>City Code</title>
+            <command type="showPanel" panelId="abRepmLsCamReportFilter"/>
+            <command type="callFunction" functionName="abRepmLsCamReportController.setLeaseYearFrom(this)"/>
+            <command type="closeDialog"/>
+        </field>
+        <field table="property" name="pr_id" controlType="link">
+            <command type="showPanel" panelId="abRepmLsCamReportFilter"/>
+            <command type="callFunction" functionName="abRepmLsCamReportController.setLeaseYearFrom(this)"/>
+            <command type="closeDialog"/>
+        </field>
+        <field table="bl" name="bl_id" controlType="link">
+            <command type="showPanel" panelId="abRepmLsCamReportFilter"/>
+            <command type="callFunction" functionName="abRepmLsCamReportController.setLeaseYearFrom(this)"/>
+            <command type="closeDialog"/>
+        </field>
+        <field name="vf_start_year" dataType="text" hidden="true"/>
+    </panel>
+    
+    <!-- Costs report -->
+    <dataSource id="abRepmLsCamReportCosts_ds" type="grouping">
+        <table name="ccost_sum"/>
+        <field name="vf_year" dataType="text" formula="year" baseField="ccost_sum.date_costs_last_calcd" groupBy="true">
+            <title>Lease Year</title>
+        </field>
+        <field name="vf_base_rent" formula="sum" baseField="ccost_sum.amount_base_rent" dataType="number" decimals="2" currency="${user.userCurrency.code}">
+            <title>Base Rent</title>
+        </field>
+        <field name="vf_cam_estimated" formula="sum" baseField="ccost_sum.amount_operating" dataType="number" decimals="2" currency="${user.userCurrency.code}">
+            <title>CAM Cost - Estimated</title>
+        </field>
+        <field name="vf_cam_actual" formula="sum" baseField="ccost_sum.amount_other" dataType="number" decimals="2" currency="${user.userCurrency.code}">
+            <title>CAM Cost - Actual</title>
+        </field>
+        <field name="vf_cam_diff" formula="sum" baseField="ccost_sum.amount_pct_rent" dataType="number" decimals="2" currency="${user.userCurrency.code}">
+            <title>Total CAM Adjustments</title>
+        </field>
+        <field name="vf_cam_delta" dataType="number" decimals="2">
+            <title>CAM - Delta (%)</title>
+            <!--sql dialect="generic">
+                (SUM(ccost_sum.amount_security))
+            </sql-->
+            <sql dialect="generic">
+                ( CASE WHEN SUM(ccost_sum.amount_operating) = 0 THEN 0 ELSE SUM(ccost_sum.amount_pct_rent)/SUM(ccost_sum.amount_operating) * 100 END)
+            </sql>
+        </field>
+    </dataSource>
+
+    <panel type="crossTable" id="abRepmLsCamReportCosts" dataSource="abRepmLsCamReportCosts_ds" showOnLoad="false" layoutRegion="costsPos">
+        <title translatable="false">CAM Reconciliation Report for Lease</title>
+        <action id="addAdjustment">
+            <title>Add Adjustment</title>
+        </action>
+        <action id="exportXLS">
+            <title translatable="true">XLS</title>
+            <command type="exportPanel" outputType="xls" panelId="abRepmLsCamReportCosts"/>
+        </action>
+        <!--action id="paginatedReport">
+            <title translatable="true">DOC</title>
+        </action-->
+        <event type="onClickItem">
+            <command type="callFunction" functionName="openAdjustments"/>
+        </event>
+    </panel>
+</view>

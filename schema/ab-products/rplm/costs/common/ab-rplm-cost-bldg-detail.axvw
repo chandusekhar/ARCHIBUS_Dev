@@ -1,0 +1,154 @@
+<view version="2.0">
+	<js file="ab-rplm-cost-bldg-detail.js"/>
+	<title translatable="true">Building Details</title>
+	<message name="text_no_image" translatable="true">No Image Available</message>
+	<message name="leased" translatable="true">Leased</message>
+	<message name="owned" translatable="true">Owned</message>
+	<message name="neither" translatable="true">Neither</message>
+	
+	<dataSource id="dsBuilding">
+        <sql dialect="generic">
+            SELECT 
+                bl.bl_id, bl.name, bl.bldg_photo, 
+                bl.ctry_id, bl.regn_id, bl.state_id, bl.city_id, bl.site_id, bl.pr_id,
+                bl.address1, bl.address2, bl.zip, 
+                (CASE 
+                    WHEN EXISTS(SELECT 1 FROM ot WHERE ot.bl_id = bl.bl_id AND ot.status = 'Owned') 
+                        THEN ${parameters['owned']}
+                    WHEN EXISTS(SELECT 1 FROM ls WHERE ls.bl_id = bl.bl_id AND ls.signed = 1 
+                            AND (ls.date_end &gt;= ${sql.currentDate} OR ls.date_end IS NULL) AND ls.date_start &lt;= ${sql.currentDate} )
+                            THEN ${parameters['leased']}
+                    ELSE ${parameters['neither']}
+                END) ${sql.as} status,
+                bl.area_rentable, bl.area_ls_negotiated, bl.area_gross_ext, bl.area_gross_int, 
+                bl.date_book_val, bl.date_market_val,
+                (bl.value_book * ${sql.exchangeRateFromBudgetToUserForDate('Payment', 'bl.date_book_val')}) ${sql.as} value_book,
+                (bl.value_market * ${sql.exchangeRateFromBudgetToUserForDate('Payment', 'bl.date_market_val')}) ${sql.as} value_market,
+                bl.date_bl, bl.ac_id, bl.date_rehab, bl.contact_name, bl.contact_phone, bl.construction_type,
+                bl.use1, bl.count_occup, bl.count_fl, bl.count_max_occup,
+                (SELECT ot.date_purchase
+                    FROM ot WHERE 
+                    ot.ot_id = (SELECT MAX(x.ot_id) FROM ot x WHERE x.bl_id = bl.bl_id AND x.status = 'Owned')) ${sql.as} date_purchase,
+                (SELECT ot.date_sold FROM ot
+                WHERE ot.ot_id =
+                    (SELECT MAX(ot_int.ot_id) FROM ot ${sql.as} ot_int
+                    WHERE ot_int.bl_id = bl.bl_id AND ot_int.status = 'Disposed' AND ot_int.date_sold IS NOT NULL)) ${sql.as} date_sold,
+                (bl.cost_sqft * ${sql.exchangeRateFromBudgetToUser('Payment')}) ${sql.as} cost_sqft,
+                bl.comments    
+            FROM bl
+        </sql>
+		<table name="bl" role="main"/>
+		<field table="bl" name="bldg_photo"/>
+		<field table="bl" name="bl_id"/>
+		<field table="bl" name="ctry_id"/>
+		<field table="bl" name="name"/>
+		<field table="bl" name="regn_id"/>
+		<field table="bl" name="address1"/>
+		<field table="bl" name="state_id"/>
+		<field table="bl" name="address2"/>
+		<field table="bl" name="city_id"/>
+		<field table="bl" name="zip"/>
+		<field table="bl" name="site_id"/>
+
+        <field name="status" dataType="text"/>
+		<field table="bl" name="pr_id"/>
+        
+		<field table="bl" name="area_rentable"/>
+        <field table="bl" name="value_book" currency="${user.userCurrency.code}"/>
+
+		<field table="bl" name="area_ls_negotiated"/>
+        <field table="bl" name="date_book_val"/>
+
+        <field table="bl" name="area_gross_ext"/>
+        <field table="bl" name="value_market" currency="${user.userCurrency.code}"/>
+
+        <field table="bl" name="area_gross_int"/>
+        <field table="bl" name="date_market_val"/>
+
+        <field table="bl" name="date_bl"/>
+        <field table="bl" name="ac_id"/>
+
+        <field table="bl" name="date_rehab"/>
+        <field table="bl" name="contact_name"/>
+        
+        <field table="bl" name="construction_type"/>
+        <field table="bl" name="contact_phone"/>
+        
+        <field table="bl" name="use1"/>
+        <field table="bl" name="count_occup"/>
+
+        <field table="bl" name="count_fl"/>
+        <field table="bl" name="count_max_occup"/>
+
+        <field name="date_purchase" dataType="date"/>
+        <field name="date_sold" dataType="date"/>
+
+        <field table="bl" name="cost_sqft" currency="${user.userCurrency.code}"/>
+
+        <field table="bl" name="comments"/>
+		
+		<parameter name="owned" dataType="verbatim" value=""/>
+		<parameter name="leased" dataType="verbatim" value=""/>
+		<parameter name="neither" dataType="verbatim" value=""/>
+	</dataSource>
+    
+	<panel type="form" id="formBuilding" dataSource="dsBuilding" columns="3" showOnLoad="false" afterRefresh="formatCurrency">
+		<title translatable="true">Building Details Report</title>
+		<field table="bl" name="bldg_photo" hidden="true" displayField="image_field" readOnly="true"/>
+        <field id="image_field" controlType="image" rowspan="18" width="250px">
+        </field>
+        <field table="bl" name="bl_id" readOnly="true"/>
+        <field table="bl" name="ctry_id" readOnly="true"/>
+        <field table="bl" name="name" readOnly="true"/>
+        <field table="bl" name="regn_id" readOnly="true"/>
+        <field table="bl" name="address1" readOnly="true"/>
+        <field table="bl" name="state_id" readOnly="true"/>
+        <field table="bl" name="address2" readOnly="true"/>
+        <field table="bl" name="city_id" readOnly="true"/>
+        <field table="bl" name="zip" readOnly="true"/>
+        <field table="bl" name="site_id" readOnly="true"/>
+        <field name="status" dataType="text" readOnly="true">
+            <title translatable="true">Status</title>
+        </field>
+        <field table="bl" name="pr_id" readOnly="true"/>
+        
+		<field table="bl" name="area_rentable" readOnly="true"/>
+        <field table="bl" name="value_book" readOnly="true"/>
+
+		<field table="bl" name="area_ls_negotiated" readOnly="true"/>
+        <field table="bl" name="date_book_val" readOnly="true"/>
+
+        <field table="bl" name="area_gross_ext" readOnly="true"/>
+        <field table="bl" name="value_market" readOnly="true"/>
+
+        <field table="bl" name="area_gross_int" readOnly="true"/>
+        <field table="bl" name="date_market_val" readOnly="true"/>
+
+        <field table="bl" name="date_bl" readOnly="true"/>
+        <field table="bl" name="ac_id" readOnly="true"/>
+
+        <field table="bl" name="date_rehab" readOnly="true"/>
+        <field table="bl" name="contact_name" readOnly="true"/>
+        
+        <field table="bl" name="construction_type" readOnly="true"/>
+        <field table="bl" name="contact_phone" readOnly="true"/>
+        
+        <field table="bl" name="use1" readOnly="true"/>
+        <field table="bl" name="count_occup" readOnly="true"/>
+
+        <field table="bl" name="count_fl" readOnly="true"/>
+        <field table="bl" name="count_max_occup" readOnly="true"/>
+        
+        <field name="date_purchase" dataType="date" readOnly="true">
+            <title translatable="true">Date Purchased</title>
+        </field>
+        <field name="date_sold" dataType="date" readOnly="true">
+			<title translatable="true">Date Sold</title>
+		</field>
+
+        <field table="bl" name="cost_sqft" readOnly="true"/>
+        <field/>
+        
+        <field table="bl" name="comments" colspan="2" size="30" readOnly="true"/>
+	</panel>
+</view>

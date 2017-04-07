@@ -1,0 +1,119 @@
+<view version="2.0">
+    
+    <js file="ab-finanal-aggregate-forecast-costs-bl.js"/>
+    <js file="ab-finanal-aggregate-forecast-costs-common.js"/>
+    
+    <title>Aggregate and Forecast Costs</title>
+    <message name="txtUpdateAnalysisMetricJob" translatable="true">Calculating Analysis Metrics</message>
+    
+    <tabs workflow="enforced" id="abFinanalAggregateForecastCostsBl_tabs" tabRefreshPolicy="refreshOnSelect">
+    
+        <tab name="abFinanalAggregateForecastCosts_blTab" selected="true">
+            <title translatable="true">Buildings and Forecasts</title>
+            <dataSource id="ds_abFinanalAgregateForecastCostsBl">
+                <sql dialect="generic">
+                    SELECT bl.bl_id, bl.ctry_id, bl.state_id, bl.city_id, bl.area_gross_ext, bl.use1,
+                    bl.value_book, bl.value_market, bl.date_book_val, bl.date_market_val, bl.date_bl,
+                    (CASE                       
+                        WHEN finanal_params.sub_loan IS NULL THEN ${parameters['no']} 
+                        WHEN finanal_params.sub_loan = 1 THEN ${parameters['yes']} 
+                        ELSE  ${parameters['no']} 
+                    END)  AS  vf_subLoanText, 
+                    finanal_params.sub_loan ${sql.as} vf_subLoan,
+                    finanal_params.auto_number ${sql.as} vf_autoNumber,
+                    (CASE
+                        WHEN EXISTS(SELECT 1 FROM finanal_params
+                            WHERE finanal_params.bl_id = bl.bl_id)
+                    THEN ${parameters['yes']}             
+                    ELSE ${parameters['no']}  
+                    END) ${sql.as} vf_hasForecast,
+                    (CASE
+                        WHEN EXISTS(SELECT 1 FROM cost_tran_recur
+                            WHERE cost_tran_recur.bl_id = bl.bl_id)
+                    THEN ${parameters['yes']}             
+                    ELSE ${parameters['no']}  
+                    END) ${sql.as} vf_hasEstimate
+                    FROM bl LEFT OUTER JOIN finanal_params ON finanal_params.bl_id = bl.bl_id
+                </sql>
+                <table name="bl" role="main"/>
+                <field name="bl_id"/>
+                <field name="ctry_id"/>
+                <field name="state_id"/>
+                <field name="city_id"/>
+                <field name="area_gross_ext"/>
+                <field name="use1"/>
+                <field name="value_book"/>
+                <field name="value_market"/>
+                <field name="date_book_val"/>
+                <field name="date_market_val"/>
+                <field name="date_bl"/>
+                <field name="vf_hasForecast" dataType="text"/>
+                <field name="vf_hasEstimate" dataType="text"/>
+                <field name="vf_subLoanText" dataType="text"/>
+                <field name="vf_subLoan" dataType="number" decimals="0"/>
+                <field name="vf_autoNumber" dataType="number" decimals="0"/>
+                <parameter name="yes" dataType="text" value="Yes"/>
+                <parameter name="no" dataType="text" value="No"/>
+            </dataSource>
+                
+            <panel type="grid" id="abFinanalAgregateForecastCostsBl_grid" dataSource="ds_abFinanalAgregateForecastCostsBl" showOnLoad="true">
+                <sortField table="bl" name="bl_id"/>
+                <indexField table="bl" name="bl_id"/>
+                <action id="updateAnalysisMetrics">
+                    <title translatable="true">Update Analysis Metrics</title>
+                    <command type="startJob" ruleId="AbCommonResources-UpdateAnalysisMetricsJob-updateAnalysisMetrics" messageId="txtUpdateAnalysisMetricJob"/>
+                </action>
+                <action id="openViews" type="menu" imageName="/schema/ab-core/graphics/icons/view/gear.png">
+                    <action id="viewCostWizard">
+                        <title translatable="true">View in Cost Wizard</title>
+                        <command type="openView" panelId="abFinanalAgregateForecastCostsBl_grid" viewName="ab-rplm-cost-mgmt-costs-wiz-ls-bl-pr.axvw"/>
+                    </action>
+                    <action id="viewCashFlow">
+                        <title translatable="true">View Cash Flow Report</title>
+                        <command type="openView" panelId="abFinanalAgregateForecastCostsBl_grid" viewName="ab-rplm-cost-mgmt-cash-flow-rep.axvw"/>
+                    </action>
+                </action>
+                <field controlType="button" id="select">
+                  <title translatable="true">Select</title>
+                </field>
+                <field name="bl_id"/>
+                <field table="bl" name="vf_hasForecast" dataType="text">
+                    <title translatable="true">Has Capital Costs Forecast?</title>
+                </field>
+                <field table="bl" name="vf_hasEstimate" dataType="text">
+                    <title translatable="true">Has Estimate?</title>
+                </field>
+                <field name="ctry_id"/>
+                <field name="state_id"/>
+                <field name="city_id"/>
+                <field name="area_gross_ext"/>
+                <field name="use1"/>
+                <field name="value_book"/>
+                <field name="value_market"/>
+                <field name="date_book_val"/>
+                <field name="date_market_val"/>
+                <field name="date_bl"/>
+                <field table="bl" name="vf_subLoanText" dataType="text">
+                    <title translatable="true">Has Subordinate Loan?</title>
+                </field>
+                <field table="bl" name="vf_autoNumber" dataType="number" decimals="0">
+                    <title translatable="true">Forecast Autonumbered ID</title>
+                </field>
+            </panel>
+        </tab>
+
+        <tab name="abFinanalAggregateForecastCosts_forecastIncomeExpensesTab" file="ab-finanal-aggregate-forecast-costs-in-ex.axvw">
+            <title translatable="true">Forecast Income and Expenses</title>
+        </tab>
+        
+        <tab name="abFinanalAggregateForecastCosts_forecastCapitalTab" file="ab-finanal-aggregate-forecast-costs-capital.axvw">
+            <title translatable="true">Forecast Capital Costs</title>
+        </tab>
+        
+        <tab name="abFinanalAggregateForecastCosts_aggregateOpExTab" file="ab-finanal-aggregate-forecast-costs-op-ex.axvw">
+            <title translatable="true">Aggregate Operating Expenses</title>
+        </tab>
+    </tabs>
+    
+    <panel type="view" id="helperView" file="ab-finanal-aggregate-forecast-costs-common.axvw"/>
+</view>

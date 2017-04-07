@@ -1,0 +1,74 @@
+<view version="2.0">
+
+    <dataSource id="groupbyAreaSeatDS" type="grouping" applyVpaRestrictions="false">
+        <sql dialect="generic">
+            SELECT distinct
+                 ${parameters['groupby']} ${sql.as} groupby
+            FROM fl left join bl on bl.bl_id=fl.bl_id WHERE ${sql.vpaRestriction} and  fl.${parameters['blId']} 
+        </sql>
+        <table name="fl" role="main"/>
+        <field table="fl" name="groupby" dataType="text" groupBy="true">
+        </field>
+        <parameter name="groupby" dataType="verbatim" value="fl.bl_id"/>
+        <parameter name="blId" dataType="verbatim" value="bl_id is not null"/>
+    </dataSource>
+
+    <dataSource id="areaPerSeatDS" type="grouping" applyVpaRestrictions="false">
+        <sql dialect="generic">
+            SELECT 
+                 ${parameters['summaryValueForThisGroup']} ${sql.as} groupby,
+                 (  CASE WHEN 
+                    (SELECT SUM(rmpct.pct_space*rm.area*0.5)/100 FROM  rmpct left join rm on  rmpct.bl_id=rm.bl_id and rmpct.fl_id=rm.fl_id and rmpct.rm_id=rm.rm_id
+                                    WHERE rmpct.day_part !=0 and  rm.cap_em>0  and  rmpct.bl_id = fl.bl_id AND rmpct.fl_id = fl.fl_id AND ( rmpct.date_start is null or rmpct.date_start &lt;=  ${sql.currentDate}) AND (rmpct.date_end &gt;=  ${sql.currentDate} or rmpct.date_end is null )  AND ${parameters['dvdpParam']} 
+                    )>0 THEN (SELECT SUM(rmpct.pct_space*rm.area*0.5)/100 FROM  rmpct left join rm on  rmpct.bl_id=rm.bl_id and rmpct.fl_id=rm.fl_id and rmpct.rm_id=rm.rm_id
+                                    WHERE rmpct.day_part !=0 and  rm.cap_em>0  and  rmpct.bl_id = fl.bl_id AND rmpct.fl_id = fl.fl_id AND ( rmpct.date_start is null or rmpct.date_start &lt;=  ${sql.currentDate}) AND (rmpct.date_end &gt;=  ${sql.currentDate} or rmpct.date_end is null )  AND ${parameters['dvdpParam']} 
+                    )ELSE 0 END 
+                    
+                    +
+                    CASE WHEN 
+                    (SELECT SUM(rmpct.pct_space*rm.area)/100 FROM  rmpct left join rm on  rmpct.bl_id=rm.bl_id and rmpct.fl_id=rm.fl_id and rmpct.rm_id=rm.rm_id
+                                    WHERE   rmpct.day_part = 0 and  rm.cap_em>0  and  rmpct.bl_id = fl.bl_id AND rmpct.fl_id = fl.fl_id AND ( rmpct.date_start is null or rmpct.date_start &lt;=  ${sql.currentDate}) AND (rmpct.date_end &gt;=  ${sql.currentDate} or rmpct.date_end is null )  AND ${parameters['dvdpParam']} 
+                    )>0 THEN 
+                    (SELECT SUM(rmpct.pct_space*rm.area)/100 FROM  rmpct left join rm on  rmpct.bl_id=rm.bl_id and rmpct.fl_id=rm.fl_id and rmpct.rm_id=rm.rm_id
+                                    WHERE   rmpct.day_part = 0 and  rm.cap_em>0  and  rmpct.bl_id = fl.bl_id AND rmpct.fl_id = fl.fl_id AND ( rmpct.date_start is null or rmpct.date_start &lt;=  ${sql.currentDate}) AND (rmpct.date_end &gt;=  ${sql.currentDate} or rmpct.date_end is null )  AND ${parameters['dvdpParam']} 
+                    )ELSE 0 END 
+                )${sql.as} area_usable,
+                 
+                 (select sum(cap_em) from rm where rm.cap_em>0 and fl.bl_id=rm.bl_id and fl.fl_id=rm.fl_id AND ${parameters['dvdpForRmParam']}) ${sql.as} capem 
+            FROM fl left join bl on fl.bl_id=bl.bl_id WHERE ${sql.vpaRestriction} and fl.${parameters['blId']} and ${parameters['groupby']} =${parameters['summaryValueForThisGroup']}
+        </sql>
+        <table name="fl" role="main"/>
+        <field table="fl" name="groupby" dataType="text" groupBy="true"/>
+        <field table="fl" name="sum_areaPerCapEm"  baseField="fl.capem"  dataType="number" decimals="0" numericFormat="area">
+            <sql dialect="generic">case when sum(fl.capem) >0 then sum(fl.area_usable)/sum(fl.capem)  else 0 end</sql>
+        </field>
+        <parameter name="summaryValueForThisGroup" dataType="text" value=""/>
+        <parameter name="groupby" dataType="verbatim" value="fl.bl_id"/>
+        <parameter name="blId" dataType="verbatim" value="bl_id is not null"/>
+        <parameter name="dvdpForRmParam" dataType="verbatim" value="1=1"/>
+        <parameter name="dvdpParam" dataType="verbatim" value="1=1"/>
+        
+    </dataSource>
+
+    <panel id="areaPerSeatBar"
+        type="chart"
+        controlType="barChart" 
+		showOnLoad="false" 
+        dataSource="areaPerSeatDS" 
+        showLegendOnLoad="false"
+        showLegendAsPopUp="false" 
+        legendLocation="right"
+        showDataTips="true" 
+        fillColor="0xff0000"
+        fillType="solid">
+        
+        <title translatable="true">Room Area per Seat</title>
+        <groupingAxis dataSource="groupbyAreaSeatDS" table="fl" field="groupby"></groupingAxis>
+        <dataAxis dataSource="areaPerSeatDS" table="fl" field="sum_areaPerCapEm" displayAxis="false" showLabel="true" >
+            <title translatable="true">Room Area per Seat</title>
+        </dataAxis>
+    </panel> 
+    
+	<js file="ab-sp-mgm-dash-common.js"/>
+    <js file="ab-sp-mgm-occup-area-per-seat-bar-chart.js"/>
+</view>

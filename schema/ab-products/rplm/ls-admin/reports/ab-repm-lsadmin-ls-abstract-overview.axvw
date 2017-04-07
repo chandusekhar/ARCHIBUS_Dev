@@ -1,0 +1,96 @@
+<view version="2.0">
+	<panel type="view" id="panel_Filter" file="ab-repm-lsadmin-filter.axvw"/>
+	
+	<dataSource id="abRepmLsadminLsAbstractReport_ds_grid" applyVpaRestrictions="false">
+        <sql dialect="generic">
+            SELECT 
+                ls.ls_id, ls.bl_id, ls.pr_id, ls.date_start, ls.date_end, ls.landlord_tenant, ls.ld_name, 
+                ls.area_negotiated, ls.area_rentable,
+                (ls.amount_security * ${parameters['exchange_rate']}) ${sql.as} amount_security,
+                ${sql.isNull('ccost_sum.amount_base_rent', 0)} ${sql.as} amount_base_rent,
+                ${sql.isNull('ccost_sum.amount_pct_rent', 0)} ${sql.as} amount_pct_rent,
+                ${sql.isNull('ccost_sum.amount_operating', 0)} ${sql.as} amount_operating,
+                ${sql.isNull('ccost_sum.amount_taxes', 0)} ${sql.as} amount_taxes,
+                ${sql.isNull('ccost_sum.amount_other', 0)} ${sql.as} amount_other,
+                ${sql.isNull('ccost_sum.amount_base_rent + ccost_sum.amount_pct_rent + ccost_sum.amount_operating + ccost_sum.amount_taxes + ccost_sum.amount_other', 0)} ${sql.as} vf_net_income
+            FROM ls
+                INNER JOIN ccost_sum ON ccost_sum.ls_id = ls.ls_id 
+            WHERE ccost_sum.report_name = 'ls' AND ccost_sum.user_name = '${user.name}' AND ${parameters['net_income']} 
+        </sql>
+		<table name="ls" role="main"/>
+		<field table="ls" name="ls_id"/>
+		<field table="ls" name="bl_id"/>
+		<field table="ls" name="pr_id"/>
+		<field table="ls" name="date_start"/>
+		<field table="ls" name="date_end"/>
+		<field table="ls" name="landlord_tenant"/>
+		<field table="ls" name="ld_name"/>
+		<field table="ls" name="area_negotiated" showTotals="true"/>
+		<field table="ls" name="area_rentable" showTotals="true"/>
+		<field table="ls" name="amount_security" showTotals="true" currency="${project.budgetCurrency.code}"/>
+		<field table="ls" name="amount_base_rent" showTotals="true" currency="${project.budgetCurrency.code}"/>
+		<field table="ls" name="amount_pct_rent" showTotals="true" currency="${project.budgetCurrency.code}"/>
+		<field table="ls" name="amount_operating" showTotals="true" currency="${project.budgetCurrency.code}"/>
+		<field table="ls" name="amount_taxes" showTotals="true" currency="${project.budgetCurrency.code}"/>
+		<field table="ls" name="amount_other" showTotals="true" currency="${project.budgetCurrency.code}"/>
+		<field table="ls" name="vf_net_income" dataType="number" decimals="2" showTotals="true" currency="${project.budgetCurrency.code}">
+			<title translatable="true">Net Income</title>
+		</field>
+		<parameter name="net_income" dataType="verbatim" value=""/>
+        <parameter name="exchange_rate" dataType="verbatim" value="1"/>
+	</dataSource>
+	
+	<panel type="grid" id="abRepmLsadminLsAbstractReport_gridPanel" dataSource="abRepmLsadminLsAbstractReport_ds_grid" showOnLoad="false">
+		<title translatable="true">Lease Abstract Overview</title>
+		<action id="exportDOCX">
+			<title translatable="true">Report</title>
+			<command type="callFunction" functionName="onDocX"/>
+		</action>
+		<action id="exportXLS">
+			<title translatable="true">XLS</title>
+			<command type="exportPanel" outputType="xls" panelId="abRepmLsadminLsAbstractReport_gridPanel"/>
+		</action>
+		<field id="details" controlType="button">
+			<title translatable="true">Details</title>
+		</field>
+		<field table="ls" name="ls_id"/>
+		<field table="ls" name="bl_id"/>
+		<field table="ls" name="pr_id"/>
+		<field table="ls" name="date_start"/>
+		<field table="ls" name="date_end"/>
+		<field table="ls" name="landlord_tenant"/>
+		<field table="ls" name="ld_name"/>
+		<field table="ls" name="area_negotiated" showTotals="true"/>
+		<field table="ls" name="area_rentable" showTotals="true"/>
+		<field table="ls" name="amount_security" showTotals="true" currency="${project.budgetCurrency.code}"/>
+		<field table="ls" name="amount_base_rent" showTotals="true" currency="${project.budgetCurrency.code}"/>
+		<field table="ls" name="amount_pct_rent" showTotals="true" currency="${project.budgetCurrency.code}"/>
+		<field table="ls" name="amount_operating" showTotals="true" currency="${project.budgetCurrency.code}"/>
+		<field table="ls" name="amount_taxes" showTotals="true" currency="${project.budgetCurrency.code}"/>
+		<field table="ls" name="amount_other" showTotals="true" currency="${project.budgetCurrency.code}"/>
+		<field table="ls" name="vf_net_income" dataType="number" decimals="2" showTotals="true" currency="${project.budgetCurrency.code}">
+			<title translatable="true">Net Income</title>
+		</field>
+    	<sortField table="ls" name="ls_id" ascending="true"/>
+	</panel>
+    
+    <dataSource id="abRepmLsadminLsAbstractReport_ds_report" applyVpaRestrictions="false">
+        <table name="ls" role="main"/>
+        <table name="bl" role="standard"/>
+        <table name="property" role="standard"/>
+        <field table="ls" name="ls_id"/>
+        <field table="bl" name="bl_id"/>
+        <field table="property" name="pr_id"/>
+        <field table="ls" name="vf_net_income" dataType="number" decimals="2" showTotals="true">
+            <title translatable="true">Net Income</title>
+            <sql dialect="generic">
+                ls.amount_base_rent + ls.amount_pct_rent + ls.amount_operating + ls.amount_taxes + ls.amount_other
+            </sql>
+        </field>
+        <restriction type="parsed">
+            <clause op="=" table="ls" name="use_as_template" value="0"/>
+        </restriction>
+        <restriction type="sql" sql="${parameters['net_income']} AND ${sql.getVpaRestrictionForTable('bl')} AND ${sql.getVpaRestrictionForTable('property')}"/>
+        <parameter name="net_income" dataType="verbatim" value="1=1"/>
+    </dataSource>
+</view>

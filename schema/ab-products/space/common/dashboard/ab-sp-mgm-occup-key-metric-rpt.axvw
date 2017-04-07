@@ -1,0 +1,170 @@
+<view version="2.0">
+    <dataSource id="blDS" applyVpaRestrictions="false">
+        <sql dialect="generic">
+            SELECT
+                  sum(fl2.area_gross_int) ${sql.as} area_gross_int,
+                  sum(fl2.area_usable) ${sql.as} area_usable,
+                  sum(fl2.area_su) ${sql.as} area_su,
+                  sum(fl2.count_em) ${sql.as} count_em,
+                  sum(fl2.cost_sqft)  ${sql.as} cost_sqft,
+
+                    case when (sum(fl2.count_em) )>0
+                        then
+                            (sum(fl2.area_usable)/sum(fl2.count_em))
+                       else 0 end
+                     ${sql.as}area_nocup,
+
+
+                     case when
+                                sum(fl2.cost_sqft)  >0
+                           then
+                                (sum(fl2.area_usable)/sum(fl2.cost_sqft) )
+
+                     else 0 end ${sql.as} area_manual
+
+            FROM	  ( SELECT
+								  fl.area_gross_int ${sql.as} area_gross_int,
+								  fl.area_usable ${sql.as} area_usable,
+								 (select SUM(rmpct.cost) FROM rmpct WHERE rmpct.bl_id =fl.bl_id and rmpct.fl_id=fl.fl_id )${sql.as} area_su,
+								  (select sum(rm.cap_em) from rm where rm.bl_id=fl.bl_id and rm.fl_id=fl.fl_id) ${sql.as} count_em,
+								  (
+										( SELECT COUNT(em_id) FROM rmpct
+												WHERE  fl.bl_id=rmpct.bl_id and fl.fl_id=rmpct.fl_id and rmpct.em_id IS NOT NULL AND
+													(rmpct.date_start is NULL or rmpct.date_start &lt;= ${sql.currentDate} )  AND
+													(rmpct.date_end is null or rmpct.date_end &gt;= ${sql.currentDate} )
+													  AND rmpct.status = 1 AND rmpct.day_part = 0
+										)
+										+
+										 ( 0.5* (
+										SELECT COUNT(em_id) FROM rmpct
+														  WHERE  fl.bl_id=rmpct.bl_id and fl.fl_id=rmpct.fl_id  and rmpct.em_id IS NOT NULL
+																AND(rmpct.date_start is null or rmpct.date_start &lt;= ${sql.currentDate} )
+																AND (rmpct.date_end is null or rmpct.date_end &gt;= ${sql.currentDate} )
+																AND rmpct.status = 1 AND rmpct.day_part != 0
+												)
+										)
+								)  ${sql.as} cost_sqft
+							FROM fl left join bl on bl.bl_id=fl.bl_id WHERE ${sql.vpaRestriction} and fl.${parameters['blId']} and ${parameters['groupby']} is not null 
+
+			)  ${sql.as} fl2
+        </sql>
+        <table name="fl" role="main"/>
+
+        <field table="fl"  name="area_gross_int"  dataType="number" decimals="0"  numericFormat="area"/>
+        <field table="fl" name="area_usable"   dataType="number" decimals="0"  numericFormat="area" />
+        <field table="fl" name="area_su"   dataType="number" decimals="0" >
+            <title translatable="true">Cost</title>
+        </field>
+
+        <field table="fl" name="count_em"  dataType="number" decimals="0">
+            <title translatable="true">Capacity(Total Seats)</title>
+        </field>
+        <field table="fl" name="cost_sqft"  dataType="number" decimals="0" >
+            <title translatable="true">Occupancy</title>
+        </field>
+        <field table="fl" name="area_nocup" dataType="number" decimals="0" numericFormat="area" />
+        <field table="fl" name="area_manual"  dataType="number" decimals="0" numericFormat="area"  />
+        <parameter name="blId" dataType="verbatim" value="bl_id is not null"/>
+        <parameter name="groupby" dataType="verbatim" value="fl.bl_id"/>
+    </dataSource>
+
+    <panel id="keyTotalMetricForm" type="form" dataSource="blDS" showOnLoad="false">
+        <title translatable="true">Key Total Metrics</title>
+        <action id="more">
+            <title translatable="true">More</title>
+        </action>
+        <field table="fl"  name="area_gross_int" dataType="number" decimals="0"  readOnly="true"/>
+        <field table="fl" name="area_usable"   dataType="number" decimals="0"  readOnly="true"/>
+        <field table="fl" name="area_su"   dataType="number" decimals="0"  readOnly="true">
+            <title translatable="true">Cost</title>
+        </field>
+
+        <field table="fl" name="count_em"  dataType="number" decimals="0"  readOnly="true">
+            <title translatable="true">Capacity(Total Seats)</title>
+        </field>
+        <field table="fl" name="cost_sqft"   dataType="number" decimals="0"  readOnly="true">
+            <title translatable="true">Occupancy</title>
+        </field>
+        <field table="fl" name="area_nocup" dataType="number" decimals="0"  readOnly="true"  numericFormat="area">
+			<title translatable="true">Usable Area per Seat</title>
+        </field>
+        <field table="fl" name="area_manual" dataType="number" decimals="0"  readOnly="true"  numericFormat="area">
+			<title translatable="true">Usable Area per Occupant</title>
+        </field>
+
+    </panel>
+
+
+     <dataSource id="blDS2" type="grouping"  applyVpaRestrictions="false">
+        <sql dialect="generic">
+            SELECT
+                 ${parameters['groupby']} ${sql.as} groupby,
+                  fl.area_gross_int ${sql.as} area_gross_int,
+                  fl.area_usable  ${sql.as} area_usable,
+                  (select SUM(rmpct.cost) FROM rmpct WHERE rmpct.bl_id =fl.bl_id and rmpct.fl_id=fl.fl_id )${sql.as} cost,
+                  (select sum(rm.cap_em) from rm where rm.bl_id=fl.bl_id and rm.fl_id=fl.fl_id) ${sql.as} sum_cap_em,
+                  (
+                        ( SELECT COUNT(em_id) FROM rmpct
+                                WHERE  fl.bl_id=rmpct.bl_id and fl.fl_id=rmpct.fl_id and rmpct.em_id IS NOT NULL AND
+                                    (rmpct.date_start is NULL or rmpct.date_start &lt;= ${sql.currentDate} )  AND
+                                    (rmpct.date_end is null or rmpct.date_end &gt;= ${sql.currentDate} )
+                                      AND rmpct.status = 1 AND rmpct.day_part = 0
+                        )
+                        +
+                         ( 0.5* (
+                        SELECT COUNT(em_id) FROM rmpct
+                                          WHERE  fl.bl_id=rmpct.bl_id and fl.fl_id=rmpct.fl_id  and rmpct.em_id IS NOT NULL
+                                                AND(rmpct.date_start is null or rmpct.date_start &lt;= ${sql.currentDate} )
+                                                AND (rmpct.date_end is null or rmpct.date_end &gt;= ${sql.currentDate} )
+                                                AND rmpct.status = 1 AND rmpct.day_part != 0
+                                )
+                        )
+                    )${sql.as} count_occup
+
+            FROM fl left join bl on bl.bl_id=fl.bl_id WHERE ${sql.vpaRestriction} and fl.${parameters['blId']}
+        </sql>
+
+
+        <table name="fl" role="main"/>
+
+        <field table="fl" name="groupby"  dataType="text" groupBy="true"/>
+        <field table="fl" name="sum_area_gross_int"  formula="sum" baseField="fl.area_gross_int" dataType="number" decimals="0" />
+        <field table="fl" name="sum_area_usable"  formula="sum" baseField="fl.area_usable" dataType="number" decimals="0" />
+        <field table="fl" name="sum_cost"  formula="sum" baseField="fl.cost" dataType="number" decimals="0">
+            <title translatable="true">Cost</title>
+        </field>
+        <field table="fl" name="sum_total_cap_em"  formula="sum" baseField="fl.sum_cap_em" dataType="number" decimals="0" >
+            <title translatable="true">Capacity(Total Seats)</title>
+        </field>
+        <field table="fl" name="sum_count_occup"  formula="sum" baseField="fl.count_occup" dataType="number" decimals="0">
+            <title translatable="true">Occupancy</title>
+        </field>
+        <field table="fl" name="area_usable_per_seat" dataType="number" decimals="0"  numericFormat="area" >
+			<title translatable="true">Usable Area per Seat</title>
+            <sql dialect="generic">
+	            case when sum(sum_cap_em)>0 then sum(area_usable)/sum(sum_cap_em) else 0 end
+            </sql>
+        </field>
+        <field table="fl" name="areaPerOccup"  dataType="number" decimals="0"  numericFormat="area" >
+			<title translatable="true">Usable Area per Occupant</title>
+            <sql dialect="generic">
+				case when sum(count_occup)>0 then sum(area_usable)/sum(count_occup) else 0 end
+            </sql>
+        </field>
+
+        <parameter name="blId" dataType="verbatim" value="bl_id is not null"/>
+        <parameter name="groupby" dataType="verbatim" value="fl.bl_id"/>
+    </dataSource>
+
+    <panel id="keyTotalMetricForm1"
+    type="crossTable"
+    dataSource="blDS2"
+    showOnLoad="false"
+    hidden="true">
+        <title translatable="true">Key Total Metrics</title>
+    </panel>
+
+	<js file="ab-sp-mgm-dash-common.js"/>
+    <js file="ab-sp-mgm-occup-key-metric-rpt.js"/>
+    <js file="ab-bldgops-report-common.js"/>
+</view>

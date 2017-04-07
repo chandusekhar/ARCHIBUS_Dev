@@ -1,0 +1,315 @@
+<view version="2.0">
+
+	
+	 
+	<!--layout type="borderLayout" id="mainLayout">
+		<north split="true"/>
+		<center autoScroll="true"/>
+	</layout-->
+	
+	<js file="uc-waste-crosstab.js"/>
+	
+
+	<title translatable="true">GHG Management Report</title>
+	
+	<!-- Console -->
+	
+	<dataSource id="wpConsole_ds">
+		<table name="bill" role="main"/>
+		<table name="bill_type" role="standard"/>
+		
+		<field name="parent" table="bill_type"/>
+		<field name="bill_type_id" table="bill_type"/>
+		<field name="time_period" table="bill"/>
+		<field name="vn_ac_id" table="bill"/>
+		<field name="bill_id" table="bill"/>
+	</dataSource>
+	
+	<panel id="wpConsole" type="console" columns="3"  dataSource="wpConsole_ds">
+		<title>Filter</title>
+		
+		<action id="search">
+			<title>Search</title>
+		</action>
+		<action id="clearSearch">
+		  <title>Clear Restrictions</title>
+		  <command type="clearPanel" panelId="wpConsole"/>
+		  <command type="callFunction" functionName="ucEsWasteCollReportController.resetFilter()"/>
+		</action>
+		<field name="parent" table="bill_type">
+			<title>Stream</title>
+	   	    <action>
+				<command type="callFunction" functionName = "ucEsWasteCollReportController.selectStream('AbRiskES1','p')"/>
+        		<!--command type="selectValue" 
+					 dialogTitle="Stream" 
+					 fieldNames="bill_type.parent" 
+					 selectFieldNames="bill_type.bill_type_id" 
+					 visibleFieldNames="bill_type.bill_type_id,bill_type.description"
+					 restriction="bill_type.activity_id='AbRiskES1' and parent is null"/-->
+	    	</action>
+			
+		</field>
+		
+		<field name="time_period" table="bill" alias="time_period.from" required="true" >
+			<title>Period From</title>
+		</field>
+		<field name="time_period" table="bill" alias="time_period.to" required="true" >
+			<title>Period To</title>
+		</field>
+		<field name="bill_type_id" table="bill_type">
+			<title>Sub Stream</title>
+	   	    <action>
+				<command type="callFunction" functionName = "ucEsWasteCollReportController.selectStream('AbRiskES1','s')"/>
+        		<!--command type="selectValue" 
+					 dialogTitle="Stream" 
+					 fieldNames="bill_type.bill_type_id" 
+					 selectFieldNames="bill_type.bill_type_id" 
+					 visibleFieldNames="bill_type.bill_type_id, bill_type.parent,bill_type.description"
+					 restriction="bill_type.activity_id='AbRiskES1' and parent is not null "/-->
+	    	</action>
+			
+		</field>
+		<field name="vn_ac_id" table="bill" alias="company" readOnly="${ucEsWasteCollReportController.vnId!=''}">
+			<title>Company</title>
+			<action>
+        		<title translatable="false">...</title>
+				<command type="selectValue"
+					fieldNames="company"
+					selectFieldNames="vn.company"
+					visibleFieldNames="vn.company"
+					restriction="exists (select 1 from vn_ac a inner join bill_type b on a.vn_ac_id=b.bill_type_id and b.activity_id='AbRiskES1' where vn.vn_id=a.vn_id)"
+				/>
+        	</action>
+		</field>
+		
+	</panel>
+	
+	
+	
+	<!-- Crosstable data sources -->
+	
+	<dataSource id="crossTabDs4" type="grouping">
+	
+		<sql dialect="generic">
+			select p.time_period, b.qty_energy, b.diverted qty_power,
+			rtrim(isnull(t.parent,t.bill_type_id)) + '${parameters['divider']}' + case t.child when 'P' then  ' SUBTOTAL (' + rtrim(t.unit_report) + ')' when 'C' then  rtrim(t.bill_type_id) + ' (' + rtrim(t.unit_report) + ')' else ' (' + rtrim(t.unit_report) + ')'  end bill_type_id
+			from (Select unit_report, parent, bill_type_id, 
+				case when parent is not null then 'C' else  (select distinct 'P' from bill_type c where c.parent=b.bill_type_id)  end child 
+				from bill_type b where activity_id='AbRiskES1'
+			) t
+			full join energy_time_period p on 1=1
+			left join (
+				select time_period, bill_type_id, parent, company,sum(qty_energy) qty_energy,
+				sum(diverted) diverted
+				from (
+					select b.time_period, t.parent, b.bill_type_id,  vn.company, vn.vn_id,l.qty_energy,isnull(l.diverted*l.qty_energy*.01,0)  diverted, b.bill_id
+					from bill b 
+					inner join vn on b.vn_id=vn.vn_id 
+					inner join bill_type t on  b.bill_type_id=t.bill_type_id 
+					inner join bill_line l on l.bill_id=b.bill_id 
+					where  b.status='Approved' ${parameters['loc_rest']}
+					union 
+					select b.time_period,  t.parent, t.parent, vn.company,vn.vn_id,l.qty_energy,isnull(l.diverted*l.qty_energy*.01,0) diverted, b.bill_id
+					from bill b 
+					inner join vn on b.vn_id=vn.vn_id 
+					inner join bill_type t on  b.bill_type_id=t.bill_type_id 
+					inner join bill_line l on l.bill_id=b.bill_id
+					where parent is not null  and  b.status='Approved' ${parameters['loc_rest']}
+				) b where  1=1  ${parameters['bill_rest']}
+				group by time_period, bill_type_id, parent, company 
+			) b on b.time_period=p.time_period and b.bill_type_id=t.bill_type_id
+			where 1=1 ${parameters['rest']}  
+
+
+		</sql>
+		<!--sql if you want to only show streams with data
+			select p.time_period, 
+			b.bill_type_id,			
+			isnull((select sum(l.qty_energy) from bill_line l where l.bill_id=b.bill_id  ${parameters['loc_rest']}),0) qty_energy,			
+			isnull((select case when sum(l.qty_energy) = 0 then 0 else sum(l.qty_energy*isnull(l.diverted,0))/sum(l.qty_energy) end  from bill_line l where l.bill_id=b.bill_id  ${parameters['loc_rest']} ),0) diverted,
+			bill_id, company						
+			from energy_time_period p			
+			left join (	
+				select * from (
+					select bill_id, time_period, rtrim(parent) + ' - ' + rtrim(t.bill_type_id) bill_type_id, company
+					from bill b 
+					inner join bill_type t on  b.bill_type_id=t.bill_type_id and t.activity_id='AbRiskES1' and parent is not null
+					inner join vn on b.vn_id=vn.vn_id
+					where exists (select 1 from bill_line l where l.bill_id=b.bill_id  ${parameters['loc_rest']})				
+					union 				
+					select bill_id, time_period, rtrim(parent)'  Total' , company
+					from bill b 
+					inner join bill_type t on  b.bill_type_id=t.bill_type_id  and t.activity_id='AbRiskES1' and parent is null 
+					inner join vn on b.vn_id=vn.vn_id
+					where exists (select 1 from bill_line l where l.bill_id=b.bill_id  ${parameters['loc_rest']})		
+				) b where 1=1 ${parameters['bill_rest']}
+			) b on  b.time_period=p.time_period
+			where 1=1 ${parameters['rest']}
+		-->
+		
+		<table name="bill" role="main"/>
+		
+		<field table="bill" name="bill_type_id" groupBy="true">
+			<title>Stream - Substream (unit)</title>
+		</field>
+		<field table="bill" name="time_period" groupBy="true">
+			<title translatable="true">Year - Month</title>
+		</field>
+		<field name="qty_energy" formula="sum" baseField="bill.qty_energy" dataType="number" size="12" decimals="2">
+			<title translatable="true">Amount</title>
+		</field>
+		<field name="diverted" formula="sum" baseField="bill.qty_power" dataType="number" size="12" decimals="2">
+			<title translatable="true">Diverted Amount</title>
+		</field>
+		<parameter name="rest" dataType="verbatim" value=" and 1=2" />
+		<parameter name="bill_rest" dataType="verbatim" value="" />
+		<parameter name="loc_rest" dataType="verbatim" value="" />
+		<parameter name="divider" dataType="verbatim" value="|" />
+		
+		<sortField table="bill" name="bill_type_id" ascending="true"/>
+		<sortField table="bill" name="time_period" ascending="true"/>
+	</dataSource>
+	
+	<!-- <dataSource id="crossTabExportDs" type="grouping">
+	
+		<sql dialect="generic">
+			select p.time_period, b.qty_energy, b.diverted qty_power,
+			rtrim(isnull(t.parent,t.bill_type_id)) + '|' + case t.child when 'P' then '(SUBTOTAL)' when 'C' then  rtrim(t.bill_type_id) else ''  end bill_type_id
+			from (Select parent, bill_type_id, 
+				case when parent is not null then 'C' else  (select distinct 'P' from bill_type c where c.parent=b.bill_type_id)  end child 
+				from bill_type b where activity_id='AbRiskES1' and parent <> bill_type_id
+			) t
+			full join energy_time_period p on 1=1
+			left join (
+				select time_period, bill_type_id, parent, company,sum(qty_energy) qty_energy,
+				sum(diverted) diverted
+				from (
+					select b.time_period, t.parent, b.bill_type_id,  vn.company, vn.vn_id,l.qty_energy,isnull(l.diverted*l.qty_energy*.01,0)  diverted, b.bill_id
+					from bill b 
+					inner join vn on b.vn_id=vn.vn_id 
+					inner join bill_type t on  b.bill_type_id=t.bill_type_id 
+					inner join bill_line l on l.bill_id=b.bill_id 
+					where 1=1 ${parameters['loc_rest']}
+					union 
+					select b.time_period,  t.parent, t.parent, vn.company,vn.vn_id,l.qty_energy,isnull(l.diverted*l.qty_energy*.01,0) diverted, b.bill_id
+					from bill b 
+					inner join vn on b.vn_id=vn.vn_id 
+					inner join bill_type t on  b.bill_type_id=t.bill_type_id 
+					inner join bill_line l on l.bill_id=b.bill_id
+					where parent is not null ${parameters['loc_rest']}
+				) b where 1=1  ${parameters['bill_rest']}
+				group by time_period, bill_type_id, parent, company 
+			) b on b.time_period=p.time_period and b.bill_type_id=t.bill_type_id
+			where 1=1 ${parameters['rest']}  
+		</sql>
+		
+		<table name="bill" role="main"/>
+		
+		<field table="bill" name="bill_type_id" groupBy="true">
+			<title>Stream</title>
+		</field>
+		<field table="bill" name="time_period" groupBy="true">
+			<title translatable="true">Year - Month</title>
+		</field>
+		<field name="qty_energy" formula="sum" baseField="bill.qty_energy" dataType="number" size="12" decimals="2">
+			<title translatable="true">Tonnes</title>
+		</field>
+		<field name="diverted" formula="sum" baseField="bill.qty_power" dataType="number" size="12" decimals="2">
+			<title translatable="true">Diverted Tonnes</title>
+		</field>
+		<parameter name="rest" dataType="verbatim" value="" />
+		<parameter name="bill_rest" dataType="verbatim" value="" />
+		<parameter name="loc_rest" dataType="verbatim" value="" />
+		
+		
+		<sortField table="bill" name="bill_type_id" ascending="true"/>
+		<sortField table="bill" name="time_period" ascending="true"/>
+	</dataSource> -->
+	
+
+	<panel id="crossTab" type="crossTable" dataSource="crossTabDs4" showOnLoad="true">
+		<title translatable="true">Reading Metrics by Period by Building</title>
+		
+		<action id="exportXLS">
+			<title>XLS</title>
+			<command type="exportPanel" outputType="xls" panelId="crossTabxls"/>
+		</action>
+		
+		<action id="crossTab_refresh">
+			<title translatable="true">Refresh</title>
+			<command type="showPanel" panelId="crossTab"/>
+		</action>
+<!-- 		<event type="onClickItem"  >
+			<command type="callFunction" functionName="openData"/>
+			<command type="openDialog" panelId="crossTabData"/>
+		</event> -->
+	</panel>
+	<panel id="crossTabxls" type="crossTable" dataSource="crossTabDs4" showOnLoad="false">
+		<title translatable="true">Month-to-Month Report</title>
+	</panel>
+	
+<!-- 	<panel id="crossTabExport" type="crossTable" dataSource="crossTabExportDs" showOnLoad="false">
+		<title translatable="true">Reading Metrics by Period by Building</title>
+	</panel> -->
+	
+	<!-- Pop-up -->
+	
+	<dataSource id="crossTabDataDs3">
+	
+		<table name="bill" role="main"/>
+		<field table="bill" name="bill_id"/>
+		<field table="bill" name="bill_type_id"/>
+		<field table="bill" name="time_period"/>
+		<field  name="qty_energy1" dataType="number" decimals="2">
+			<sql dialect="generic">
+				(select  sum(l.qty_energy) from bill_line l where l.bill_id=bill.bill_id )
+			</sql>
+		</field>		
+		<field name="qty_power1" dataType="number" decimals="2">
+			<sql dialect="generic">
+				(select isnull(l.diverted*l.qty_energy*.01,0)  from bill_line l where l.bill_id=bill.bill_id ${parameters['loc_rest']})
+			</sql>
+		</field>
+		
+		<table name="vn" role="standard"/>
+		<field table="vn" name="company"/>
+		
+		<table name="bill_type" role="standard"/>
+		<field table="bill_type" name="parent"/>
+		<restriction type="sql" sql="bill_type.activity_id='AbRiskES1' ${parameters['rest']}"/>		
+		<parameter name="loc_rest" dataType="verbatim" value="" />
+		<parameter name="rest" dataType="verbatim" value="" />
+		
+	</dataSource>
+	
+	<panel type="grid" id="crossTabData" dataSource="crossTabDataDs3" hidden="true" showOnLoad="false" showCounts="true">
+		<title translatable="true">GHG Data</title>
+		<action id="exportXLS">
+			<title>XLS</title>
+			<command type="exportPanel" outputType="xls" panelId="crossTabData"/>
+		</action>
+	    
+
+		<field table="vn" name="company"/>
+		<field table="bill_type" name="parent">
+			<title>Parent</title>
+		</field>
+		<field table="bill" name="bill_type_id">
+			<title>Stream</title>
+		</field>		
+		<field table="bill" name="bill_id"/>
+		<field table="bill" name="time_period"/>
+		<field  name="qty_energy1" dataType="number">
+			<title>Tonnes</title>
+		</field>
+		<field name="qty_power1">
+			<title>Diverted tonnes</title>
+		</field>
+		<sortField table="bill_type" name="parent" ascending="true"/>
+		<sortField table="bill" name="bill_type_id" ascending="true"/>
+		<sortField table="bill" name="time_period" ascending="true"/>
+		
+	</panel>
+
+		
+</view>

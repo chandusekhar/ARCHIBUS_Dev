@@ -1,0 +1,252 @@
+<view version="2.0">
+
+<!-- CHANGE LOG -->
+<!-- 2010/06/11 - EWONG - ISSUE: 210 - Added query and color coded for the top wr panel. -->
+<!-- 2010/07/07 - EWONG - ISSUE: 244 - Fixed issue with cut and past on the "Parts Description" -->
+
+	<js file="uc-common-functions-ui.js" />
+	<js file="uc-common-functions-data.js" />
+	<js file="uc-manage-parts.js" />
+	<script type="text/javascript" src="/resource/uc-email.js"></script>
+
+
+    <designInfo type="edit" pattern="ab-viewdef-editform-drilldown-two-level" isAlterable="true"/>
+
+	<layout id="main">
+        <west initialSize="30%" split="true"/>
+		<center/>
+    </layout>
+    <layout id="nested_west" containingLayout="main" region="west">
+        <north id="row1col1" initialSize="65%" split="true"/>
+        <center id="row2col1"/>
+    </layout>
+	<layout id="nested_east" containingLayout="main" region="center">
+		<north id="row1col2" initialSize="50%" split="true"/>
+			<south id="row3col2" initialSize="30%" split="true"/>
+		<center id="row2col2" initialSize="20%" />
+	</layout>
+
+    <title translatable="true">Part Requests</title>
+
+	<!-- DataSource for Work Request changes -->
+	<dataSource id="ds_wr_audit">
+		<table name="uc_wr_audit" role="main"/>
+		<field table="uc_wr_audit" name="afm_user_name"/>
+		<field table="uc_wr_audit" name="date_modified"/>
+		<field table="uc_wr_audit" name="status_new"/>
+		<field table="uc_wr_audit" name="status_old"/>
+		<field table="uc_wr_audit" name="tr_id_new"/>
+		<field table="uc_wr_audit" name="tr_id_old"/>
+		<field table="uc_wr_audit" name="uc_wr_audit_id"/>
+		<field table="uc_wr_audit" name="wr_id"/>
+	</dataSource>
+
+	<!-- DataSource for Auditing any WR changes -->
+	<dataSource id="ds_audit_log">
+		<table name="audit_log" role="main"/>
+		<field table="audit_log" name="table_name"/>
+		<field table="audit_log" name="modified_by_username"/>
+		<field table="audit_log" name="modified_on_date"/>
+		<field table="audit_log" name="modified_at_time"/>
+		<field table="audit_log" name="modification_type"/>
+		<field table="audit_log" name="description"/>
+	</dataSource>
+
+
+    <dataSource id="wr_ds1">
+        <table name="wr" role="main"/>
+        <table name="bl" role="standard"/>
+        <field table="wr" name="wr_id"/>
+        <field table="bl" name="zone_id"/>
+        <field table="wr" name="bl_id"/>
+				<restriction type="sql" sql="wr.status = 'HP'"/>
+    </dataSource>
+
+    <dataSource id="wr_other_query_ds">
+        <table name="wr_other" role="main"/>
+        <field table="wr_other" name="wr_id"/>
+        <field table="wr_other" name="other_rs_type"/>
+        <field table="wr_other" name="date_used"/>
+        <field table="wr_other" name="fulfilled"/>
+        <sortField table="wr_other" name="fulfilled" ascending="true" />
+    </dataSource>
+
+    <panel type="grid" id="ucManageParts_topPanel" dataSource="wr_ds1" selectionEnabled="true" layoutRegion="row1col1">
+		<sortField table="wr" name="wr_id" ascending="false"/>
+        <title translatable="true">Work Requests</title>
+        <action id="ucManageParts_refresh">
+            <title translatable="true">Refresh</title>
+            <command type="showPanel" panelId="ucManageParts_topPanel"/>
+        </action>
+        <field name="wr_id" table="wr" controlType="link">
+			<title>WR#</title>
+            <command type="showPanel" panelId="ucManageParts_bottomPanel"/>
+			<command type="showPanel" panelId="ucManageParts_detailsPanel"/>
+			<command type="showPanel" panelId="ucManageParts_cfPanel"/>
+
+			<command type="showPanel" panelId="ucManageParts_partDetailsPanel" show="false"/>
+        </field>
+        <field name="zone_id" table="bl" controlType="link">
+			<title>Zone</title>
+            <command type="showPanel" panelId="ucManageParts_bottomPanel"/>
+			<command type="showPanel" panelId="ucManageParts_detailsPanel"/>
+			<command type="showPanel" panelId="ucManageParts_cfPanel"/>
+			<command type="showPanel" panelId="ucManageParts_partDetailsPanel" show="false"/>
+        </field>
+        <field name="bl_id" table="wr" controlType="link">
+			<title>Bldg</title>
+            <command type="showPanel" panelId="ucManageParts_bottomPanel"/>
+			<command type="showPanel" panelId="ucManageParts_detailsPanel"/>
+			<command type="showPanel" panelId="ucManageParts_cfPanel"/>
+			<command type="showPanel" panelId="ucManageParts_partDetailsPanel" show="false"/>
+        </field>
+		<field controlType="button">
+			<title>Send</title>
+			<!--command type="callFunction" functionName="sendWR" applySelectionRestriction="true"/-->
+			<command type="openDialog" viewName="uc-manage-parts-send.axvw" closeButton="false"/>
+		</field>
+    </panel>
+
+    <dataSource id="parts_ds1">
+        <table name="wr_other" role="main"/>
+		<field table="wr_other" name="wr_id"/>
+        <field table="wr_other" name="other_rs_type"/>
+        <field table="wr_other" name="date_used"/>
+        <field table="wr_other" name="qty_used"/>
+        <field table="wr_other" name="description"/>
+		<field table="wr_other" name="fulfilled"/>
+
+    </dataSource>
+
+    <panel type="grid" id="ucManageParts_bottomPanel" dataSource="parts_ds1" showOnLoad="false" selectionEnabled="true" layoutRegion="row2col1">
+        <title translatable="true">Requested Parts</title>
+        <action id="ucManageParts_addNew">
+            <title translatable="true">Add New</title>
+            <command type="showPanel" panelId="ucManageParts_detailsPanel" newRecord="true"/>
+        </action>
+        <action id="ucManageParts_refresh">
+            <title translatable="true">Refresh</title>
+            <command type="showPanel" panelId="ucManageParts_bottomPanel"/>
+        </action>
+
+
+		<field name="wr_id" table="wr_other" controlType="link" hidden="true">
+			<title>WR#</title>
+			<command type="showPanel" panelId="ucManageParts_cfPanel"/>
+        </field>
+        <field name="other_rs_type" table="wr_other" controlType="link" id="other_rs_type">
+			<title>Part Type</title>
+            <command type="showPanel" panelId="ucManageParts_partDetailsPanel"/>
+        </field>
+
+        <field name="qty_used" table="wr_other" controlType="link" id="qty_used">
+			<title>Quantity</title>
+            <command type="showPanel" panelId="ucManageParts_partDetailsPanel"/>
+        </field>
+        <field name="description" table="wr_other" controlType="link" id="description">
+			<title>Description</title>
+            <command type="showPanel" panelId="ucManageParts_partDetailsPanel"/>
+        </field>
+		<field name="date_used" table="wr_other" controlType="link" id="date_used">
+			<title>Date</title>
+            <command type="showPanel" panelId="ucManageParts_partDetailsPanel"/>
+        </field>
+    </panel>
+
+
+    <dataSource id="requestDetails_ds">
+        <table name="wr" role="main"/>
+		<field table="wr" name="wr_id"/>
+        <field table="wr" name="description"/>
+		<field table="wr" name="status"/>
+		<field table="wr" name="cf_notes"/>
+		<field table="wr" name="ac_id"/>
+    </dataSource>
+
+
+
+	<!-- Work Request Details -->
+    <panel type="form" id="ucManageParts_detailsPanel" dataSource="requestDetails_ds" showOnLoad="false" columns="2" layoutRegion="row1col2" >
+        <title translatable="true">WR Details</title>
+
+        <field name="wr_id" table="wr" enabled="false" readOnly="true">
+			<title>WR#</title>
+		</field>
+		<field/>
+		<field name="ac_id" table="wr" enabled="false" readOnly="true" colspan="2"><title>Account</title></field>
+        <field name="description" table="wr" colspan="2" rowspan="3" readOnly="true">
+			<title>Request Description</title>
+		</field>
+		<field name="cf_notes" table="wr" colspan="2" readOnly="true">
+			<title>Craftsperson's Notes</title>
+		</field>
+	</panel>
+
+
+	<!-- Craftsperson's List -->
+	<dataSource id="wrdetailsCf_ds1">
+		<table name="wrcf" role="main"/>
+		<table name="cf" role="standard"/>
+		<field table="wrcf" name="wr_id"/>
+		<field table="wrcf" name="cf_id"/>
+		<field table="wrcf" name="date_assigned"/>
+		<field table="cf" name="name"/>
+		<field table="cf" name="email"/>
+		<field table="cf" name="tr_id"/>
+	</dataSource>
+
+	<panel type="grid" id="ucManageParts_cfPanel" dataSource="wrdetailsCf_ds1" showOnLoad="false" layoutRegion="row2col2">
+		<title>CraftsPeople Assigned</title>
+		<field table="wrcf" name="wr_id" hidden="true"/>
+		<field table="cf" name="name"/>
+		<field table="cf" name="email"><title>Email</title></field>
+		<field table="cf" name="tr_id"><title>Work Unit</title></field>
+		<field table="wrcf" name="cf_id"><title>Code</title></field>
+		<field table="wrcf" name="date_assigned"><title>Date Assigned</title></field>
+	</panel>
+
+
+	<!-- Parts Details -->
+
+	<dataSource id="wrdetails_ds">
+        <table name="wr_other" role="main"/>
+        <field table="wr_other" name="wr_id"/>
+        <field table="wr_other" name="other_rs_type"/>
+        <field table="wr_other" name="date_used"/>
+        <field table="wr_other" name="description"/>
+        <field table="wr_other" name="qty_used"/>
+        <field table="wr_other" name="cost_total"/>
+		<field table="wr_other" name="fulfilled"/>
+    </dataSource>
+
+	<panel type="form" id="ucManageParts_partDetailsPanel" dataSource="wrdetails_ds" showOnLoad="false" columns="3" layoutRegion="row3col2" labelsPosition="top">
+		<title>Part Details</title>
+		<action id="ucManageParts_save">
+            <title translatable="true">Save</title>
+            <command type="saveForm"/>
+            <command type="showPanel" panelId="ucManageParts_bottomPanel" applyParentRestriction="false"/>
+						<command type="showPanel" panelId="ucManageParts_topPanel" applyParentRestriction="false"/>
+        </action>
+        <action id="ucManageParts_cancel">
+            <title translatable="true">Cancel</title>
+            <command type="showPanel" panelId="ucManageParts_detailsPanel" show="false"/>
+        </action>
+
+		<field name="fulfilled" table="wr_other"/>
+		<field name="qty_used" table="wr_other" readOnly="true"><title>Quantity</title></field>
+		<field/>
+
+		<field name="wr_id" table="wr_other" hidden="true"/>
+        <field name="other_rs_type" table="wr_other" readOnly="true"><title>Part Type</title></field>
+        <field name="date_used" table="wr_other" readOnly="true"><title>Date Requested</title></field>
+		<field/>
+		 <field name="description" table="wr_other" readOnly="true" rowspan="3" colspan="1">
+			<title>Part Description</title>
+		</field>
+		<field table="wr_other" name="description" alias="wr_other.description.new" colspan="1" rowspan="3">
+			<title>Add Description</title>
+		</field>
+		<field/>
+
+    </panel>
+</view>

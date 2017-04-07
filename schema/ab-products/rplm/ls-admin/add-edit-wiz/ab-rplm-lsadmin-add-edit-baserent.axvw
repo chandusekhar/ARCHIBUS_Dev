@@ -1,0 +1,199 @@
+<view version="2.0">
+	<js file="ab-rplm-lsadmin-add-edit-baserent.js"/>
+	<js file="ab-rplm-cost-mc-vat-common.js"/>
+    <js file="ab-rplm-common-functions.js"/>
+    
+	<message name="error_date_end_before_date_start" translatable="true">The 'End Date' must be greater than the 'Start Date'.</message>
+	<message name="error_seasonal_date_end_before_date_start" translatable="true">The 'Seasonal End Date' must be greater than the 'Seasonal Start Date'.</message>
+	
+	<dataSource id="dsBaseRent" applyVpaRestrictions="false">
+		<table name="cost_tran_recur" role="main"/>
+        <table name="ls" role="standard"/>
+		<field name="cost_tran_recur_id"/>
+		<field name="amount_expense"/>
+		<field name="amount_income"/>
+		<field name="cost_cat_id"/>
+		<field name="period"/>
+		<field name="period_custom"/>
+		<field name="status_active"/>
+		<field name="description"/>
+		<field name="date_start"/>
+		<field name="date_end"/>
+		<field name="date_seasonal_start"/>
+		<field name="date_seasonal_end"/>
+		<field name="yearly_factor"/>
+		<field name="date_trans_created"/>
+		<field name="ac_id"/>
+		<field name="bl_id"/>
+		<field name="pr_id"/>
+		<field name="ls_id"/>
+        <field name="ctry_id"/>
+        <field name="vat_percent_value"/>
+        <field name="amount_income_base_payment"/>
+        <field name="amount_expense_base_payment"/>
+        <field name="amount_income_vat_payment"/>
+        <field name="amount_expense_vat_payment"/>
+        <field name="amount_income_total_payment"/>
+        <field name="amount_expense_total_payment"/>
+        <field name="vat_percent_override"/>
+        <field name="exchange_rate_override"/>
+        <field name="vat_amount_override"/>
+        <field name="currency_budget"/>
+        <field name="currency_payment"/>
+        <field name="date_start" table="ls"/>
+        <field name="date_end" table="ls"/>
+	</dataSource>
+    
+    <!--  Edit form without MC & VAT -->    
+	<panel type="form" id="formBaseRent" dataSource="dsBaseRent" showOnLoad="false" hidden="${View.activityParameters['AbCommonResources-EnableVatAndMultiCurrency'] == 1}"  columns="2">
+		<action id="save">
+			<title translatable="true">Save</title>
+		</action>
+        <action id="delete" enabled="${!panel.newRecord}">
+            <title translatable="true">Delete</title>
+            <command type="deleteRecord" panelId="formBaseRent"/>
+            <command type="callFunction" functionName="refreshParentPanels"/>
+            <command type="closeDialog"/>
+        </action>
+		<action id="cancel" hidden="true">
+			<title translatable="true">Cancel</title>
+            <command type="callFunction" functionName="refreshParentPanels"/>
+            <command type="closeDialog"/>
+		</action>
+		<field name="cost_tran_recur_id" readOnly="true"/>
+        <field>
+            <html>
+                <span id="chk_cost_dates_span">
+                    <input type="checkbox" id="chk_cost_dates" onclick="setDatesMatchLease('chk_cost_dates', 'formBaseRent')">&#32;<span class="label" translatable="true">Cost Dates Match Lease?</span></input>
+                </span>
+            </html>
+        </field>
+        <field name="amount_expense"/>
+		<field name="date_start" onchange="checkIfDatesMatch('chk_cost_dates', 'formBaseRent', 'cost_tran_recur.date_start', 'cost_tran_recur.date_end')"/>
+		<field name="amount_income"/>
+		<field name="date_end" onchange="checkIfDatesMatch('chk_cost_dates', 'formBaseRent', 'cost_tran_recur.date_start', 'cost_tran_recur.date_end')"/>
+		<field name="cost_cat_id"/>
+		<field name="date_seasonal_start"/>
+		<field name="period" onchange="rplmBaseRentController.enableDisableCustomPeriod('formBaseRent')"/>
+		<field name="date_seasonal_end"/>
+		<field name="period_custom"/>
+		<field name="yearly_factor"/>
+		<field name="status_active"/>
+		<field name="date_trans_created" readOnly="true"/>
+		<field/>
+		<field name="ac_id"/>
+		<field name="description" colspan="2"/>
+		<field name="bl_id" hidden="true"/>
+		<field name="pr_id" hidden="true"/>
+		<field name="ls_id" hidden="true"/>
+        <field name="date_start" table="ls" hidden="true" required="false"/>
+        <field name="date_end" table="ls" hidden="true" required="false"/>
+	</panel>
+
+    <!--  Edit form with MC & VAT -->    
+    <panel type="form" id="formBaseRentVAT" dataSource="dsBaseRent" showOnLoad="false" hidden="${View.activityParameters['AbCommonResources-EnableVatAndMultiCurrency'] == 0}"  columns="2">
+        <action id="save">
+            <title translatable="true">Save</title>
+        </action>
+        <action id="delete" enabled="${!panel.newRecord}">
+            <title translatable="true">Delete</title>
+            <command type="deleteRecord" panelId="formBaseRentVAT"/>
+            <command type="callFunction" functionName="refreshParentPanels"/>
+            <command type="closeDialog"/>
+        </action>
+        <action id="cancel" hidden="true">
+            <title translatable="true">Cancel</title>
+            <command type="callFunction" functionName="refreshParentPanels"/>
+            <command type="closeDialog"/>
+        </action>
+        <field name="cost_tran_recur_id" readOnly="true"/>
+        <field/>
+
+        <field name="ctry_id" readOnly="${!panel.newRecord}"  onchange="getVATPercent('formBaseRentVAT', 'cost_tran_recur.ctry_id', 'cost_tran_recur.cost_cat_id', 'cost_tran_recur.ls_id' , 'cost_tran_recur.vat_percent_value');
+                                                resetOverrideField('chk_vat_percent', 'formBaseRentVAT', 'cost_tran_recur.vat_percent_override', 0);
+                                                resetOverrideField('chk_vat_amount', 'formBaseRentVAT', 'cost_tran_recur.vat_amount_override', -1);
+                                                calculateCosts('formBaseRentVAT', 'cost_tran_recur', 'chk_vat_amount');"/>
+                                            
+        <field name="currency_payment" readOnly="${!panel.newRecord}"/>
+        
+        <field name="cost_cat_id" onchange="getVATPercent('formBaseRentVAT', 'cost_tran_recur.ctry_id', 'cost_tran_recur.cost_cat_id', 'cost_tran_recur.ls_id' , 'cost_tran_recur.vat_percent_value');
+                                            resetOverrideField('chk_vat_percent', 'formBaseRentVAT', 'cost_tran_recur.vat_percent_override', 0);
+                                            resetOverrideField('chk_vat_amount', 'formBaseRentVAT', 'cost_tran_recur.vat_amount_override', -1);
+                                            calculateCosts('formBaseRentVAT', 'cost_tran_recur', 'chk_vat_amount');"/>
+        <field name="vat_percent_value"/>
+        
+        <field name="amount_income_base_payment" readOnly="false" onchange="calculateCosts('formBaseRentVAT', 'cost_tran_recur', 'chk_vat_amount')"/>
+        <field name="amount_expense_base_payment" readOnly="false" onchange="calculateCosts('formBaseRentVAT', 'cost_tran_recur', 'chk_vat_amount')"/>
+        
+        <field name="amount_income_vat_payment" readOnly="true" />
+        <field name="amount_expense_vat_payment" readOnly="true" />
+        
+        <field name="amount_income_total_payment" readOnly="true" />
+        <field name="amount_expense_total_payment" readOnly="true" />
+
+        <field>
+            <html>
+                <input type="checkbox" name="chk_vat" id="chk_vat_percent" onclick="onSelect_Override('chk_vat_percent', 'formBaseRentVAT', 'cost_tran_recur.vat_percent_override', 0)">&#32;<span class="label" translatable="true">Override VAT Percent?</span></input>
+            </html>
+        </field>
+        <field name="vat_percent_override" readOnly="false" onchange="onVatPercentOverride('formBaseRentVAT', 'chk_vat_percent', 'cost_tran_recur.vat_percent_value', 'cost_tran_recur.vat_percent_override', 'cost_tran_recur.ls_id', -1);
+                                                                        calculateCosts('formBaseRentVAT', 'cost_tran_recur', 'chk_vat_amount')"/>
+        
+        <field>
+            <html>
+                <input type="checkbox" name="chk_vat" id="chk_vat_amount" onclick="onSelect_Override('chk_vat_amount', 'formBaseRentVAT', 'cost_tran_recur.vat_amount_override', -1)">&#32;<span class="label" translatable="true">Override VAT Amount?</span></input>
+            </html>
+        </field>
+        <field name="vat_amount_override" readOnly="false" onchange="calculateCosts('formBaseRentVAT', 'cost_tran_recur', 'chk_vat_amount')"/>
+        
+        <field>
+            <html>
+                <input type="checkbox" id="chk_exchange_rate" onclick="onSelect_Override('chk_exchange_rate', 'formBaseRentVAT', 'cost_tran_recur.exchange_rate_override', 1)">&#32;<span class="label" translatable="true">Override Exchange Rate?</span></input>
+            </html>
+        </field>
+        <field name="exchange_rate_override" readOnly="false"/>
+        
+
+        <field name="date_seasonal_start"/>
+        <field name="period" onchange="rplmBaseRentController.enableDisableCustomPeriod('formBaseRentVAT')"/>
+        
+        <field name="date_seasonal_end"/>
+        <field name="period_custom"/>
+        
+        <field name="yearly_factor"/>
+        <field name="date_trans_created" readOnly="true"/>
+        
+        <field>
+            <html>
+                <span id="chk_cost_dates_span_mc" name="chk_cost_dates_span">
+                    <input type="checkbox" id="chk_cost_dates_mc" name="chk_cost_dates_mc" onclick="setDatesMatchLease('chk_cost_dates_mc', 'formBaseRentVAT')">&#32;<span class="label" translatable="true">Cost Dates Match Lease?</span></input>
+                </span>
+            </html>
+        </field>
+        <field name="status_active"/>
+        
+        <field name="date_start" required="true" onchange="checkIfDatesMatch('chk_cost_dates_mc', 'formBaseRentVAT', 'cost_tran_recur.date_start', 'cost_tran_recur.date_end')"/>
+        <field name="ac_id"/>
+        
+        <field name="date_end" onchange="checkIfDatesMatch('chk_cost_dates_mc', 'formBaseRentVAT', 'cost_tran_recur.date_start', 'cost_tran_recur.date_end')"/>
+        <field/>
+        
+        <field name="description" colspan="2"/>
+        
+        <field name="bl_id" hidden="true"/>
+        <field name="pr_id" hidden="true"/>
+        <field name="ls_id" hidden="true"/>
+        
+        <field name="currency_budget" hidden="true" value="${project.budgetCurrency.code}"/>
+        <field name="amount_income" hidden="true"/>
+        <field name="amount_expense" hidden="true"/>
+        <field name="date_start" table="ls" hidden="true" required="false"/>
+        <field name="date_end" table="ls" hidden="true" required="false"/>
+    </panel>
+    <dataSource id="dsAddEditRecurringCost_ls" applyVpaRestrictions="false">
+        <table name="ls"/>
+        <field name="ls_id"/>
+        <field name="date_start"/>
+        <field name="date_end"/>
+    </dataSource>
+</view>

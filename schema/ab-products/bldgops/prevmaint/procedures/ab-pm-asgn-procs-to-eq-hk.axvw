@@ -1,0 +1,253 @@
+<view version="2.0">
+    <message name="noSelectBuilding" translatable="true">Please Select the building</message>
+    <message name="errorSelectPMP" translatable="true">Please Select PM Procedure records</message>
+    <message name="errorSelectPMS" translatable="true">Please Select PM Schedule records</message>
+    <message name="assignedProcedures" translatable="true">Assigned Procedures for:</message>
+    <message name="assignedProceduresMulti" translatable="true">Assigned Procedures Common to All Selected Equipment</message>
+    <message name="assignedProceduresMultiLoc" translatable="true">Assigned Procedures Common to All Selected Location</message>
+    <message name="errorDelete" translatable="true">Could not delete PM Schedlue:'{0}'.</message>
+    <message name="errorSave" translatable="true">Could not create new PM Schedule.</message>
+    <layout type="borderLayout" id="mainLayout">
+        <west autoScroll="true" split="true" initialSize="55%"/>
+        <center autoScroll="true"/>
+    </layout>
+    <layout type="borderLayout" id="westLayout" containingLayout="mainLayout" region="west">
+        <north autoScroll="true" split="true" initialSize="140"/>
+        <center autoScroll="true"/>
+    </layout>
+    <layout type="borderLayout" id="centerLayout" containingLayout="mainLayout" region="center">
+        <north autoScroll="true" split="true" initialSize="50%"/>
+        <center autoScroll="true"/>
+    </layout>
+    <title translatable="true">Assign Procedures to Equipment or Location</title>
+    
+    <dataSource id="ds_ab-pm-asgn-procs-to-eq-hk_show_eq">
+        <table name="eq" role="main"/>
+        <table name="eqstd" role="standard"/>
+        <field table="eq" name="eq_id"/>
+        <field table="eq" name="eq_std"/>
+        <field table="eq" name="site_id"/>
+        <field table="eq" name="bl_id"/>
+        <field table="eq" name="fl_id"/>
+        <field table="eq" name="rm_id"/>
+        <field table="eqstd" name="description"/>
+        <field table="eqstd" name="category"/>
+        <field table="eq" name="is_assigned" dataType="integer">
+			<sql dialect="generic">
+				( case when exists ( select 1 from pms where pms.eq_id is not null and pms.eq_id=eq.eq_id )	 
+							then 1
+							else 0 
+				end )
+			</sql>
+		</field>
+    </dataSource>
+    
+    <dataSource id="ds_ab-pm-asgn-procs-to-eq-hk_show_rm" applyVpaRestrictions="false">
+        <sql dialect="generic">
+            (select site_id,bl_id,null ${sql.as} fl_id,null ${sql.as} rm_id, null ${sql.as} name, null ${sql.as} rm_std, null ${sql.as} rm_cat, null ${sql.as} rm_type,
+				case when 	 exists ( select 1 from pms where pms.eq_id is null and pms.bl_id=bl.bl_id and pms.site_id=bl.site_id and pms.fl_id is null and pms.rm_id is null )
+						 then 1
+						 else 0 
+				end ${sql.as} is_assigned
+            from bl where ${sql.getVpaRestrictionForTable('bl')} )
+            union	 all 
+            (select bl.site_id,fl.bl_id,fl.fl_id,null ${sql.as} rm_id,null ${sql.as} name,null ${sql.as} rm_std,null ${sql.as} rm_cat,null ${sql.as} rm_type,
+				case when 	 exists ( select 1 from pms where pms.eq_id is null and pms.bl_id=fl.bl_id and pms.site_id=bl.site_id and pms.fl_id=fl.fl_id and pms.rm_id is null )
+						 then 1
+						 else 0 
+				end ${sql.as} is_assigned
+            from fl left outer join bl on fl.bl_id = bl.bl_id where ${sql.getVpaRestrictionForTable('bl')} )
+            union	 all 
+            (select bl.site_id,rm.bl_id,rm.fl_id,rm.rm_id,rm.name, rm.rm_std,rm.rm_cat, rm.rm_type,
+				case when 	 exists ( select 1 from pms where pms.eq_id is null and pms.bl_id=rm.bl_id and pms.site_id=bl.site_id and pms.fl_id=rm.fl_id and pms.rm_id=rm.rm_id )
+						 then 1
+						 else 0 
+				end ${sql.as} is_assigned
+            from rm  left outer join bl on rm.bl_id = bl.bl_id  where ${sql.getVpaRestrictionForTable('bl')} )
+        </sql>
+        <table name="rm" role="main"/>
+        <table name="bl" role="standard"/>
+        <field table="bl" name="site_id" dataType="text"/>
+        <field table="rm" name="bl_id" dataType="text"/>
+        <field table="rm" name="fl_id" dataType="text"/>
+        <field table="rm" name="rm_id" dataType="text"/>
+        <field table="rm" name="name" dataType="text"/>
+        <field table="rm" name="rm_std" dataType="text"/>
+        <field table="rm" name="rm_cat" dataType="text"/>
+        <field table="rm" name="rm_type" dataType="text"/>
+        <field table="rm" name="is_assigned" dataType="integer"/>
+    </dataSource>
+    
+    <dataSource id="ds_ab-pm-asgn-procs-to-eq-hk_group_eq_pms" type="grouping">
+        <table name="pms" role="main"/>
+        <table name="pmp" role="standard"/>
+        <field table="pms" name="eq_id" groupBy="true"/>
+        <field table="pmp" name="pmp_type" groupBy="true"/>
+        <field table="pms" name="site_id" groupBy="true"/>
+        <field table="pms" name="bl_id" groupBy="true"/>
+        <field table="pms" name="fl_id" groupBy="true"/>
+        <field table="pms" name="rm_id" groupBy="true"/>
+        <field table="pms" name="pmp_id" groupBy="true"/>
+        <field name="count_pms" formula="count" baseField="pms.pms_id" dataType="number" decimals="0"/>
+    </dataSource>
+    
+    <dataSource id="ds_ab-pm-asgn-procs-to-eq-hk_group_hk_pms" type="grouping">
+        <table name="pms" role="main"/>
+        <table name="pmp" role="standard"/>
+        <field table="pms" name="eq_id" groupBy="true"/>
+        <field table="pmp" name="pmp_type" groupBy="true"/>
+        <field table="pms" name="site_id" groupBy="true"/>
+        <field table="pms" name="bl_id" groupBy="true"/>
+        <field table="pms" name="fl_id" groupBy="true"/>
+        <field table="pms" name="rm_id" groupBy="true"/>
+        <field table="pms" name="pmp_id" groupBy="true"/>
+        <field name="count_pms" formula="count" baseField="pms.pms_id" dataType="number" decimals="0"/>
+    </dataSource>
+
+	<dataSource id="ds_ab-pm-asgn-procs-to-eq-hk_set_pms">
+        <table name="pms" role="main"/>
+        <table name="pmp" role="standard"/>
+        <field table="pms" name="pms_id"/>
+        <field table="pmp" name="pmp_id"/>
+        <field table="pms" name="pmp_id"/>
+        <field table="pms" name="eq_id"/>
+        <field table="pms" name="rm_id"/>
+        <field table="pmp" name="description"/>
+        <field table="pmp" name="pmp_type"/>
+        <field table="pms" name="site_id"/>
+        <field table="pms" name="bl_id"/>
+        <field table="pms" name="fl_id"/>
+    </dataSource>
+    
+    <dataSource id="ds_ab-pm-asgn-procs-to-eq-hk_show_pmp">
+        <table name="pmp" role="main"/>
+        <field table="pmp" name="pmp_id"/>
+        <field table="pmp" name="description"/>
+        <field table="pmp" name="eq_std"/>
+        <field table="pmp" name="pmp_type"/>
+        <parameter name="paramPmpType" dataType="text" value="EQ"/>
+        <parameter name="subQueryWhere" dataType="verbatim" value=""/>
+        <parameter name="addWhereEqStd" dataType="verbatim" value=""/>
+        <restriction type="sql" sql="pmp.pmp_type = ${parameters['paramPmpType']} AND NOT EXISTS(SELECT 1 FROM pms WHERE pms.pmp_id=pmp.pmp_id AND pmp.pmp_type=${parameters['paramPmpType']} AND ${parameters['subQueryWhere']}) ${parameters['addWhereEqStd']}"/>
+    </dataSource>
+    
+    <panel type="console" columns="3" id="filterEqOrRmPanel" labelsPosition="top" dataSource="ds_ab-pm-asgn-procs-to-eq-hk_show_eq" layout="westLayout" region="north">
+        <title translatable="true">Filter</title>
+        <action id="show">
+            <title translatable="true">Show</title>
+        </action>
+        <action id="clear">
+            <title translatable="true">Clear</title>
+        </action>
+        <field name="bl_id" table="eq"/>
+        <field name="fl_id" table="eq"/>
+        <field name="rm_id" table="eq"/>
+        <field name="eq_std" table="eq"/>
+        <field>
+            <title translatable="true">No Procedure</title>
+            <html> 
+            	<input type="checkbox" id="no_proc" name="no_proc"/>            	
+        	</html>  
+       	</field>
+    </panel>
+    
+    <tabs id="Select_Equipment_Location" workflow="free" layout="westLayout" region="center">
+        <tab name="eq_tab" selected="true" useFrame="false">
+            <title translatable="true">Equipment</title>
+            <panel type="grid" id="eq_select" showOnLoad="true" multipleSelectionEnabled="true" dataSource="ds_ab-pm-asgn-procs-to-eq-hk_show_eq">
+                <sortField name="eq_id" table="eq" ascending="true"/>
+                <field table="eq" name="site_id" hidden="true"/>
+                <field table="eq" name="bl_id" hidden="true"/>
+                <field table="eq" name="fl_id" hidden="true"/>
+                <field table="eq" name="rm_id" hidden="true"/>
+                <field table="eq" name="eq_id">
+                </field>
+                <field table="eq" name="eq_std">
+                </field>
+                <field table="eqstd" name="description">
+                </field>
+                <field table="eqstd" name="category">
+                </field>
+                <indexField table="eq" name="eq_id"/>
+            </panel>
+        </tab>
+        <tab name="rm_tab" selected="false" useFrame="false">
+            <title translatable="true">Location</title>
+            <panel type="grid" id="rm_select" showOnLoad="false" multipleSelectionEnabled="true"  dataSource="ds_ab-pm-asgn-procs-to-eq-hk_show_rm">
+                <sortField table="rm" name="bl_id" ascending="true"/>
+                <sortField table="rm" name="fl_id" ascending="true"/>
+                <sortField table="rm" name="rm_id" ascending="true"/>
+                <field table="bl" name="site_id" hidden="true"/>
+                <field table="rm" name="bl_id" />
+                <field table="rm" name="fl_id"/>
+                <field table="rm" name="rm_id"/>
+                <field table="rm" name="name"/>
+                <field table="rm" name="rm_std"/>
+                <field table="rm" name="rm_cat"/>
+                <field table="rm" name="rm_type"/>
+                <indexField table="rm" name="bl_id"/>
+            </panel>
+        </tab>
+    </tabs>
+    
+    <panel type="grid" controlType="reportGrid"  id="pmp_select" dataSource="ds_ab-pm-asgn-procs-to-eq-hk_set_pms" showOnLoad="false" multipleSelectionEnabled="true" layout="centerLayout" region="north">
+        <title translatable="true">Assigned Procedures for:</title>
+        <action id="deleteRecord">
+            <title translatable="true">Delete Selected</title>
+        </action>
+        <field table="pms" name="pms_id" hidden="true"/>
+        <field table="pms" name="eq_id" hidden="true"/>
+        <field table="pms" name="rm_id" hidden="true"/>
+        <field table="pms" name="site_id" hidden="true"/>
+        <field table="pms" name="bl_id" hidden="true"/>
+        <field table="pms" name="fl_id" hidden="true"/>
+        <field table="pms" name="rm_id" hidden="true"/>
+        <field table="pmp" name="pmp_type" hidden="true"/>
+        <field table="pmp" name="pmp_id"/>
+        <field table="pmp" name="description"/>
+        <field id="details" controlType="button">
+            <title translatable="true">Details</title>
+            <command type="openDialog" viewName="ab-pm-pmp-info.axvw" width="1200" height="770" closeButton="false">
+            </command>
+        </field>
+        <field id="schedule" controlType="button">
+            <title translatable="true">Schedule</title>
+        </field>
+        <indexField table="pms" name="pms_id"/>
+    </panel>
+    
+    <panel type="grid" id="pmp_list" dataSource="ds_ab-pm-asgn-procs-to-eq-hk_show_pmp"   refreshWorkflowRuleId="AbBldgOpsPM-PmEventHandler-getAvailableProceduresForEquipments" showOnLoad="false" multipleSelectionEnabled="true" layout="centerLayout" region="center">
+        <title translatable="true">Available Procedures</title>
+        <action id="addNew">
+            <title translatable="true">Add Selected</title>
+        </action>
+        <field table="pmp" name="eq_std" hidden="true"/>
+        <field table="pmp" name="pmp_type" hidden="true"/>
+        <field table="pmp" name="pmp_id"/>
+        <field table="pmp" name="description"/>
+        <field id="details"  controlType="button">
+            <title translatable="true">Details</title>
+            <command type="openDialog" viewName="ab-pm-pmp-info.axvw" width="1200" height="770" closeButton="false">
+            </command>
+        </field>
+        <indexField table="pmp" name="pmp_id"/>
+    </panel>
+	
+	<panel type="grid" id="pmp_list_for_rm" dataSource="ds_ab-pm-asgn-procs-to-eq-hk_show_pmp"  refreshWorkflowRuleId="AbBldgOpsPM-PmEventHandler-getAvailableProceduresForLocations"   showOnLoad="false" multipleSelectionEnabled="true" layout="centerLayout" region="center">
+        <title translatable="true">Available Procedures</title>
+        <action id="addNew">
+            <title translatable="true">Add Selected</title>
+        </action>
+        <field table="pmp" name="eq_std" hidden="true"/>
+        <field table="pmp" name="pmp_type" hidden="true"/>
+        <field table="pmp" name="pmp_id"/>
+        <field table="pmp" name="description"/>
+        <field id="details"  controlType="button">
+            <title translatable="true">Details</title>
+            <command type="openDialog" viewName="ab-pm-pmp-info.axvw" width="1200" height="770" closeButton="false">
+            </command>
+        </field>
+        <indexField table="pmp" name="pmp_id"/>
+    </panel>
+    <js file="ab-pm-asgn-procs-to-eq-hk.js"/>
+</view>

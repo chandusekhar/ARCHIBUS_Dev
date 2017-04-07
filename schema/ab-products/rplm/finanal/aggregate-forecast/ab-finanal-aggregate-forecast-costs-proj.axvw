@@ -1,0 +1,97 @@
+<view version="2.0">
+    
+    <js file="ab-finanal-aggregate-forecast-costs-proj.js"/>
+    <js file="ab-finanal-aggregate-forecast-costs-common.js"/>
+    
+    <title>Aggregate and Forecast Costs</title>
+    <message name="txtUpdateAnalysisMetricJob" translatable="true">Calculating Analysis Metrics</message>
+    
+    <tabs workflow="enforced" id="abFinanalAggregateForecastCostsProj_tabs" tabRefreshPolicy="refreshOnSelect">
+    
+        <tab name="abFinanalAggregateForecastCosts_projTab" selected="true">
+            <title translatable="true">Projects and Forecasts</title>
+            
+            <dataSource id="ds_abFinanalAgregateForecastCostsProj">
+                <sql dialect="generic">
+                    SELECT project.project_id, project.site_id, project.bl_id, project.pr_id, project.project_type, project.status,
+                    project.cost_est_baseline, project.cost_paid, project.date_approved, project.date_completed,
+                    (CASE                       
+                        WHEN finanal_params.sub_loan IS NULL THEN ${parameters['no']} 
+                        WHEN finanal_params.sub_loan = 1 THEN ${parameters['yes']} 
+                        ELSE  ${parameters['no']} 
+                    END)  AS  vf_subLoanText,
+                    finanal_params.sub_loan ${sql.as} vf_subLoan,
+                    finanal_params.auto_number ${sql.as} vf_autoNumber,
+                    (CASE
+                        WHEN EXISTS(SELECT 1 FROM finanal_params
+                            WHERE finanal_params.project_id = project.project_id)
+                        THEN ${parameters['yes']}             
+                        ELSE ${parameters['no']} 
+                    END) ${sql.as} vf_hasForecast 
+                    FROM project LEFT OUTER JOIN finanal_params ON finanal_params.project_id = project.project_id 
+                    WHERE project.bl_id IS NOT NULL or project.pr_id IS NOT NULL
+                </sql>
+                <table name="project" role="main"/>
+                <field name="project_id"/>
+                <field name="site_id"/>
+                <field name="bl_id"/>
+                <field name="pr_id"/>
+                <field name="project_type"/>
+                <field name="status"/>
+                <field name="cost_est_baseline"/>
+                <field name="cost_paid"/>
+                <field name="date_approved"/>
+                <field name="date_completed"/>
+                <field name="vf_hasForecast" dataType="text"/>
+                <field name="vf_subLoanText" dataType="text"/>
+                <field name="vf_subLoan" dataType="number" decimals="0"/>
+                <field name="vf_autoNumber" dataType="number" decimals="0"/>
+                <parameter name="yes" dataType="text" value="Yes"/>
+                <parameter name="no" dataType="text" value="No"/>
+            </dataSource>
+                
+            <panel type="grid" id="abFinanalAgregateForecastCostsProj_grid" dataSource="ds_abFinanalAgregateForecastCostsProj" showOnLoad="true">
+                <sortField table="project" name="project_id"/>
+                <indexField table="project" name="project_id"/>
+                <action id="updateAnalysisMetrics">
+                    <title translatable="true">Update Analysis Metrics</title>
+                    <command type="startJob" ruleId="AbCommonResources-UpdateAnalysisMetricsJob-updateAnalysisMetrics" messageId="txtUpdateAnalysisMetricJob"/>
+                </action>
+                <field controlType="button" id="select">
+                  <title translatable="true">Select</title>
+                </field>
+                <field name="project_id"/>
+                <field name="vf_hasForecast" dataType="text">
+                    <title translatable="true">Has Capital Costs Forecast?</title>
+                </field>
+                <field name="site_id"/>
+                <field name="bl_id"/>
+                <field name="pr_id"/>
+                <field name="project_type"/>
+                <field name="status"/>
+                <field name="cost_est_baseline">
+                    <title translatable="true">Cost - Baseline</title>
+                </field>
+                <field name="cost_paid"/>
+                <field name="date_approved"/>
+                <field name="date_completed"/>
+                <field name="vf_subLoanText" dataType="text">
+                    <title translatable="true">Has Subordinate Loan?</title>
+                </field>
+                <field name="vf_autoNumber" dataType="number" decimals="0">
+                    <title translatable="true">Forecast Autonumbered ID</title>
+                </field>
+            </panel>
+        </tab>
+
+        <tab name="abFinanalAggregateForecastCosts_forecastCapitalTab" file="ab-finanal-aggregate-forecast-costs-capital.axvw">
+            <title translatable="true">Forecast Capital Costs</title>
+        </tab>
+        
+        <tab name="abFinanalAggregateForecastCosts_aggregateOpExTab" file="ab-finanal-aggregate-forecast-costs-op-ex.axvw">
+            <title translatable="true">Aggregate Operating Expenses</title>
+        </tab>
+    </tabs>
+    
+    <panel type="view" id="helperView" file="ab-finanal-aggregate-forecast-costs-common.axvw"/>
+</view>

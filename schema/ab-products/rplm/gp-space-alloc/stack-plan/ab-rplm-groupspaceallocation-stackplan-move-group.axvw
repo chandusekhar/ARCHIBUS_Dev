@@ -1,0 +1,135 @@
+<view version="2.0">
+    <js file="ab-rplm-groupspaceallocation-stackplan-move-group.js"/>
+    <js file="ab-alloc-common.js"/>
+
+	<message name="buildingTitle" translatable="true">Building:</message>	
+	<message name="floorTitle" translatable="true">Floor:</message>	
+	<message name="reviewDateTitle" translatable="true">Review Date:</message>	
+	<message name="portfolioScenarioTitle" translatable="true">Scenario:</message>
+
+	<message name="selectGroup" translatable="true">Select a Group</message>
+	<message name="selectFloor" translatable="true">Select a Floor for:</message>
+	<message name="confirmMove" translatable="true">Confirm Move of:</message>
+	<message name="moveAction" translatable="true">Move</message>
+    
+    <!--  data source for the grouping axis --> 
+    <dataSource id="ds_chartGroupingAxis" type="grouping">
+		<table name="gp"/>
+    	<field table="gp" name="bl_fl" dataType="text" groupBy="true">
+         	<title translatable="true">Building and Floor</title>
+        	<sql dialect="generic">rtrim(bl_id) ${sql.concat} '-' ${sql.concat} rtrim(fl_id)</sql>
+    	</field>
+        <field table="gp" name="date_start"/>
+        <field table="gp" name="date_end"/>
+		<field table="gp" name="portfolio_scenario_id"/>
+        	<sortField name="bl_fl" ascending="false"/>
+	</dataSource>
+
+	<dataSource id="ds_chartDataAxis" type="grouping">	
+		<table name="gp"/>
+		<field table="gp" name="dv_dp" dataType="text" groupBy="true"> 
+         	<title translatable="true">Division and Department</title>
+        	<sql dialect="generic">rtrim(dv_id) ${sql.concat} '-' ${sql.concat} rtrim(dp_id)</sql>
+    	</field>
+		<field name="area" dataType="number" size="6" decimals="0" numericFormat="area"> 
+         	<title translatable="true">Total Area</title>
+        	<sql dialect="generic">SUM( CASE WHEN gp.area = 0 THEN gp.area_manual ELSE gp.area END )</sql>
+    	</field>
+        <field table="gp" name="date_start"/>
+        <field table="gp" name="date_end"/>
+		<field table="gp" name="portfolio_scenario_id"/>
+
+	    <sortField name="dv_dp" ascending="true"/>
+	 	<parameter name="summaryValueForThisGroup" dataType="text" value=""/>
+		<parameter name="blId" dataType="text" value=""/>
+		<parameter name="dateReview" dataType="date" value=""/>
+		<parameter name="portfolioScenario" dataType="text" value=""/>
+		<restriction type="sql"  sql="rtrim(bl_id) ${sql.concat} '-' ${sql.concat} rtrim(fl_id) = ${parameters['summaryValueForThisGroup']} AND gp.portfolio_scenario_id = ${parameters['portfolioScenario']} AND gp.date_start &lt;= ${parameters['dateReview']} AND gp.date_end &gt;= ${parameters['dateReview']}"/>
+    </dataSource>   
+    
+	<dataSource id="ds_availableArea">
+		<sql dialect="generic">
+            SELECT rtrim(gp.bl_id) ${sql.concat} '-' ${sql.concat} rtrim(gp.fl_id) as bl_fl, max(CASE WHEN fl.area_usable = 0 THEN fl.area_manual ELSE fl.area_usable END ) - SUM( CASE WHEN gp.area = 0 THEN gp.area_manual ELSE gp.area END ) AS area
+            FROM gp, fl
+            WHERE gp.bl_id = ${parameters['blId']} AND gp.portfolio_scenario_id = ${parameters['portfolioScenario']} AND gp.date_start &lt;= ${parameters['dateReview']} AND gp.date_end &gt;= ${parameters['dateReview']} AND gp.bl_id = fl.bl_id and gp.fl_id = fl.fl_id 
+            group by rtrim(gp.bl_id) ${sql.concat} '-' ${sql.concat} rtrim(gp.fl_id)
+        </sql>
+ 
+        <table name="gp" role="main"/>
+        <field table="gp" name="bl_fl" dataType="text" /> 
+        <field table="gp" name="area" dataType="number" size="6" decimals="0"/>
+        <field table="gp" name="date_start"/>
+        <field table="gp" name="date_end"/>
+		<parameter name="blId" dataType="text" value=""/>
+		<parameter name="dateReview" dataType="date" value=""/>
+		<parameter name="portfolioScenario" dataType="text" value=""/>
+	</dataSource>
+	
+	<dataSource id="ds_group">
+        <table name="gp" role="main"/>
+        <field table="gp" name="bl_id"/>
+        <field table="gp" name="fl_id"/>
+        <field table="gp" name="dv_id"/>
+        <field table="gp" name="dp_id"/>
+        <field table="gp" name="gp_id"/>
+        <field table="gp" name="date_start"/>
+        <field table="gp" name="date_end"/>
+        <field table="gp" name="portfolio_scenario_id"/>
+	</dataSource>
+
+    <panel 	id="chartPanel"
+    		type="chart"
+			showOnLoad="false"
+    		controlType="stackedBarChart"
+    		dataSource="ds_chartDataAxis"
+    		showLegendOnLoad="true"
+    		showLegendAsPopUp="false"
+    		legendLocation="right"
+    		showDataTips="true"
+    		backgroundColor="0xc6e2ff"
+			percentTransparency = "1.0"
+			refreshWorkflowRuleId = "AbRPLMGroupSpaceAllocation-PortfolioForecastingService-getGroupSpaceAllocationData">
+        
+        <event type="onClickItem">                 
+			<command type="callFunction" functionName="getClickedItemData"/>
+        </event>
+
+        <action id="move">
+      		<title translatable="true">Move</title>
+      		<command type="callFunction" functionName="move"/>
+			<tooltip>Click on the chart to select a group to move.   Click to select the new floor, and then click on this button to confirm the move.</tooltip>
+    	</action>
+    	<action id="clearSelection">
+      		<title translatable="true">Cancel</title>
+      		<command type="callFunction" functionName="clearSelection"/>
+			<tooltip>Cancels any Move action.</tooltip>
+    	</action>
+
+		<action id="SubtractYear">
+			<title translatable="true">&lt; Year</title>
+		</action>
+		<action id="AddYear">
+			<title translatable="true">Year &gt;</title>
+		</action>
+		<action id="SubtractMonth">
+			<title translatable="true">&lt; Month</title>
+		</action>
+		<action id="AddMonth">
+			<title translatable="true">Month &gt;</title>
+		</action>
+
+        <groupingAxis dataSource="ds_chartGroupingAxis" table="gp" field="bl_fl">
+            <title translatable="true">Building and Floor</title>
+        </groupingAxis>
+        
+        <!-- secondaryGroupingAxis must have the same dataSource as all dataAxis -->
+        <!-- if there is no dataSource attribute setting-up, it'll inherit the panel's dataSource -->
+        <secondaryGroupingAxis table="gp" field="dv_dp">
+            <title>Division and Department</title> 
+        </secondaryGroupingAxis>
+        
+        <dataAxis  table="gp" field="area">
+             <title translatable="true">Total Area</title>
+        </dataAxis>
+    </panel>
+</view>

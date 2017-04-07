@@ -1,0 +1,222 @@
+<!-- Space Express Console example -->
+
+<view version="2.0">
+     <js file="ab-sp-console-employees-bim.js"/> 
+    <message name="locationHeader">Location</message>
+    <message name="organizationHeader">Organization</message>
+    <message name="nameHeader">Last</message>
+    <message name="editHeader">Edit</message>
+    <message name="pageNext">Next</message>
+    <message name="unassignedEmployee">Unassigned Employee</message>
+    <message name="employeeCode">Employee Code</message>
+    <message name="employeeReport">Employee Report</message>
+    <dataSource id="employeeDS" applyVpaRestrictions="false">
+        <table name="em"/>
+        <table name="rm" role="standard"/>
+        <table name="rmcat" role="standard"/>
+        <field name="em_id"/>
+        <field table="rm" name="bl_id"/>
+        <field table="rm" name="fl_id"/>
+        <field table="rm" name="rm_id"/>
+        <field table="rm" name="dwgname"/>
+        <field name="em_std"/>
+        <field name="dv_id"/>
+        <field name="dp_id"/>
+        <field name="location" dataType="text" groupBy="true" baseField="rm.bl_id">
+            <title>Location</title> 
+             <sql dialect="generic">
+                em.bl_id${sql.concat}'-'${sql.concat}em.fl_id${sql.concat}'-'${sql.concat}em.rm_id
+             </sql>
+        </field>
+        
+        <field name="organization" dataType="text">
+            <title>Organization</title> 
+             <sql dialect="generic">
+                 em.dv_id${sql.concat}'-'${sql.concat}em.dp_id
+             </sql>
+        </field>
+        
+        <field name="em_first_last_name" dataType="text">
+            <title>Last, First Name</title>
+            <sql dialect="generic">
+                em.name_last${sql.concat}','${sql.concat}em.name_first
+            </sql>
+        </field>
+        
+        <restriction type="sql" sql=" ${parameters['commonParameters']} 
+            AND ${parameters['emClause']} 
+            AND ${parameters['emUnassigned']} AND ${parameters['excludedHotalableRm']}
+        "/> 
+        
+        <parameter name="commonParameters" dataType="verbatim" value="2=2"/>
+        <parameter name="dv_id" dataType="verbatim" value="1=1"/>
+        <parameter name="dp_id" dataType="verbatim" value="1=1"/>
+        <parameter name="bl_id" dataType="verbatim" value="1=1"/>
+        <parameter name="fl_id" dataType="verbatim" value="1=1"/>
+        <parameter name="rm_id" dataType="verbatim" value="1=1"/>
+        <parameter name="rm_cat" dataType="verbatim" value="1=1"/>
+        <parameter name="rm_type" dataType="verbatim" value="1=1"/>
+        <parameter name="occupancy" dataType="verbatim" value="1=1"/>
+        <parameter name="organizationUnassigned" dataType="verbatim" value="1=1"/>
+        <parameter name="emClause" dataType="verbatim" value="1=1"/>
+        <parameter name="typeUnassigned" dataType="verbatim" value="1=1"/>
+        <parameter name="totalArea" dataType="verbatim" value="1=1"/>
+        <parameter name="emUnassigned" dataType="verbatim" value="1=1"/>
+        <parameter name="excludedHotalableRm" dataType="verbatim" value="5=5"/>
+    </dataSource>
+
+    <panel type="grid" id="employeeGrid" dataSource="employeeDS" showCounts="true" multipleSelectionEnabled="true" showOnLoad="false">
+
+        <action id="addEmployeeMenu" enabled="${user.isMemberOfGroup('SPACE-CONSOLE-ALL-ACCESS')}">
+            <title>Add New</title>
+            <command type="openDialog" panelId="editEmployeeForm" newRecord="true" closeButton="false">
+                <title>Add Employee</title>
+            </command>
+        </action>
+        
+         <action type="menu" id="exportEmployeesMenu"   imageName="/schema/ab-core/graphics/icons/view/export.png">
+            <title></title>
+            <action id="exportEmployeeDOCX">
+                <title>Export to DOCX</title>
+                <command type="callFunction" functionName="exportEmToDOCX()"/>
+            </action>
+            <action id="exportEmployeeXLS">
+                <title>Export to XLS</title>
+                <command type="callFunction" functionName="exportEmToXLS()"/>
+            </action>
+        </action>
+        
+        <action type="menu" id="employeesToolsMenu" imageName="/schema/ab-core/graphics/icons/view/gear.png">
+            <title></title>
+            <action id="selectEmployeeFields">
+                <title>Select Fields</title>
+                <command type="selectFields" panelId="employeeGrid"/>
+            </action>
+        </action>
+
+        <actionbar>
+            <action id="waiting" enabled="${user.isMemberOfGroup('SPACE-CONSOLE-ALL-ACCESS')}">
+                <title>Place in Waiting Room</title>
+            </action>
+            <action id="unassign" enabled="${user.isMemberOfGroup('SPACE-CONSOLE-ALL-ACCESS')}">
+                <title>Unassign</title>
+            </action>
+        </actionbar>
+
+        <indexField table="em" name="em_id"/>
+        <field name="em_id" dataType="text" controlType="link">
+            <title>Employee Name</title>
+            <command type="callFunction" functionName="locateEmployee()"/>
+        </field>
+        <field name="location" dataType="text" controlType="link" baseField="rm.bl_id">
+            <title>Location</title> 
+        </field>
+        <field name="organization" controlType="link">
+            <title>Organization</title>
+        </field>
+        <field name="em_std" hidden="true"/>
+        <field name="em_first_last_name" hidden="true">
+            <title>Last, First Name</title>
+        </field>
+        <field table="rm" name="dwgname"  hidden="true"/>
+        <field name="editEmployee" controlType="image" imageName="pencil.png" enabled="${user.isMemberOfGroup('SPACE-CONSOLE-ALL-ACCESS')}">
+            <command type="openDialog" panelId="editEmployeeForm" closeButton="false">
+                <title>Edit Employee</title>
+            </command>
+            <title>Edit</title>
+        </field>
+    </panel>
+
+    <dataSource id="employeePendingAssignmentsDS">
+        <table name="em"/>
+        <field name="em_id"/>
+        <field name="bl_id"/>
+        <field name="fl_id"/>
+        <field name="rm_id"/>
+    </dataSource>
+
+    <panel type="grid" id="employeePendingAssignments" dataSource="employeePendingAssignmentsDS" showOnLoad="false" hidden="true"
+           controlType="reportGrid" sortEnabled="false" buttonsPosition="footer">
+        <action id="commitEmployeePendingAssignments" mainAction="true" enabled="${user.isMemberOfGroup('SPACE-CONSOLE-ALL-ACCESS')}">
+            <title>Commit Assignments</title>
+            
+        </action>
+        <action id="cancelEmployeePendingAssignments" enabled="${user.isMemberOfGroup('SPACE-CONSOLE-ALL-ACCESS')}">
+            <title>Cancel Assignments</title>
+            <command type="closeDialog"/>
+        </action>
+        <action id="hideEmployeePendingAssignments">
+            <title>Close</title>
+            <command type="closeDialog"/>
+        </action>
+
+        <field name="em_id"/>
+        <field name="from">
+            <title>From</title>
+        </field>
+        <field name="to">
+            <title>To</title>
+        </field>
+        <field id="removePendingAssignment" controlType="image" imageName="delete.gif" enabled="${user.isMemberOfGroup('SPACE-CONSOLE-ALL-ACCESS')}">
+        </field>
+    </panel>
+
+    <dataSource id="editEmployeeDS">
+        <table name="em" role="main"/>
+        <field table="em" name="bl_id"/>
+        <field table="em" name="fl_id"/>
+        <field table="em" name="rm_id"/>
+        <field table="em" name="dv_id"/>
+        <field table="em" name="dp_id"/>
+        <field table="em" name="honorific"/>
+        <field table="em" name="em_id"/>
+        <field table="em" name="em_std"/>
+        <field table="em" name="name_first"/>
+        <field table="em" name="name_last"/>
+        <field table="em" name="em_number"/>
+        <field table="em" name="email"/>
+        <field table="em" name="em_photo"/>
+        <field table="em" name="phone"/>
+        <field table="em" name="cellular_number"/>
+        <field table="em" name="em_title"/>
+        <field table="em" name="date_hired"/>
+    </dataSource>
+
+    <panel type="form" id="editEmployeeForm" dataSource="editEmployeeDS" columns="2" showOnLoad="false" hidden="true" buttonsPosition="footer">
+        <action id="save" enabled="${user.isMemberOfGroup('SPACE-CONSOLE-ALL-ACCESS')}">
+            <title>Save</title>
+            <command type="closeDialog"/>
+            <command type="saveForm"/>
+            <command type="showPanel" panelId="employeeGrid" applyParentRestriction="false"/>
+        </action>
+        <action id="delete" enabled="${user.isMemberOfGroup('SPACE-CONSOLE-ALL-ACCESS') &amp;&amp; !panel.newRecord}">
+            <title>Delete</title>
+            <command type="deleteRecord"/>
+            <command type="closeDialog"/>
+            <command type="showPanel" panelId="employeeGrid" applyParentRestriction="false"/>
+        </action>
+        <action id="cancel">
+            <title>Cancel</title>
+            <command type="closeDialog"/>
+        </action>
+        
+        <field table="em" name="honorific"/>
+        <field/>
+        <field table="em" name="em_id"/>
+        <field table="em" name="bl_id"/>
+        <field table="em" name="name_first"/>
+        <field table="em" name="fl_id"/>
+        <field table="em" name="name_last"/>        
+        <field table="em" name="rm_id"/>        
+        <field table="em" name="email"/>
+        <field table="em" name="dv_id"/>        
+        <field table="em" name="phone"/>    
+        <field table="em" name="dp_id"/>        
+        <field table="em" name="cellular_number"/>                        
+        <field table="em" name="em_std"/>
+        <field table="em" name="em_title"/>
+        <field table="em" name="em_number"/>        
+        <field table="em" name="em_photo"/>
+        <field table="em" name="date_hired"/>   
+    </panel>
+</view>

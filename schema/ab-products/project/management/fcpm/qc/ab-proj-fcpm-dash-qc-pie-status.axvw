@@ -1,0 +1,70 @@
+<view version="2.0" >
+    <message name="pendingSummary">Pending</message>
+    <message name="activeSummary">Active</message>
+    <message name="onHoldSummary">On-Hold</message>
+    <message name="doneSummary">Done</message>
+    <message name="closedSummary">Closed</message>
+    <js file="ab-proj-fcpm-dash-qc-pie-status.js"/>
+    
+ 	<dataSource type="grouping" id="projFcpmDashQcPieStatus_ds0" applyVpaRestrictions="false">
+        <table name="project" role="main"/>
+        <sql dialect="generic">
+        	SELECT 	project_id, 
+        	(CASE 
+						WHEN project.status IN   ('Approved') THEN ${parameters['pending']}
+						WHEN project.status =   'Issued-In Process' THEN ${parameters['active']}
+						WHEN project.status IN   ('Issued-On Hold','Issued-Stopped') THEN ${parameters['onHold']}
+						WHEN project.status IN   ('Completed-Pending', 'Completed-Not Ver', 'Completed-Verified') THEN ${parameters['done']}
+            WHEN project.status =   'Closed' THEN ${parameters['closed']}
+  					END) ${sql.as} status_group
+        	FROM project 
+          WHERE project.is_template = 0 AND (project.proj_mgr = '${user.employee.id}' OR project.apprv_mgr1 = '${user.employee.id}')
+          AND ((project.status = 'Closed' AND (${sql.daysBeforeCurrentDate('project.date_target_end')} &lt; 365 OR ${sql.daysBeforeCurrentDate('project.date_end')} &lt; 365) )
+					OR project.status IN ('Approved','Issued-In Process','Issued-On Hold','Issued-Stopped','Completed-Pending', 'Completed-Not Ver', 'Completed-Verified'))
+          AND ${sql.getVpaRestrictionForTable('project')} 	     	
+        </sql> 
+        <field table="project" name="status_group" groupBy="true" dataType="text"> 
+        	<title translatable="true">Project Status</title>
+        </field>
+        <field table="project" name="project_count" baseField="project.project_id" formula="count" dataType="number" decimals="0"> 
+        	<title translatable="true">Project Count</title>
+        </field>
+        <parameter name="pending" dataType="text" value=""/>
+        <parameter name="active" dataType="text" value=""/>
+        <parameter name="onHold" dataType="text" value=""/>
+        <parameter name="done" dataType="text" value=""/>
+        <parameter name="closed" dataType="text" value=""/>
+    </dataSource>
+    
+    
+		<panel 	id="projFcpmDashQcPieStatus_chart" 
+    		type="chart" 
+    		controlType="pieChart" 
+    		dataSource="projFcpmDashQcPieStatus_ds0" 
+    		showLegendOnLoad="false"
+    		showLegendAsPopUp="false" 
+    		legendLocation="right"
+    		showDataTips="true" 
+    		backgroundColor="0xFFFFFF" 
+    		fillType="solid">
+        <title translatable="true">My Projects - Status</title>
+        <action type="menu" id="projFcpmDashQcPieStatus_toolsMenu" imageName="/schema/ab-core/graphics/icons/view/export.png">
+            <action id="exportDOCX">
+		      <title>Export to DOCX</title>
+		      <command type="exportPanel" outputType="docx" panelId="projFcpmDashQcPieStatus_chart"/>
+		    </action> 
+        </action>
+        
+        <event type="onClickItem">
+            <command type="callFunction" functionName="selectPieStatus"/>
+        </event> 
+         
+				
+        <groupingAxis dataSource="projFcpmDashQcPieStatus_ds0" table="project" field="status_group" labelRotation="45">
+            <title translatable="true">Status</title>
+        </groupingAxis>
+        <dataAxis dataSource="projFcpmDashQcPieStatus_ds0" table="project" field="project_count" labelPosition="callout">
+            <title translatable="true">Count</title>
+        </dataAxis>
+    </panel>
+</view>

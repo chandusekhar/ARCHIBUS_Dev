@@ -1,0 +1,87 @@
+
+<!-- 2D cross-table with two data sources:
+     - the 1st data source provides row dimension values, and additional per-row visible fields.
+     - the 2nd data source provides the rest of the data, as in a regular cross-table. -->
+
+<view version="2.0">
+    <title>Funds by Funding Source and Year -- Using row dimension data source</title>
+
+    <!-- Show two cross-tables for comparison: with and without per-dimension visible fields. -->
+    <layout file="dashboard-2x1.axvw"/>
+
+    <!-- Retrieves all funding sources. -->    
+    <dataSource id="crossTableByFundSource_fundingSourcesDS" type="grouping">
+        <table name="projfunds" role="main"/>
+    
+        <!-- Group by Funding Source (provide distinct values for the main data source). -->    
+        <field name="fund_id" table="projfunds" groupBy="true"/>
+        <sortField name="fund_id" table="projfunds"/>
+    </dataSource>
+
+    <!-- Retrieves all funding sources, and additional visible fields per funding source. -->    
+    <dataSource id="crossTableByFundSource_fundingSourcesAndFieldsDS" type="grouping">
+    
+        <!-- Join projfunds and funding tables to calculate available funds. -->
+        <table name="projfunds" role="main"/>
+        <table name="funding" role="standard"/>
+    
+        <!-- Group by Funding Source (provide distinct values for the main data source). -->    
+        <field name="fund_id" table="projfunds" groupBy="true"/>
+        
+        <!-- Additional calculated values to be displayed for each funding source. -->
+        <field name="amt_total" dataType="number" baseField="funding.amt_total" formula="min" decimals="0"/>
+        <field name="funds_avail" dataType="number" decimals="0">
+            <title>Available Funds</title>
+            <sql dialect="generic">MIN(funding.amt_total) - SUM(projfunds.amount_cap + projfunds.amount_exp)</sql>
+        </field>
+
+        <sortField name="fund_id" table="projfunds"/>
+    </dataSource>
+
+    <!-- Main data source. -->    
+    <dataSource id="crossTableByFundSource_fundsAllocatedDS" type="grouping">
+        <table name="projfunds" role="main"/>
+        <table name="funding" role="standard"/>
+        
+        <!-- Two grouping fields is required for 2D cross-tab. -->
+        <field name="fund_id" table="projfunds" groupBy="true"/>
+        <field name="fiscal_year" table="projfunds" groupBy="true"/>
+        
+        <!-- Calculated values (measures) for 2D cross-tab. -->
+        <field name="amount_cap" dataType="number" decimals="0" baseField="projfunds.amount_cap" formula="sum">
+            <title>Capital Allocated</title>
+        </field>
+        <field name="amount_exp" dataType="number" decimals="0" baseField="projfunds.amount_exp" formula="sum">
+            <title>Expense Allocated</title>
+        </field>
+
+        <sortField name="fund_id" table="projfunds"/>
+        <sortField name="fiscal_year" table="projfunds"/>
+    </dataSource>
+
+    <!-- Cross-tab panel references both data sources:
+         fundingSourcesDS for the first dimension;
+         fundsAllocatedDS for the second dimension and all measures. -->
+    <panel type="crossTable" id="crossTableByDepartment_table1" layoutRegion="row1col1"
+           dataSource="crossTableByFundSource_fundsAllocatedDS"
+           rowDimensionDataSource="crossTableByFundSource_fundingSourcesDS">
+         <title>Show all funding sources</title>  
+<action id="exportXLS">
+            <title>Print</title>
+            <command type="exportPanel" outputType="xls" panelId="crossTableByDepartment_table1"/>
+        </action>
+    </panel>
+
+    <!-- Cross-tab panel references both data sources:
+         fundingSourcesAndFieldsDS for the first dimension and its visible fields;
+         fundsAllocatedDS for the second dimension and all measures. -->
+    <panel type="crossTable" id="crossTableByDepartment_table2" layoutRegion="row2col1"
+           dataSource="crossTableByFundSource_fundsAllocatedDS"
+           rowDimensionDataSource="crossTableByFundSource_fundingSourcesAndFieldsDS">
+         <title>Show all funding sources, and additional data per funding source</title>  
+<action id="exportXLS">
+            <title>Print</title>
+            <command type="exportPanel" outputType="xls" panelId="crossTableByDepartment_table2"/>
+        </action>
+    </panel>
+</view>

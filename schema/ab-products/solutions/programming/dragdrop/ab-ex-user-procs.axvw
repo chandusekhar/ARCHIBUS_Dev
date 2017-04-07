@@ -1,0 +1,104 @@
+<view version="2.0">
+    <title>Assign Processes to Users</title>
+ 
+    <js file="ab-ex-user-procs.js"/>
+
+    <layout type="borderLayout" id="mainLayout">
+    	<west initialSize="50%" split="true" />
+    	<center id="row1col2" autoScroll="true" />
+    </layout>
+    <layout type="borderLayout" id="nestedLayout_1"
+    	containingLayout="mainLayout" region="west">
+    	<north id="row1col1" initialSize="40%" split="true" />
+    	<center id="row2col1" autoScroll="true" />
+    </layout>
+
+    <dataSource id="userProcs_userDs">
+        <table name="afm_users"/>
+        <field name="user_name"/>
+        <field name="role_name"/>
+    </dataSource>
+
+    <dataSource id="userProcs_userProcessDs">
+        <table name="afm_userprocs" role="main"/>
+        <table name="afm_processes" role="standard"/>
+        <field name="user_name" table="afm_userprocs"/>
+        <field name="title" table="afm_processes"/>
+        <field name="activity_id" table="afm_userprocs"/>
+        <field name="process_id" table="afm_userprocs" hidden="true"/>
+        <field name="process_id" table="afm_processes" hidden="true"/>
+    </dataSource>
+
+    <dataSource id="userProcs_activityDs">
+        <table name="afm_activities"/>
+        <field name="activity_id"/>
+        <field name="title"/>
+        <sortField table="afm_activities" name="activity_id"/>
+        <parameter name="user_name" dataType="text" value="${user.name}"/>
+        <restriction type="sql" sql="activity_id IN (SELECT activity_id FROM afm_processes WHERE NOT EXISTS (SELECT activity_id, process_id FROM afm_userprocs WHERE user_name = ${parameters['user_name']} AND activity_id = afm_processes.activity_id AND process_id = afm_processes.process_id)) AND afm_activities.is_active=1"/>
+    </dataSource>
+
+    <dataSource id="userProcs_processDs">
+        <table name="afm_processes"/>
+        <field name="title"/>
+        <field name="process_id"/>
+        <sortField table="afm_processes" name="title"/>
+        <parameter name="user_name" dataType="text" value="${user.name}"/>
+        <restriction type="sql" sql="NOT EXISTS (SELECT activity_id, process_id FROM afm_userprocs WHERE user_name = ${parameters['user_name']} AND activity_id = afm_processes.activity_id AND process_id = afm_processes.process_id)"/>
+    </dataSource>
+
+    <panel type="grid" id="userProcs_userGrid" dataSource="userProcs_userDs" layoutRegion="row1col1"
+           selectionEnabled="true">
+        <title>Users</title>
+        <action id="unassignUnlicensed">
+			<title>Unassign Unlicensed</title>
+		</action> 
+        <field name="user_name" id="userName" controlType="link"/>
+        <field name="role_name"/>
+        <sortField table="afm_users" name="user_name"/>
+    </panel>
+
+    <panel type="grid" id="userProcs_userProcessGrid" dataSource="userProcs_userProcessDs" layoutRegion="row2col1"
+           selectionEnabled="true" showOnLoad="false" recordLimit="1000">
+        <title>Assigned Processes</title>
+        <action id="deleteAll">
+			     <title>Delete All</title>
+		    </action>
+        <action id="templateToRole">
+			     <title>Apply as Template to Role</title>
+		    </action>
+        <field table="afm_userprocs" name="activity_id"/>
+        <field  table="afm_processes" name="title">
+            <title translatable="true">Process or Role</title>
+        </field>
+        <field id="remove" controlType="button">
+            <title>Remove</title>
+            <tooltip>Click to remove this process assignment for selected user</tooltip>
+        </field>
+        <sortField table="afm_userprocs" name="activity_id"/>
+        <sortField table="afm_processes" name="title"/>
+    </panel>
+
+    <panel type="tree" id="userProcs_activityTree" dataSource="userProcs_activityDs" layoutRegion="row1col2"
+           showOnLoad="false">
+        <title>Available Applications and their Processes</title>
+		<action id="assignAll">
+			<title>Assign All</title>
+		</action>
+        <panel type="tree" id="userProcs_processLevel" dataSource="userProcs_processDs">
+        </panel>
+    </panel>
+
+    <message name="ConfirmUnassignUnlicensed">This action removes all unlicensed applications from each user.  Continue?</message>    
+    <message name="unassignUnlicensedSuccessful">Any unlicensed applications have been removed from all users.</message>   
+    <message name="ConfirmRemoveProcess">Remove the process assignment {0} from user {1}?</message>
+    <message name="ConfirmAssignAll">Do you want to assign all processes of all applications licensed at your site to user {0}?</message>
+    <message name="ConfirmDeleteAll">Do you want to delete all processes assigned to user {0}?</message>
+    <message name="ConfirmTemplateToRole">Do you want to copy this list of processes to all users of the same role: {0}?</message>
+    <message name="ConfirmAddActivity">Assign all processes from application {0} to user {1}?</message>
+    <message name="CopyTemplateSuccessful">Processes have been successfully copied to all users of the same role: {0}</message>
+    <message name="ConfirmAddProcess">Assign process {0} to user {1}?</message>
+    <message name="ErrorRemoveProcess">Could not remove assignment for process {0} from user {1}</message>
+    <message name="ErrorAddProcess">Could not assign process {0} to user {1}</message>
+    <message name="helpMessage">To assign processes, drag the application or process to the Assigned Processes panel.</message>
+</view>

@@ -1,0 +1,240 @@
+<view version="2.0" showLoadProgress="true">
+    <layout type="borderLayout" id="mainLayout">
+      <north initialSize="100" split="true"/>
+      <center autoScroll="true"/>
+    </layout>
+    <js file="ab-proj-review-vendor-performance-history.js"/>
+    <title>Review Vendor Performance History</title>
+
+    <dataSource id="projReviewVendorPerfHistDs0">
+        <table name="vn" role="main"/>
+        <field name="state" table="vn"/>
+        <field name="city" table="vn"/>
+        <field name="vn_id" table="vn"/>
+    </dataSource>
+    
+    <panel type="console" id="projReviewVendorPerfHistConsole" dataSource="projReviewVendorPerfHistDs0" layout="mainLayout" region="north">
+        <title>Filter</title>
+        <action id="show">
+            <title>Show</title>
+            <command type="showPanel" panelId="projReviewVendorPerfHistGrid"/>
+        </action>
+        <action id="clear">
+            <title>Clear</title>
+            <command type="clearPanel" panelId="projReviewVendorPerfHistConsole"/>
+            <command type="showPanel" panelId="projReviewVendorPerfHistGrid" applyParentRestriction="false" clearRestriction="true"/>
+        </action>
+        <field name="state" table="vn">
+            <title>Vendor State</title>
+        </field>
+        <field name="city" table="vn">
+            <title>Vendor City</title>
+        </field>
+    </panel>
+    
+    <dataSource id="projReviewVendorPerfHistDs1" type="grouping" applyVpaRestrictions="false">
+        <table name="vn" role="main" />
+        <field name="vn_project_work_pkg_id" table="vn" dataType="text" groupBy="true">
+            <title>Vendor - Project - Work Package</title>
+        </field>
+        <field name="cost_contract" dataType="number" decimals="2">
+            <title>Contract Amount</title>
+            <sql dialect="generic">MAX(cost_contract)</sql>
+        </field>
+        <field name="actual_cost" dataType="number" decimals="2">
+            <title>Actual Cost</title>
+            <sql dialect="generic">MAX(actual_cost)</sql>
+        </field>
+        <field name="completed_actions" dataType="number" decimals="0">
+            <title>Completed Actions Under Schedule</title>
+            <sql dialect="generic">MAX(completed_actions)</sql>
+        </field>
+        <field name="actions_over_schedule" dataType="number" decimals="0">
+            <title>Completed Actions Over Schedule</title>
+            <sql dialect="generic">MAX(actions_over_schedule)</sql>
+        </field>
+        <sortField name="vn_project_work_pkg_id" table="vn" ascending="true"/>
+        <sql dialect="generic">
+            SELECT (RTRIM(work_pkg_bids.vn_id) ${sql.concat} ' - ' ${sql.concat} RTRIM(work_pkgs.project_id) ${sql.concat} ' - ' ${sql.concat} RTRIM(work_pkgs.work_pkg_id)) ${sql.as} vn_project_work_pkg_id, 
+              vn.state, vn.city,
+              work_pkg_bids.doc_contract,
+              work_pkgs.work_pkg_id,
+              work_pkg_bids.cost_contract,
+              activity_log.actual_cost,
+              activity_log.completed_actions,
+              activity_log.actions_over_schedule, work_pkgs.project_id
+            FROM (work_pkg_bids JOIN work_pkgs 
+                  ON work_pkgs.project_id = work_pkg_bids.project_id 
+                  AND work_pkgs.work_pkg_id = work_pkg_bids.work_pkg_id) 
+            JOIN vn ON vn.vn_id = work_pkg_bids.vn_id
+            JOIN
+              (SELECT activity_log.project_id, activity_log.work_pkg_id,
+                activity_log.actual_cost, 
+                activity_log2.completed_actions ${sql.as} completed_actions,
+                activity_log3.actions_over_schedule ${sql.as} actions_over_schedule
+              FROM 
+                ((SELECT activity_log.project_id, activity_log.work_pkg_id, 
+                  SUM(activity_log.cost_act_cap + activity_log.cost_actual) ${sql.as} actual_cost
+                  FROM activity_log 
+                  WHERE activity_log.work_pkg_id IS NOT NULL
+                  GROUP BY activity_log.project_id, activity_log.work_pkg_id) 
+                  ${sql.as} activity_log 
+                 LEFT OUTER JOIN 
+                (SELECT activity_log.project_id, activity_log.work_pkg_id, 
+                  COUNT(*) ${sql.as} completed_actions 
+                 FROM activity_log 
+                 WHERE activity_log.work_pkg_id IS NOT NULL
+                 AND activity_log.status IN ('COMPLETED', 'COMPLETED-V', 'CLOSED' ) 
+                 AND activity_log.duration_act &lt;= activity_log.duration
+                 GROUP BY activity_log.project_id, activity_log.work_pkg_id)
+                 ${sql.as} activity_log2 
+                 ON activity_log.project_id = activity_log2.project_id
+                 AND activity_log.work_pkg_id = activity_log2.work_pkg_id) 
+              LEFT OUTER JOIN 
+                (SELECT activity_log.project_id, activity_log.work_pkg_id, 
+                  COUNT(*) ${sql.as} actions_over_schedule 
+                 FROM activity_log 
+                 WHERE activity_log.work_pkg_id IS NOT NULL
+                 AND activity_log.status IN ('COMPLETED', 'COMPLETED-V', 'CLOSED' ) 
+                 AND activity_log.duration_act &gt; activity_log.duration
+                 GROUP BY activity_log.project_id, activity_log.work_pkg_id)
+                 ${sql.as} activity_log3 
+              ON activity_log.work_pkg_id = activity_log3.work_pkg_id
+              AND activity_log.project_id = activity_log3.project_id)
+              ${sql.as} activity_log
+            ON activity_log.project_id = work_pkg_bids.project_id 
+            AND activity_log.work_pkg_id = work_pkg_bids.work_pkg_id
+            JOIN project ON project.project_id = activity_log.project_id
+            WHERE work_pkg_bids.status &lt;&gt; 'Rejected'
+            AND work_pkg_bids.status NOT LIKE 'Submitted%'
+            AND (work_pkgs.status LIKE 'Completed%'
+            OR work_pkgs.status = 'Closed')
+          </sql>
+          <sql dialect="oracle">
+        SELECT  (RTRIM(work_pkg_bids.vn_id) ${sql.concat} ' - ' ${sql.concat} RTRIM(work_pkgs.project_id) ${sql.concat} ' - ' ${sql.concat} RTRIM(work_pkgs.work_pkg_id)) ${sql.as} vn_project_work_pkg_id, 
+          vn.state, vn.city,
+          work_pkg_bids.doc_contract,
+          work_pkgs.work_pkg_id,
+          work_pkg_bids.cost_contract,
+          activity_log.actual_cost,
+          activity_log.completed_actions,
+          activity_log.actions_over_schedule, work_pkgs.project_id
+        FROM  work_pkg_bids, work_pkgs, vn,   
+          (SELECT activity_log.project_id, activity_log.work_pkg_id,
+            activity_log.actual_cost, 
+            activity_log2.completed_actions ${sql.as} completed_actions,
+            activity_log3.actions_over_schedule ${sql.as} actions_over_schedule
+          FROM
+            (SELECT activity_log.project_id, activity_log.work_pkg_id, 
+              SUM(activity_log.cost_act_cap + activity_log.cost_actual) ${sql.as} actual_cost
+            FROM activity_log 
+            WHERE activity_log.work_pkg_id IS NOT NULL
+            GROUP BY activity_log.project_id, activity_log.work_pkg_id) 
+            activity_log,  
+            (SELECT activity_log.project_id, activity_log.work_pkg_id, 
+              COUNT(*) ${sql.as} completed_actions 
+            FROM activity_log 
+            WHERE   activity_log.work_pkg_id IS NOT NULL
+              AND activity_log.status IN ('COMPLETED', 'COMPLETED-V', 'CLOSED' ) 
+              AND activity_log.duration_act &lt;= activity_log.duration
+            GROUP BY activity_log.project_id, activity_log.work_pkg_id)
+            activity_log2, 
+            (SELECT activity_log.project_id, activity_log.work_pkg_id, 
+                  COUNT(*) ${sql.as} actions_over_schedule 
+            FROM activity_log 
+            WHERE   activity_log.work_pkg_id IS NOT NULL
+                AND activity_log.status IN ('COMPLETED', 'COMPLETED-V', 'CLOSED' ) 
+                AND activity_log.duration_act &gt; activity_log.duration
+            GROUP BY activity_log.project_id, activity_log.work_pkg_id)
+            activity_log3 
+          WHERE   activity_log.project_id = activity_log2.project_id(+) AND 
+            activity_log.work_pkg_id = activity_log2.work_pkg_id(+) AND
+            activity_log.work_pkg_id = activity_log3.work_pkg_id(+) AND
+            activity_log.project_id = activity_log3.project_id(+)
+          )activity_log,
+          project 
+        WHERE     
+          work_pkgs.project_id = work_pkg_bids.project_id AND work_pkgs.work_pkg_id = work_pkg_bids.work_pkg_id AND
+          vn.vn_id = work_pkg_bids.vn_id AND
+          activity_log.project_id = work_pkg_bids.project_id AND 
+          activity_log.work_pkg_id = work_pkg_bids.work_pkg_id AND 
+          project.project_id = activity_log.project_id AND
+          work_pkg_bids.status &lt;&gt; 'Rejected'
+          AND work_pkg_bids.status NOT LIKE 'Submitted%'
+          AND (work_pkgs.status LIKE 'Completed%' OR work_pkgs.status = 'Closed')
+        </sql>        
+    </dataSource>
+
+    <panel type="grid" id="projReviewVendorPerfHistGrid" dataSource="projReviewVendorPerfHistDs1" layout="mainLayout" region="center">
+        <title>Completed Work Packages</title>  
+        <action id="exportXLS">
+            <title>XLS</title>
+            <command type="exportPanel" outputType="xls" panelId="projReviewVendorPerfHistGrid"/>
+        </action>         
+        <field id="details" controlType="button">
+            <title>Details</title>
+        </field>
+    </panel>
+    
+    <dataSource id="projReviewVendorPerfHistDs2">
+            <table name="work_pkg_bids" role="main" />
+            <field name="vn_project_work_pkg_id" table="work_pkg_bids" dataType="text">
+                <title>Vendor - Project - Work Package</title>
+                <sql dialect="generic">
+                (RTRIM(work_pkg_bids.vn_id) ${sql.concat} ' - ' ${sql.concat} RTRIM(work_pkg_bids.project_id) ${sql.concat} ' - ' ${sql.concat} RTRIM(work_pkg_bids.work_pkg_id)) 
+                </sql>
+            </field>
+            <field name="status" table="work_pkg_bids" />
+            <field name="cost_bid" table="work_pkg_bids" />
+            <field name="cost_contract" table="work_pkg_bids" />
+            <field name="contact_id" table="work_pkg_bids" />
+            <field name="approved_by" table="work_pkg_bids" />
+            <field name="bid_type" table="work_pkg_bids" />
+            <field name="duration_bidded" table="work_pkg_bids" />
+            <field name="full_scope_bid" table="work_pkg_bids" />
+            <field name="doc_proposal" table="work_pkg_bids" />
+            <field name="date_submitted" table="work_pkg_bids" />
+            <field name="date_approved" table="work_pkg_bids" />
+            <field name="date_updated" table="work_pkg_bids" />
+            <field name="doc_contract" table="work_pkg_bids" />
+            <field name="date_contract_start" table="work_pkg_bids" />
+            <field name="date_contract_end" table="work_pkg_bids" />
+            <field name="not_to_exceed" table="work_pkg_bids" />
+            <field name="payment_terms" table="work_pkg_bids" />
+            <field name="date_warranty_exp" table="work_pkg_bids" />
+            <field name="warranty_desc" table="work_pkg_bids" />
+            <field name="unit_quantity" table="work_pkg_bids" />
+            <field name="comments" table="work_pkg_bids" />
+            <parameter name="vn_project_work_pkg_restriction" dataType="verbatim" value="1=1"/>
+            <restriction type="sql" sql="${parameters['vn_project_work_pkg_restriction']}" />
+    </dataSource>
+    
+    <panel type="form" id="projReviewVendorPerfHistDetailsColumnReport" dataSource="projReviewVendorPerfHistDs2" columns="2" showOnLoad="false">
+        <title>Work Package Bid Details</title>
+        <field name="vn_project_work_pkg_id" table="work_pkg_bids" readOnly="true">
+            <title>Vendor - Project - Work Package</title>
+        </field>
+        <field/>
+        <field name="status" table="work_pkg_bids" readOnly="true"/>
+        <field name="cost_bid" table="work_pkg_bids" readOnly="true"/>
+        <field name="cost_contract" table="work_pkg_bids" readOnly="true"/>
+        <field name="contact_id" table="work_pkg_bids" readOnly="true"/>
+        <field name="approved_by" table="work_pkg_bids" readOnly="true"/>
+        <field name="bid_type" table="work_pkg_bids" readOnly="true"/>
+        <field name="duration_bidded" table="work_pkg_bids" readOnly="true"/>
+        <field name="full_scope_bid" table="work_pkg_bids" readOnly="true"/>
+        <field name="unit_quantity" table="work_pkg_bids" readOnly="true"/>
+        <field name="not_to_exceed" table="work_pkg_bids" readOnly="true"/>
+        <field name="payment_terms" table="work_pkg_bids" readOnly="true" colspan="2"/>
+        <field name="doc_proposal" table="work_pkg_bids" readOnly="true"/>
+        <field name="doc_contract" table="work_pkg_bids" readOnly="true"/>            
+        <field name="date_submitted" table="work_pkg_bids" readOnly="true"/>
+        <field name="date_approved" table="work_pkg_bids" readOnly="true"/>                       
+        <field name="date_contract_start" table="work_pkg_bids" readOnly="true"/>
+        <field name="date_contract_end" table="work_pkg_bids" readOnly="true"/>                        
+        <field name="date_warranty_exp" table="work_pkg_bids" readOnly="true"/> 
+        <field name="date_updated" table="work_pkg_bids" readOnly="true"/>           
+        <field name="warranty_desc" table="work_pkg_bids" colspan="2" readOnly="true"/>            
+        <field name="comments" table="work_pkg_bids" colspan="2" readOnly="true"/>      
+    </panel>
+</view>

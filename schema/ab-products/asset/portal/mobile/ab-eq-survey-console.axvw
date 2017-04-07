@@ -1,0 +1,178 @@
+<view version="2.0">
+  <title translatable="true">Manage Asset &amp; Equipment Surveys</title>
+
+  <message name="noSurveySelected" translatable="true">At least one survey must be selected. Please select a survey.</message>
+  <message name="closeActionConfirmMessage" translatable="true">This action will update the Equipment table with the results of this survey. Proceed?</message>
+  <message name="deleteActionConfirmMessage" translatable="true">This action will delete this survey and all the Equipment Survey tasks of this survey from the Equipment Survey table. Proceed?</message>
+  <message name="errorInvalidEmployee1" translatable="true">There is no user with matching email in ARCHIBUS user account table for employee </message>
+  <message name="errorInvalidEmployee2" translatable="true">Please select an employee that has an email defined in Employee table (em.email) which matches a user's email in User Account table (afm_users.email).</message>
+  <message name="photoOrCommentFilterOn" translatable="true">Photo or Comment Filter On</message>
+  <message name="photoOrCommentFilterOff" translatable="true">Photo or Comment Filter Off</message>
+  
+  <message name="surveyInstruction">By default, the status of a new survey is 'Issued to Auditor'. The survey and its tasks will appear on the auditor's mobile device the next time they sync.[br/][br/]Set the status to 'Audit On Hold' to temporarily keep a new survey from showing up on an auditor's mobile device when they sync.[br/][br/]When through with the survey, auditors will tap the Complete Survey button in the mobile app. This action sets the Survey Status to 'Audit Completed'.[br/][br/]If you wish to cancel an auditor's survey, you can set the status to 'Audit Completed' so that the system will remove the survey from the auditor's mobile device the next time they sync.[br/][br/]To re-assign a survey, change the Performed By value from one auditor to another. You may wish to first check the Changed by Mobile User field to see if the first auditor has started making changes.</message>
+
+  <dataSource id="eqSurvey_ds">
+    <table name="survey" role="main"/>
+    <field table="survey" name="survey_id"/>
+    <field table="survey" name="survey_date"/>
+    <field table="survey" name="description"/>
+    <field table="survey" name="em_id"/>
+    <field table="survey" name="status"/>
+    <sortField table="survey" name="survey_date" ascending="false"/>
+  </dataSource>
+  
+   
+  <dataSource id="emUser_ds">
+    <table name="em" role="main"/>
+    <field table="em" name="em_id"/>
+    <field table="em" name="email"/>
+    <restriction type="sql" sql="em.email IN (SELECT DISTINCT email FROM afm_users)"/>
+  </dataSource>
+  
+  <dataSource id="eqSurveyTasks_ds">
+    <table name="eq_audit" role="main"/>
+    <table name="survey" role="standard"/>
+    <field table="eq_audit" name="eq_id"/>
+    <field table="eq_audit" name="bl_id"/>
+    <field table="eq_audit" name="fl_id"/>
+    <field table="eq_audit" name="rm_id"/>
+    <field table="eq_audit" name="dv_id" hidden="true"/>
+    <field table="eq_audit" name="dp_id" hidden="true"/>
+    <field table="eq_audit" name="status" hidden="true"/>
+    <field table="eq_audit" name="eq_std"/>
+    <field table="eq_audit" name="num_serial" hidden="true"/>
+    <field table="eq_audit" name="em_id" hidden="true"/>
+    <field table="eq_audit" name="survey_comments"/>
+    <field table="eq_audit" name="survey_photo_eq"/>
+     <field table="eq_audit" name="survey_redline_eq"/>
+    <field table="eq_audit" name="date_last_surveyed"/>
+    <field table="eq_audit" name="transfer_status"/>
+    <field table="eq_audit" name="marked_for_deletion"/>
+    <field table="eq_audit" name="mob_locked_by"/>
+    <field table="eq_audit" name="mob_is_changed"/>
+    <field table="eq_audit" name="survey_id" hidden="true"/>
+<!--     <field table="survey" name="status" hidden="true"/>
+ -->  </dataSource>
+
+  <layout type="borderLayout" id="mainLayout">
+    <west initialSize="51%" split="true"/>
+    <center autoScroll="true"/>
+  </layout>
+  
+  <!-- Use multipleSelectionEnabled to display multiple selection checkboxes in all rows. -->
+  <panel type="grid" id="eqSurveyGrid_grid" multipleSelectionEnabled="true" dataSource="eqSurvey_ds" layout="mainLayout" region="west">
+    <title translatable="true">Asset &amp; Equipment Survey</title>
+    <!-- When grid panel uses multipleSelectionEnabled, all panel-level commands
+                     apply the restriction that includes primary key values of selected rows. -->
+    <action>
+        <title translatable="true">Create New Survey</title>
+        <!-- Display selected records in a new window. -->
+        <command type="openDialog" viewName="ab-eq-survey-new.axvw" width="650" height="520" closeButton="false"/>
+    </action>
+    <action id='changeFieldsAction' enabled="false" hidden="true">
+        <title translatable="true">Change Fields</title>
+        <command type="callFunction" functionName="onChangeFields"/>
+    </action>
+    <field table="survey" name="survey_id"/>
+    <field table="survey" name="survey_date"/>
+    <field table="survey" name="description"/>
+    <field table="survey" name="em_id"/>
+    <field table="survey" name="status"/>
+    <!-- Define a column that contains a button in each row.-->
+    <field controlType="button">
+        <title>Edit</title>
+        <command type="openDialog" panelId="eqSurveyDetailForm_form" width="620" height="650" closeButton="false">
+                <title translatable="true">Edit Survey and its Status</title>
+        </command>
+    </field>
+    <field id="closeSurveyButton" controlType="button" onclick="onCloseSurvey" enabled="${record['survey.status.raw'] != 'Closed'}">
+        <title>Close</title>
+    </field>
+    <field controlType="button" onclick="onPrintSurvey">
+        <title>Print</title>
+    </field>
+  </panel>
+
+  <panel type="grid" id="eqSurveyTasksGrid_grid" dataSource="eqSurveyTasks_ds" layout="mainLayout" region="center">
+    <indexField table="eq_audit" name="eq_id"/>
+    <title translatable="true">Asset &amp; Equipment Survey Items</title>
+    <action id="filterAction">
+        <title translatable="true">Photo or Comment Filter On</title>
+        <command type="callFunction" functionName="abEqSurveyConsoleCtrl.restrictItemsList()"/>
+    </action>
+    <action id="refresh">
+        <title>Refresh</title>
+        <command type="showPanel" panelId="eqSurveyTasksGrid_grid"/>
+    </action>
+    <field controlType="button" name="editSurveyTaskButton" enabled="${record['survey.status.raw'] != 'Closed'}">
+        <title>Edit</title>
+        <command type="openDialog" viewName="ab-eq-survey-edit.axvw" width="780" height="730"/>
+    </field>
+    <field controlType="button" name="detailsSurveyTaskButton">
+        <title>Details</title>
+        <command type="openDialog" viewName="ab-eq-survey-details.axvw" width="750" height="700"/>
+    </field>
+    <field table="eq_audit" name="survey_id"/>
+    <field table="eq_audit" name="eq_id"/>
+    <field table="eq_audit" name="eq_std"/>
+    <field table="eq_audit" name="bl_id"/>
+    <field table="eq_audit" name="fl_id"/>
+    <field table="eq_audit" name="rm_id"/>
+    <field table="eq_audit" name="survey_comments"/>
+    <field table="eq_audit" name="survey_photo_eq" controlType="link"/>
+    <field table="eq_audit" name="survey_redline_eq" controlType="link"/>
+    <field table="eq_audit" name="date_last_surveyed"/>
+    <field table="eq_audit" name="mob_is_changed"/>
+    <field table="eq_audit" name="marked_for_deletion"/>
+    <field table="eq_audit" name="mob_locked_by"/>
+    <field table="eq_audit" name="transfer_status"/>
+  </panel>
+
+  <panel type="form" columns="1" id="eqSurveyDetailForm_form" dataSource="eqSurvey_ds"
+           showOnLoad="false" hidden="true" buttonsPosition="footer">
+        <fieldset>
+            <title  translatable="true">Survey Information</title>
+            <field table="survey" name="survey_id" readOnly="true"/>
+            <field table="survey" name="survey_date"/>
+            <field table="survey" name="description"/>
+            <field table="survey" name="em_id" required="true">
+                <title translatable="true">Performed By</title>
+                <action>
+                    <command type="selectValue" 
+                        applyFilter="true"
+                        fieldNames="survey.em_id" 
+                        selectFieldNames="em.em_id" 
+                        visibleFieldNames="em.em_id, em.email"
+                        restriction="em.email IN (SELECT DISTINCT email FROM afm_users)">
+                        <title>Employee</title>
+                    </command>
+                </action>
+            </field>
+            <field table="survey" name="status"/>
+        </fieldset>
+         <fieldset>
+            <title  translatable="true">Survey Instruction</title>          
+            <field>
+               <html>
+               <textarea id="instruction" width="100%" wrap="PHYSICAL" style="height:320px; background-color: transparent;" readOnly="true" translatable="true"></textarea>
+               </html>
+            </field>
+         </fieldset>
+        <action id="save">
+            <title translatable="true">Save</title>
+            <!-- Save form data and display confirmation/error messages in the form.
+                               In case of any error, consequent commands will not be executed. -->
+            <command type="callFunction" functionName="onUpdateSurvey"/>
+            <command type="closeDialog"/>
+        </action>
+        <action id="delete">
+            <title translatable="true">Delete</title>
+            <command type="callFunction" functionName="onDeleteSurvey"/>
+        </action>
+        <action id="cancel">
+            <title translatable="true">Cancel</title>
+            <command type="closeDialog"/>
+        </action>
+    </panel>
+  <js file="ab-eq-survey-console.js"/>
+</view>

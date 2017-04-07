@@ -1,0 +1,162 @@
+<view version="2.0">
+    <js file="ab-capbud-fci-create-page1.js"/>
+    <message name="emptyRequiredFields">Missing required field</message>
+    
+    <dataSource id="capbudFciCreateConsoleDs">
+        <table name="project" role="main"/>
+        <field name="project_id"/>
+    </dataSource>
+    
+    <panel id="capbudFciCreateConsole" type="console" columns="1" dataSource="capbudFciCreateConsoleDs">
+        <title>Select Condition Assessment Project</title>
+        <action id="show">
+            <title>Show</title>
+        </action>
+        <action id="clear">
+            <title>Clear</title>                    
+            <command type="clearPanel" panelId="capbudFciCreateConsole"/>
+        </action>
+        <field table="project" name="project_id" required="true">
+            <action>
+                <title>...</title>
+                <command type="selectValue"
+                         fieldNames="project.project_id"
+                         selectFieldNames="activity_log.project_id"
+                         visibleFieldNames="activity_log.project_id"
+                         restriction="activity_type = 'ASSESSMENT'">
+                         <title>Condition Assessment Project</title>
+               </command>
+            </action>
+        </field>
+    </panel>
+
+    <dataSource id="capbudFciCreateScenariosTableDs" type="grouping" applyVpaRestrictions="false">
+        <table name="actscns" role="main"/>
+        
+	<parameter name="projRestriction" value="activity_log.project_id IN (activity_log.project_id)" dataType="verbatim"/>
+        <parameter name="scnRestriction" value="actscns.proj_scenario_id IN (actscns.proj_scenario_id)" dataType="verbatim"/>
+        <parameter name="blRestriction" value="activity_log.bl_id IN (activity_log.bl_id)" dataType="verbatim"/>
+        <parameter name="fiscal_year_from" value="1900" dataType="number"/>
+        <parameter name="fiscal_year_to" value="2990" dataType="number"/>
+
+        <sql dialect="generic">
+            SELECT  fiscal_years.project_id, fiscal_years.proj_scenario_id, fiscal_years.fiscal_year, MIN(fiscal_years.funding_req) AS funding_req,
+			        AVG(actscns_fci.fci) AS avg_fci, MIN(actscns_fci.fci) AS min_fci, MAX(actscns_fci.fci) AS max_fci
+			
+			FROM (SELECT activity_log.project_id, actscns.proj_scenario_id,
+			        actscns.fiscal_year, SUM(activity_log.cost_to_replace) AS funding_req
+			        FROM actscns 
+			        LEFT OUTER JOIN activity_log ON actscns.activity_log_id = activity_log.activity_log_id
+					WHERE ${parameters['projRestriction']}
+					AND ${parameters['scnRestriction']}
+					AND ${parameters['blRestriction']}
+					AND activity_log.activity_type='ASSESSMENT' 
+			        AND activity_log.cost_to_replace &gt; 0
+			        GROUP BY actscns.fiscal_year, activity_log.project_id, actscns.proj_scenario_id) AS fiscal_years		
+			        
+			LEFT OUTER JOIN
+			
+			(SELECT activity_log.project_id, actscns.proj_scenario_id,
+			        actscns.fiscal_year, (${sql.getFormula('AbCapitalPlanningCA-FacilityConditionIndex')}) AS fci
+			        FROM actscns
+			        LEFT OUTER JOIN activity_log ON actscns.activity_log_id = activity_log.activity_log_id 
+					WHERE ${parameters['projRestriction']}
+					AND ${parameters['scnRestriction']}
+					AND ${parameters['blRestriction']}
+					AND activity_log.activity_type='ASSESSMENT' 
+				    AND activity_log.cost_to_replace &gt; 0) AS actscns_fci 				
+			
+			ON (actscns_fci.fiscal_year &gt;= fiscal_years.fiscal_year AND actscns_fci.project_id = fiscal_years.project_id AND actscns_fci.proj_scenario_id = fiscal_years.proj_scenario_id)                  
+			WHERE (fiscal_years.fiscal_year &gt;= ${parameters['fiscal_year_from']} AND fiscal_years.fiscal_year &lt;= ${parameters['fiscal_year_to']})
+			GROUP BY fiscal_years.fiscal_year, fiscal_years.project_id, fiscal_years.proj_scenario_id
+        </sql>
+        <sql dialect="oracle">
+            SELECT  fiscal_years.project_id, fiscal_years.proj_scenario_id, fiscal_years.fiscal_year, MIN(fiscal_years.funding_req) funding_req,
+			        AVG(actscns_fci.fci) avg_fci, MIN(actscns_fci.fci) min_fci, MAX(actscns_fci.fci) max_fci
+			
+			FROM (SELECT activity_log.project_id, actscns.proj_scenario_id,
+			        actscns.fiscal_year, SUM(activity_log.cost_to_replace) funding_req
+			        FROM actscns, 
+			        activity_log 
+				    WHERE actscns.activity_log_id = activity_log.activity_log_id(+)
+					AND ${parameters['projRestriction']}
+					AND ${parameters['scnRestriction']}
+					AND ${parameters['blRestriction']}
+					AND activity_log.activity_type='ASSESSMENT' 
+			        AND activity_log.cost_to_replace &gt; 0
+			        GROUP BY actscns.fiscal_year, activity_log.project_id, actscns.proj_scenario_id) fiscal_years, 
+			                    
+			   (SELECT activity_log.project_id, actscns.proj_scenario_id,
+			        actscns.fiscal_year, (${sql.getFormula('AbCapitalPlanningCA-FacilityConditionIndex')}) fci
+			        FROM actscns,
+			        activity_log 
+				    WHERE actscns.activity_log_id = activity_log.activity_log_id(+) 
+					AND ${parameters['projRestriction']}
+					AND ${parameters['scnRestriction']}
+					AND ${parameters['blRestriction']}
+					AND activity_log.activity_type='ASSESSMENT' 
+				    AND activity_log.cost_to_replace &gt; 0) actscns_fci 
+			
+			WHERE actscns_fci.fiscal_year(+) &gt;= fiscal_years.fiscal_year 
+			AND actscns_fci.project_id(+) = fiscal_years.project_id  
+			AND actscns_fci.proj_scenario_id(+) = fiscal_years.proj_scenario_id                
+			AND (fiscal_years.fiscal_year &gt;= ${parameters['fiscal_year_from']} AND fiscal_years.fiscal_year &lt;= ${parameters['fiscal_year_to']})
+			GROUP BY fiscal_years.fiscal_year, fiscal_years.project_id, fiscal_years.proj_scenario_id
+          </sql>
+
+        <field name="proj_scenario_id" table="actscns" dataType="text" groupBy="true">
+            <title>Funding Scenario</title>
+        </field>
+        <field name="fiscal_year" table="actscns" dataType="text" groupBy="true">
+            <title>Fiscal Year</title>
+        </field>
+        <field name="avg_fci" formula="avg" baseField="actscns.avg_fci" dataType="number" decimals="1">
+          <title>Average FCI</title>
+        </field>
+        <field name="funding_req" formula="sum" baseField="actscns.funding_req" dataType="number" decimals="1">
+          <title>Funding Required</title>
+        </field>
+        <sortField name="proj_scenario_id" table="actscns" ascending="true"/>
+        <sortField name="fiscal_year" table="actscns" ascending="true"/>
+    </dataSource>
+    
+    <panel id="capbudFciCreateScenariosTable" type="crossTable" dataSource="capbudFciCreateScenariosTableDs" showOnLoad="false">
+        <title>Add or Edit Facility Condition Index Scenarios</title>
+        <instructions>[li]Select a Funding Scenario in the table below to edit Scenario Items and adjust FCI[/li][li]Click on 'Add Scenario' to add a new Funding Scenario to the Project[/li]</instructions>
+        <action id="addScenario">
+            <title>Add Scenario</title>
+        </action>
+        <event type="onClickItem">
+            <command type="callFunction" functionName="capbudFciCreateScenariosTable_onClick"/>
+        </event>
+    </panel>
+    
+    <dataSource id="capbudFciCreateAddScenarioFormDs">
+        <table name="actscns" role="main"/>
+        <table name="activity_log" role="standard"/>
+        <field name="project_id" table="activity_log"/>
+        <field name="proj_scenario_id" table="actscns"/>
+        <field name="fiscal_year" table="actscns"/>
+        <field name="activity_log_id" table="actscns"/>
+    </dataSource>
+    
+    <panel type="form" id="capbudFciCreateAddScenarioForm" dataSource="capbudFciCreateAddScenarioFormDs" showOnLoad="false">
+        <title>Add Scenario to Project</title>
+        <action id="save">
+          <title>Save</title>
+          <command type="closeDialog"/>
+        </action> 
+        <action id="cancel">
+          <title>Cancel</title>
+          <command type="closeDialog"/>
+        </action>
+        <field name="project_id" table="activity_log" readOnly="true" required="true"/>      
+        <field name="proj_scenario_id" table="actscns" required="true">
+            <title>New or Existing Scenario Name</title>
+        </field>
+        <field name="fiscal_year" table="actscns" required="true">
+            <title>Default Fiscal Year</title>
+        </field>
+    </panel>
+
+</view>

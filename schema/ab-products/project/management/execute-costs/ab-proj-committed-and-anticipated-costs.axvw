@@ -1,0 +1,42 @@
+<view version="2.0">
+    <js file="ab-proj-committed-and-anticipated-costs.js"/>
+    
+    <dataSource id="projCommittedAnticipatedDs0" type="grouping" applyVpaRestrictions="false">
+        <table name="work_pkg_bids" role="main"/>
+        <field name="work_pkg_id" table="work_pkg_bids" groupBy="true"/>
+        <field name="cost_contract" dataType="number" decimals="2">
+            <title>Committed Costs</title>
+            <sql dialect="generic">SUM(cost_contract)</sql>
+        </field>
+        <field name="anticipated_costs" dataType="number" decimals="2">
+            <title>Anticipated Costs</title>
+            <sql dialect="generic">SUM(anticipated_costs)</sql>
+        </field>
+        <sql dialect="generic">
+			SELECT cost_contract, work_pkg_id, project_id, (work_pkg_bids.cost_contract - 
+			(CASE WHEN EXISTS 
+			(SELECT invoice_id FROM invoice WHERE invoice.project_id = work_pkg_bids.project_id 
+			            AND invoice.work_pkg_id = work_pkg_bids.work_pkg_id AND invoice.vn_id = work_pkg_bids.vn_id) 
+			THEN 
+			(SELECT SUM(amount_closed) FROM invoice WHERE invoice.project_id = work_pkg_bids.project_id 
+			            AND invoice.work_pkg_id = work_pkg_bids.work_pkg_id AND invoice.vn_id = work_pkg_bids.vn_id)
+			ELSE 0 END)
+			) ${sql.as} anticipated_costs 
+			FROM work_pkg_bids 
+			WHERE status IN ('Contract Signed', 'In Process', 'In Process - On Hold', 'Completed', 'Completed - Verified', 'Paid In Full')
+			AND ${sql.vpaRestriction}
+        </sql>
+        <sortField name="work_pkg_id" table="work_pkg_bids" ascending="true"/>
+    </dataSource>
+    
+    <panel type="crossTable" id="projCommittedAnticipatedCrossTable" dataSource="projCommittedAnticipatedDs0" showOnLoad="false">
+        <title>Committed and Anticipated Costs</title>
+        <action id="exportXLS">
+            <title>XLS</title>
+            <command type="exportPanel" outputType="xls" panelId="projCommittedAnticipatedCrossTable"/>
+        </action>
+        <event type="onClickItem">
+            <command type="callFunction" functionName="projCommittedAnticipatedCrossTable_onclick"/>
+        </event>
+    </panel>
+</view>

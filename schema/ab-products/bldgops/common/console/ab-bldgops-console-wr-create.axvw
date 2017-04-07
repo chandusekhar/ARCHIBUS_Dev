@@ -1,0 +1,286 @@
+<!-- This view defines the Create New Request dialog for the Ops Express Console example -->
+<view version="2.0" type="form">
+   
+    <js file="ab-helpdesk-common-v2.js"/>
+    <js file="ab-helpdesk-request-common-sla-v2.js"/>
+    <js file="ab-bldgops-console-sla-priority-field.js"/>
+    <js file="ab-bldgops-console-wr-create.js"/>
+    <js file="ab-bldgops-console-common.js"/>
+
+    <message name="noSlaFound" translatable="true">No SLA found for request type</message>
+    <message name="forPriority" translatable="true"> </message>
+    <message name="slainfo" translatable="true">Workflow</message>
+    <message name="responseRequired" translatable="true">Response required within</message>
+    <message name="completionRequired" translatable="true">Completion required within</message>
+    <message name="minutes" translatable="true">Minutes</message>
+    <message name="hours" translatable="true">Hours</message>
+    <message name="days" translatable="true">Days</message>
+    <message name="weeks" translatable="true">Weeks</message>
+    <message name="months" translatable="true">Months</message>
+    <message name="assigned" translatable="true">Request will be assigned to</message>
+    <message name="supervised" translatable="true">Request will be supervised by</message>
+    <message name="dispatched" translatable="true">Request will be dispatched by</message>
+    <message name="dispatchedTo" translatable="true">Request will be dispatched to</message>
+    
+    <message name="noRequestor" translatable="true">Please select a Requestor</message>
+    <message name="noBl" translatable="true">Please select a Building Code</message>
+    <message name="noPriority" translatable="true">Please select a Priority</message>
+    <message name="noDescription" translatable="true">Please enter a Description</message>
+    <message name="noProblemType" translatable="true">Please select a Problem Type</message>
+    <message name="submitSucess" translatable="true">You created a work request with id</message>
+    
+    <message name="site" translatable="true">Site</message>
+    <message name="building" translatable="true">Building</message>
+    <message name="floor" translatable="true">Floor</message>
+    <message name="room" translatable="true">Room</message>
+    <message name="equipment" translatable="true">Equipment</message>
+    
+    <message name="addNewEq" translatable="true">Add New Equipment</message>
+    <message name="addNewProbType" translatable="true">Add New Problem Type</message>
+    <message name="addNewProblemDescription" translatable="true">Add New Description</message>
+    <message name="addNewSite" translatable="true">Add New Site</message>
+    <message name="addNewBl" translatable="true">Add New Building</message>
+    <message name="addNewFl" translatable="true">Add New Floor</message>
+    <message name="addNewRm" translatable="true">Add New Room</message>
+    
+    <message name="differentEqLocaiton" translatable="true">The problem location is different from the equipment location. Do you wish to continue?</message>
+
+    <dataSource id="requestDS">
+        <table name="activity_log" role="main"/>
+
+        <field name="activity_log_id" table="activity_log"/>
+        <field name="activity_type" table="activity_log"/>
+        <field name="description" table="activity_log"/>
+        <field name="requestor" table="activity_log"/>
+        <field name="phone_requestor" table="activity_log"/>
+        <field name="dv_id" table="activity_log"/>
+        <field name="dp_id" table="activity_log"/>
+        <field name="site_id" table="activity_log"/>
+        <field name="bl_id" table="activity_log"/>
+        <field name="fl_id" table="activity_log"/>
+        <field name="rm_id" table="activity_log"/>
+        <field name="eq_id" table="activity_log"/>
+        <field name="priority" table="activity_log"/>
+        <field name="prob_type" table="activity_log"/>
+        <field name="location" table="activity_log"/>
+        <field name="assessment_id" table="activity_log"/>
+    </dataSource>
+
+    <dataSource id="wrQuerfyDS">
+        <table name="wr" role="main"/>
+
+        <field name="activity_log_id" table="wr"/>
+        <field name="wr_id" table="wr"/>
+    </dataSource>
+    
+    <dataSource id="siteQuerfyDS">
+        <table name="bl" role="main"/>
+
+        <field name="bl_id" table="bl"/>
+        <field name="site_id" table="bl"/>
+    </dataSource>
+    
+    <dataSource id="drawingQuerfyDS">
+        <table name="rm" role="main"/>
+        <field name="dwgname" table="rm"/>
+        <restriction type="sql" sql="rm.dwgname IS NOT NULL"/>
+    </dataSource>
+
+    <dataSource id="probtypeDS">
+        <table name="probtype" role="main"/>
+        <field name="prob_type" table="probtype"/>
+        <field name="hierarchy_ids" table="probtype"/>
+        <field name="description" table="probtype"/>
+    </dataSource>
+    
+    <title>Report Problem</title>
+
+    <panel type="form" id="createRequestForm" dataSource="requestDS" columns="1" formLabelWidth="25" newRecord="true">
+        <fieldset>
+            <title>Requestor</title>
+            <field name="requestor" required="true" cssClass="longField" onchange="afterSelectRequestor()">
+                <action>
+                    <title>...</title>
+                    <command type="selectValue" fieldNames="activity_log.requestor,activity_log.phone_requestor" selectFieldNames="em.em_id,em.phone" visibleFieldNames="em.em_id,em.phone,em.em_std" actionListener="afterSelectRequestor"/>
+                </action>
+            </field>
+            <field name="phone_requestor" cssClass="longField"/>
+            <field name="dv_id" table="activity_log" value="${user.employee.organization.divisionId}" hidden="true"/>
+            <field name="dp_id" table="activity_log" value="${user.employee.organization.departmentId}" hidden="true"/>
+        </fieldset>
+
+        <fieldset>
+            <title>Location</title>
+            <field>
+                <html>
+                    <input type="checkBox" name="sameAsRequestor" id="sameAsRequestor">
+                        <span translatable="true">Use your assigned workspace location</span>
+                    </input>
+                </html>
+            </field>
+
+            <!-- A composite field, displays three inputs for three database fields -->
+            <field id="space" dataType="composite" baseField="activity_log.site_id,activity_log.bl_id,activity_log.fl_id,activity_log.rm_id" required="true">
+                <title>Location</title>
+                <instructions>Building is required. Enter floor and room number to help us process your request faster.</instructions>
+                <tooltip>After selecting a floor, click the Drawing button to select the room from a floor plan drawing.</tooltip>
+                <action id="selectRoom">
+                    <title>Drawing</title>
+                </action>
+            </field>
+
+            <field name="location" cssClass="longField">
+                <title>Describe the location</title>
+                <!-- Displays inline instructions -->
+                <instructions>Enter the location specifically enough that maintenance can find it, such as "Problem is on back wall, below window.".</instructions>
+                <!-- Displays the tooltip icon -->
+                <tooltip>Enter the location specifically enough that maintenance can find it, such as "Problem is on back wall, below window.".</tooltip>
+                <action>
+                    <title>...</title>
+                    <command type="selectValue" fieldNames="activity_log.location" selectFieldNames="activity_log.location"/>
+                </action>
+            </field>
+        </fieldset>
+
+        <fieldset>
+            <title>Equipment</title>
+            <field name="eq_id" cssClass="longField">
+                <instructions>You can enter the Equipment Code if you know it.</instructions>
+                <action>
+                    <title>...</title>
+                    <command type="selectValue" fieldNames="activity_log.eq_id,activity_log.bl_id,activity_log.fl_id, activity_log.rm_id" selectFieldNames="eq.eq_id, eq.bl_id, eq.fl_id, eq.rm_id" visibleFieldNames="eq.eq_id, eq.eq_std, eq.warranty_id, eq.bl_id, eq.fl_id, eq.rm_id" actionListener="afterSelectEq" addNewDialog="ab-bldgops-console-add-new-eq.axvw"   showAddNewButton="${user.isMemberOfGroup('ADD-NEW-OPS-DATA')}"/>
+                </action>
+            </field>
+            <field id="warVendor" dataType="text" readOnly="true">
+                <title translatable="true">Warranty Vendor</title>
+            </field>
+            <field id="warExpDate" dataType="date" readOnly="true">
+                <title translatable="true">Warranty Expiration Date</title>
+            </field>
+            <field id="eqActions">
+                <action id="reviewWarrantyDetails">
+                    <title>Review Warranty Details</title>
+                </action>
+                <action id="listRequestForEq">
+                    <title>List Request for Equipment</title>
+                </action>
+            </field>
+        </fieldset>
+
+        <fieldset>
+            <title>Problem</title>
+            <field id="prob_type_parent" controlType="comboBox" cssClass="longField">
+                <title>Type of Problem</title>
+            </field>
+            <field id="prob_type_sub" controlType="comboBox" cssClass="longField"/>
+            <field>
+                <instructions>The more precisely you specify your problem, the better we can route it to people who can help.</instructions>
+                <action>
+                    <title>View All Problem Types</title>
+                    <command type="selectValue" fieldNames="activity_log.prob_type" selectFieldNames="probtype.prob_type" visibleFieldNames="probtype.prob_type,probtype.description" restriction="probtype.prob_class='OD'" actionListener="afterSelectProblemType" addNewDialog="ab-bldgops-console-add-new-probtype.axvw" showAddNewButton="${user.isMemberOfGroup('ADD-NEW-OPS-DATA')}"/>
+                </action>
+            </field>
+        </fieldset>
+        <fieldset>
+            <title>Description</title>
+            <field name="activity_type" value="SERVICE DESK - MAINTENANCE" hidden="true"/>
+            <field name="priority" required="true" hidden="true"/>
+            <field name="prob_type" hidden="true"/>
+			<field name="assessment_id"  hidden="true"/>
+
+            <field name="description" required="true">
+                <action>
+                    <title>Select Description</title>
+                    <command type="selectValue" fieldNames="activity_log.description" selectFieldNames="pd.pd_description" visibleFieldNames="pd.pd_id,pd.pd_description" applyFilter="false" actionListener="afterSelectPd" addNewDialog="ab-bldgops-console-add-new-pd.axvw" showAddNewButton="${user.isMemberOfGroup('ADD-NEW-OPS-DATA')}"/>
+                </action>
+            </field>  
+            <field id="priorityRadio" required="true">
+                <title>Priority</title>
+                <html>
+                    <input type="hidden" id="afm_sla_config.ordering_seq" name="afm_sla_config.ordering_seq" value="0" style="display:none"/>
+                    <table id="panel_priority_body" width="100%" style="" class="panel">
+                        <tr class="space">
+                            <td colspan="5" class="formTopSpace"/>
+                        </tr>
+                        <tr style="height: 80px;">
+                            <td width="35%" nowrap="1" colspan="2">
+                                <div id="priority">
+                                    <input type="radio" name="priorities" value="1" onclick="SLA_onChangePriority(this,'createRequestForm')">
+                                        <span id="priority_value1" translatable="true">Emergency</span>
+                                    </input>
+                                    <input type="radio" name="priorities" value="2" onclick="SLA_onChangePriority(this,'createRequestForm')">
+                                        <span id="priority_value2" translatable="true">High</span>
+                                    </input>
+                                    <input type="radio" name="priorities" value="3" onclick="SLA_onChangePriority(this,'createRequestForm')">
+                                        <span id="priority_value3" translatable="true">Urgent</span>
+                                    </input>
+                                    <input type="radio" name="priorities" value="4" onclick="SLA_onChangePriority(this,'createRequestForm')">
+                                        <span id="priority_value4" translatable="true">Medium</span>
+                                    </input>
+                                    <input type="radio" name="priorities" value="5" onclick="SLA_onChangePriority(this,'createRequestForm')">
+                                        <span id="priority_value5" translatable="true">Low</span>
+                                    </input>
+                                    <input type="radio" name="priorities" value="default">
+                                        <span id="default" translatable="true"/>
+                                    </input>
+                                </div>
+                            </td>
+                        </tr>
+                    </table>
+                </html>
+            </field>
+            <field id="slaInfor">
+                <html>
+                    <div id="SLAinfo_layout_without_priority_label">
+                        <div id="SLAinfo" style="text-align:left">
+                        </div>
+                    </div>
+                </html>
+            </field>
+        </fieldset>
+
+        <fieldset>
+            <action id="submit" mainAction="true">
+                <title>Submit</title>
+            </action>
+            <action id="addDocuments">
+                <title>Add Documents</title>
+            </action>
+            <action id="cancelRequest">
+                <title>Cancel</title>
+            </action>
+        </fieldset>
+
+    </panel>
+
+    <dataSource id="eqWarrantyDS">
+        <table name="eq" role="main"/>
+        <table name="warranty" role="standard"/>
+        <field name="eq_id" table="eq" />
+        <field name="warranty_id" table="warranty" />
+        <field name="contact_info" table="warranty" />
+        <field name="war_vendor" table="warranty" />
+        <field name="date_expiration" table="warranty" />
+        <field name="description" table="warranty" />
+        <field name="isexpiration" dataType="text" >
+            <sql dialect="generic">(CASE WHEN warranty.date_expiration IS NULL THEN '' ELSE CASE WHEN warranty.date_expiration &lt; ${sql.currentDate} THEN 'true' ELSE 'false' END END)</sql>
+        </field>
+    </dataSource>
+
+    <dataSource id="siteQueryDS">
+        <table name="bl" role="main"/>
+        <field name="bl_id"/>
+        <field name="site_id"/>
+    </dataSource>
+
+    <panel type="columnReport" id="eqWarrantyDetails" columns="1" formLabelWidth="25" dataSource="eqWarrantyDS" showOnLoad="false" hidden="true">
+        <title translatable="true">Warranty Details</title>
+        <field name="eq_id" table="eq" hidden="true" required="false"/>
+        <field name="warranty_id" table="warranty" required="false"/>
+        <field name="contact_info" table="warranty" required="false"/>
+        <field name="war_vendor" table="warranty" required="false"/>
+        <field name="date_expiration" table="warranty" required="false"/>
+        <field name="description" table="warranty" colspan="2" required="false"/>
+        <field name="isexpiration" dataType="text" hidden="true" />
+    </panel>
+</view>

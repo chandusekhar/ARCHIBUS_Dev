@@ -1,0 +1,125 @@
+<view version="2.0">
+    <layout file="ab-proj-console-west-details.axvw"/>
+    <title>View Projects Behind Schedule</title>    
+    <js file="ab-proj-projects-behind-schedule.js"/> 
+
+    <panel type="view" id="projProjectsBehindScheduleConsole" file="ab-proj-restriction-console.axvw" layout="mainLayout" region="north"/>
+      
+    <dataSource id="projProjectsBehindScheduleDs0" type="grouping" applyVpaRestrictions="false">
+        <table name="project" role="main"/>
+        <field table="project" name="project_id" groupBy="true"/>
+        <field name="performance_index_value" table="project" dataType="number" decimals="2">
+            <title>Schedule Performance Index</title>
+            <sql dialect="generic">SUM(performance_index_value)</sql>
+        </field> 
+        <field name="number_of_overdue_actions" table="project" dataType="number" decimals="0">
+            <title>Number of Actions Overdue</title>
+            <sql dialect="generic">SUM(number_of_overdue_actions)</sql>
+        </field> 
+        <sql dialect="generic">
+        SELECT bl.city_id, bl.state_id, project.site_id, project.bl_id, project.dv_id, project.dp_id,
+            program.program_type, program.program_id, project.project_type, project.project_id,
+            project.proj_mgr, project.status, project.is_template, 
+            cost_performance_index.budgeted_cost_of_work_performed/scheduled_performance_index.budgeted_cost_for_work_scheduled AS performance_index_value, action_pending.total_actions_pending AS number_of_overdue_actions
+        FROM (SELECT project_id,  ( CASE WHEN SUM(cost_est_design_cap + cost_est_design_exp) = 0 THEN 1
+            ELSE SUM(cost_est_design_cap + cost_est_design_exp) END ) AS budgeted_cost_of_work_performed FROM activity_log WHERE activity_log.status IN ('COMPLETED', 'COMPLETED-V', 'CLOSED') GROUP BY project_id) AS cost_performance_index 
+            JOIN (SELECT project_id,  ( CASE WHEN SUM(cost_est_design_cap + cost_est_design_exp) = 0 THEN 1
+            ELSE SUM(cost_est_design_cap + cost_est_design_exp) END )   AS budgeted_cost_for_work_scheduled FROM activity_log  WHERE activity_log.status IN ('PLANNED','SCHEDULED','IN PROGRESS','IN PROCESS-H','COMPLETED','COMPLETED-V','CLOSED') AND activity_log.date_scheduled_end &lt;= ${sql.currentDate} GROUP BY project_id) AS scheduled_performance_index ON cost_performance_index.project_id = scheduled_performance_index.project_id AND cost_performance_index.budgeted_cost_of_work_performed/scheduled_performance_index.budgeted_cost_for_work_scheduled &lt; 1 
+            JOIN (SELECT project_id, COUNT(*) AS total_actions_pending FROM activity_log WHERE activity_log.date_scheduled_end &lt;= ${sql.currentDate} AND activity_log.status NOT LIKE 'COMPLETED%' AND activity_log.status &lt;&gt; 'CLOSED' GROUP BY project_id) AS action_pending ON scheduled_performance_index.project_id= action_pending.project_id 
+            JOIN project ON action_pending.project_id = project.project_id
+        LEFT OUTER JOIN program ON program.program_id = project.program_id
+        LEFT OUTER JOIN bl ON project.bl_id = bl.bl_id
+        WHERE project.is_template = 0 AND ${sql.vpaRestriction}
+        </sql>
+        <sql dialect="oracle">
+        SELECT  bl.city_id, bl.state_id, project.site_id, project.bl_id, project.dv_id, project.dp_id,
+          program.program_type, program.program_id, project.project_type, project.project_id,
+          project.proj_mgr, project.status, project.is_template, 
+          cost_performance_index.cost_of_work_performed/scheduled_performance_index.cost_for_work_scheduled AS performance_index_value,   action_pending.total_actions_pending AS number_of_overdue_actions
+        FROM  (SELECT project_id,  
+            ( CASE  WHEN SUM(cost_est_design_cap + cost_est_design_exp) = 0 THEN 1
+                  ELSE SUM(cost_est_design_cap + cost_est_design_exp) END ) AS cost_of_work_performed
+          FROM activity_log 
+          WHERE activity_log.status IN ('COMPLETED', 'COMPLETED-V', 'CLOSED') 
+          GROUP BY project_id)  cost_performance_index, 
+          (SELECT project_id,  ( CASE WHEN SUM(cost_est_design_cap + cost_est_design_exp) = 0 THEN 1
+                        ELSE SUM(cost_est_design_cap + cost_est_design_exp) END )   AS cost_for_work_scheduled
+          FROM activity_log
+          WHERE activity_log.status IN ('PLANNED','SCHEDULED','IN PROGRESS','IN PROCESS-H','COMPLETED','COMPLETED-V','CLOSED') AND activity_log.date_scheduled_end &lt;= ${sql.currentDate} 
+          GROUP BY project_id)  scheduled_performance_index,  
+          (SELECT project_id, COUNT(*) AS total_actions_pending 
+          FROM activity_log 
+          WHERE   activity_log.date_scheduled_end &lt;= ${sql.currentDate} AND activity_log.status NOT LIKE 'COMPLETED%' AND 
+            activity_log.status &lt;&gt; 'CLOSED' GROUP BY project_id)  action_pending, 
+              project,
+          program,
+          bl
+        WHERE   cost_performance_index.project_id = scheduled_performance_index.project_id AND
+            cost_performance_index.cost_of_work_performed/scheduled_performance_index.cost_for_work_scheduled &lt; 1 AND 
+          scheduled_performance_index.project_id=action_pending.project_id AND
+          action_pending.project_id = project.project_id AND 
+          program.program_id(+) = project.program_id AND
+          project.bl_id = bl.bl_id(+) AND
+          project.is_template = 0 AND 
+          ${sql.vpaRestriction}
+        </sql>
+    </dataSource>
+
+    <panel type="crossTable" id="selectProjectReport" dataSource="projProjectsBehindScheduleDs0" layout="nestedLayout_1" region="west">
+        <title>Projects Behind Schedule</title> 
+        <action id="exportXLS">
+            <title>XLS</title>
+            <command type="exportPanel" outputType="xls" panelId="selectProjectReport"/>
+        </action>
+        <event type="onClickItem">
+            <command type="callFunction" functionName="selectProjectReport_onclick" />
+        </event> 
+    </panel>
+    
+    <dataSource id="projProjectsBehindScheduleDs1">
+        <table name="activity_log" role="main"/>
+        <table name="project" role="standard"/>
+        <field name="action_title" table="activity_log" />
+        <field name="activity_log_id" table="activity_log" />
+        <field name="activity_type" table="activity_log" />
+        <field name="date_scheduled" table="activity_log" />
+        <field name="date_started" table="activity_log" />
+        <field name="date_scheduled_end" table="activity_log" />
+        <field name="status" table="activity_log" />
+        <field name="work_pkg_id" table="activity_log" />
+        <field name="project_id" table="project" />
+        <restriction type="sql" sql="date_scheduled_end &lt;= ${sql.currentDate} AND activity_log.status NOT LIKE 'COMPLETED%' AND activity_log.status &lt;&gt; 'CLOSED'"/>
+        <restriction type="sql" sql="activity_log.project_id IS NOT NULL"/>
+    </dataSource>
+    
+    <panel type="grid" id="projProjectsBehindScheduleGrid" dataSource="projProjectsBehindScheduleDs1" showOnLoad="false" layout="nestedLayout_1" region="center">
+        <title>Overdue Action Items</title>
+        <action id="exportDOCX">
+            <title>DOC</title>
+            <command type="exportPanel" outputType="docx" panelId="projProjectsBehindScheduleGrid"/>
+        </action>
+        <action id="exportXLS">
+            <title>XLS</title>
+            <command type="exportPanel" outputType="xls" panelId="projProjectsBehindScheduleGrid"/>
+        </action> 
+        <sortField name="action_title" table="activity_log" ascending="true"/>
+        <field name="action_title" table="activity_log" />
+        <field name="activity_log_id" table="activity_log" />
+        <field name="activity_type" table="activity_log" />
+        <field name="date_scheduled" table="activity_log" />
+        <field name="date_started" table="activity_log" />
+        <field name="date_scheduled_end" table="activity_log" />
+        <field name="status" table="activity_log" >
+            <title>Action Item Status</title>
+        </field>
+        <field name="work_pkg_id" table="activity_log" />
+        <field name="project_id" table="project" />
+    </panel> 
+</view>
+    
+ 
+ 
+ 
+ 
+
+ 

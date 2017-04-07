@@ -1,0 +1,63 @@
+<view version="2.0" showLoadProgress="true">
+
+<dataSource id="abRecCount_ds">
+    <table name="afm_tbls" />
+    
+    <sql dialect="oracle">
+        SELECT  LOWER(sys_tables.table_name) ${sql.as} table_name,
+                afm_tables.title ${sql.as} title,
+                TO_NUMBER(extractvalue(xmltype(dbms_xmlgen.getxml('SELECT COUNT(*) c FROM '|| sys_tables.table_name)),
+                              '/ROWSET/ROW/C')
+                ) ${sql.as} rec_count
+        FROM    user_tables sys_tables,
+                afm_tbls afm_tables
+        WHERE UPPER(afm_tables.table_name) = UPPER(sys_tables.table_name)
+        AND afm_tables.is_sql_view=0
+    </sql>
+    
+    <sql dialect="sqlserver">
+        SELECT
+            obj.name ${sql.as} table_name,
+            afm_tables.title ${sql.as} title,
+            row_count ${sql.as} rec_count
+        FROM (
+            SELECT
+                object_id,
+                row_count = SUM(row_count)
+            FROM sys.dm_db_partition_stats
+            WHERE index_id &lt; 2
+            GROUP BY object_id
+            ) C, sys.tables obj, afm_tbls afm_tables 
+        WHERE obj.object_id = C.object_id
+        AND afm_tables.table_name = obj.name 
+        AND afm_tables.is_sql_view = 0
+    </sql>
+    
+    <sql dialect="sybase">
+        SELECT  
+                afm_tables.table_name ${sql.as} table_name,
+                afm_tables.title ${sql.as} title,
+                sys_tables.count ${sql.as} rec_count
+        FROM    systable sys_tables, 
+                afm_tbls afm_tables
+        WHERE sys_tables.table_name = afm_tables.table_name
+        AND afm_tables.is_sql_view = 0
+    </sql>
+    
+    <field name="table_name" dataType="text"/>
+    <field name="title" dataType="text"/>
+    <field name="rec_count" dataType="number" decimals="0" showTotals="true">
+        <title translatable="true">Records</title>
+    </field>
+</dataSource>
+
+<panel type="grid" id="recCount_grid" dataSource="abRecCount_ds" afterRefresh="closeProgressBar">
+    <title translatable="true">Records Count</title>
+    <sortField name="table_name" table="afm_tbls" ascending="true"/>
+    <indexField name="table_name" table="afm_tbls"/>
+    <action id="createHpatternsDp_export:XLS">
+        <title>XLS</title>
+        <command type="exportPanel" outputType="xls" panelId="recCount_grid"/>
+    </action>
+</panel>
+</view>

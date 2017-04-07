@@ -1,0 +1,101 @@
+<view version="2.0">
+    <js file="ab-cb-assess-assign-items.js"/>
+    <js file="ab-cb-select-values-common.js"/>
+    
+    <message name="msg_no_assessor" translatable="true">You must select an Assessor.</message>
+    <message name="msg_no_inspector" translatable="true">You must select an Inspector and/or Abatement Worker.</message>
+    <message name="msg_yes" translatable="true">Yes</message>
+    <message name="msg_no" translatable="true">No</message>
+    
+    <!-- Select assessor -->
+    <dataSource id="abCbAssessAssignTo_ds">
+        <table name="activity_log"/>
+        <field name="assessed_by"/>
+        <field name="assigned_to"/>
+        <field name="hcm_abate_by"/>
+    </dataSource>
+    
+    <panel type="form" id="abCbAssessAssessor" dataSource="abCbAssessAssignTo_ds" showOnLoad="false">
+        <title translatable="true">Select an Assessor</title>
+        <action id="assign">
+            <title translatable="true">Assign</title>
+        </action>
+        <action id="cancel">
+            <title translatable="true">Cancel</title>
+            <command type="closeDialog"/>
+        </action>
+        <field table="activity_log" name="assessed_by" readOnly="false">
+            <action id="selectValue_AssessedBy">
+                <title>...</title>
+                <tooltip translatable="true">Select Value</tooltip>
+                <command type="openDialog" panelId="grid_AssessedByNew" applyParentRestriction="false"/>
+            </action>
+        </field>
+    </panel>
+    
+    <panel type="form" id="abCbAssessInspector" dataSource="abCbAssessAssignTo_ds" showOnLoad="false">
+        <title translatable="true">Select an Inspector and/or Abatement Worker</title>
+        <action id="assign">
+            <title translatable="true">Assign</title>
+        </action>
+        <action id="cancel">
+            <title translatable="true">Cancel</title>
+            <command type="closeDialog"/>
+        </action>
+        <field name="assigned_to">
+            <title translatable="true">Inspector</title>
+            <action>
+                <title translatable="false">...</title>
+                <tooltip translatable="true">Select Value</tooltip>
+                <command type="callFunction" functionName="selectValue_CbAccreditPerson('abCbAssessInspector', 'activity_log.assigned_to', selectAssessorCtrl.probType, 'grid')"/>
+            </action>
+        </field>
+        <field name="hcm_abate_by">
+            <action>
+                <title translatable="false">...</title>
+                <tooltip translatable="true">Select Value</tooltip>
+                <command type="callFunction" functionName="selectValue_CbAccreditPerson('abCbAssessInspector', 'activity_log.hcm_abate_by', selectAssessorCtrl.probType, 'grid')"/>
+            </action>
+        </field>
+    </panel>
+    
+    <dataSource id="dsAssessedByNew">
+        <sql dialect="generic">
+            SELECT  DISTINCT 
+                afm_userprocs.user_name,
+                (CASE WHEN EXISTS(SELECT 1 FROM activity_log WHERE activity_log.assessed_by = afm_userprocs.user_name) 
+                    THEN ${parameters['yes']}             
+                    ELSE ${parameters['no']}          
+                END)         AS vf_hasItems 
+            FROM afm_userprocs 
+            WHERE 
+                ${parameters['activityId']} = 'AbRiskCleanBuilding' AND afm_userprocs.activity_id = 'AbRiskCleanBuilding'  
+            UNION
+            SELECT DISTINCT
+                afm_users.user_name,
+                (CASE WHEN EXISTS(SELECT 1 FROM activity_log WHERE activity_log.assessed_by = afm_users.user_name) 
+                    THEN ${parameters['yes']}             
+                    ELSE ${parameters['no']}          
+                END)         AS vf_hasItems 
+            FROM afm_roleprocs
+                LEFT OUTER JOIN afm_users ON afm_users.role_name = afm_roleprocs.role_name
+            WHERE 
+                ${parameters['activityId']} = 'AbRiskCleanBuilding' AND afm_roleprocs.activity_id = 'AbRiskCleanBuilding'             
+        </sql>
+        <table name="afm_userprocs" role="main"/>
+        <field table="afm_userprocs" name="user_name"/>
+        <field name="vf_hasItems" dataType="text"/>
+        <parameter name="activityId" dataType="text" value=""/>
+        <parameter name="yes" dataType="text" value="Yes"/>
+        <parameter name="no" dataType="text" value="No"/>
+    </dataSource>
+    <panel type="grid" id="grid_AssessedByNew" dataSource="dsAssessedByNew" showOnLoad="false" hidden="true">
+        <title translatable="true">Select an Assessor</title>
+        <field table="afm_userprocs" name="user_name" controlType="link" onclick="setAssignNewUser"/>
+        <field name="vf_hasItems">
+            <title translatable="true">Has Items Assigned</title>
+        </field>
+        <sortField table="afm_userprocs" name="user_name" ascending="true"/>
+    </panel>
+    
+</view>

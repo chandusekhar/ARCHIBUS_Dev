@@ -1,0 +1,365 @@
+<view version="2.0">
+	<js file="ab-rplm-pfadmin-leases-and-suites-by-building-base-report.js"/>
+    <js file="ab-repm-pfolio-admin-common.js"/>
+    
+	<message name="area_type_manual" translatable="true">Manual</message>
+	<message name="area_type_usable" translatable="true">Usable</message>
+	<message name="status_owned" translatable="true">Owned</message>
+	<message name="status_leased" translatable="true">Leased</message>
+	<message name="status_neither" translatable="true">Neither</message>
+	<message name="status_pipeline_landlord" translatable="true">Pipeline (Landlord)</message>
+	<message name="status_pipeline_tenant" translatable="true">Pipeline (Tenant)</message>
+	<message name="status_landlord" translatable="true">Landlord</message>
+	<message name="status_tenant" translatable="true">Tenant</message>
+	<message name="text_no_image" translatable="true">No Image Available</message>
+	<message name="total_suite_manual_area_title" translatable="true">Total Suite Manual Area</message>
+    <message name="total_suite_usable_area_title" translatable="true">Total Suite Usable Area</message>
+    <message name="area_total_title" translatable="true">Total</message>
+    <message name="area_average_title" translatable="true">Average</message>
+    <message name="area_min_title" translatable="true">Min</message>
+    <message name="area_max_title" translatable="true">Max</message>
+    
+	<dataSource id="dsLeasesAndSuiteByBldgGeneralInfo">
+		<sql dialect="generic">
+			SELECT 
+				bl.bldg_photo,
+				bl.bl_id,
+				bl.name,
+				bl.ctry_id,
+				bl.address1,
+				bl.regn_id,
+				bl.address2,
+				bl.state_id,
+				bl.zip,
+				bl.city_id,
+				bl.lat,
+				bl.pr_id,
+				bl.lon,
+				(CASE 
+					WHEN EXISTS(SELECT 1 FROM ot WHERE ot.bl_id = bl.bl_id AND ot.status = 'Owned') 
+						THEN 'owned'
+					WHEN EXISTS(SELECT 1 FROM ls WHERE ls.bl_id = bl.bl_id AND ls.signed = 1 
+							AND (ls.date_end &gt;= ${sql.currentDate} OR ls.date_end IS NULL) AND ls.date_start &lt;= ${sql.currentDate} )
+							THEN 'leased'
+					ELSE 'neither'
+				END) ${sql.as} status,
+				bl.site_id,
+				(bl.value_book * ${sql.exchangeRateFromBudgetToUserForDate('Budget', 'bl.date_book_val')}) ${sql.as} value_book,
+				bl.date_book_val,
+				(bl.value_market * ${sql.exchangeRateFromBudgetToUserForDate('Budget', 'bl.date_market_val')}) ${sql.as} value_market,
+				bl.date_market_val,
+			    (
+                    SELECT 
+                        ot.cost_purchase * ${sql.exchangeRateFromBudgetToUserForDate('Budget', 'ot.date_purchase')}
+			        FROM ot 
+                    WHERE ot.ot_id = (SELECT MAX(x.ot_id) FROM ot x WHERE x.bl_id = bl.bl_id AND x.status = 'Owned')
+			    ) ${sql.as} cost_purchase,
+			    (
+                    SELECT 
+                        ot.date_purchase
+			        FROM ot 
+                    WHERE ot.ot_id = (SELECT MAX(x.ot_id) FROM ot x WHERE x.bl_id = bl.bl_id AND x.status = 'Owned')
+			    ) ${sql.as} date_purchase,
+			    bl.date_bl,
+			    bl.date_rehab,
+			    (SELECT SUM(su.area_manual) FROM su WHERE su.bl_id = bl.bl_id) * ${parameters['areaUnitsConversionFactor']} ${sql.as} total_suite_manual_area,
+			    (SELECT SUM(su.area_usable) FROM su WHERE su.bl_id = bl.bl_id) * ${parameters['areaUnitsConversionFactor']} ${sql.as} total_suite_usable_area,
+				bl.area_rentable,
+				bl.area_ls_negotiated,
+			    bl.comments
+			FROM bl
+		</sql>
+		<table name="bl" role="main"/>
+		<field table="bl" name="bldg_photo"/>
+		<field table="bl" name="bl_id"/>
+		<field table="bl" name="name"/>
+		<field table="bl" name="ctry_id"/>
+		<field table="bl" name="address1"/>
+		<field table="bl" name="regn_id"/>
+		<field table="bl" name="address2"/>
+		<field table="bl" name="state_id"/>
+		<field table="bl" name="zip"/>
+		<field table="bl" name="city_id"/>
+		<field table="bl" name="lat"/>
+		<field table="bl" name="pr_id"/>
+		<field table="bl" name="lon"/>
+		<field name="status" dataType="text">
+			<title translatable="true">Status</title>
+		</field>
+		<field table="bl" name="site_id"/>
+		<field table="bl" name="value_book" currency="${user.userCurrency.code}"/>
+		<field table="bl" name="date_book_val"/>
+		<field table="bl" name="value_market" currency="${user.userCurrency.code}"/>
+		<field table="bl" name="date_market_val"/>
+		<field name="cost_purchase" dataType="number" size="20" decimals="2" currency="${user.userCurrency.code}">
+			<title translatable="true">Purchase Price</title>
+		</field>
+		<field name="date_purchase" dataType="date">
+			<title translatable="true">Date Purchase</title>
+		</field>
+		<field table="bl" name="date_bl"/>
+		<field table="bl" name="date_rehab"/>
+		<field name="total_suite_manual_area" dataType="number" size="20" decimals="1" numericFormat="area"/>
+		<field name="total_suite_usable_area" dataType="number" size="20" decimals="1" numericFormat="area"/>
+		<field table="bl" name="area_rentable"/>
+		<field table="bl" name="area_ls_negotiated"/>
+		<field table="bl" name="comments"/>
+        <parameter name="areaUnitsConversionFactor" dataType="verbatim" value="1.0"/>
+	</dataSource>
+	<panel type="form" id="reportLeasesAndSuiteByBldgGeneralInfo" dataSource="dsLeasesAndSuiteByBldgGeneralInfo" showOnLoad="false" columns="3">
+		<title translatable="true">Building Details</title>
+		<field table="bl" name="bldg_photo" hidden="true" displayField="image_field" readOnly="true"/>
+		<field id="image_field" controlType="image" rowspan="13" width="250px">
+		</field>
+		<field table="bl" name="bl_id" readOnly="true"/>
+		<field table="bl" name="name" readOnly="true"/>
+		<field table="bl" name="ctry_id" readOnly="true"/>
+		<field table="bl" name="address1" readOnly="true"/>
+		<field table="bl" name="regn_id" readOnly="true"/>
+		<field table="bl" name="address2" readOnly="true"/>
+		<field table="bl" name="state_id" readOnly="true"/>
+		<field table="bl" name="zip" readOnly="true"/>
+		<field table="bl" name="city_id" readOnly="true"/>
+		<field table="bl" name="lat" readOnly="true"/>
+		<field table="bl" name="pr_id" readOnly="true"/>
+		<field table="bl" name="lon" readOnly="true"/>
+		<field name="status" dataType="text" readOnly="true">
+			<title translatable="true">Status</title>
+		</field>
+		<field table="bl" name="site_id" readOnly="true"/>
+		<field table="bl" name="value_book" readOnly="true"/>
+		<field table="bl" name="date_book_val" readOnly="true"/>
+		<field table="bl" name="value_market" readOnly="true"/>
+		<field table="bl" name="date_market_val" readOnly="true"/>
+		<field name="cost_purchase" dataType="number" size="20" decimals="2" readOnly="true">
+			<title translatable="true">Purchase Price</title>
+		</field>
+		<field name="date_purchase" dataType="date" readOnly="true">
+			<title translatable="true">Date Purchase</title>
+		</field>
+		<field table="bl" name="date_bl" readOnly="true"/>
+		<field table="bl" name="date_rehab" readOnly="true"/>
+		<field name="total_suite_manual_area" dataType="number" size="20" decimals="1" readOnly="true"/>
+		<field name="total_suite_usable_area" dataType="number" size="20" decimals="1" readOnly="true"/>
+		<field table="bl" name="area_rentable" readOnly="true"/>
+		<field table="bl" name="area_ls_negotiated" readOnly="true"/>
+		<field table="bl" name="comments" colspan="2" readOnly="true"/>
+	</panel>
+	<dataSource id="dsLeasesAndSuiteByBldgLeases">
+		<sql dialect="generic">
+			SELECT 
+				ls.ls_id,
+				ls.description,
+				(CASE 
+					WHEN ls.signed = 0 AND ls.landlord_tenant = 'LANDLORD'
+						THEN 'pipeline_landlord'
+					WHEN ls.signed = 0 AND ls.landlord_tenant = 'TENANT'
+						THEN 'pipeline_tenant'
+					WHEN ls.signed = 1 AND ls.landlord_tenant = 'LANDLORD'
+						then 'landlord'
+					WHEN ls.signed = 1 AND ls.landlord_tenant = 'TENANT'
+						THEN 'tenant'
+				END) ${sql.as} status,
+				ls.ls_parent_id,
+				ls.date_start,
+				ls.date_move,
+				ls.date_end,
+				ls.area_negotiated,
+				ls.bl_id,
+				ls.signed,
+				ls.landlord_tenant
+			FROM ls
+		</sql>
+		<table name="ls" role="main"/>
+		<field table="ls" name="ls_id"/>
+		<field table="ls" name="description"/>
+		<field name="status" dataType="text">
+				<title translatable="true">Status</title>
+		</field>
+		<field table="ls" name="ls_parent_id"/>
+		<field table="ls" name="date_start"/>
+		<field table="ls" name="date_move"/>
+		<field table="ls" name="date_end"/>
+		<field table="ls" name="area_negotiated"/>
+		<field table="ls" name="bl_id"/>
+		<restriction type="sql" sql="ls.signed = 1 AND (ls.date_end &gt;= ${sql.currentDate} OR ls.date_end IS NULL) AND ls.date_start &lt;= ${sql.currentDate}"/>
+	</dataSource>
+	<panel type="grid" id="reportLeasesAndSuiteByBldgLeases" controlType="reportGrid" dataSource="dsLeasesAndSuiteByBldgLeases" showOnLoad="false">
+		<sortField table="ls" name="ls_id" ascending="true"/>
+		<title translatable="true">Active Leases</title>
+		<field table="ls" name="bl_id" hidden="true"/>
+		<field table="ls" name="ls_id"/>
+		<field table="ls" name="description"/>
+		<field name="status" dataType="text">
+				<title translatable="true">Status</title>
+		</field>
+		<field table="ls" name="ls_parent_id"/>
+		<field table="ls" name="date_start"/>
+		<field table="ls" name="date_move"/>
+		<field table="ls" name="date_end"/>
+		<field table="ls" name="area_negotiated"/>
+	</panel>
+	<dataSource id="dsLeasesAndSuiteByBldgAreasUsedByUsSummary" applyVpaRestrictions="false">
+		<sql dialect="generic">
+			SELECT
+			    'manual' ${sql.as} area_type,
+			    COUNT(su.area_manual) ${sql.as} area_count,
+			    SUM(su.area_manual) * ${parameters['areaUnitsConversionFactor']} ${sql.as} area_total,
+			    AVG(su.area_manual) * ${parameters['areaUnitsConversionFactor']} ${sql.as} area_average,
+			    MIN(su.area_manual) * ${parameters['areaUnitsConversionFactor']} ${sql.as} area_min,
+			    MAX(su.area_manual) * ${parameters['areaUnitsConversionFactor']} ${sql.as} area_max
+			FROM su
+			WHERE
+                ${sql.vpaRestriction}
+                AND ( su.ls_id is null 
+                    OR EXISTS(SELECT 1 FROM ls WHERE ls.ls_id = su.ls_id AND ls.bl_id = su.bl_id AND ls.signed = 1 AND ls.landlord_tenant = 'TENANT'
+                        AND (ls.date_end &gt;= ${sql.currentDate} OR ls.date_end IS NULL) AND ls.date_start &lt;= ${sql.currentDate}))
+			    AND su.bl_id = ${parameters['bl_id']}		
+			UNION
+			SELECT
+			    'usable' ${sql.as} area_type,
+			    COUNT(su.area_usable) ${sql.as} area_count,
+			    SUM(su.area_usable) * ${parameters['areaUnitsConversionFactor']} ${sql.as} area_total,
+			    AVG(su.area_usable) * ${parameters['areaUnitsConversionFactor']} ${sql.as} area_average,
+			    MIN(su.area_usable) * ${parameters['areaUnitsConversionFactor']} ${sql.as} area_min,
+			    MAX(su.area_usable) * ${parameters['areaUnitsConversionFactor']} ${sql.as} area_max
+			FROM su
+			WHERE
+                ${sql.vpaRestriction}
+                AND ( su.ls_id is null 
+        			OR EXISTS(SELECT 1 FROM ls WHERE ls.ls_id = su.ls_id AND ls.bl_id = su.bl_id AND ls.signed = 1 AND ls.landlord_tenant = 'TENANT'
+        			    AND (ls.date_end &gt;= ${sql.currentDate} OR ls.date_end IS NULL) AND ls.date_start &lt;= ${sql.currentDate}))
+			    AND su.bl_id = ${parameters['bl_id']}		
+		</sql>
+		<table name="su" role="main"/>
+		<field name="area_type" dataType="text">
+				<title translatable="true">Area Type</title>
+		</field>
+		<field name="area_count" dataType="number" size="20" decimals="0">
+			<title translatable="true">Count</title>
+		</field>
+		<field name="area_total" dataType="number" size="20" decimals="1" numericFormat="area"/>
+		<field name="area_average" dataType="number" size="20" decimals="1" numericFormat="area"/>
+		<field name="area_min" dataType="number" size="20" decimals="1" numericFormat="area"/>
+		<field name="area_max" dataType="number" size="20" decimals="1" numericFormat="area"/>
+		<parameter name="bl_id" dataType="text" value=""/> 
+        <parameter name="areaUnitsConversionFactor" dataType="verbatim" value="1.0"/>
+	</dataSource>
+	<panel type="grid" id="reportLeasesAndSuiteByBldgAreasUsedByUsSummary" controlType="reportGrid" showOnLoad="false" dataSource="dsLeasesAndSuiteByBldgAreasUsedByUsSummary">
+		<sortField table="su" name="area_type" ascending="true"/>
+		<title translatable="true">Total Available Area (Suites)</title>
+		<field name="area_type" dataType="text">
+				<title translatable="true">Area Type</title>
+		</field>
+		<field name="area_count" dataType="number" size="20" decimals="0">
+			<title translatable="true">Count</title>
+		</field>
+		<field name="area_total" dataType="number" size="20" decimals="1"/>
+		<field name="area_average" dataType="number" size="20" decimals="1"/>
+		<field name="area_min" dataType="number" size="20" decimals="1"/>
+		<field name="area_max" dataType="number" size="20" decimals="1"/>
+	</panel>
+	<dataSource id="dsLeasesAndSuiteByBldgAreasUsedByUs">
+		<table name="su" role="main"/>
+		<field table="su" name="su_id"/>
+		<field table="su" name="ls_id"/>
+		<field table="su" name="name"/>
+		<field table="su" name="description"/>
+		<field table="su" name="facility_type_id"/>
+		<field table="su" name="fl_id"/>
+		<field table="su" name="area_manual"/>
+		<field table="su" name="area_usable"/>
+		<restriction type="sql" sql="( su.ls_id IS NULL OR EXISTS(SELECT 1 FROM ls WHERE ls.ls_id = su.ls_id AND ls.bl_id = su.bl_id AND ls.signed = 1 AND ls.landlord_tenant = 'TENANT' AND (ls.date_end &gt;= ${sql.currentDate} OR ls.date_end IS NULL) AND ls.date_start &lt;= ${sql.currentDate}))"/>
+	</dataSource>
+	<panel type="grid" id="reportLeasesAndSuiteByBldgAreasUsedByUs" controlType="reportGrid" showOnLoad="false" dataSource="dsLeasesAndSuiteByBldgAreasUsedByUs">
+		<field table="su" name="su_id"/>
+		<field table="su" name="ls_id"/>
+		<field table="su" name="name"/>
+		<field table="su" name="description"/>
+		<field table="su" name="facility_type_id"/>
+		<field table="su" name="fl_id"/>
+		<field table="su" name="area_manual"/>
+		<field table="su" name="area_usable"/>
+		<sortField table="su" name="su_id" ascending="true"/>
+	</panel>
+	<dataSource id="dsLeasesAndSuiteByBldgAreasUsedByOthersSummary" applyVpaRestrictions="false">
+		<sql dialect="generic">
+			SELECT
+			    'manual' ${sql.as} area_type,
+			    COUNT(su.area_manual) ${sql.as} area_count,
+			    SUM(su.area_manual) * ${parameters['areaUnitsConversionFactor']} ${sql.as} area_total,
+			    AVG(su.area_manual) * ${parameters['areaUnitsConversionFactor']} ${sql.as} area_average,
+			    MIN(su.area_manual) * ${parameters['areaUnitsConversionFactor']} ${sql.as} area_min,
+			    MAX(su.area_manual) * ${parameters['areaUnitsConversionFactor']} ${sql.as} area_max
+			FROM su
+			WHERE
+                ${sql.vpaRestriction}
+                AND EXISTS(SELECT 1 FROM ls WHERE ls.ls_id = su.ls_id AND ls.bl_id = su.bl_id AND ls.signed = 1 AND ls.landlord_tenant = 'LANDLORD'
+                        AND (ls.date_end &gt;= ${sql.currentDate} OR ls.date_end IS NULL) AND ls.date_start &lt;= ${sql.currentDate})
+			    AND su.bl_id = ${parameters['bl_id']}		
+			UNION
+			SELECT
+			    'usable' ${sql.as} area_type,
+			    COUNT(su.area_usable) ${sql.as} area_count,
+			    SUM(su.area_usable) * ${parameters['areaUnitsConversionFactor']} ${sql.as} area_total,
+			    AVG(su.area_usable) * ${parameters['areaUnitsConversionFactor']} ${sql.as} area_average,
+			    MIN(su.area_usable) * ${parameters['areaUnitsConversionFactor']} ${sql.as} area_min,
+			    MAX(su.area_usable) * ${parameters['areaUnitsConversionFactor']} ${sql.as} area_max
+			FROM su
+			WHERE
+                ${sql.vpaRestriction}
+                AND EXISTS(SELECT 1 FROM ls WHERE ls.ls_id = su.ls_id AND ls.bl_id = su.bl_id AND ls.signed = 1 AND ls.landlord_tenant = 'LANDLORD'
+                        AND (ls.date_end &gt;= ${sql.currentDate} OR ls.date_end IS NULL) AND ls.date_start &lt;= ${sql.currentDate})
+			    AND su.bl_id = ${parameters['bl_id']}		
+		</sql>
+		<table name="su" role="main"/>
+		<field name="area_type" dataType="text">
+				<title translatable="true">Area Type</title>
+		</field>
+		<field name="area_count" dataType="number" size="20" decimals="0">
+			<title translatable="true">Count</title>
+		</field>
+		<field name="area_total" dataType="number" size="20" decimals="1" numericFormat="area"/>
+		<field name="area_average" dataType="number" size="20" decimals="1" numericFormat="area"/>
+		<field name="area_min" dataType="number" size="20" decimals="1" numericFormat="area"/>
+		<field name="area_max" dataType="number" size="20" decimals="1" numericFormat="area"/>
+		<parameter name="bl_id" dataType="text" value=""/>
+        <parameter name="areaUnitsConversionFactor" dataType="verbatim" value="1.0"/>
+	</dataSource>
+	<panel type="grid" id="reportLeasesAndSuiteByBldgAreasUsedByOthersSummary" controlType="reportGrid" showOnLoad="false" dataSource="dsLeasesAndSuiteByBldgAreasUsedByOthersSummary">
+		<title translatable="true">Total Leased Out Area (Suites)</title>
+		<field name="area_type" dataType="text">
+				<title translatable="true">Area Type</title>
+		</field>
+		<field name="area_count" dataType="number" size="20" decimals="0">
+			<title translatable="true">Count</title>
+		</field>
+		<field name="area_total" dataType="number" size="20" decimals="1"/>
+		<field name="area_average" dataType="number" size="20" decimals="1"/>
+		<field name="area_min" dataType="number" size="20" decimals="1"/>
+		<field name="area_max" dataType="number" size="20" decimals="1"/>
+	</panel>
+	<dataSource id="dsLeasesAndSuiteByBldgAreasUsedByOthers">
+		<table name="su" role="main"/>
+		<field table="su" name="su_id"/>
+		<field table="su" name="ls_id"/>
+		<field table="su" name="name"/>
+		<field table="su" name="description"/>
+		<field table="su" name="facility_type_id"/>
+		<field table="su" name="fl_id"/>
+		<field table="su" name="area_manual"/>
+		<field table="su" name="area_usable"/>
+		<restriction type="sql" sql="EXISTS(SELECT 1 FROM ls WHERE ls.ls_id = su.ls_id AND ls.bl_id = su.bl_id AND ls.signed = 1 AND ls.landlord_tenant = 'LANDLORD' AND (ls.date_end &gt;= ${sql.currentDate} OR ls.date_end IS NULL) AND ls.date_start &lt;= ${sql.currentDate})"/>
+	</dataSource>
+	<panel type="grid" id="reportLeasesAndSuiteByBldgAreasUsedByOthers" controlType="reportGrid" showOnLoad="false" dataSource="dsLeasesAndSuiteByBldgAreasUsedByOthers">
+		<sortField table="su" name="su_id" ascending="true"/>
+		<field table="su" name="su_id"/>
+		<field table="su" name="ls_id"/>
+		<field table="su" name="name"/>
+		<field table="su" name="description"/>
+		<field table="su" name="facility_type_id"/>
+		<field table="su" name="fl_id"/>
+		<field table="su" name="area_manual"/>
+		<field table="su" name="area_usable"/>
+	</panel>
+</view>

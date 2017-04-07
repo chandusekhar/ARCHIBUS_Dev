@@ -1,0 +1,104 @@
+<!-- The tree view that can be restricted by the console window, where user can filter the content of the tree or clear.
+
+     This tree defines the work requests by employee names. There is a console window with the restriction to employee name,
+     once user enter a valid employee id and click the "Filter" button, the tree view's top level is restricted.
+     By clicking the "Clear" will remove the previous restriction and refresh the tree view. Clicking the employee name nodes
+     will collapse and expand the tree; clicking the work request code for the employee will display the work request detail info
+     and work request parts info on the right.
+
+     This view displays the list of work requests in the left frame,
+     the read-only details for the selected work request in the top right frame
+     and the editable list of parts for the selected work request in the bottom right frame. -->
+<view version="2.0">
+    <title>Review Employee's Work Requests</title>
+
+    <layout file="dashboard-console-1-2-0.axvw"/>
+
+    <dataSource id="treeWithConsoleWrxem_em_ds">
+        <sql dialect="generic">
+            SELECT requestor
+            FROm wr INNER JOIN wrpt ON wr.wr_id = wrpt.wr_id
+            WHERE requestor IS NOT NULL
+            GROUP BY requestor
+        </sql>
+        <table name="wr" role="main"/>
+        <field table="wr" name="requestor"/>
+    </dataSource>
+
+    <dataSource id="treeWithConsoleWrxem_wr_ds">
+        <table name="wr" role="main"/>
+        <field table="wr" name="wr_id"/>
+        <field table="wr" name="requestor"/>
+        <field table="wr" name="status"/>
+        <field table="wr" name="prob_type"/>
+        <field table="wr" name="date_requested"/>
+        <field table="wr" name="description"/>
+    </dataSource>
+
+    <dataSource id="treeWithConsoleWrxem_wrpt_ds">
+        <table name="wrpt" role="main"/>
+        <field table="wrpt" name="wr_id"/>
+        <field table="wrpt" name="part_id"/>
+        <field table="wrpt" name="qty_estimated"/>
+        <field table="wrpt" name="date_assigned"/>
+    </dataSource>
+
+
+    <!-- The work request console -->
+    <panel type="console" id="treeWithConsoleWrxem_console" dataSource="treeWithConsoleWrxem_em_ds"
+           layoutRegion="console">
+        <title>Filter</title>
+
+        <action id="filter">
+            <title>Show</title>
+            <command type="showPanel" panelId="treeWithConsoleWrxem_requestor_list"/>
+        </action>
+        <action id="clear">
+            <title>Clear</title>
+            <command type="showPanel" panelId="treeWithConsoleWrxem_requestor_list" applyParentRestriction="false"
+                     clearRestriction="true"/>
+            <command type="showPanel" panelId="treeWithConsoleWrxem_console" newRecord="true"/>
+        </action>
+
+        <field table="wr" name="requestor" op="like">
+            <action>
+                <title>...</title>
+                <command type="selectValue"
+                         fieldNames="wr.requestor"
+                         selectFieldNames="em.em_id"
+                         visibleFieldNames="em.em_id,em.dv_id,em.dp_id,em.phone,em.email"
+                         restriction="em.em_id IN (SELECT requestor FROM wr INNER JOIN wrpt ON wr.wr_id = wrpt.wr_id WHERE requestor IS NOT NULL GROUP BY requestor)"/>
+            </action>
+        </field>
+    </panel>
+
+    <!-- The list of work requests -->
+    <panel type="tree" id="treeWithConsoleWrxem_requestor_list" showOnLoad="true"
+           dataSource="treeWithConsoleWrxem_em_ds" layoutRegion="row1col1">
+        <title>Employees</title>
+
+        <panel type="tree" id="treeWithConsoleWrxem_wr_list" dataSource="treeWithConsoleWrxem_wr_ds">
+            <title>Work Requests</title>
+            <event type="onClickNode">
+                <command type="showPanel" panelId="treeWithConsoleWrxem_wr_form"/>
+                <command type="showPanel" panelId="treeWithConsoleWrxem_wrpt_list"/>
+            </event>
+            <field table="wr" name="wr_id"/>
+        </panel>
+    </panel>
+
+    <!-- The read-only form that displays the selected work request -->
+    <!-- Do not display content until the user selects the work request in the list -->
+    <panel type="columnReport" id="treeWithConsoleWrxem_wr_form" showOnLoad="false"
+           dataSource="treeWithConsoleWrxem_wr_ds" layoutRegion="row1col2">
+        <title>Work Request</title>
+    </panel>
+
+    <!-- The list of parts for the selected work request -->
+    <panel type="grid" id="treeWithConsoleWrxem_wrpt_list" showOnLoad="false" dataSource="treeWithConsoleWrxem_wrpt_ds"
+           layoutRegion="row2col2">
+        <title>Work Request Parts</title>
+    </panel>
+</view>
+
+

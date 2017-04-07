@@ -1,0 +1,77 @@
+<view version="2.0">
+	<title translatable="true">Open Work Requests by Days Opened</title>
+
+	<layout file="console-small.axvw" />
+
+	<dataSource id="consoleDS">
+		<table name="wr" role="main" />
+		<field table="wr" name="prob_type" />
+        <field table="wr" name="bl_id" />
+	</dataSource>
+
+	<panel type="console" columns="1" id="requestConsole"
+		dataSource="consoleDS" region="north">
+		<title translatable="true">Filter</title>
+		<action id="filter">
+			<title translatable="true">Show</title>
+			<command type="callFunction"
+				functionName="apply_console_restriction()" />
+		</action>
+		<action id="clear">
+			<title translatable="true">Clear</title>
+			<command type="clearForm"
+				panelId="reportPanel" />
+		</action>
+		<field table="wr" name="bl_id" alias="wr.zone_id" size="1">
+			<title>Zone</title>
+			<action id="zoneSelVal">
+				<title>...</title>
+				<tooltip>Select Zone</tooltip>
+				<command type="selectValue"
+					fieldNames="wr.zone_id"
+					selectFieldNames="zones.zone_id"
+					visibleFieldNames="zones.zone_id,zones.name" />
+			</action>
+		</field>
+	</panel>
+
+	<dataSource id="crossTableDS" type="grouping">
+		<table name="wr" role="main" />
+		<sortField name="work_team_id" table="wr" ascending="true" />
+
+		<sortField name="period" table="wr" ascending="true" />
+
+		<field name="work_team_id"  groupBy="true" dataType="text" table="wr">
+			<title translatable="true">Work Unit</title>
+		</field>
+
+		<field name="period"  groupBy="true" dataType="text" table="wr">
+			<title translatable="true">Period</title>
+			<sql dialect="generic">
+			CASE WHEN DATEDIFF(d, wr.date_requested, GETDATE()) &gt; 90 THEN '90+ Days'
+			WHEN DATEDIFF(d, wr.date_requested, GETDATE()) &gt;= 60 THEN '61-90 Days'
+			WHEN DATEDIFF(d, wr.date_requested, GETDATE()) &gt;= 30 THEN '31-60 Days'
+			WHEN DATEDIFF(d, wr.date_requested, GETDATE()) &gt;= 21 THEN '21-30 Days'
+			WHEN DATEDIFF(d, wr.date_requested, GETDATE()) &gt;= 11 THEN '11-20 Days'
+			WHEN DATEDIFF(d, wr.date_requested, GETDATE()) &gt;= 0 THEN '1-10 Days' ELSE 'N/A' END
+			</sql>
+		</field>
+
+		<field name="wrcnt" baseField="wr.wr_id" dataType="number"
+			 formula="count" decimals="0" >
+			 <title>#</title>
+		</field>
+
+		<restrictions>
+			<restriction type="sql" sql="status NOT IN ('Com','Clo','FWC')"/>
+		</restrictions>
+	</dataSource>
+
+	<panel id="reportPanel" type="crossTable" dataSource="crossTableDS" region="center" showOnLoad="false">
+		<event type="onClickItem">
+			<command type="callFunction" functionName="onCrossTableClick"/>
+		</event>
+	</panel>
+
+	<js file="uc-ondemand-report-wr-by-days-open.js" />
+</view>

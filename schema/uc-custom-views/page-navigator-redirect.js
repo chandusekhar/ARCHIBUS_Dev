@@ -1,0 +1,1 @@
+window.location = window.location.protocol + "//" + window.location.hostname + "/archibus/schema/ab-products/common/views/page-navigation/generated/page-navigator.html"

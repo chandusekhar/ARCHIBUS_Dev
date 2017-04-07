@@ -1,0 +1,237 @@
+<view version="2.0">
+    <!-- Group by data sources that are used in Leases by Location view (ab-repm-lsadmin-ls-by-location.axvw) -->
+    <!-- Messages -->
+    <message name="title_geo_region" translatable="true">Geographic Business Regions</message>
+    <message name="title_ctry" translatable="true">Countries</message>
+    <message name="title_regn" translatable="true">Regions</message>
+    <message name="title_state" translatable="true">States</message>
+    <message name="title_city" translatable="true">Cities</message>
+    <message name="title_site" translatable="true">Sites</message>
+    <message name="title_property" translatable="true">Properties</message>
+    <message name="title_bl" translatable="true">Buildings</message>
+
+    <message name="name_geo_region" translatable="true">Geo-Region Name</message>
+    <message name="name_ctry" translatable="true">Country Name</message>
+    <message name="name_regn" translatable="true">Region Name</message>
+    <message name="name_state" translatable="true">State Name</message>
+    <message name="name_city" translatable="true">City Name</message>
+    <message name="name_site" translatable="true">Site Name</message>
+    <message name="name_property" translatable="true">Property Name</message>
+    <message name="name_bl" translatable="true">Building Name</message>
+    
+    <dataSource id="abRepmLsadminGroupBy_bl_ds" type="grouping" applyVpaRestrictions="false">
+        <sql dialect="generic">
+            SELECT 
+                bl.bl_id ${sql.as} bl_id,
+                (SELECT ctry.geo_region_id FROM ctry WHERE ctry.ctry_id = bl.ctry_id) ${sql.as} geo_region_id,
+                (SELECT geo_region.geo_region_name FROM geo_region, ctry WHERE geo_region.geo_region_id = ctry.geo_region_id AND ctry.ctry_id = bl.ctry_id) ${sql.as} vf_geo_region_name,
+                bl.ctry_id ${sql.as} ctry_id,
+                (SELECT ctry.name FROM ctry WHERE ctry.ctry_id = bl.ctry_id) ${sql.as} vf_ctry_name,
+                bl.regn_id ${sql.as} regn_id,
+                (SELECT regn.name FROM regn WHERE regn.ctry_id = bl.ctry_id AND regn.regn_id = bl.regn_id) ${sql.as} vf_regn_name,
+                bl.state_id ${sql.as} state_id,
+                (SELECT state.name FROM state WHERE state.state_id = bl.state_id) ${sql.as} vf_state_name,
+                bl.city_id ${sql.as} city_id, 
+                (SELECT city.name FROM city WHERE city.state_id = bl.state_id AND city.city_id = bl.city_id) ${sql.as} vf_city_name,
+                bl.site_id ${sql.as} site_id,
+                (SELECT site.name FROM site WHERE site.site_id = bl.site_id) ${sql.as} vf_site_name,
+                bl.pr_id ${sql.as} pr_id,
+                (SELECT property.name FROM property WHERE property.pr_id = bl.pr_id) ${sql.as} vf_pr_name,
+                bl.name ${sql.as} vf_bl_name,
+                ls.area_common ${sql.as} ls_area_common,
+                ls.area_negotiated ${sql.as} ls_area_negotiated,
+                ls.area_rentable ${sql.as} ls_area_rentable,
+                ls.area_usable ${sql.as} ls_area_usable
+            FROM bl
+                LEFT OUTER JOIN ls ON ls.bl_id = bl.bl_id
+            WHERE ls.use_as_template = 0 AND ls.bl_id IS NOT NULL AND ${sql.vpaRestriction} AND ${parameters['lsRestriction']}
+        </sql>
+        <table name="bl" role="main"/>
+        <field name="vf_name" dataType="text">
+            <sql dialect="generic"> 
+                MAX(${parameters['field_name']})
+            </sql>
+        </field>
+        <field name="key1" dataType="text" groupBy="true">
+            <sql dialect="generic">
+                (${parameters['key1']})
+            </sql>
+        </field>
+        <field name="key2" dataType="text" groupBy="true">
+            <sql dialect="generic">
+                (${parameters['key2']})
+            </sql>
+        </field>
+        <field name="vf_bl_id" formula="max" baseField="bl.bl_id" dataType="text"/>
+        <field name="vf_pr_id" formula="max" baseField="bl.pr_id" dataType="text"/>
+        <field name="vf_site_id" formula="max" baseField="bl.site_id" dataType="text"/>
+        <field name="vf_city_id" formula="max" baseField="bl.city_id" dataType="text"/>
+        <field name="vf_state_id" formula="max" baseField="bl.state_id" dataType="text"/>
+        <field name="vf_regn_id" formula="max" baseField="bl.regn_id" dataType="text"/>
+        <field name="vf_ctry_id" formula="max" baseField="bl.ctry_id" dataType="text"/>
+        <field name="vf_geo_region_id" formula="max" baseField="bl.geo_region_id" dataType="text"/>
+        <field name="vf_sum_ls_area_common" formula="sum" baseField="bl.ls_area_common" dataType="number" size="20" decimals="1" numericFormat="area"/>
+        <field name="vf_sum_ls_area_negotiated" formula="sum" baseField="bl.ls_area_negotiated" dataType="number" size="20" decimals="1" numericFormat="area"/>
+        <field name="vf_sum_ls_area_rentable" formula="sum" baseField="bl.ls_area_rentable" dataType="number" size="20" decimals="1" numericFormat="area"/>
+        <field name="vf_sum_ls_area_usable" formula="sum" baseField="bl.ls_area_usable" dataType="number" size="20" decimals="1" numericFormat="area"/>
+        <parameter name="key1" dataType="verbatim" value="bl.ctry_id"/>
+        <parameter name="key2" dataType="verbatim" value="bl.regn_id"/>
+        <parameter name="field_name" dataType="verbatim" value="bl.vf_regn_name"/>
+        <parameter name="lsRestriction" dataType="verbatim" value="1 = 1"/>
+        <parameter name="geoRegionRestriction" dataType="verbatim" value="1 = 1"/>
+        <restriction type="sql" sql="${parameters['key1']} IS NOT NULL AND ${parameters['key2']} IS NOT NULL AND ${parameters['geoRegionRestriction']}"/>
+    </dataSource>
+
+    <panel type="grid" controlType="reportGrid" id="abRepmLsadminGroupBy_bl" dataSource="abRepmLsadminGroupBy_bl_ds" selectionEnabled="true" layoutRegion="groupingPos" showOnLoad="false">
+        <sortField table="bl" name="vf_name" ascending="true"/>
+        <action id="export_XLS" hidden="false">
+            <title>XLS</title>
+            <command type="exportPanel" outputType="xls" panelId="abRepmLsadminGroupBy_bl"/>
+        </action>
+        <field name="vf_name" dataType="text" controlType="link" onclick="showLeasesFor">
+            <title translatable="false">&#160;</title>
+        </field>
+        <field name="vf_bl_id" dataType="text" hidden="true">
+            <title translatable="true">Building Code</title>
+        </field>
+        <field name="vf_pr_id" dataType="text" controlType="link" onclick="showLeasesFor">
+            <title>Property Code</title>
+        </field>
+        <field name="vf_site_id" dataType="text" controlType="link" onclick="showLeasesFor">
+            <title>Site Code</title>
+        </field>
+        <field name="vf_city_id" dataType="text" controlType="link" onclick="showLeasesFor">
+            <title>City Code</title>
+        </field>
+        <field name="vf_state_id" dataType="text" controlType="link" onclick="showLeasesFor">
+            <title>State Code</title>
+        </field>
+        <field name="vf_regn_id" dataType="text" controlType="link" onclick="showLeasesFor">
+            <title>Region Code</title>
+        </field>
+        <field name="vf_ctry_id" dataType="text" controlType="link" onclick="showLeasesFor">
+            <title>Country Code</title>
+        </field>
+        <field name="vf_geo_region_id" dataType="text" controlType="link" onclick="showLeasesFor">
+            <title>Geo-Region Code</title>
+        </field>
+        <field name="vf_sum_ls_area_common" dataType="number" size="20" decimals="1" numericFormat="area">
+            <title>Area - Meas. Common ${(activityParameters['AbCommonResources-ConvertAreasLengthsToUserUnits'] == 1)?user.areaUnits.title:''}</title>
+        </field>
+        <field name="vf_sum_ls_area_negotiated" dataType="number" size="20" decimals="1" numericFormat="area">
+            <title>Area - Neg. Rentable ${(activityParameters['AbCommonResources-ConvertAreasLengthsToUserUnits'] == 1)?user.areaUnits.title:''}</title>
+        </field>
+        <field name="vf_sum_ls_area_rentable" dataType="number" size="20" decimals="1" numericFormat="area">
+            <title>Area - Meas. Rentable ${(activityParameters['AbCommonResources-ConvertAreasLengthsToUserUnits'] == 1)?user.areaUnits.title:''}</title>
+        </field>
+        <field name="vf_sum_ls_area_usable" dataType="number" size="20" decimals="1" numericFormat="area">
+            <title>Area - Meas. Usable ${(activityParameters['AbCommonResources-ConvertAreasLengthsToUserUnits'] == 1)?user.areaUnits.title:''}</title>
+        </field>
+    </panel>   
+
+    <dataSource id="abRepmLsadminGroupBy_property_ds" type="grouping" applyVpaRestrictions="false">
+        <sql dialect="generic">
+            SELECT 
+                property.pr_id ${sql.as} pr_id,
+                (SELECT ctry.geo_region_id FROM ctry WHERE ctry.ctry_id = property.ctry_id) ${sql.as} geo_region_id,
+                (SELECT geo_region.geo_region_name FROM geo_region, ctry WHERE geo_region.geo_region_id = ctry.geo_region_id AND ctry.ctry_id = property.ctry_id) ${sql.as} vf_geo_region_name,
+                property.ctry_id ${sql.as} ctry_id,
+                (SELECT ctry.name FROM ctry WHERE ctry.ctry_id = property.ctry_id) ${sql.as} vf_ctry_name,
+                property.regn_id ${sql.as} regn_id,
+                (SELECT regn.name FROM regn WHERE regn.ctry_id = property.ctry_id AND regn.regn_id = property.regn_id) ${sql.as} vf_regn_name,
+                property.state_id ${sql.as} state_id,
+                (SELECT state.name FROM state WHERE state.state_id = property.state_id) ${sql.as} vf_state_name,
+                property.city_id ${sql.as} city_id, 
+                (SELECT city.name FROM city WHERE city.state_id = property.state_id AND city.city_id = property.city_id) ${sql.as} vf_city_name,
+                property.site_id ${sql.as} site_id,
+                (SELECT site.name FROM site WHERE site.site_id = property.site_id) ${sql.as} vf_site_name,
+                property.name ${sql.as} vf_pr_name,
+                property.property_type ${sql.as} property_type,
+                ls.area_common ${sql.as} ls_area_common,
+                ls.area_negotiated ${sql.as} ls_area_negotiated,
+                ls.area_rentable ${sql.as} ls_area_rentable,
+                ls.area_usable ${sql.as} ls_area_usable
+            FROM property
+                LEFT OUTER JOIN ls ON ls.pr_id = property.pr_id
+            WHERE ls.use_as_template = 0 AND ls.pr_id IS NOT NULL AND ${sql.vpaRestriction} AND ${parameters['lsRestriction']}
+        </sql>
+        <table name="property" role="main"/>
+        <field name="vf_name" dataType="text">
+            <sql dialect="generic"> 
+                MAX(${parameters['field_name']})
+            </sql>
+        </field>
+        <field name="key1" dataType="text" groupBy="true">
+            <sql dialect="generic">
+                (${parameters['key1']})
+            </sql>
+        </field>
+        <field name="key2" dataType="text" groupBy="true">
+            <sql dialect="generic">
+                (${parameters['key2']})
+            </sql>
+        </field>
+        <field name="vf_pr_id" formula="max" baseField="property.pr_id" dataType="text"/>
+        <field name="vf_site_id" formula="max" baseField="property.site_id" dataType="text"/>
+        <field name="vf_city_id" formula="max" baseField="property.city_id" dataType="text"/>
+        <field name="vf_state_id" formula="max" baseField="property.state_id" dataType="text"/>
+        <field name="vf_regn_id" formula="max" baseField="property.regn_id" dataType="text"/>
+        <field name="vf_ctry_id" formula="max" baseField="property.ctry_id" dataType="text"/>
+        <field name="vf_geo_region_id" formula="max" baseField="property.geo_region_id" dataType="text"/>
+        <field name="vf_sum_ls_area_common" formula="sum" baseField="property.ls_area_common" dataType="number" size="20" decimals="1" numericFormat="area"/>
+        <field name="vf_sum_ls_area_negotiated" formula="sum" baseField="property.ls_area_negotiated" dataType="number" size="20" decimals="1" numericFormat="area"/>
+        <field name="vf_sum_ls_area_rentable" formula="sum" baseField="property.ls_area_rentable" dataType="number" size="20" decimals="1" numericFormat="area"/>
+        <field name="vf_sum_ls_area_usable" formula="sum" baseField="property.ls_area_usable" dataType="number" size="20" decimals="1" numericFormat="area"/>
+        <parameter name="key1" dataType="verbatim" value="property.ctry_id"/>
+        <parameter name="key2" dataType="verbatim" value="property.regn_id"/>
+        <parameter name="field_name" dataType="verbatim" value="property.vf_regn_name"/>
+        <parameter name="lsRestriction" dataType="verbatim" value="1 = 1"/>
+        <parameter name="geoRegionRestriction" dataType="verbatim" value="1 = 1"/>
+        <restriction type="sql" sql="${parameters['key1']} IS NOT NULL AND ${parameters['key2']} IS NOT NULL AND ${parameters['geoRegionRestriction']}"/>
+    </dataSource>
+
+    <panel type="grid" controlType="reportGrid" id="abRepmLsadminGroupBy_property" dataSource="abRepmLsadminGroupBy_property_ds" selectionEnabled="true" layoutRegion="groupingPos" showOnLoad="false">
+        <sortField table="property" name="vf_name" ascending="true"/>
+        <action id="export_XLS" hidden="false">
+            <title>XLS</title>
+            <command type="exportPanel" outputType="xls" panelId="abRepmLsadminGroupBy_property"/>
+        </action>
+        <field name="vf_name" dataType="text" controlType="link" onclick="showLeasesFor">
+            <title translatable="false">&#160;</title>
+        </field>
+        <field name="vf_pr_id" dataType="text" controlType="link" onclick="showLeasesFor">
+            <title>Property Code</title>
+        </field>
+        <field name="vf_site_id" dataType="text" controlType="link" onclick="showLeasesFor">
+            <title>Site Code</title>
+        </field>
+        <field name="vf_city_id" dataType="text" controlType="link" onclick="showLeasesFor">
+            <title>City Code</title>
+        </field>
+        <field name="vf_state_id" dataType="text" controlType="link" onclick="showLeasesFor">
+            <title>State Code</title>
+        </field>
+        <field name="vf_regn_id" dataType="text" controlType="link" onclick="showLeasesFor">
+            <title>Region Code</title>
+        </field>
+        <field name="vf_ctry_id" dataType="text" controlType="link" onclick="showLeasesFor">
+            <title>Country Code</title>
+        </field>
+        <field name="vf_geo_region_id" dataType="text" controlType="link" onclick="showLeasesFor">
+            <title>Geo-Region Code</title>
+        </field>
+        <field name="vf_sum_ls_area_common" dataType="number" size="20" decimals="1" numericFormat="area">
+            <title>Area - Meas. Common ${(activityParameters['AbCommonResources-ConvertAreasLengthsToUserUnits'] == 1)?user.areaUnits.title:''}</title>
+        </field>
+        <field name="vf_sum_ls_area_negotiated" dataType="number" size="20" decimals="1" numericFormat="area">
+            <title>Area - Neg. Rentable ${(activityParameters['AbCommonResources-ConvertAreasLengthsToUserUnits'] == 1)?user.areaUnits.title:''}</title>
+        </field>
+        <field name="vf_sum_ls_area_rentable" dataType="number" size="20" decimals="1" numericFormat="area">
+            <title>Area - Meas. Rentable ${(activityParameters['AbCommonResources-ConvertAreasLengthsToUserUnits'] == 1)?user.areaUnits.title:''}</title>
+        </field>
+        <field name="vf_sum_ls_area_usable" dataType="number" size="20" decimals="1" numericFormat="area">
+            <title>Area - Meas. Usable ${(activityParameters['AbCommonResources-ConvertAreasLengthsToUserUnits'] == 1)?user.areaUnits.title:''}</title>
+        </field>
+    </panel>   
+
+</view>

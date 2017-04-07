@@ -1,0 +1,153 @@
+
+<view version="2.0">
+    <title translatable="true">Tool Usage History</title>
+    
+    <layout type="borderLayout" id="mainLayout">
+        <north autoScroll="true" split="true" initialSize="160"/>
+        <center autoScroll="true"/>
+    </layout>
+    
+	<js file="ab-bldgops-report-common.js"/>
+    <js file="ab-bldgops-report-tl-hist.js"/>
+    
+    <dataSource id="abBldgopsReportTlHistConsoleDS">
+        <table name="hwrtl" role="main"/>
+        <table name="hwr" role="standard"/>
+        <table name="tl" role="standard"/>
+        
+        <field table="hwrtl" name="wr_id"/>
+        <field table="hwr" name="site_id"/>
+        <field table="hwr" name="bl_id"/>
+        <field table="hwr" name="fl_id"/>
+        <field table="hwr" name="dv_id"/>
+        <field table="hwr" name="dp_id"/>
+        <field table="tl" name="tool_type"/>
+        <field table="hwr" name="date_completed"/>
+    </dataSource>
+    
+    <panel type="console" columns="3" id="abBldgopsReportTlHistConsole" dataSource="abBldgopsReportTlHistConsoleDS" layout="mainLayout" region="north">
+        <title translatable="true">Filter</title>
+        
+        <action id="show">
+            <title translatable="true">Show</title>
+        </action>
+        <action id="clear">
+            <title translatable="true">Clear</title>
+        </action>
+        
+        <field table="hwr" name="site_id" selectValueType="multiple"/>
+        <field table="hwr" name="bl_id" selectValueType="multiple"/>
+        <field table="hwr" name="fl_id" selectValueType="multiple"/>
+        <field table="hwr" name="dv_id" selectValueType="multiple"/>
+        <field table="hwr" name="dp_id" selectValueType="multiple"/>
+        <field table="tl" name="tool_type" selectValueType="multiple"/>
+        <field table="hwr" name="date_completed" alias="hwr.date_completed.from">
+            <title translatable="true">Date Work Completed From</title>
+        </field>
+        <field table="hwr" name="date_completed" alias="hwr.date_completed.to">
+            <title translatable="true">Date Work Completed To</title>
+        </field>
+        <field id="work_type">
+            <title translatable="true">Work Type</title>
+            <html>
+                <select name="work_type" id="work_type" class="inputField_box">
+                    <option value="">
+                        <span translatable="true">Both</span>
+                    </option>
+                    <option value="OD">
+                        <span translatable="true">On Demand</span>
+                    </option>
+                    <option value="PM">
+                        <span translatable="true">PM</span>
+                    </option>
+                </select>
+            </html>
+        </field>
+        <field id="secondGrouping">
+            <title translatable="true">Second Grouping</title>
+            <html>
+                <select name="secondGrouping" id="secondGrouping" class="inputField_box">
+                    <option value="1">
+                        <span translatable="true">Problem Type</span>
+                    </option>
+                    <option value="2">
+                        <span translatable="true">Cause Type</span>
+                    </option>
+                    <option value="3">
+                        <span translatable="true">Repair Type</span>
+                    </option>
+                    <option value="4">
+                        <span translatable="true">None</span>
+                    </option>
+                </select>
+            </html>
+        </field>
+        <field/>
+    </panel>
+    
+    <dataSource type="grouping" id="abBldgopsReportTlHistCrossTableDS">
+        <table name="hwrtl" role="main"/>
+        <table name="hwr" role="standard"/>
+        
+        <field name="groupfield" groupBy="true" dataType="text">
+            <sql dialect="generic">${parameters['groupfield']}</sql>
+        </field>
+        <field name="x_month" groupBy="true" dataType="text" formula="month" baseField="hwr.date_completed"/>
+        <field name="hours_total" dataType="number" formula="sum" baseField="hwrtl.hours_total"/>
+        <field name="hours_est" dataType="number" formula="sum" baseField="hwrtl.hours_est"/>
+        <field name="hours_diff" dataType="number" formula="sum" baseField="hwrtl.hours_diff"/>
+        
+        <sortField name="groupfield"/>
+        <sortField name="x_month"/>
+        
+        <parameter name="groupfield" dataType="verbatim" value=""/>
+        
+        <restriction type="sql" sql="hwr.status NOT IN ('Rej','Can')"></restriction>
+    </dataSource>
+    
+    <panel type="crossTable" id="abBldgopsReportTlHistCrossTable" dataSource="abBldgopsReportTlHistCrossTableDS" layout="mainLayout" region="center" showOnLoad="false">
+        <title translatable="true">Tool Usage History</title>
+        
+        <action id="showChart">
+            <title translatable="true">Line Chart</title>
+            <command type="callFunction" functionName="showLineChart"/>
+        </action>
+        <action id="exportDOCX">
+            <title translatable="true">XLS</title>
+            <command type="exportPanel" outputType="xls" panelId="abBldgopsReportTlHistCrossTable"/>
+        </action>
+        
+        <event type="onClickItem">
+            <command type="callFunction" functionName="showDetails"/>
+        </event>
+    </panel>
+    
+    <dataSource id="abBldgopsReportTlHistGridDS">
+        <table name="hwrtl" role="main"/>
+        <table name="hwr" role="standard"/>
+        
+        <field table="hwrtl" name="wr_id"/>
+        <field table="hwrtl" name="tool_id"/>
+        <field table="hwr" name="prob_type"/>
+        <field table="hwr" name="site_id"/>
+        <field table="hwr" name="bl_id"/>
+        <field table="hwr" name="fl_id"/>
+        <field table="hwr" name="dv_id"/>
+        <field table="hwr" name="dp_id"/>
+        <field name="x_month" dataType="text" hidden="true">
+            <sql dialect="generic"> ${sql.yearMonthOf('hwr.date_completed')} </sql>
+        </field>
+        <field name="groupfield" hidden="true" dataType="text">
+            <sql dialect="generic">${parameters['groupfield']}</sql>
+        </field>
+        
+        <parameter name="groupfield" dataType="verbatim" value=""/>
+        <parameter name="consoleRes" dataType="verbatim" value=""/>
+        
+        <restriction type="sql" sql="hwr.status NOT IN ('Rej','Can') ${parameters['consoleRes']}"></restriction>
+    </dataSource>
+    
+    <panel type="grid" id="abBldgopsReportTlHistGrid" showCounts="true" showOnLoad="false" hidden="true" dataSource="abBldgopsReportTlHistGridDS">
+        <indexField name="wr_id" table="hwrtl"/>
+    </panel>
+</view>

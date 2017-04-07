@@ -1,0 +1,485 @@
+<?xml version="1.0" encoding="utf-8"?>
+<project name="ARCHIBUS Mobile Applications" default="build-all-mobile-apps" basedir=".">
+
+
+    <!--  ================================= 	L O G OF C H A N G E S	   =================================
+          04.07.2014 Jeff Martin
+          1. Modify file to support Sencha CMD 4
+          2. Include sencha.src.dir and tools.dir in the build.properties file
+          3. Copy shared WebCentral control files
+          4. Added lint.language task to verify format of the language resource files
+
+          03.26.2014 AP
+          Moving to WebStorm IDE. JM updated property value : name="jshintConfig" value="${basedir}/.jshintrc"
+
+          12.17.2013 Jeff Martin
+          1. Add support for linting JavaScript files using JSHint
+          During the build, the JavaScript applications files are processed. Code errors and warnings are written to the ../mobile/int/lint.log file. The lint.log file is emailed to configured recipients.
+          2. Output files for other apps are not deleted when building a single app.
+          For example, executing ant build-app -Dapp.name=AppLauncher -Dmobile=ios now only deletes the ../mobile/ios/AppLauncher folder and leaves the other folders intact.
+
+          05.23.2013 Jeff Martin
+          1. Exclude the ../src/Siesta folder from the JSHint task
+          2. Copy the ab-svg-drawing-popup.js from WebCentral ab-core/controls/drawing/svg folder to the app output folders
+
+          06.15.2014 Jeff Martin
+          1. Remove copy ../src/Common/lib/cordova/plugins task. No longer required due to app plugin loading change.
+
+          06.27.2014 Jeff Martin
+          1. Copy additional Web Central drawing library files
+
+          07.14.2014 Jeff Martin
+          1. Link Sencha CMD Ant Library
+          2. Concatenate and minimize Web Central library files
+
+          08.29.2014 Jeff Martin
+          1. Use node.js to run JSHint
+          2. Remove AntelopeTasks dependencies
+          3. Remove unused targets
+		  
+		  10.17.2014
+		  1. Create property for lint log file - lint.log.file and lint.dir
+		  2. Target "lint.check.errors" depends on "lint.apps"
+		  3. Target "lint.apps" runs if="${lint.js.files} == true
+		  4. Create 'refresh-lint-dir' target which 'delete' and mkdir 'lint'
+		  5. Create 'lint.check.languge' target to validate language resource file JSONant
+
+		  05.25.2015
+		  1. Added AssetReceipt app
+		  2. Delete contents of output folders before building all apps.
+
+          ================================= 	L O G OF C H A N G E S	   =================================
+    -->
+
+
+    <target name="init" depends="init-cmd" description="Set deployment environment">
+
+        <!-- reference to build.properties -->
+
+        <x-load-properties>
+            <file path="${basedir}/build.email.properties" required="false"/>
+            <file path="${basedir}/build.properties" required="true"/>
+        </x-load-properties>
+
+        <echo>Lint property: ${lint.js.files}</echo>
+        <echo>Email Host: ${email.host}</echo>
+
+        <!-- JavaScript linting properties  -->
+        <property name="lint.log.file" value="jshint.log"/>
+        <property name="lint.dir" value="${basedir}/lint"/>
+        <property name="lint.out" value="${lint.dir}/${lint.log.file}"/>
+
+        <property name="src.dir" value="${basedir}/src"/>
+
+    </target>
+
+    <!--
+    Run "sencha which" to find the Sencha Cmd basedir and get "cmd.dir" setup. We
+    need to execute the command with curdir set properly for Cmd to pick up that we
+    are running for an application.
+    -->
+    <target name="find-cmd-in-path" unless="cmd.dir">
+        <exec executable="sencha"
+              dir="${basedir}"
+              failifexecutionfails="false"
+              outputproperty="exec.error">
+            <arg value="which"/>
+            <arg value="-p=cmd.dir"/>
+            <arg value="-o=$cmddir$"/>
+        </exec>
+
+        <!-- Now read the generated properties file and delete it -->
+        <property file="$cmddir$"/>
+        <delete file="$cmddir$"/>
+    </target>
+
+    <target name="init-cmd"
+            depends="find-cmd-in-path">
+
+        <echo>Using Sencha Cmd from ${cmd.dir} for ${ant.file}</echo>
+
+        <!--
+        load the sencha.jar ant task definitions.
+
+        NOTE: the 'loaderref' attribute stores this task def's class loader
+        on the project by that name, so it will be sharable across sub-projects.
+        This fixes out-of-memory issues, as well as increases performance.
+
+        To supoprt this, it is recommended that any customizations that use
+        'ant' or 'antcall' tasks set 'inheritrefs=true' on those tasks, in order
+        to propagate the senchaloader reference to those subprojects.
+
+        The sencha 'x-ant-call' task, which extends 'antcall' and defaults
+        'inheritrefs' to true, may be used in place of antcall in
+        build process customizations.
+        -->
+        <taskdef resource="com/sencha/ant/antlib.xml"
+                 classpath="${cmd.dir}/sencha.jar"
+                 loaderref="senchaloader"/>
+
+        <!--
+        Some operations require sencha.jar in the current java classpath,
+        so this will extend the java.lang.Thread#contextClassLoader with the
+        specified java classpath entries
+        -->
+        <x-extend-classpath>
+            <jar path="${cmd.dir}/sencha.jar"/>
+        </x-extend-classpath>
+    </target>
+
+
+    <target name="build-app" depends="init">
+
+        <antcall target="sencha">
+            <param name="app.name" value="${app.name}"/>
+        </antcall>
+
+    </target>
+
+    <target name="build-all-mobile-apps" depends="init, clean-output-folders">
+
+        <antcall target="sencha">
+            <param name="app.name" value="AppLauncher"/>
+        </antcall>
+
+        <antcall target="sencha">
+            <param name="app.name" value="AssetAndEquipmentSurvey"/>
+        </antcall>
+
+        <antcall target="sencha">
+            <param name="app.name" value="AssetReceipt"/>
+        </antcall>
+
+        <antcall target="sencha">
+            <param name="app.name" value="ConditionAssessment"/>
+        </antcall>
+
+        <antcall target="sencha">
+            <param name="app.name" value="IncidentReporting"/>
+        </antcall>
+
+        <antcall target="sencha">
+            <param name="app.name" value="Maintenance"/>
+        </antcall>
+		
+		<antcall target="sencha">
+            <param name="app.name" value="MaterialInventory"/>
+        </antcall>
+
+        <antcall target="sencha">
+            <param name="app.name" value="Solutions"/>
+        </antcall>
+
+        <antcall target="sencha">
+            <param name="app.name" value="SpaceBook"/>
+        </antcall>
+
+        <antcall target="sencha">
+            <param name="app.name" value="SpaceOccupancy"/>
+        </antcall>
+
+        <antcall target="sencha">
+            <param name="app.name" value="WorkplacePortal"/>
+        </antcall>
+
+
+    </target>
+
+    <target name="sencha" description="Build Mobile Application with Sencha">
+        <!-- use var to update the value at run time instead of property -->
+        <var name="log.file.name" value="${app.name}-build.log"/>
+        <property name="start.dir" value="${src.dir}/${app.name}"/>
+
+        <echo>sencha ==> Building Application ==> $${app.name} = ${app.name}</echo>
+
+        <antcallback target="run-program" return="run.script.error">
+            <param name="start.dir" value="${start.dir}"/>
+            <param name="program.name" value="sencha app "/>
+            <param name="program.arg" value="build production"/>
+            <param name="log.file" value="${log.file.name}"/>
+        </antcallback>
+
+        <!-- If build fails then send error report. Otherwise copy deliverables to the corresponding {mobile OS}/{AppName} -->
+        <antcall target="verify-build">
+            <param name="app.name" value="${app.name}"/>
+            <param name="builds.logs.dir" value="${src.dir}/${app.name}"/>
+            <param name="build.dir" value="${build.dir}"/>
+            <param name="dest.dir" value="${basedir}/${mobile.os.name}/${app.name}"/>
+            <param name="mobile.name" value="${mobile.os.name}"/>
+        </antcall>
+
+    </target>
+
+    <!-- =======================================
+        Run Program with cmd
+        ${start.dir} - dir to start a program in
+        ${engine}  - Full path to exe that start the app, for ex. cmd
+        ${program.name} - app name, for ex. myapp.exe
+        ${program.arg}  - arg2, that is sent to program.name
+        ============================================
+    -->
+    <target name="run-program">
+        <exec dir="${start.dir}" executable="cmd.exe" output="${start.dir}/${log.file}" osfamily="winnt">
+            <arg value="/c"/>
+            <arg value="${program.name}"/>
+            <arg value="${program.arg}"/>
+        </exec>
+
+        <exec dir="${start.dir}" executable="sencha" output="${start.dir}/${log.file}" osfamily="unix">
+            <arg line=" app ${program.arg}"/>
+        </exec>
+
+    </target>
+
+    <!--  Delete and Create 'lint' dir -->
+    <target name="refresh-lint-dir">
+        <delete dir="${lint.dir}"/>
+        <mkdir dir="${basedir}/lint"/>
+    </target>
+
+
+    <target name="lint.apps" depends="init" if="${lint.js.files}">
+
+        <antcall target="refresh-lint-dir"/>
+
+        <exec executable="cmd" failonerror="false" dir="${basedir}\src" append="true" output="${lint.out}"
+              resultproperty="lint.result">
+            <arg value="/c"/>
+            <arg value="jshint"/>
+            <arg value="."/>
+            <arg value="--verbose"/>
+        </exec>
+        <echo>lint.result ${lint.result}</echo>
+        <condition property="lint.errors">
+            <equals arg1="${lint.result}" arg2="2"/>
+        </condition>
+        <antcall target="lint.write.errorflag"/>
+    </target>
+
+    <target name="lint.write.errorflag" if="lint.errors">
+        <echo file="${lint.out}" append="true">[LINTERR] Lint Errors - Notify Devs.${line.separator}</echo>
+    </target>
+
+    <target name="lint.check.errors" depends="lint.apps">
+        <echo>property lint.js.files is set to ${lint.js.files}</echo>
+        <condition property="lint.has.error">
+            <resourcecontains resource="${lint.out}" substring="[LINTERR]"/>
+        </condition>
+        <if>
+            <istrue value="${lint.has.error}"/>
+            <then>
+                <antcall target="send-email">
+                    <param name="email.subject" value="JavaScript Lint Errors"/>
+                    <param name="email.message" value="Error file is attached"/>
+                    <param name="email.tolist" value="${email.fail.to}"/>
+                    <param name="file.dir" value="${basedir}/lint/"/>
+                    <param name="attach.file" value="${lint.log.file}"/>
+                </antcall>
+            </then>
+            <else>
+                <echo>JavaScript files passed lint check.</echo>
+                <echo file="${lint.out}" append="true">JavaScript files passed lint check.</echo>
+            </else>
+        </if>
+    </target>
+
+    <target name="lint.language.files" depends="init, refresh-lint-dir">
+        <exec executable="cmd" failonerror="false" dir="${basedir}\src\Common\resources\language" append="true"
+              output="${lint.out}"
+              resultproperty="lint.result">
+            <arg value="/c"/>
+            <arg value="jshint"/>
+            <arg value="."/>
+            <arg value="--verbose"/>
+        </exec>
+        <echo>lint.result ${lint.result}</echo>
+        <condition property="lint.errors">
+            <equals arg1="${lint.result}" arg2="2"/>
+        </condition>
+        <antcall target="lint.write.errorflag"/>
+    </target>
+
+    <target name="lint.check.language" depends="lint.language.files">
+        <condition property="lint.has.error">
+            <resourcecontains resource="${lint.out}" substring="[LINTERR]"/>
+        </condition>
+        <if>
+            <istrue value="${lint.has.error}"/>
+            <then>
+                <antcall target="send-email">
+                    <param name="email.subject" value="ARCHIBUS Mobile Language Files Failed Validation"/>
+                    <param name="email.message" value="Error file is attached"/>
+                    <param name="email.tolist" value="${email.fail.to}"/>
+                    <param name="file.dir" value="${basedir}/lint/"/>
+                    <param name="attach.file" value="${lint.log.file}"/>
+                </antcall>
+                <fail message="Build Failed: Language Files Failed Validation"/>
+            </then>
+            <else>
+                <echo>Language Resource files passed validation</echo>
+                <echo file="${lint.out}" append="true">Language Resource files passed validation</echo>
+            </else>
+        </if>
+    </target>
+
+
+    <target name="verify-build"
+            description="If build fails then send error report. Otherwise copy deliverables to the corresponding {mobile OS}/{AppName}">
+
+        <var name="project.log.file" value="${src.dir}/${app.name}/${app.name}-build.log"/>
+        <echo>release-or-report-error ==> $${project.log.file} = ${project.log.file}</echo>
+
+        <!--
+         Verify if the build fails by finding in the log file this pattern -> [ERR]
+                 If the pattern is found then ${found.record} is set to true, send the error email.
+        -->
+
+        <condition property="found.record">
+            <resourcecontains resource="${project.log.file}" substring="[ERR]"/>
+        </condition>
+
+        <!-- TODO: check that the output folders exists -->
+
+        <if>
+            <istrue value="${found.record}"/>
+            <then>
+                <antcallback target="excerpt-errors" return="return.error.list">
+                    <param name="path.to.log.file" value="${project.log.file}"/>
+                    <param name="find.me" value="[ERR]"/>
+                    <param name="replace.me" value="&lt;/br&gt;[ERR]"/>
+                </antcallback>
+                <antcall target="report-error">
+                    <param name="log.file" value="${project.log.file}"/>
+                    <param name="file.name" value="${app.name}-build.log"/>
+                    <param name="project.name" value="${app.name}"/>
+                    <param name="builds.logs.dir" value="${src.dir}/${app.name}"/>
+                    <param name="err.msg" value="${return.error.list}"/>
+               </antcall>
+            </then>
+        </if>
+    </target>
+
+    <target name="report-error">
+        <echo>report-error --> $${project.log.file} == ${project.log.file}</echo>
+        <var name="email-subject"
+             value="Failed: The ${project.name} mobile application failed to compile."/>
+        <var name="deployment.result" value="${email-subject}"/>
+        <var name="error.message" value=""/>
+        <var name="test-time"
+             value="The compilation attempt was performed on ${build-info.year-month-day} at ${build-info.current-time}"/>
+        <var name="log-excerpt-title" value="Excerpt of Error Messages from the Log File"/>
+        <var name="log-error-msg" value="${err.msg}"/>
+        <var name="log.file.info" value="Please review the attached log file!"/>
+        <var name="log.file" value="${project.log.file}"/>
+        <var name="send.email.to" value="${email.fail.to}"/>
+        <var name="email-msg1"
+             value="&lt;html&gt;&lt;/head&gt;&lt;body lang=EN-US style='tab-interval:.5in'&gt;&lt;div class=WordSection1&gt;&lt;p class=MsoPlainText&gt;&lt;b style='mso-bidi-font-weight:normal'&gt;&lt;span style='font-size:16.0pt'&gt;****&lt;/span&gt;&lt;/b&gt;&lt;span style='font-size:16.0pt'&gt; &lt;b style='mso-bidi-font-weight:normal'&gt;&lt;span style='color:red'&gt;${deployment.result}&lt;/span&gt;&lt;/b&gt;&lt;/span&gt;&lt;span style='color:red'&gt; &lt;/span&gt;&lt;b style='mso-bidi-font-weight:normal'&gt;&lt;span style='font-size:16.0pt'&gt;****&lt;/span&gt;&lt;/b&gt;&lt;span style='font-size:16.0pt'&gt;&lt;o:p&gt;&lt;/o:p&gt;&lt;/span&gt;&lt;/p&gt;&lt;p class=MsoPlainText&gt;&lt;p class=MsoPlainText&gt;&lt;/p&gt;&lt;p class=MsoPlainText&gt;&lt;span style='font-size:16.0pt'&gt;${error.message}&lt;o:p&gt;&lt;/o:p&gt;&lt;/span&gt;&lt;/p&gt;&lt;p class=MsoPlainText&gt; &lt;/p&gt;&lt;p class=MsoPlainText&gt;&lt;span style='font-size:11.0pt'&gt;"/>
+        <var name="email-msg2"
+             value="${log.file.info}&lt;o:p&gt;&lt;/o:p&gt;&lt;/span&gt;&lt;/p&gt;&lt;p class=MsoPlainText&gt;&lt;/p&gt;&lt;p class=MsoPlainText&gt;&lt;span style='font-size:11.0pt'&gt;${test-time}&lt;o:p&gt;&lt;/o:p&gt;&lt;/p&gt;&lt;p class=MsoPlainText&gt;&lt;b&gt;&lt;span style='font-size:16.0pt'&gt;"/>
+        <var name="email-msg3"
+             value="${log-excerpt-title}&lt;o:p&gt;&lt;/o:p&gt;&lt;/span&gt;&lt;/b&gt;&lt;/p&gt;&lt;p class=MsoPlainText&gt;&lt;span style='font-size:16.0pt;font-family:&quot;Tahoma&quot;,&quot;sans-serif&quot;'&gt;${log-error-msg}&lt;p class=MsoPlainText&gt;&lt;o:p&gt;&lt;/o:p&gt;&lt;/p&gt;&lt;/div&gt;&lt;/body&gt;&lt;/html&gt;"/>
+        <var name="email-msg" value="${email-msg1}${email-msg2}${email-msg3}"/>
+
+        <antcall target="send-email">
+            <param name="email.subject" value="${email-subject}"/>
+            <param name="email.message" value="${email-msg}"/>
+            <param name="email.tolist" value="${email.fail.to}"/>
+            <param name="file.dir" value="${builds.logs.dir}"/>
+            <param name="attach.file" value="${file.name}"/>
+        </antcall>
+    </target>
+
+    <target name="excerpt-errors" depends="init" description="finds error list, inserts html br and returns it">
+        <!-- Populate property excerpt.errors.list including only lines that contain ${find.me} -->
+        <loadfile srcfile="${path.to.log.file}" property="excerpt.errors.list">
+            <filterchain>
+                <tokenfilter>
+                    <containsstring contains="${find.me}"/>
+                </tokenfilter>
+            </filterchain>
+        </loadfile>
+
+        <echo>excerpt-errors ==> ${line.separator}set $${excerpt.errors.list} = ${excerpt.errors.list}</echo>
+
+        <antcallback target="replace-token-in-property" return="return.string">
+            <param name="in.value" value="${excerpt.errors.list}"/>
+            <param name="find.me" value="${find.me}"/>
+            <param name="new.value" value="${replace.me}"/>
+        </antcallback>
+
+        <echo>excerpt-errors ==> set $${updated.excerpt.errors.list} = ${updated.excerpt.errors.list}</echo>
+        <var name="return.error.list" value="${return.string}"/>
+
+    </target>
+
+    <target name="clean-output-folders">
+        <delete includeEmptyDirs="true">
+            <fileset dir="${basedir}/ios" includes="**/*"/>
+        </delete>
+        <delete includeEmptyDirs="true">
+            <fileset dir="${basedir}/android" includes="**/*"/>
+        </delete>
+        <delete includeEmptyDirs="true">
+            <fileset dir="${basedir}/wp8" includes="**/*"/>
+        </delete>
+    </target>
+
+
+    <!-- =======================================================================================
+                          COMMON TARGETS
+        =======================================================================================
+    -->
+
+
+    <target name="replace-token-in-property" description="loads property, replaces a string and returns it">
+        <!-- loadresource is property to save to -->
+        <loadresource property="out.value">
+            <propertyresource name="in.value"/>
+            <filterchain>
+                <tokenfilter>
+                    <filetokenizer/>
+                    <replacestring from="${find.me}" to="${new.value}"/>
+                </tokenfilter>
+            </filterchain>
+        </loadresource>
+
+        <echo>replace-token-in-property ==> set $${out.value} = ${out.value}</echo>
+        <var name="return.string" value="${out.value}"/>
+
+    </target>
+
+
+    <target name="copy-wild-file">
+        <copy todir="${destination.dir}">
+            <fileset dir="${src.dir}">
+                <include name="${wild.file}"/>
+            </fileset>
+        </copy>
+    </target>
+
+
+    <target name="delete-files" description="Delete files">
+        <delete>
+            <fileset dir="${target.dir}" includes="${files}"/>
+        </delete>
+    </target>
+
+
+    <target name="send-email" depends="init" description="Sends email message with attachment">
+        <mail mailhost="${email.host}" subject="${email.subject}" tolist="${email.tolist}" encoding="mime" messagemimetype="text/html" charset="utf-8" failonerror="false">
+            <from address="${email.from}"/>
+            <message>${email.message}</message>
+            <attachments>
+                <fileset dir="${file.dir}">
+                    <include name="${attach.file}"/>
+                </fileset>
+            </attachments>
+        </mail>
+    </target>
+
+
+</project>
+
+
+
+

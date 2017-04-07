@@ -1,0 +1,126 @@
+<view version="2.0">
+	<js file="ab-alloc-wiz-evts.js"/>
+	<js file="ab-alloc-wiz-evts-list.js"/>
+
+	<layout id="mainLayout">
+		<west initialSize="355" split="true" autoScroll="true" id="tree"/>
+		<center autoScroll="true" id="events"/>
+	</layout>
+      
+	<message name="error_no_records_selected">No records selected.</message>
+	<message name="confirmDelete">Delete selected records?</message>
+	<message name="deletingRecords">Deleting selected records.</message>
+	<message name="overAllocInstrucSu">{0} {1} is overallocated.  On {2}, total group allocations are {3}.  Total available leased suite area is {4}.  View Floor Details in the Allocation Events &gt; Locations tab.</message>
+	<message name="overAllocInstrucFl">{0} {1} is overallocated.  On {2}, total group allocations are {3}.  Available floor area is {4}.  View Floor Details in the Allocation Events &gt; Locations tab.</message>
+
+	<panel type="view" id="abCommonOracleDataSourceView" file="ab-alloc-wiz-common-oracle.axvw"/>
+        
+	<dataSource id="allocWizEvtsList_ds0" applyVpaRestrictions="false">
+		<table name="gp" role="main"/>
+		<sql dialect="generic">
+		SELECT bl.site_id, gp.bl_id, gp.fl_id, gp.planning_bu_id, gp.dv_id, gp.dp_id,
+		gp.gp_id, gp.name, gp.area, gp.count_em, gp.date_start, gp.date_end, gp.pct_floor, gp.area_manual, gp.description, gp.portfolio_scenario_id,
+		gp.option1, gp.is_available, gp.ls_id, CASE WHEN su_area IS NULL THEN 0 WHEN gp.ls_id IS NULL THEN 0 ELSE su_area END ${sql.as} ls_area
+		FROM gp
+		LEFT OUTER JOIN bl ON (gp.bl_id = bl.bl_id)
+		LEFT OUTER JOIN (SELECT su.bl_id, su.fl_id, su.ls_id, SUM(CASE WHEN su.area_usable=0 THEN su.area_manual ELSE su.area_usable END) ${sql.as} su_area 
+						FROM su WHERE EXISTS(SELECT 1 FROM ls WHERE ls.ls_id = su.ls_id AND ls.use_as_template = 0)
+						GROUP BY su.bl_id, su.fl_id, su.ls_id
+				) ${sql.as} suite ON (gp.bl_id = suite.bl_id AND gp.fl_id = suite.fl_id AND gp.ls_id = suite.ls_id)
+		WHERE ${sql.vpaRestriction}
+		</sql>
+		<field table="gp" name="site_id" dataType="text"/>
+		<field table="gp" name="bl_id" dataType="text"/>
+		<field table="gp" name="fl_id" dataType="text"/>
+		<field table="gp" name="planning_bu_id" dataType="text"/>
+		<field table="gp" name="dv_id" dataType="text"/>
+		<field table="gp" name="dp_id" dataType="text"/>
+		<field table="gp" name="gp_id" dataType="number" decimals="0"/>
+		<field table="gp" name="name" dataType="text"/>
+		<field table="gp" name="area" showTotals="true" dataType="number" decimals="2" numericFormat="area"/>
+		<field table="gp" name="count_em" showTotals="true" dataType="number" decimals="0"/>
+		<field table="gp" name="date_start" dataType="date"/>
+		<field table="gp" name="date_end" dataType="date"/>
+		<field table="gp" name="pct_floor" dataType="number" decimals="2"/>
+		<field table="gp" name="area_manual" showTotals="true" dataType="number" decimals="2" numericFormat="area"/>
+		<field table="gp" name="description" dataType="text"/>
+		<field table="gp" name="portfolio_scenario_id" dataType="text"/>
+		<field table="gp" name="option1" dataType="text"/>
+		<field table="gp" name="is_available" dataType="text"/>
+		<field table="gp" name="ls_id" dataType="text"/>
+		<field table="gp" name="ls_area" dataType="number" decimals="2" numericFormat="area">
+				<title>Leased Suite Area</title>
+		</field>
+		<sortField table="gp" name="date_start" ascending="true"/>
+		<sortField table="gp" name="bl_id" ascending="true"/>
+		<sortField table="gp" name="fl_id" ascending="true"/>
+	</dataSource>
+        
+	<dataSource type="grouping" id="allocWizEvtsList_groupDs">
+		<table name="gp" role="main"/>
+		<field name="name" table="gp" groupBy="true"/>
+		<field name="date_start" baseField="gp.date_start" formula="min" dataType="date"/>
+		<sortField name="name" ascending="true"/>
+	</dataSource>
+                        
+	<panel type="grid" id="allocWizEvtsList_events" controlType="category" categoryDataSource="allocWizEvtsList_groupDs" 
+				dataSource="allocWizEvtsList_ds0" showIndexAndFilterOnLoad="false" showOnLoad="false" 
+				refreshWorkflowRuleId="AbRPLMGroupSpaceAllocation-PortfolioForecastingService-getEvtsListRecords" layoutRegion="events" >
+
+        <title translatable="true">Allocations by Group Name</title>
+
+		<action type="menu" id="allocWizEvtsList_events_toolsMenu" imageName="/schema/ab-core/graphics/icons/view/export.png">
+			<tooltip>Tools</tooltip>
+			<action id="exportDOCX">
+				<title>Export to DOCX</title>
+				<command type="exportPanel" outputType="docx" orientation="landscape" panelId="allocWizEvtsList_events"/>
+			</action>
+			<action id="exportPDF">
+				<title>Export to PDF</title>
+				<command type="exportPanel" outputType="pdf" orientation="landscape" panelId="allocWizEvtsList_events"/>
+			</action>
+			<action id="exportXLS">
+				<title>Export to XLS</title>
+				<command type="exportPanel" outputType="xls" panelId="allocWizEvtsList_events"/>
+			</action>
+		</action>
+		<sortField table="gp" name="date_start" ascending="true"/>
+		<sortField table="gp" name="bl_id" ascending="true"/>
+		<sortField table="gp" name="fl_id" ascending="true"/>
+		<field table="gp" name="option1" dataType="text" hidden="true"/>
+		<field table="gp" name="date_start">
+			<title>Allocation Start Date</title>
+		</field>
+		<field table="gp" name="date_end">
+				<title>Allocation End Date</title>
+		</field>
+		<field table="gp" name="bl_id"/>
+		<field table="gp" name="fl_id"/>
+		<field table="gp" name="description" />
+		<field table="gp" name="count_em" />
+		<field table="gp" name="area_manual" numericFormat="area"/>
+		<field table="gp" name="area" numericFormat="area"/>
+		<field table="gp" name="pct_floor"/>
+		<field table="gp" name="ls_area" dataType="number" decimals="2" numericFormat="area">
+				<title>Leased Suite Area</title>
+		</field>
+		<field table="gp" name="planning_bu_id"/>
+		<field table="gp" name="dv_id"/>
+		<field table="gp" name="dp_id"/>
+		<field table="gp" name="name" hidden="false"/>
+		<field table="gp" name="portfolio_scenario_id" hidden="false"/>
+		<field table="gp" name="gp_id" hidden="true"/>              
+	</panel>
+            
+	<tabs workflow="free" id="allocWizEvtsTabs" tabRefreshPolicy="refreshOnSelect" layoutRegion="tree">     
+		<tab name="allocWizEvts_locTab" selected="true" file="ab-alloc-wiz-loc.axvw" useFrame="false">
+				<title>Locations</title>
+		</tab>
+		<tab name="allocWizEvts_orgTab" file="ab-alloc-wiz-org.axvw" useFrame="true">
+				<title>Organizations</title>
+		</tab>
+		<tab name="allocWizEvts_dateTab" file="ab-alloc-wiz-date.axvw" useFrame="true">
+				<title>Event Dates</title>
+		</tab>
+	</tabs>
+</view>

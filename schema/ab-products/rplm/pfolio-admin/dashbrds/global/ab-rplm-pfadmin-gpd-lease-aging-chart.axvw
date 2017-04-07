@@ -1,0 +1,144 @@
+<view version="2.0">
+    <js file="ab-rplm-pfadmin-gpd-lease-aging-chart.js"/>
+    
+    <message name="labelGreaterThan" translatable="true">Greater than 15</message>
+    
+    <dataSource id="abRplmPfadminGpdLeaseAging_ds" applyVpaRestrictions="false">
+        <sql dialect="generic">
+            SELECT 
+                CASE
+                     WHEN CONVERT(NUMERIC, ls.date_end - GETDATE())/365 &lt; 1 THEN '01'                        
+                     WHEN CONVERT(NUMERIC, ls.date_end - GETDATE())/365 &lt; 3 THEN '02-03'  
+                     WHEN CONVERT(NUMERIC, ls.date_end - GETDATE())/365 &lt; 5 THEN '04-05'  
+                     WHEN CONVERT(NUMERIC, ls.date_end - GETDATE())/365 &lt; 10 THEN '06-10'  
+                     WHEN CONVERT(NUMERIC, ls.date_end - GETDATE())/365 &lt; 15 THEN '11-15'
+                     ELSE ${parameters['labelGreaterThan']}
+                END ${sql.as} age,  
+                COUNT(*) ${sql.as} leases 
+            FROM ls
+                LEFT OUTER JOIN bl ON ls.bl_id = bl.bl_id 
+            WHERE ls.use_as_template = 0 AND CONVERT(NUMERIC, ls.date_end - GETDATE())/365 &gt; 0
+                AND ${sql.vpaRestriction} AND ${parameters['filterRestriction']} 
+            GROUP BY CASE  
+                     WHEN CONVERT(NUMERIC, ls.date_end - GETDATE())/365 &lt; 1 THEN '01'                        
+                     WHEN CONVERT(NUMERIC, ls.date_end - GETDATE())/365 &lt; 3 THEN '02-03'  
+                     WHEN CONVERT(NUMERIC, ls.date_end - GETDATE())/365 &lt; 5 THEN '04-05'  
+                     WHEN CONVERT(NUMERIC, ls.date_end - GETDATE())/365 &lt; 10 THEN '06-10'  
+                     WHEN CONVERT(NUMERIC, ls.date_end - GETDATE())/365 &lt; 15 THEN '11-15'
+                     ELSE ${parameters['labelGreaterThan']}
+                  END
+        </sql>
+        <sql dialect="oracle">
+                SELECT 
+                    CASE
+                         WHEN (ls.date_end - SYSDATE)/365 &lt; 1 THEN '01'                        
+                         WHEN (ls.date_end - SYSDATE)/365 &lt; 3 THEN '02-03'  
+                         WHEN (ls.date_end - SYSDATE)/365 &lt; 5 THEN '04-05'  
+                         WHEN (ls.date_end - SYSDATE)/365 &lt; 10 THEN '06-10'  
+                         WHEN (ls.date_end - SYSDATE)/365 &lt; 15 THEN '11-15'
+                         ELSE ${parameters['labelGreaterThan']} 
+                    END ${sql.as} age,  
+                    COUNT(*) ${sql.as} leases 
+                FROM ls
+                    LEFT OUTER JOIN bl ON ls.bl_id = bl.bl_id 
+                WHERE ls.use_as_template = 0 AND (ls.date_end - SYSDATE)/365 &gt; 0
+                    AND ${sql.vpaRestriction} AND ${parameters['filterRestriction']} 
+                GROUP BY CASE  
+                         WHEN (ls.date_end - SYSDATE)/365 &lt; 1 THEN '01'                        
+                         WHEN (ls.date_end - SYSDATE)/365 &lt; 3 THEN '02-03'  
+                         WHEN (ls.date_end - SYSDATE)/365 &lt; 5 THEN '04-05'  
+                         WHEN (ls.date_end - SYSDATE)/365 &lt; 10 THEN '06-10'  
+                         WHEN (ls.date_end - SYSDATE)/365 &lt; 15 THEN '11-15'
+                         ELSE ${parameters['labelGreaterThan']}
+                       END
+        </sql>
+        <table name="bl" role="main"/>
+        <field name="age" dataType="text">
+            <title>Lease Expirations</title>
+        </field>
+        <field name="leases" dataType="number" decimals="0">
+            <title>Leases</title>
+        </field>
+        <sortField table="bl" name="age" ascending="true"/>
+        <parameter name="labelGreaterThan" dataType="text" value=""/>
+        <parameter name="filterRestriction" dataType="verbatim" value="1 = 1"/>
+    </dataSource>
+    
+    <panel type="chart" id="abRplmPfadminGpdLeaseAging_chart" dataSource="abRplmPfadminGpdLeaseAging_ds" showLegendOnLoad="false" showLegendAsPopUp="false"
+        controlType="columnChart" showOnLoad="false">
+        <title translatable="true">Leases by Expiration Range (Years)</title>
+        <event type="onClickItem">    
+            <command type="openDialog" panelId="abRplmPfadminGpdLeaseAgingDetails" width="600" height="400"/>          
+        </event>
+        <groupingAxis table="bl" field="age" showLabel="true" labelRotation="0">
+            <title/>
+        </groupingAxis>
+        <dataAxis table="bl" field="leases" showLabel="true" displayAxis="false" labelPosition="none" labelRotation="0" autoCalculateTickSizeInterval="true"> 
+            <title translatable="true">Leases</title> 
+        </dataAxis>
+    </panel>
+
+    <dataSource id="abRplmPfadminGpdLeaseAgingDetails_ds" applyVpaRestrictions="false">   
+        <sql dialect="generic">
+            SELECT 
+                CASE
+                     WHEN CONVERT(NUMERIC, ls.date_end - GETDATE())/365 &lt; 1 THEN '01'                        
+                     WHEN CONVERT(NUMERIC, ls.date_end - GETDATE())/365 &lt; 3 THEN '02-03'  
+                     WHEN CONVERT(NUMERIC, ls.date_end - GETDATE())/365 &lt; 5 THEN '04-05'  
+                     WHEN CONVERT(NUMERIC, ls.date_end - GETDATE())/365 &lt; 10 THEN '06-10'  
+                     WHEN CONVERT(NUMERIC, ls.date_end - GETDATE())/365 &lt; 15 THEN '11-15'
+                     ELSE ${parameters['labelGreaterThan']}
+                END ${sql.as} age,  
+                ls.ls_id ${sql.as} ls_id,
+                bl.bl_id ${sql.as} bl_code,
+                ls.date_end ${sql.as}  ls_date_end 
+            FROM ls
+                LEFT OUTER JOIN bl ON ls.bl_id = bl.bl_id 
+            WHERE ls.use_as_template = 0 AND CONVERT(NUMERIC, ls.date_end - GETDATE())/365 &gt; 0
+                AND ${sql.vpaRestriction} AND ${parameters['filterRestriction']} 
+        </sql>
+        <sql dialect="oracle">
+            SELECT 
+                CASE
+                     WHEN (ls.date_end - SYSDATE)/365 &lt; 1 THEN '01'                        
+                     WHEN (ls.date_end - SYSDATE)/365 &lt; 3 THEN '02-03'  
+                     WHEN (ls.date_end - SYSDATE)/365 &lt; 5 THEN '04-05'  
+                     WHEN (ls.date_end - SYSDATE)/365 &lt; 10 THEN '06-10'  
+                     WHEN (ls.date_end - SYSDATE)/365 &lt; 15 THEN '11-15'
+                     ELSE ${parameters['labelGreaterThan']} 
+                END ${sql.as} age,  
+                ls.ls_id ${sql.as} ls_id,
+                bl.bl_id ${sql.as} bl_code,
+                ls.date_end ${sql.as}  ls_date_end 
+            FROM ls
+                LEFT OUTER JOIN bl ON ls.bl_id = bl.bl_id 
+            WHERE ls.use_as_template = 0 AND (ls.date_end - SYSDATE)/365 &gt; 0
+                AND ${sql.vpaRestriction} AND ${parameters['filterRestriction']} 
+        </sql>
+        <table name="bl" role="main" />
+        <field name="ls_id" dataType="text">
+            <title>Lease Code</title>
+        </field>
+        <field name="bl_code" dataType="text">
+            <title>Building Code</title>
+        </field>
+        <field name="ls_date_end" dataType="date">
+            <title>Date End</title>
+        </field>
+        <field name="age" dataType="text" hidden="true">
+            <title>Lease Expirations</title>
+        </field>
+        <parameter name="labelGreaterThan" dataType="text" value=""/>
+        <parameter name="filterRestriction" dataType="verbatim" value="1 = 1"/>
+    </dataSource>
+    
+    <panel type="grid" id="abRplmPfadminGpdLeaseAgingDetails" dataSource="abRplmPfadminGpdLeaseAgingDetails_ds" hidden="true" showOnLoad="false">
+        <sortField table="bl" name="ls_date_end" ascending="true"/>
+        <title>Lease Expirations</title>
+        <action id="exportXLS">
+            <title>XLS</title>
+            <command type="exportPanel" outputType="xls" panelId="abRplmPfadminGpdLeaseAgingDetails"/>
+        </action>
+    </panel>
+    
+</view>

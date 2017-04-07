@@ -1,0 +1,294 @@
+<!-- Change Log -->
+<!-- 2010/03/31 - JJYCHAN - Issue:33 - Parts that are fulfilled can no longer be modified.  Appropriate -->
+<!--						fields have been made read-only when Fulfilled != 0 -->
+<!-- 2010/04/07 - JJYCHAN - Issue:63 - New message has been made (cannotDeleteOther). -->
+<!-- 2010/04/07 - JJYCHAN - Issue:56 - Added a selectValue for selecting a tool_code.  Puts a restriction -->
+<!--						on the tool status, only showing available tools -->
+<!-- 2010/04/08 - JJYCHAN - Issue:40 - Part description has been made a required field when adding a new one -->
+<!-- 2010/04/13 - JJYCHAN - Issue:98 - Fixed Firefox error.  Moved closeButton="false" prop when opening -->
+<!--						"Add New Labor" button to before the applyParentRestriction.  Seems to work. -->
+<!-- 2010/04/13 - JJYCHAN - Issue:92 - Changed all "Actual Hours" to read "Regular Hours". Also removed -->
+<!--                        Overtime hours from the Tool Rental grid -->
+<!-- 2010/04/16 - JJYCHAN - Fixed bug where an error would be thrown when trying to add to a grid while -->
+<!--						a checkbox is selected.  Checks are now cleared before adding.  -->
+<!-- 2010/04/16 - JJYCHAN - Issue:90 - Added error msg "quantityZero" -->
+<!-- 2010/04/19 - JJYCHAN - Issue:146 - Added param: required="true" to qty_used -->
+<!-- 2010/04/19 - JJYCHAN - Issue:148 - Changed label "Date Craftsperson Assigned" to "Date of work" in -->
+<!--						wrcf input. -->
+<!-- 2010/04/19 - JJYCHAN - Issue:127 - wr_other.cost_total is not readOnly by default. Changed through -->
+<!--						after refresh call in js.  Also now has an onchange function for KEYSHOP -->
+<!-- 2010/11/24 - EWONG - 18.2 Upgrade: Removed spaces from the visibleFieldNames in the custom selectValue (causing only first field displayed). -->
+
+<view version="2.0">
+	<js file="uc-cf-wr-manager-details-2-Costs.js" />
+	<js file="uc-common-functions-data.js"/>
+
+	<!--layout id="main">
+		<north id="row1col1" initialSize="33%" split="true"/>
+		<center />
+	</layout>
+
+	<layout id="nested_center" containingLayout="main" region="center">
+		<north id="row2col1" initialSize="33%" split="true"/>
+		<center id="row3col1" />
+	</layout-->
+
+	<message name="noRecordsSelect">No Records Selected.</message>
+	<message name="confirmDelete">Are you sure you want to delete the selected records?</message>
+	<message name="cannotDeleteCf">There is a cost associated with one or more of the selected Craftspeople.  These line items cannot be deleted.</message>
+	<message name="cannotDeleteOtherCf">You may only delete your own Craftsperson record.</message>
+	<message name="cannotDeleteOther">One or more of the parts could not be deleted as they have already been processed.</message>
+	<message name="quantityZero">Please enter a quantity (Quantity cannot be zero).</message>
+
+	<!-- *************************************************************** -->
+	<!-- Labour Panels                                                   -->
+	<!-- *************************************************************** -->
+	<dataSource id="ds_wrcf" >
+		<table name="wrcf" role="main" />
+		<field table="wrcf" name="wr_id" />
+		<field table="wrcf" name="cf_id" />
+		<field table="wrcf" name="date_assigned" />
+		<field table="wrcf" name="time_assigned" />
+		<field table="wrcf" name="hours_straight" />
+		<field table="wrcf" name="hours_over" />
+		<field table="wrcf" name="hours_double" />
+		<field table="wrcf" name="cost_total" />
+	</dataSource>
+
+	<panel type="grid" id="wrcfReportGrid" dataSource="ds_wrcf"  multipleSelectionEnabled="true" showOnLoad="false">
+		<title>Craftspersons</title>
+
+		<sortField table="wrcf" name="cf_id" ascending="true" />
+		<sortField table="wrcf" name="date_assigned" ascending="false" />
+
+		<action id="btnWrcfAdd" imageName="/schema/ab-core/graphics/add.gif">
+			<title>Add</title>
+			<tooltip>Add New Labour</tooltip>
+			<command type="callFunction" functionName="clearchecks('wrcfReportGrid')" />
+			<command type="openDialog" panelId="wrcfEditPanel" newRecord="true" closeButton="false" applyParentRestriction="true" />
+			<command type="callFunction" functionName="fillRequiredInfo" />
+		</action>
+		<action type="javascript" onclick="deleteItems('wrcfReportGrid','wrcf')">
+				<title>Delete</title>
+				<tooltip>Delete Selected Labour</tooltip>
+		</action>
+
+		<field table="wrcf" name="wr_id" hidden="true" />
+		<field table="wrcf" name="cf_id" controlType="link">
+			<command type="callFunction" functionName="checkLoginCF" />
+			<command type="openDialog" panelId="wrcfEditPanel" />
+		</field>
+		<field table="wrcf" name="date_assigned" ><title>Date of Work</title></field>
+		<field table="wrcf" name="time_assigned" hidden="true" />
+		<field table="wrcf" name="hours_straight"><title>Regular Hours</title></field>
+		<field table="wrcf" name="hours_over" />
+		<field table="wrcf" name="hours_double" />
+		<field table="wrcf" name="cost_total" />
+	</panel>
+
+	<!-- This panel only show up (in its own dialog) when Add button is clicked. -->
+	<panel type="form" id="wrcfEditPanel" dataSource="ds_wrcf" showOnLoad="false">
+		<title>Add/Edit Labour</title>
+		<action id="btnWrcfSave" imageName="/schema/ab-core/graphics/save.gif">
+			<title>Save</title>
+			<tooltip>Save Changes</tooltip>
+			<command type="saveForm"/>
+			<command type="callFunction" functionName="saveWorkRequestCraftsperson" />	<!-- Rolls up hours and costs. -->
+			<command type="closeDialog" />
+		</action>
+		<action id="btnWrcfCancel">
+			<title>Cancel</title>
+			<tooltip>Cancel Changes</tooltip>
+			<command type="closeDialog" />
+		</action>
+
+		<field table="wrcf" name="wr_id" readOnly="true" />
+		<field table="wrcf" name="cf_id" readOnly="${1==1}" showSelectValueAction="false">
+
+		</field>
+
+
+		<field table="wrcf" name="date_assigned" ><title>Date of Work</title></field>
+		<field table="wrcf" name="time_assigned" hidden="true" required="false"/> <!-- auto-filled, so not required. -->
+		<field table="wrcf" name="hours_straight"><title>Regular Hours</title></field>
+		<field table="wrcf" name="hours_over" />
+		<field table="wrcf" name="hours_double" />
+	</panel>
+
+
+	<!-- *************************************************************** -->
+	<!-- Tools Panels                                                   -->
+	<!-- *************************************************************** -->
+	<dataSource id="ds_wrtl" >
+		<table name="wrtl" role="main" />
+		<field table="wrtl" name="wr_id" />
+		<field table="wrtl" name="tool_id" />
+		<field table="wrtl" name="date_assigned" />
+		<field table="wrtl" name="time_assigned" />
+		<field table="wrtl" name="hours_straight" />
+		<field table="wrtl" name="hours_over" />
+		<field table="wrtl" name="cost_total" />
+
+	</dataSource>
+
+	<panel type="grid" id="wrtlReportGrid" dataSource="ds_wrtl"  multipleSelectionEnabled="true" showOnLoad="false">
+		<title>Rental Tools</title>
+
+		<sortField table="wrtl" name="tool_id" ascending="true" />
+		<sortField table="wrtl" name="date_assigned" ascending="false" />
+
+		<action id="btnWrtlAdd" imageName="/schema/ab-core/graphics/add.gif">
+			<title>Add</title>
+			<tooltip>Add New Tools</tooltip>
+			<command type="callFunction" functionName="clearchecks('wrtlReportGrid')" />
+			<command type="openDialog" panelId="wrtlEditPanel" newRecord="true" closeButton="false"/>
+			<command type="callFunction" functionName="fillRequiredInfo" />
+		</action>
+		<action type="javascript" onclick="deleteItems('wrtlReportGrid','wrtl')">
+				<title>Delete</title>
+				<tooltip>Delete Selected Tools</tooltip>
+		</action>
+
+		<field table="wrtl" name="wr_id" hidden="true" />
+		<field table="wrtl" name="tool_id" controlType="link">
+			<command type="openDialog" panelId="wrtlEditPanel" />
+		</field>
+		<field table="wrtl" name="date_assigned" />
+		<field table="wrtl" name="time_assigned" hidden="true" />
+		<field table="wrtl" name="hours_straight"><title>Hours Used</title></field>
+		<field table="wrtl" name="hours_over" hidden="true" />
+		<field table="wrtl" name="cost_total" />
+	</panel>
+
+	<!-- This panel only show up (in its own dialog) when Add button is clicked. -->
+	<panel type="form" id="wrtlEditPanel" dataSource="ds_wrtl" showOnLoad="false">
+		<title>Add/Edit Tools</title>
+		<action id="btnWrtlSave" imageName="/schema/ab-core/graphics/save.gif">
+			<title>Save</title>
+			<tooltip>Save Changes</tooltip>
+			<command type="saveForm"/>
+			<command type="callFunction" functionName="saveWorkRequestTool"/>	<!-- Rolls up hours and costs. -->
+			<command type="closeDialog" />
+		</action>
+		<action id="btnWrtlCancel">
+			<title>Cancel</title>
+			<tooltip>Cancel Changes</tooltip>
+			<command type="closeDialog" />
+		</action>
+
+		<field table="wrtl" name="wr_id" readOnly="true" />
+		<field table="wrtl" name="date_assigned" hidden="true" />
+		<field table="wrtl" name="time_assigned" hidden="true" />
+		<field table="wrtl" name="tool_id" >
+			<title>Tool Code</title>
+			<action>
+				<title>...</title>
+				<tooltip>Select Value</tooltip>
+				<command type="selectValue"
+					fieldNames="wrtl.tool_id"
+					selectFieldNames="tl.tool_id"
+					visibleFieldNames="tl.tool_id,tl.tool_type,tl.status"
+					restriction="tl.status='A'"
+					recordLimit="1000"/>
+			</action>
+		</field>
+		<field table="wrtl" name="hours_straight" ><title>Hours used</title></field>
+		<!--field table="wrtl" name="hours_over" /-->
+	</panel>
+
+	<!-- *************************************************************** -->
+	<!-- Others/Contractors/Parts Panels                                 -->
+	<!-- *************************************************************** -->
+	<dataSource id="ds_wr_other" >
+		<table name="wr_other" role="main" />
+		<field table="wr_other" name="wr_id" />
+		<field table="wr_other" name="other_rs_type" />
+		<field table="wr_other" name="date_used" />
+		<field table="wr_other" name="description" />
+		<field table="wr_other" name="qty_used" />
+		<field table="wr_other" name="cost_total" />
+		<field table="wr_other" name="fulfilled"/>
+		<field table="wr_other" name="vn_id"/>
+	</dataSource>
+
+	<panel type="grid" id="wrOtherReportGrid" dataSource="ds_wr_other"  multipleSelectionEnabled="true" showOnLoad="false">
+		<title>Parts/Contractors/Other</title>
+
+		<sortField table="wr_other" name="other_rs_type" ascending="true" />
+		<sortField table="wr_other" name="date_used" ascending="false" />
+
+		<action id="btnWrOtherAdd" imageName="/schema/ab-core/graphics/add.gif">
+			<title>Add</title>
+			<tooltip>Add New Parts/Other Costs</tooltip>
+			<command type="callFunction" functionName="clearchecks('wrOtherReportGrid')" />
+			<command type="openDialog" panelId="wrOtherEditPanel" newRecord="true" closeButton="false"/>
+			<command type="callFunction" functionName="fillRequiredInfo" />
+		</action>
+		<action type="javascript" onclick="deleteItems('wrOtherReportGrid','wr_other')">
+				<title>Delete</title>
+				<tooltip>Delete Selected Other Costs</tooltip>
+		</action>
+
+		<field table="wr_other" name="wr_id" hidden="true" />
+		<field table="wr_other" name="fulfilled"><title>Fulfilled</title></field>
+		<field table="wr_other" name="other_rs_type" controlType="link"><title>Type</title>
+			<command type="openDialog" panelId="wrOtherEditPanel" />
+		</field>
+
+		<field table="wr_other" name="date_used" hidden="true"/>
+		<field table="wr_other" name="description"><title>Description</title></field>
+		<field table="wr_other" name="qty_used" ><title>Qty</title></field>
+		<field table="wr_other" name="cost_total" />
+
+	</panel>
+
+	<!-- This panel only show up (in its own dialog) when Add button is clicked. -->
+	<panel type="form" id="wrOtherEditPanel" dataSource="ds_wr_other" showOnLoad="false" beforeSave="wrOtherEditPanel_beforeSave">
+		<title>Add/Edit Parts/Other Costs</title>
+		<action id="btnWrOtherSave" imageName="/schema/ab-core/graphics/save.gif" hidden="${record['wr_other.fulfilled'] != '0'}">
+			<title>Save</title>
+			<tooltip>Save Changes</tooltip>
+			<command type="saveForm" />
+			<command type="callFunction" functionName="saveWorkRequestOther"/>	<!-- Rolls up hours and costs. -->
+			<command type="closeDialog" />
+		</action>
+		<action id="btnWrOtherCancel">
+			<title>Cancel</title>
+			<tooltip>Cancel Changes</tooltip>
+			<command type="closeDialog" />
+		</action>
+
+		<field table="wr_other" name="wr_id" readOnly="true"/>
+		<field table="wr_other" name="fulfilled"  readOnly="true" />
+
+
+
+		<field table="wr_other" name="other_rs_type" onchange="costTabController.onOtherChanged()" readOnly="${record['wr_other.fulfilled'] != '0'}">
+			<title>Part/Other Type</title>
+			<action id="otherSelVal">
+				<title>...</title>
+				<tooltip>Select Value</tooltip>
+				<command type="selectValue"
+					fieldNames="wr_other.other_rs_type"
+					selectFieldNames="other_rs.other_rs_type"
+					visibleFieldNames="other_rs.other_rs_type,other_rs.description"
+					restriction="other_rs.other_rs_type not like 'LOAD%'"
+					actionListener="onOtherSelect"
+				/>
+			</action>
+		</field>
+
+		<field table="wr_other" name="vn_id" enabled="false"/>
+
+
+		<!--field table="wr_other" name="other_rs_type"><title>Part/Other Type</title></field-->
+		<field table="wr_other" name="date_used" hidden="true" />
+		<field table="wr_other" name="description" required="true" readOnly="${record['wr_other.fulfilled'] != '0'}">
+			<title>Part/Other Description</title>
+		</field>
+		<field table="wr_other" name="qty_used" required="true" readOnly="${record['wr_other.fulfilled'] != '0'}">
+			<title>Quantity</title>
+		</field>
+		<field table="wr_other" name="cost_total"><title>Total Cost</title></field>
+	</panel>
+</view>

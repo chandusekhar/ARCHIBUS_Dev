@@ -1,0 +1,210 @@
+<view version="2.0">
+	<js file="ab-rplm-lsadmin-ls-alert-details-tree.js"/>
+	<message name="not_geocoded" translatable="true">Not Geocoded</message>
+	<dataSource id="dsCtry">
+		<sql dialect="generic">
+			select 
+				ctry.ctry_id as ctry_id,
+				ctry.name as name
+			from ctry
+			where EXISTS(SELECT 1 FROM bl WHERE bl.ctry_id = ctry.ctry_id AND EXISTS(SELECT 1 FROM ls WHERE ls.bl_id = bl.bl_id ${parameters['subquery']})) OR 
+				EXISTS(SELECT 1 FROM property WHERE property.ctry_id = ctry.ctry_id AND EXISTS(SELECT 1 FROM ls WHERE ls.pr_id = property.pr_id ${parameters['subquery']}))
+				
+		</sql>
+		<table name="ctry" role="main"/>
+		<field table="ctry" name="ctry_id"/>
+		<parameter name="subquery" dataType="verbatim" value=""/>
+	</dataSource>
+	<dataSource id="dsCity">
+		<sql dialect="generic">
+			select 
+				city.ctry_id as ctry_id,
+				city.city_id as city_id,
+				city.state_id as state_id	
+			from city
+			where (EXISTS(SELECT 1 FROM bl WHERE bl.state_id = city.state_id AND bl.city_id = city.city_id AND EXISTS(SELECT 1 FROM ls WHERE ls.bl_id = bl.bl_id ${parameters['subquery']}))) OR 
+			(EXISTS(SELECT 1 FROM property WHERE property.state_id = city.state_id AND property.city_id = city.city_id AND EXISTS(SELECT 1 FROM ls WHERE ls.pr_id = property.pr_id ${parameters['subquery']})))
+		</sql>
+		<table name="city" role="main"/>
+		<field table="city" name="state_id"/>
+		<field table="city" name="city_id"/>
+		<parameter name="subquery" dataType="verbatim" value=""/>
+	</dataSource>
+	<dataSource id="dsPropertiesBuildings">
+		<sql dialect="generic">
+			SELECT 	property.pr_id as pr_id, 
+					'' as name, 
+					property.property_type as property_type, 
+					property.state_id as state_id, 
+					property.city_id as city_id, 
+					property.lat as lat, 
+					property.lon as lon
+			FROM property
+			WHERE EXISTS(SELECT 1 FROM ls WHERE ls.pr_id = property.pr_id ${parameters['subquery']})
+			UNION
+			SELECT bl.bl_id as pr_id, 
+					'BUILDING' as name, 
+					'' as property_type, 
+					bl.state_id as state_id, 
+					bl.city_id as city_id, 
+					bl.lat as lat, 
+					bl.lon as lon
+			FROM bl 		
+			WHERE EXISTS(SELECT 1 FROM ls WHERE ls.bl_id = bl.bl_id ${parameters['subquery']})	
+		</sql>
+		<table name="property" role="main"/>
+		<field table="property" name="pr_id" dataType="text"/>
+		<field table="property" name="name" dataType="text"/>
+		<field table="property" name="property_type" dataType="text"/>
+		<parameter name="subquery" dataType="verbatim" value=""/>
+	</dataSource>
+	<dataSource id="dsLease">
+		<sql dialect="generic">
+			SELECT 
+				ls.ls_id,
+				ls.landlord_tenant,
+				SUBSTRING(ls.description, 0, 30) AS description,
+				ls.ls_parent_id,
+				(CASE WHEN ls.pr_id IS NULL THEN bl_id ELSE ls.pr_id END) as pr_id
+			FROM ls
+			WHERE (ls.ls_parent_id is null)
+			${parameters['subquery']}
+			OR EXISTS(SELECT 1 FROM ls x WHERE x.ls_parent_id = ls.ls_id ${parameters['subquery_int']} )
+		</sql>
+		<sql dialect="oracle">
+			SELECT 
+				ls.ls_id,
+				ls.landlord_tenant,
+				SUBSTR(ls.description, 0, 30) AS description,
+				ls.ls_parent_id,
+				(CASE WHEN ls.pr_id IS NULL THEN bl_id ELSE ls.pr_id END) as pr_id
+			FROM ls
+			WHERE (ls.ls_parent_id is null)
+			${parameters['subquery']}
+			OR EXISTS(SELECT 1 FROM ls x WHERE x.ls_parent_id = ls.ls_id ${parameters['subquery_int']} )
+		</sql>
+		<table name="ls" role="main"/>
+		<field table="ls" name="ls_id" dataType="text"/>
+		<field table="ls" name="landlord_tenant" dataType="text"/>
+		<parameter name="subquery" dataType="verbatim" value=""/>
+		<parameter name="subquery_int" dataType="verbatim" value=""/>
+	</dataSource>
+	<dataSource id="dsSubLease">
+		<sql dialect="generic">
+			SELECT 
+				ls.ls_id as su_id,
+				ls.landlord_tenant as landlord_tenant,
+				SUBSTRING(ls.description, 0, 30) AS description,
+				ls.ls_parent_id as ls_id,
+				(CASE WHEN ls.pr_id IS NULL THEN bl_id ELSE ls.pr_id END) as pr_id
+			FROM ls
+			WHERE ls.ls_parent_id is not null
+			${parameters['subquery']}
+		</sql>
+		<sql dialect="oracle">
+			SELECT 
+				ls.ls_id as su_id,
+				ls.landlord_tenant as landlord_tenant,
+				SUBSTR(ls.description, 0, 30) AS description,
+				ls.ls_parent_id as ls_id,
+				(CASE WHEN ls.pr_id IS NULL THEN bl_id ELSE ls.pr_id END) as pr_id
+			FROM ls
+			WHERE ls.ls_parent_id is not null
+			${parameters['subquery']}
+		</sql>
+
+		<table name="su" role="main"/>
+		<field table="su" name="su_id" dataType="text"/>
+		<field table="ls" name="landlord_tenant" dataType="text"/>
+		<field table="su" name="ls_id" dataType="text"/>
+		<parameter name="subquery" dataType="verbatim" value=""/>
+	</dataSource>
+	<panel type="tree" id="treeCtry" dataSource="dsCtry">
+		<action id="search">
+			<title translatable="true">Search</title>
+			<command type="openDialog" panelId="formSearch" width="300" height="200"/>
+		</action>
+		
+		<action id="show_all">
+			<title translatable="true">Show All</title>
+		</action>
+		
+		<action id="filter" imageName="/schema/ab-system/graphics/ab-filter-run.gif">
+ 			<tooltip>Filter</tooltip>
+			<command type="openDialog" panelId="formFilter" width="500" height="300"/>
+		</action>
+		<panel type="tree" id="treeCity" dataSource="dsCity"/>
+		<panel type="tree" id="treePropertiesBuildings" dataSource="dsPropertiesBuildings"/>
+		<panel type="tree" id="treeLease" dataSource="dsLease">
+			<event type="onClickNode">
+				<command type="callFunction" functionName="showDetails"/>
+			</event>
+			<field table="ls" name="ls_id"/>
+			<field table="ls" name="landlord_tenant"/>
+			<field table="ls" name="description"/>
+		</panel>
+		<panel type="tree" id="treeSubLease" dataSource="dsSubLease">
+			<event type="onClickNode">
+				<command type="callFunction" functionName="showDetails"/>
+			</event>
+			<field table="ls" name="ls_id"/>
+			<field table="ls" name="landlord_tenant"/>
+			<field table="ls" name="description"/>
+		</panel>
+	</panel>
+	<dataSource id="dsSearch">
+		<table name="ls" role="main"/>
+		<field table="ls" name="ls_id"/>
+		<parameter name="lease_id" dataType="text" value=""/>
+		<restriction type="sql" sql="ls.ls_id = ${parameters['lease_id']}"/>
+	</dataSource>
+	<panel type="form" id="formSearch" hidden="true" showOnLoad="false" dataSource="dsSearch">
+		<action id="save">
+			<title translatable="true">Search</title>
+			<command type="closeDialog"/>
+		</action>
+		<action id="cancel">
+			<title translatable="true">Cancel</title>
+			<command type="closeDialog"/>
+		</action>
+		<field table="ls" name="ls_id"/>
+	</panel>
+	<panel type="html" id="formFilter" hidden="true" showOnLoad="false">
+		<action id="apply">
+			<title translatable="true">Apply</title>
+			<command type="closeDialog"/>
+		</action>
+		<action id="cancel">
+			<title translatable="true">Cancel</title>
+			<command type="closeDialog"/>
+		</action>
+		<html>
+			<b translatable="true">Leases for:</b>
+			<br/><input type="radio" id="radioCrit1" name="radioCrit1" value="all">
+				<font translatable="true">All</font>
+			</input>
+			<br/><input type="radio" id="radioCrit1" name="radioCrit1" value="building">
+				 <font translatable="true">Occupiable Areas (Buildings)</font>
+			</input>
+			<br/><input type="radio" id="radioCrit1" name="radioCrit1" value="property">
+				 <font translatable="true">Non-Occupiable Areas (Structures/Land)</font>
+			</input>
+			<br/><input type="radio" id="radioCrit1" name="radioCrit1" value="structure">
+				 <font translatable="true">Structures</font>
+			</input>
+			<br/><input type="radio" id="radioCrit1" name="radioCrit1" value="land">
+				 <font translatable="true">Land</font>
+			</input>
+			<br/><b translatable="true">Active/Non-Active?</b>
+			<br/><input type="radio" id="radioCrit2" name="radioCrit2" value="both">
+				<font translatable="true">Both</font>
+			</input>
+			<br/><input type="radio" id="radioCrit2" name="radioCrit2" value="active">
+				 <font translatable="true">Active</font>
+			</input>
+			<br/><input type="radio" id="radioCrit2" name="radioCrit2" value="nonactive">
+				 <font translatable="true">Non-Active</font>
+			</input>
+		</html>
+	</panel>
+</view>

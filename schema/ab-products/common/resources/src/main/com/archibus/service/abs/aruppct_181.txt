@@ -1,0 +1,679 @@
+'ARUPPCT.ABS
+'AR  - all room inventory
+'UP  - update calculations
+'PCT - using percentages
+'10.27.95
+
+' 07-06-98 JH Added entry point Sub aruppct_syncpct() for Process Toolbars
+' 12-29-98 JH Changed "Syncronizing" to "Synchronizing"
+' 01-16-99 JH Added entry point aruppct_alrmpctcalcs() 
+' 04-14-99 JH Changed Format "Short Date" to WindowShortDateWithFourDigitYear
+' 09-16-99 JH MSSQL - added SQL case
+' 03-08-00 JH Localization - Updated string constants for trailing spaces
+' 06-27-02 JH Changed rmpct.area_rm calcs to handle missing rooms in MSSQL projects [3003455]
+' 03-08-04 YQ Reset tot_day = 1 to fix runtime error when start date is the same as end date
+' 01-05-06 EZ Keep rmpct in sync with rm table; Remove records whose associated rooms don't exist in the rm table
+
+Option Explicit
+
+'---- External Functions
+Declare Function SqlFunc_Replace0WithHuge( sFieldName As String ) As String
+Declare Function SqlFunc_SQLIsNull() As String
+
+
+'---- Internal Functions
+Declare Sub aruppct_alrmpctcalcs()
+Declare Sub update_space_time() 
+Declare Sub alrmpct_calc()
+
+
+Private public_start_date As String, public_end_date As String
+
+'------------------------------------------------------------------------------
+'----                                    TRANSLATE
+Const kBadDateValueMsg$            = "Bad date value"
+Const kUnspecErrorMsg$             = "Unspecified Error - Error Number:"
+Const kSelectDateRangeMsg$         = "Select Date Range"
+Const kDatesPrompt$                = "&Dates"
+Const kStartDatePrompt$            = "&Start Date:"
+Const kEndDatePrompt$              = "&End Date:"
+Const OKPrompt$                    = "OK"
+Const CancelPrompt$                = "Cancel"
+
+Const kPleaseWaitMsg$              = "Please wait ..."
+Const kPerformSpacePercentUpdateMsg$="Performing Space Percentage Update"
+Const kPerformTimePercentUpdateMsg$= "Performing Time Percentage Update"
+Const kSyncingPercentRecordsMsg$   = "Synchronizing Percentage Records"
+
+'------------------------------------------------------------------------------
+
+
+'------------------------------------------------------------------------------
+'---- Define Dialog Control Procedure which monitors and responds to 
+'---- user input in the date selection dialog.
+'------------------------------------------------------------------------------
+Function Dialog_Control(ControlName$, Action%, SuppValue%)
+
+     Dim tmp As Double
+
+'    ---- Respond to user actions performed within the dialog box.
+     Select Case Action
+
+'    ---- Dialog Action 1 is returned just before the dialog starts.
+     Case 1 
+          Dlgtext "Date_Start_Box", public_start_date
+          Dlgtext "Date_End_Box", public_end_date
+
+'    ---- Dialog Action 2 Button Selection
+     Case 2
+
+          Select Case ControlName
+          Case "OK"
+'              ---- Check to see if the Dates are actually dates.
+               On Error Goto Date_Error
+
+               If Dlgtext$( "Date_Start_Box" ) <> "" Then
+                    tmp = DateValue( Dlgtext$( "Date_Start_Box" ))
+               End If
+               If Dlgtext$( "Date_End_Box" ) <> "" Then
+                    tmp = DateValue( Dlgtext$( "Date_End_Box" ))
+               End If
+
+               On Error Goto 0
+
+               public_start_date = Dlgtext$( "Date_Start_Box" )    
+               public_end_date = Dlgtext$( "Date_End_Box" )    
+
+          End Select     '---- ControlName
+
+     End Select     '---- Action
+
+     Exit Function
+
+Date_Error:
+     If Err = 5 Then 
+          MsgBox kBadDateValueMsg, ebExclamation, kSelectDateRangeMsg
+     Else
+          MsgBox kUnspecErrorMsg & " " & CStr(Err), _
+				ebExclamation, kSelectDateRangeMsg
+     End If
+     Dialog_Control = 1
+     Resume Next
+
+End Function
+
+'------------------------------------------------------------------------------
+'---- Select Dates Main Procedure ---------------------------------------------
+'------------------------------------------------------------------------------
+Sub Sel_Date( local_start_date As String, local_end_date As String )
+
+     Dim Dialog_Response As Integer
+
+     public_start_date = local_start_date
+     public_end_date = local_end_date
+
+'    ---- Define Date Selection Dialog
+     Begin Dialog Select_Dates_Template,,150,100,kSelectDateRangeMsg, _
+               .Dialog_Control
+
+          GroupBox 4,18,140,42,kDatesPrompt,.Created
+          Text 8,32,56,8,kStartDatePrompt,.Text1
+          TextBox 64,28,66,12,.Date_Start_Box
+          Text 8,44,64,8,kEndDatePrompt,.Text2
+          TextBox 64,44,66,12,.Date_End_Box
+
+          PushButton 4,66,40,14,OKPrompt,.OK
+          PushButton 50,66,40,14,CancelPrompt,.Cancel
+
+     End Dialog
+
+'    ---- Define dialog variable
+     Dim Select_Dates_Dialog As Select_Dates_Template
+
+'    ---- Display Date Selection Dialog and pass processing to Dialog_Control
+     Dialog_Response = Dialog( Select_Dates_Dialog )
+
+'    ---- React to OK or Cancel user response from the dialog
+     Select Case Dialog_Response
+
+'    ---- Cancel Button
+     Case 2
+
+          local_start_date = "00/00/00"
+          local_end_date = "00/00/00"
+
+'    ---- OK Button
+     Case 1
+
+          local_start_date = public_start_date
+          local_end_date = public_end_date
+
+     End Select
+End Sub
+
+
+'------------------------------------------------------------------------------
+'---- Convert a date retrieved from SQL into ISO format.
+'------------------------------------------------------------------------------
+Function ISO_Date( Date_to_Convert As String ) As String
+     ISO_Date = Format$( DateValue( Date_to_Convert ), "yyyy-mm-dd" )
+End Function
+
+'------------------------------------------------------------------------------
+' ---- ISO to Basic Date Format
+'------------------------------------------------------------------------------
+Function ISOtoBasic( ISOdateString As String ) As Double
+     ISOtoBasic = DateSerial( Val( Left$( ISOdateString, 4 )), _
+                              Val( Mid$( ISOdateString, 6, 2)), _
+                              Val( Mid$( ISOdateString, 9, 2)))
+End Function
+
+'------------------------------------------------------------------------------
+'--- All Room Percentage Area Calculations ------------------------------------
+'------------------------------------------------------------------------------
+Sub aruppct_alrmpctcalcs()
+	update_space_time
+End Sub
+
+Sub alrmpct_calc()
+
+     Dim ff As New FieldFormula
+     Dim fo As New FieldOperation
+   
+     MsgSetThermometer 5
+
+     '--- Sum AREA from RMPCT to RM
+
+     fo.Owner    = "rm"
+     fo.Assigned = "rmpct"
+     fo.Calculate "rm.area_alloc", "SUM", "rmpct.area_rm"
+     fo.Clear
+
+     MsgSetThermometer 10
+
+   '--- Calculate UNALLOCATED ROOM AREA
+
+     ff.Assigned = "rm"
+     ff.Calculate "rm.area_unalloc", "rm.area - rm.area_alloc"
+     ff.Clear
+
+     MsgSetThermometer 15
+
+     '--- Sum TOTAL ROOM AREA from RM to FL
+
+     fo.Owner = "fl"
+     fo.Assigned = "rm"
+     fo.Calculate "fl.area_rm", "SUM", "rm.area"
+     fo.Clear
+
+     MsgSetThermometer 20
+
+     '--- Calculate FLOOR REMAINING AREA
+
+     ff.Assigned = "fl"
+     ff.Calculate "fl.area_remain","fl.area_gross_int - fl.area_rm - fl.area_gp"
+     ff.Clear
+   
+     MsgSetThermometer 25
+
+     '--- Sum areas from RMPCT to FL
+
+     fo.Owner    = "fl"
+     fo.Assigned = "rmpct"
+     fo.Standard = "rmcat"
+     fo.InpFilter = "rmcat.supercat = 'VERT'"
+     fo.Calculate "fl.area_vert_pen", "SUM", "rmpct.area_rm"
+     fo.InpFilter = "rmcat.supercat = 'SERV'"
+     fo.Calculate "fl.area_serv", "SUM", "rmpct.area_rm"
+     fo.InpFilter = "rmcat.occupiable = 0 AND rmcat.used_in_calcs IN ('all_totals', 'dp_comn_ocup_totals')"
+     fo.Calculate "fl.area_nocup", "SUM", "rmpct.area_rm"
+
+     MsgSetThermometer 30
+
+     fo.InpFilter = "rmcat.occupiable = 0 and rmpct.dp_id IS NOT NULL AND rmcat.used_in_calcs IN ('all_totals', 'dp_comn_ocup_totals')"
+     fo.Calculate "fl.area_nocup_dp", "SUM", "rmpct.area_rm"
+     fo.InpFilter = "rmcat.occupiable = 0 and rmpct.prorate<>'NONE' AND rmcat.used_in_calcs IN ('all_totals', 'dp_comn_ocup_totals')"
+     fo.Calculate "fl.area_nocup_comn", "SUM", "rmpct.area_rm"
+     fo.InpFilter = "rmcat.occupiable = 1 AND rmcat.used_in_calcs IN ('all_totals', 'dp_comn_ocup_totals')"
+     fo.Calculate "fl.area_ocup", "SUM", "rmpct.area_rm" 
+     fo.InpFilter = "rmcat.occupiable = 1 and rmpct.dp_id IS NOT NULL AND rmcat.used_in_calcs IN ('all_totals', 'dp_comn_ocup_totals')"
+     fo.Calculate "fl.area_ocup_dp", "SUM", "rmpct.area_rm"
+     fo.InpFilter = "rmcat.occupiable = 1 and rmpct.prorate<>'NONE' AND rmcat.used_in_calcs IN ('all_totals', 'dp_comn_ocup_totals')"
+     fo.Calculate "fl.area_ocup_comn", "SUM", "rmpct.area_rm"
+     fo.Clear
+
+     MsgSetThermometer 35
+
+     '--- Calculate RENTABLE and USABLE area in FL
+
+     ff.Assigned = "fl"
+     ff.Calculate "fl.area_rentable", "fl.area_gross_int - fl.area_vert_pen"
+     ff.Calculate "fl.area_usable", "fl.area_rentable - fl.area_serv"
+     ff.Clear
+
+     MsgSetThermometer 40
+
+     '--- Sum area from FL to BL
+
+     fo.Owner    = "bl"
+     fo.Assigned = "fl"
+     fo.AddOperation "bl.area_rm", "SUM", "fl.area_rm"
+     fo.AddOperation "bl.area_remain", "SUM", "fl.area_remain"
+     fo.AddOperation "bl.area_ocup", "SUM", "fl.area_ocup"
+     fo.AddOperation "bl.area_ocup_dp", "SUM", "fl.area_ocup_dp"
+     fo.AddOperation "bl.area_ocup_comn", "SUM", "fl.area_ocup_comn"
+     fo.AddOperation "bl.area_nocup", "SUM", "fl.area_nocup"
+     fo.AddOperation "bl.area_nocup_dp", "SUM", "fl.area_nocup_dp"
+     fo.AddOperation "bl.area_nocup_comn", "SUM", "fl.area_nocup_comn"
+     fo.AddOperation "bl.area_vert_pen", "SUM", "fl.area_vert_pen"
+     fo.AddOperation "bl.area_rentable", "SUM", "fl.area_rentable"
+     fo.AddOperation "bl.area_serv", "SUM", "fl.area_serv"
+     fo.AddOperation "bl.area_usable", "SUM", "fl.area_usable"
+     fo.Calculate
+     fo.Clear
+    
+     MsgSetThermometer 45
+
+     '--- Sum area from BL to SITE
+  
+     fo.Owner    = "site"
+     fo.Assigned = "bl"
+     fo.AddOperation "site.area_rm", "SUM", "bl.area_rm"
+     fo.AddOperation "site.area_ocup", "SUM", "bl.area_ocup"
+     fo.AddOperation "site.area_ocup_dp", "SUM", "bl.area_ocup_dp"
+     fo.AddOperation "site.area_ocup_comn", "SUM", "bl.area_ocup_comn"
+     fo.AddOperation "site.area_nocup", "SUM", "bl.area_nocup"
+     fo.AddOperation "site.area_nocup_dp", "SUM", "bl.area_nocup_dp"
+     fo.AddOperation "site.area_nocup_comn", "SUM", "bl.area_nocup_comn"
+     fo.AddOperation "site.area_vert_pen", "SUM", "bl.area_vert_pen"
+     fo.AddOperation "site.area_rentable", "SUM", "bl.area_rentable"
+     fo.AddOperation "site.area_serv", "SUM", "bl.area_serv"
+     fo.AddOperation "site.area_usable", "SUM", "bl.area_usable"
+     fo.Calculate
+     fo.Clear
+
+     MsgSetThermometer 50
+
+     '--- Calculate FL R/U ratio, and U/R ratio
+
+     ff.Assigned = "fl"
+     ff.AddFormula "fl.ratio_ru", "fl.area_rentable /" & _
+                                 SqlFunc_Replace0WithHuge( "fl.area_usable" )
+     ff.AddFormula "fl.ratio_ur", "100 * fl.area_usable /" & _
+                                 SqlFunc_Replace0WithHuge( "fl.area_rentable" )
+     ff.Calculate
+     ff.Clear
+
+     MsgSetThermometer 55
+
+     '--- Calculate BL R/U ratio, and U/R ratio
+
+     ff.Assigned = "bl"
+     ff.AddFormula "bl.ratio_ru", "bl.area_rentable /" & _
+                                 SqlFunc_Replace0WithHuge( "bl.area_usable" )
+     ff.AddFormula "bl.ratio_ur", "100 * bl.area_usable /" & _
+                                 SqlFunc_Replace0WithHuge( "bl.area_rentable" )
+     ff.Calculate
+     ff.Clear
+
+     MsgSetThermometer 60
+
+     '--- Calculate SITE R/U ratio, and U/R ratio
+
+     ff.Assigned = "site"
+     ff.AddFormula "site.ratio_ru", "site.area_rentable /" & _
+                               SqlFunc_Replace0WithHuge( "site.area_usable" )
+     ff.AddFormula "site.ratio_ur", "100 * site.area_usable /" & _
+                               SqlFunc_Replace0WithHuge( "site.area_rentable" )
+     ff.Calculate
+     ff.Clear
+
+     MsgSetThermometer 65
+
+     '--- Sum area from RMPCT to DP
+
+     fo.Owner = "dp"
+     fo.Assigned = "rmpct"
+     fo.InpFilter = "rmcat.used_in_calcs IN ('all_totals', 'dp_comn_ocup_totals')"     
+     fo.Calculate "dp.area_rm", "SUM", "rmpct.area_rm"
+     fo.Clear
+   
+     fo.Owner = "dp"
+     fo.Assigned = "rmpct"
+     fo.Standard = "rmcat"
+     fo.InpFilter = "rmcat.occupiable = 0 AND rmcat.used_in_calcs IN ('all_totals', 'dp_comn_ocup_totals')"
+     fo.Calculate "dp.area_nocup", "SUM", "rmpct.area_rm"
+     fo.InpFilter = "rmcat.occupiable = 1 AND rmcat.used_in_calcs IN ('all_totals', 'dp_comn_ocup_totals')"
+     fo.Calculate "dp.area_ocup", "SUM", "rmpct.area_rm"
+     fo.Clear
+
+     MsgSetThermometer 70
+
+     '--- Sum RMPCT AREA from DP to DV
+
+     fo.Owner = "dv"
+     fo.Assigned = "dp"
+     fo.AddOperation "dv.area_rm", "SUM", "dp.area_rm"
+     fo.AddOperation "dv.area_nocup", "SUM", "dp.area_nocup"
+     fo.AddOperation "dv.area_ocup", "SUM", "dp.area_ocup"
+     fo.Calculate
+     fo.Clear
+
+     MsgSetThermometer 75
+  
+     '--- Sum RMPCT AREA from DV to BU
+
+     fo.Owner = "bu"
+     fo.Assigned = "dv"
+     fo.AddOperation "bu.area_rm", "SUM", "dv.area_rm"
+     fo.AddOperation "bu.area_nocup", "SUM", "dv.area_nocup"
+     fo.AddOperation "bu.area_ocup", "SUM", "dv.area_ocup"
+     fo.Calculate
+     fo.Clear
+
+     MsgSetThermometer 80
+
+     '--- Calculate RMSTD AREA and COUNT
+
+     fo.Owner    = "rmstd"
+     fo.Assigned = "rm"
+     fo.AddOperation "rmstd.area", "SUM", "rm.area"
+     fo.AddOperation "rmstd.tot_count", "COUNT", "rm.area"
+     fo.Calculate
+     fo.Clear
+
+     '--- Calculate RMTYPE AREA & COUNT
+
+     fo.Owner    = "rmtype"
+     fo.Assigned = "rmpct"
+     fo.AddOperation "rmtype.area", "SUM", "rmpct.area_rm"
+     fo.AddOperation "rmtype.tot_count", "COUNT", "rmpct.area_rm"
+     fo.Calculate
+     fo.Clear
+
+     MsgSetThermometer 85
+
+     '--- SUM AREA and COUNT from RMPCT to RMCAT 
+
+     fo.Owner    = "rmcat"
+     fo.Assigned = "rmpct"
+     fo.AddOperation "rmcat.area", "SUM", "rmpct.area_rm"
+     fo.AddOperation "rmcat.tot_count", "COUNT", "rmpct.area_rm"
+     fo.Calculate
+     fo.Clear
+
+     '--- Calculate RMSTD AVERAGE AREA
+     ff.Assigned = "rmstd"
+     ff.Calculate "rmstd.area_avg","rmstd.area  /" & _
+                                  SqlFunc_Replace0WithHuge( "rmstd.tot_count" )
+     ff.Clear
+
+     MsgSetThermometer 90
+
+     '--- Calculate RMCAT AVG AREA
+
+     ff.Assigned = "rmcat"
+     ff.Calculate "rmcat.area_avg", "rmcat.area  /" & _
+                                 SqlFunc_Replace0WithHuge( "rmcat.tot_count" )
+     ff.Clear
+
+     '--- Calculate RMTYPE AVG AREA
+
+     ff.Assigned = "rmtype"
+     ff.Calculate "rmtype.area_avg", "rmtype.area  /" & _
+                                SqlFunc_Replace0WithHuge( "rmtype.tot_count" )
+     ff.Clear
+
+     MsgSetThermometer 100
+
+     '--- ReQuery View
+
+     Avw.SetTblChanged "rmpct", AVW_TBLCHANGE_UPDATE
+     Avw.SetTblChanged "rm", AVW_TBLCHANGE_UPDATE
+     Avw.SetTblChanged "dv", AVW_TBLCHANGE_UPDATE
+     Avw.SetTblChanged "dp", AVW_TBLCHANGE_UPDATE
+     Avw.SetTblChanged "rmcat", AVW_TBLCHANGE_UPDATE
+     Avw.SetTblChanged "rmtype", AVW_TBLCHANGE_UPDATE
+     Avw.ReQuery
+
+End Sub
+
+
+'------------------------------------------------------------------------------
+'--- Space Percentage Update --------------------------------------------------
+'------------------------------------------------------------------------------
+
+Sub update_space()
+
+     MsgOpen kPerformSpacePercentUpdateMsg & BASIC.EOLN$ & _
+             kPleaseWaitMsg, 0, FALSE, TRUE
+
+     Dim ff As New FieldFormula
+     Dim fo As New FieldOperation
+
+     '--- Calculate RMPCT AREA_RM
+
+	ProjDb.ExecuteSQL "UPDATE rmpct SET area_rm = ( pct_space / 100 )" & _
+					" * ( SELECT " & SqlFunc_SQLIsNull() & "(area,0.0) FROM rm" & _ 
+							" WHERE rm.bl_id = rmpct.bl_id" & _
+							" AND rm.fl_id = rmpct.fl_id" & _
+							" AND rm.rm_id = rmpct.rm_id )"
+
+     MsgSetThermometer 2
+
+     '--- Perform remainder of AREA UPDATE CALCULATIONS
+
+     alrmpct_calc
+
+End Sub
+
+
+'------------------------------------------------------------------------------
+'--- Time Percentage Update ---------------------------------------------------
+'------------------------------------------------------------------------------
+
+Sub update_space_time() 
+
+     Dim ff              As New FieldFormula
+     Dim fo              As New FieldOperation
+     Dim rs              As New RecordSet
+     Dim prompt_min_date As String
+     Dim prompt_max_date As String
+     Dim min_date        As Double
+     Dim max_date        As Double
+     Dim date_start      As Double
+     Dim date_end        As Double
+     Dim num_days        As Double
+     Dim tot_days        As Double
+     Dim pct_time        As Single
+     Dim pct_space       As Single
+
+     '--- Determine MIN & MAX dates from Room Percentage Table --
+     rs.Open "SELECT MIN(date_start), MAX(date_end) FROM rmpct"
+     prompt_min_date = rs.Fields(0).Value
+     prompt_max_date = rs.Fields(1).Value
+     rs.Close
+
+     '--- Format Prompt Dates --------------------------------------------
+     prompt_min_date = Format$(ISOtoBasic(prompt_min_date),WindowShortDateWithFourDigitYear)
+     prompt_max_date = Format$(ISOtoBasic(prompt_max_date),WindowShortDateWithFourDigitYear)
+
+     '--- Select Date Dialog Box ---------------
+     sel_date prompt_min_date, prompt_max_date
+
+     '--- If Cancel Button Pressed Then End ---
+     If prompt_min_date = "00/00/00" Then End
+ 
+     '--- Convert Date Strings to Numbers --
+     min_date = DateValue(prompt_min_date)
+     max_date = DateValue(prompt_max_date)
+
+     MsgOpen kPerformTimePercentUpdateMsg & BASIC.EOLN$ & _
+             kPleaseWaitMsg, 0, FALSE, TRUE
+
+     '--- Calculate Total Days in Report Span --
+     tot_days = max_date - min_date
+
+     rs.Open "SELECT date_start,date_end,pct_time,pct_space FROM rmpct"
+
+     Do While Not rs.EOF
+
+          date_start = rs.Fields(0).NumValue
+          date_end = rs.Fields(1).NumValue
+          pct_time = rs.Fields(2).NumValue
+          pct_space = rs.Fields(3).NumValue
+
+          'If all date values are blank then pct record is in use 100% of time 
+          If date_start = 0 And date_end = 0 Then
+               If pct_time = 0 Then
+                    rs.Edit
+                    rs.Fields(2).Value = 100.0
+                    rs.Update
+               End If
+          Else
+          '    --- If start or end date is out of range, do not process record
+               If date_start > max_date Or date_end < min_date Then
+                    rs.Edit
+                    rs.Fields(2).Value = 0.0
+                    rs.Update
+               Else
+               ' --- If start date less then report start date, 
+               ' --- use the report start 
+                    If date_start < min_date Then
+                         date_start = min_date
+                    End If
+                    '--- If end date greater than report end,
+                    '--- use the report end date   
+                    If date_end > max_date Then
+                         date_end = max_date
+                    End If
+
+                    '--- Calculate Number of Days for Current Record
+                    num_days = date_end - date_start
+
+                    rs.Edit
+                    '--- Calculate Time Percentage of Current Record
+
+				'--- Reset tot_day = 1 to fix runtime error when start date is the same as end date
+				If tot_days = 0 Then tot_days = 1
+
+                    rs.Fields(2).Value = 100 * num_days / tot_days
+                    rs.Update
+               End If
+          End If
+
+'         --- If space percentage empty, than record uses 100% of the space
+          If pct_space = 0 Then
+               rs.Edit
+               rs.Fields(3).Value = 100.0
+               rs.Update
+          End If
+          
+          rs.MoveNext    
+     Loop
+     rs.Close 
+
+     MsgSetThermometer 2
+   
+     '--- Calculate Percentage of Room Area
+	ProjDb.ExecuteSQL "UPDATE rmpct SET area_rm = (pct_space / 100) * (pct_time / 100) " & _
+						" * (SELECT " & SqlFunc_SQLIsNull() & "(area,0.0) FROM rm" & _ 
+						" WHERE rm.bl_id = rmpct.bl_id" & _
+						" AND rm.fl_id = rmpct.fl_id" & _
+	 	 				" AND rm.rm_id = rmpct.rm_id )"
+
+     '--- Perform Remaining Update Calculations
+
+     alrmpct_calc
+
+End Sub
+
+'------------------------------------------------------------------------------
+'--- Syncronize Room and Percentage Records  ----------------------------------
+'------------------------------------------------------------------------------
+
+Sub syncpct()
+
+     Dim sSqlStatement As String
+
+'    ---- Keep rmpct in sync with rm table; Remove records whose associated rooms don't exist in the rm table
+     sSqlStatement = "DELETE FROM rmpct WHERE NOT EXISTS "& _
+			" (SELECT 1 FROM rm WHERE rm.bl_id = rmpct.bl_id " & _
+			" AND rm.fl_id = rmpct.fl_id AND rm.rm_id = rmpct.rm_id)"
+
+     ProjDb.ExecuteSql sSqlStatement
+
+     MsgOpen kSyncingPercentRecordsMsg & BASIC.EOLN$ & _
+             kPleaseWaitMsg, 0, FALSE, TRUE
+
+     sSqlStatement = "INSERT INTO rmpct" & _
+                         " (bl_id,fl_id,rm_id,rm_cat,rm_type," & _
+                         " dv_id,dp_id,area_rm,prorate,pct_space,pct_time)" & _
+                     " SELECT bl_id,fl_id,rm_id,rm_cat,rm_type," & _
+                         " dv_id,dp_id,area,prorate,100.0,100.0" & _
+                     " FROM rm" & _
+                     " WHERE NOT EXISTS (SELECT 1 FROM rmpct" & _
+                                        " WHERE rm.bl_id = rmpct.bl_id" & _
+                                        " AND rm.fl_id = rmpct.fl_id" & _
+                                        " AND rm.rm_id = rmpct.rm_id)"
+     ProjDb.ExecuteSql sSqlStatement
+
+     MsgSetThermometer 50
+
+     ' ---- For single percentage records match the percentage records to the 
+     ' ---- room records. Need different statements for Oracle versus
+     ' ---- Watcom because of their different support for correlated subqueries
+     If ProjDb.ServerType = "Oracle" Then
+           sSqlStatement = "UPDATE rmpct" & _
+                           " SET (rmpct.dv_id, rmpct.dp_id," & _
+                                " rmpct.rm_cat, rmpct.rm_type," & _
+                                " rmpct.area_rm, rmpct.prorate) = " & _
+                                   "(SELECT rm.dv_id, rm.dp_id," & _
+                                   " rm.rm_cat, rm.rm_type," & _
+                                   " rm.area, rm.prorate " & _
+                                   " FROM rm" & _
+                                   " WHERE rm.bl_id = rmpct.bl_id" & _
+                                   " AND rm.fl_id = rmpct.fl_id" & _
+                                   " AND rm.rm_id = rmpct.rm_id)" & _
+                           " WHERE 1 = (SELECT COUNT(*) FROM rmpct a_inner" & _
+                                       " WHERE a_inner.bl_id = rmpct.bl_id" & _
+                                       " AND a_inner.fl_id = rmpct.fl_id" & _
+                                       " AND a_inner.rm_id = rmpct.rm_id)"
+     Else		'---- Sybase or MSSQL
+          sSqlStatement = "UPDATE rmpct"  
+
+		If ProjDb.ServerType = "Sybase" Then sSqlStatement = _
+			sSqlStatement & ", rm " 
+
+		sSqlStatement = sSqlStatement & _
+                          " SET rmpct.dv_id = rm.dv_id," & _
+                              " rmpct.dp_id = rm.dp_id," & _
+                              " rmpct.rm_cat = rm.rm_cat," & _
+                              " rmpct.rm_type = rm.rm_type," & _
+                              " rmpct.area_rm = rm.area," & _
+                              " rmpct.prorate = rm.prorate"
+
+		If ProjDb.ServerType = "MSSQL" Then sSqlStatement = _
+			sSqlStatement & " FROM rm " 
+
+		sSqlStatement = sSqlStatement & _
+                          " WHERE rm.bl_id = rmpct.bl_id" & _
+                          " AND rm.fl_id = rmpct.fl_id" & _
+                          " AND rm.rm_id = rmpct.rm_id" & _
+                          " AND 1 = (SELECT COUNT(*) FROM rmpct" & _
+                                   " WHERE rmpct.bl_id = rm.bl_id" & _
+                                   " AND rmpct.fl_id = rm.fl_id" & _
+                                   " AND rmpct.rm_id = rm.rm_id)"
+     End If
+
+     ProjDb.ExecuteSql sSqlStatement
+
+     MsgSetThermometer 100
+     Sleep 500
+     MsgClose
+
+End Sub
+
+Sub aruppct_syncpct()
+	syncpct
+End Sub

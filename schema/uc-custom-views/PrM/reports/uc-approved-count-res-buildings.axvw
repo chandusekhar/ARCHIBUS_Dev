@@ -1,0 +1,197 @@
+<!-- Grid report that uses a custom SQL query as its data source -->
+<view version="2.0">
+  <layout type="borderLayout" id="mainLayout">
+    <north autoScroll="true" split="true" initialSize="65"/>
+    <center autoScroll="true"/>
+  </layout>
+  <title translatable="true">Forecast Summary of Approved PrM</title>
+
+  <dataSource id="pmdd_ds1">
+    <table name="pms" role="main"/>
+    <table name="pmdd" role="standard"/>
+    <table name="eq_id" role="standard"/>
+    <field table="pms" name="pms_id"/>
+    <field table="pms" name="eq_id"/>
+    <field table="pms" name="pmp_id"/>
+    <field table="eq" name="eq_id"/>
+    <field table="eq" name="eq_std"/>
+    <field table="eq" name="bl_id"/>
+    <field table="eq" name="fl_id"/>
+    <field table="eq" name="rm_id"/>
+    <field table="pmdd" name="pms_id"/>
+    <field table="pmdd" name="date_todo"/>
+    <field table="pmdd" name="approved"/>
+    <parameter name="rest" dataType="verbatim" value="1=0"/>
+    <restrictions>
+      <restriction type="sql" sql="(${parameters['rest']}) AND EXISTS (SELECT 1 FROM bl WHERE bl.use1='RESIDENCE' AND bl.bl_id = eq.bl_id)"/>
+    </restrictions>
+  </dataSource>
+
+  <dataSource id="reportGridSql_ds1">
+    <!-- Custom SQL query is used as a data source for all displayed grid records.
+                         It can include calculated fields. -->
+    <sql dialect="generic">
+      SELECT count(pmdd.pms_id) ${sql.as} wr_count, pmp.pmp_id, pmp.pmp_cat, pmdd.approved, pmdd.desired,
+      count(CASE WHEN pmdd.approved IN ('A','Y') THEN 1 ELSE NULL END) ${sql.as} approv_count,
+      count(CASE WHEN pmdd.approved IN ('R','N') THEN 1 ELSE NULL END) ${sql.as} reject_count
+      FROM pmdd, pms, pmp
+      WHERE ${parameters['rest']}
+      AND pmdd.pms_id=pms.pms_id
+      AND pmp.pmp_id=pms.pmp_id
+      GROUP BY pmp.pmp_id, pmp.pmp_cat, pmdd.approved, pmdd.desired
+      ORDER BY pmp.pmp_cat, pmp.pmp_id
+    </sql>
+    <sql dialect="oracle">
+      SELECT count(pmdd.pms_id) ${sql.as} wr_count, pmp.pmp_id, pmp.pmp_cat, pmdd.approved, pmdd.desired,
+      count(CASE WHEN pmdd.approved IN ('A','Y') THEN 1 ELSE NULL END) ${sql.as} approv_count,
+      count(CASE WHEN pmdd.approved IN ('R','N') THEN 1 ELSE NULL END) ${sql.as} reject_count
+      FROM pmdd, pms, pmp
+      WHERE ${parameters['rest']}
+      AND pmdd.pms_id=pms.pms_id
+      AND pmp.pmp_id=pms.pmp_id
+      GROUP BY pmp.pmp_id, pmp.pmp_cat, pmdd.approved, pmdd.desired
+      ORDER BY pmp.pmp_cat, pmp.pmp_id
+    </sql>
+    <!-- SQL Server requires that subqueries use TOP and GROUP BY together.
+                             The query will be used as a subquery to implement Start Search. -->
+    <sql dialect="sqlserver">
+      SELECT TOP 100 PERCENT pmp.pmp_id, pmp.pmp_cat, pmdd.approved, count(pmdd.pms_id) ${sql.as} wr_count,
+      count(CASE WHEN pmdd.approved IN ('A','Y') THEN 1 ELSE NULL END) ${sql.as} approv_count,
+      count(CASE WHEN pmdd.approved IN ('R','N') THEN 1 ELSE NULL END) ${sql.as} reject_count
+      FROM pmdd, pms, pmp, eq
+      WHERE ${parameters['rest']}
+      AND pmdd.pms_id=pms.pms_id
+      AND pmp.pmp_id=pms.pmp_id
+      AND eq.eq_id = pms.eq_id
+      AND EXISTS (SELECT 1 FROM bl WHERE bl.bl_id = (CASE WHEN pms.bl_id IS NULL THEN eq.bl_id ELSE pms.bl_id END) AND bl.use1='RESIDENCE')
+      GROUP BY pmp.pmp_id, pmp.pmp_cat, pmdd.approved
+      ORDER BY pmp.pmp_cat, pmp.pmp_id ASC
+    </sql>
+    <table name="pmdd" role="main"/>
+    <table name="pmp" role="standard"/>
+    <table name="pms" role="standard"/>
+    <!-- All database fields used in the SELECT caluse must be declared here. -->
+    <field table="pmdd" name="pms_id"/>
+    <field table="pmdd" name="approved"/>
+    <field table="pmdd" name="desired"/>
+    <field table="pmdd" name="date_todo"/>
+    <field table="pms" name="pms_id"/>
+    <field table="pms" name="pmp_id"/>
+    <field table="pmp" name="pmp_id"/>
+    <field table="pmp" name="pmp_cat"/>
+    <parameter name="rest" dataType="verbatim" value="1=0"/>
+    <restrictions>
+      <restriction type="sql" sql=""/>
+    </restrictions>
+  </dataSource>
+  <dataSource id="restConsole_ds1">
+    <table name="pmdd" role="main"/>
+    <field table="pmdd" name="pms_id"/>
+    <field table="pmdd" name="date_todo"/>
+  </dataSource>
+  <panel type="console" id="restConsole_panel" dataSource="restConsole_ds1" columns="2" region="north">
+    <action id="btnFilter">
+      <title>Filter</title>
+      <command type="callFunction" functionName="applyConsoleRestriction"/>
+    </action>
+    <field table="pmdd" name="date_todo" hidden="true"/>
+    <field>
+      <title translatable="true">Month</title>
+      <html>
+        <select id="restConsole_monthSelect">
+          <option value="1">January</option>
+          <option value="2">Febuary</option>
+          <option value="3">March</option>
+          <option value="4">April</option>
+          <option value="5">May</option>
+          <option value="6">June</option>
+          <option value="7">July</option>
+          <option value="8">August</option>
+          <option value="9">September</option>
+          <option value="10">October</option>
+          <option value="11">November</option>
+          <option value="12">December</option>
+        </select>
+      </html>
+    </field>
+    <field>
+      <title translatable="true">Year</title>
+      <html>
+        <select id="restConsole_yearSelect">
+          <option value="2010">2010</option>
+          <option value="2011">2011</option>
+          <option value="2012">2012</option>
+          <option value="2013">2013</option>
+          <option value="2014">2014</option>
+          <option value="2015">2015</option>
+          <option value="2016">2016</option>
+          <option value="2017">2017</option>
+          <option value="2018">2018</option>
+          <option value="2019">2019</option>
+          <option value="2020">2020</option>
+          <option value="2021">2021</option>
+          <option value="2022">2022</option>
+        </select>
+      </html>
+    </field>
+  </panel>
+  <panel type="grid" id="reportGridSql_grid" dataSource="reportGridSql_ds1" showOnLoad="false" region="center">
+    <title translatable="true">Scheduled Preventive Maintenance by Category</title>
+    <!-- Call JS function to apply custom SQL restriction to the grid -->
+    <action id="exportPDF">
+      <title>PDF</title>
+      <command type="exportPanel" outputType="pdf" panelId="reportGridSql_grid"/>
+    </action>
+    <action id="exportXLS">
+      <title>XLS</title>
+      <command type="exportPanel" outputType="xls" panelId="reportGridSql_grid"/>
+    </action>
+
+    <action id="clear">
+      <title translatable="true">Clear</title>
+      <command type="showPanel" panelId="reportGridSql_grid" applyParentRestriction="false" clearRestriction="true"/>
+    </action>
+    <!-- The grid can display any field listed in the SELECT clause of the SQL query -->
+
+    <field table="pmp" name="pmp_id" controlType="link"  onclick="openDetails">
+    </field>
+    <field table="pmp" name="pmp_cat"/>
+    <field table="pmdd" name="approv_count" dataType="number" size="6" decimals="0" controlType="link" onclick="openDetails">
+      <title translatable="true">Approved</title>
+    </field>
+    <field table="pmdd" name="reject_count" dataType="number" size="6" decimals="0" controlType="link"  onclick="openDetails">
+      <title translatable="true">Rejected</title>
+    </field>
+  </panel>
+
+  <panel type="grid" id="pmddGridPanel" dataSource="pmdd_ds1" showOnLoad="false" recordLimit="0">
+    <title>Equipments</title>
+
+    <action id="exportPDF">
+      <title>PDF</title>
+      <command type="exportPanel" outputType="pdf" panelId="pmddGridPanel"/>
+    </action>
+    <action id="exportXLS">
+      <title>XLS</title>
+      <command type="exportPanel" outputType="xls" panelId="pmddGridPanel"/>
+    </action>
+
+
+    <action id="btnWrcfCancel">
+      <title>Close</title>
+      <tooltip>Close</tooltip>
+      <command type="closeDialog"/>
+    </action>
+
+    <field table="eq" name="eq_id"/>
+    <field table="eq" name="eq_std"/>
+    <field table="eq" name="bl_id"/>
+    <field table="eq" name="fl_id"/>
+    <field table="eq" name="rm_id"/>
+    <field table="pmdd" name="date_todo"/>
+    <field table="pmdd" name="approved"/>
+    <field table="pms" name="pmp_id"/>
+  </panel>
+
+  <js file="uc-approved-count.js"/>
+</view>

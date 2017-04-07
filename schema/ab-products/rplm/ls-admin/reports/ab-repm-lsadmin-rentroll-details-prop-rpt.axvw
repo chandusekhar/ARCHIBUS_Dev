@@ -1,0 +1,68 @@
+<view version="2.0">
+	<title translatable="true">Rent Roll Details</title>
+	
+	<report orientation="landscape"/>
+	
+	<!-- Property Details -->
+	<dataSource id="ds_RentRollDetailsPropRpt_pr">
+		<table name="property" role="main"/>
+		<field table="property" name="prop_photo"/>
+		<field table="property" name="pr_id"/>
+		<field table="property" name="ctry_id"/>
+		<field table="property" name="area_cad"/>
+		<field table="property" name="name"/>
+		<field table="property" name="regn_id"/>
+		<field table="property" name="area_manual"/>
+		<field table="property" name="description"/>
+		<field table="property" name="state_id"/>
+		<field table="property" name="area_bl_rentable"/>
+		<field table="property" name="address1"/>
+		<field table="property" name="city_id"/>
+		<field table="property" name="area_lease_neg"/>
+		<field table="property" name="address2"/>
+		<field table="property" name="site_id"/>
+		<field table="property" name="date_purchase"/>
+		<field table="property" name="zip"/>
+		<field table="property" name="use1"/>
+		<field name="status" dataType="text">
+			<title translatable="true">Status</title>
+			<sql dialect="generic">
+				(CASE
+					WHEN EXISTS (SELECT 1 FROM ot WHERE ot.pr_id = property.pr_id AND ot.status = 'Owned') THEN ${(parameters['owned'])}
+ 					WHEN EXISTS (SELECT 1 FROM ls WHERE ls.use_as_template = 0 AND ls.pr_id = property.pr_id AND ls.signed = 1 AND (ls.date_end &gt;= ${sql.currentDate} OR ls.date_end IS NULL) AND ls.date_start &lt;= ${sql.currentDate}) THEN ${(parameters['leased'])}
+					ELSE ${(parameters['neither'])}
+				END)
+			</sql>
+		</field>
+		<field table="property" name="property_type"/>
+        <field name="vf_date_purchase" dataType="date">
+            <title translatable="true">Date Purchased</title>
+            <sql dialect="generic">
+                (SELECT ot.date_purchase
+                    FROM ot WHERE 
+                    ot.ot_id = (SELECT MAX(x.ot_id) FROM ot x WHERE x.pr_id = property.pr_id AND x.status = 'Owned'))
+            </sql>
+        </field>
+        <field name="vf_date_sold" dataType="date">
+            <title translatable="true">Date Sold</title>
+            <sql dialect="generic">
+                (SELECT ot.date_sold FROM ot
+                WHERE ot.ot_id =
+                    (SELECT MAX(ot_int.ot_id) FROM ot ${sql.as} ot_int
+                    WHERE ot_int.pr_id = property.pr_id AND ot_int.status = 'Disposed' AND ot_int.date_sold IS NOT NULL))
+            </sql>
+        </field>
+		<field table="property" name="comments"/>
+		
+		<restriction type="parsed">
+			<clause table="property" name="pr_id" op="=" value="${(parameters['blOrPrId'])}"/>
+		</restriction>
+		
+		<parameter name="blOrPrId" dataType="text" value=""/>
+		<parameter name="owned" dataType="text" value="Owned"/>
+		<parameter name="leased" dataType="text" value="Leased"/>
+		<parameter name="neither" dataType="text" value="Neither"/>
+	</dataSource>
+
+	<panel id="form_RentRollDetailsPropRpt_pr" dataSource="ds_RentRollDetailsPropRpt_pr" type="paginatedReport" format="column" columns="3" role="data"/>
+</view>

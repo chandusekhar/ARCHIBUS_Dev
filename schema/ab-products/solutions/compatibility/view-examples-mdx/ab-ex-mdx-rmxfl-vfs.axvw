@@ -1,0 +1,158 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<afmXmlView>
+   <fileCategory extension="frms" fileName="pkey.frms"/>
+
+   <title translatable="false">Offices and Workstations by Floor</title>
+
+   <!-- Fl Tablegroup -->
+
+   <afmTableGroup defaultActions="true" type="form" frame="primaryKeyFrame" format="table" showGrid="false" column="1">
+
+		<title translatable="false">Floors</title>
+     	<afmReport printable="false"/>
+
+		<dataSource>
+			<database>
+
+				  <restrictions>
+					<restriction type="parsed">
+					   <title translatable="false">Floors in Building HQ</title>
+					   <clause relop="AND" op="=" value="HQ">
+						 <field name="bl_id" table="fl"/>
+					   </clause>
+					</restriction>
+
+					<restriction type="sql" sql="EXISTS (SELECT 1 FROM rm WHERE fl.bl_id = rm.bl_id AND fl.fl_id = rm.fl_id)">
+					   <title translatable="false">Floors with Rooms</title>
+					   <field table="fl"/>
+					</restriction>
+
+				  </restrictions>
+
+				<tables>
+					<table name="fl" role="main"/>
+				</tables>
+
+				<fields>
+					<field name="bl_id" table="fl"/>
+					<field name="fl_id" table="fl"/>
+				</fields>
+
+				<sort>
+					<order>
+						<field name="bl_id" table="fl" ascending="true"/>
+						<field name="fl_id" table="fl" ascending="true"/>
+					</order>
+				</sort>
+			</database>
+		</dataSource>
+
+
+		<!-- Nested Rm Tablegroup -->
+
+		<!-- This view illustrates that view analysis views obey the selection restriction that
+		the parent table-group applies to its children when a record is selected in the parent. -->
+
+		<!-- In this case, turn off the defaultActions, which disables the drill-down.  You do this
+		for two reasons.  First, since this is a virtual field view, each row represents a record, not
+		an aggregate, and there are no other records to access.  Second, a drill-down would load
+		a nested version of this pkey-details view,  which would not make any sense. -->
+
+		<afmTableGroup defaultActions="false" type="report" frame="detailsFrame" format="table" showGrid="false">
+
+			<title translatable="false">Office and Workstation Statistics</title>
+
+			<dataSource>
+				<database>
+					<tables>
+						 <table name="rm" role="main"/>
+					 </tables>
+					 <fields>
+						 <field name="bl_id" table="rm"/>
+						 <field name="fl_id" table="rm"/>
+						 <field name="rm_id" table="rm"/>
+						 <field name="area" table="rm"/>
+						 <field name="count_em" table="rm"/>
+					 </fields>
+				<sort>
+					<order>
+						<field name="bl_id" table="rm" ascending="true"/>
+						<field name="fl_id" table="rm" ascending="true"/>
+						<field name="rm_id" table="rm" ascending="true"/>
+					</order>
+				</sort>
+				</database>
+
+			  <mdx>
+
+				<preferences dimensions="1" format="table" maxDimensions="1">
+
+				<!-- Use a complex measures query to be able to create a virtual field; that is,
+				a calculated field of results data that does not exist in the database -->
+
+                    <query>
+                        <sql dialect="generic">
+                            SELECT
+                                rm.bl_id,
+                                rm.fl_id,
+                                rm.rm_id,
+                                rm.area,
+                                rm.count_em,
+                                (rm.area/(CASE WHEN rm.count_em>0 THEN rm.count_em ELSE 1 END)) AS area_per_employee
+					    FROM rm
+                        </sql>
+                    </query>
+
+
+				<title translatable="false">Rooms</title>
+
+				<!-- Sort the dimension by the pkey of the table. This "summarizes" each measure
+				for each room, which is exactly the result we want for a virtual-fields style view.
+				-->
+
+				<dimensions>
+					<dimension name="Room" table="rm" column="dp_id">
+						<title translatable="false">Room</title>
+						<allMemberTitle translatable="false">Rooms</allMemberTitle>
+						<fields>
+							<field name="bl_id" table="rm"/>
+							<field name="fl_id" table="rm"/>
+							<field name="rm_id" table="rm"/>
+						</fields>
+					</dimension>
+				</dimensions>
+
+				<measures>
+					<!-- Even though the query has only one record per room, we still
+					use an aggregate function so that when view analysis groups by the
+					dimension, the query still works. -->
+				    <measure name="Area" aggregator="sum" column="area">
+					<title translatable="false">Area</title>
+				    </measure>
+				    <measure name="Employees" aggregator="sum" column="count_em">
+					<title translatable="false">Employees</title>
+				    </measure>
+				    <!-- Since this virtual field does not exist in the table, we specify
+				    its formatting here in the view. -->
+				    <measure name="Area Per Employee"
+					aggregator="avg"
+					column="area_per_employee"
+					type="calculated"
+					size="6"
+					decimals="2">
+
+					<title translatable="false">Area Per Employee</title>
+				    </measure>
+				</measures>
+
+				</preferences>
+				</mdx>
+
+			</dataSource>
+
+		 </afmTableGroup>
+
+	<!-- End parent Floor table-group -->
+      </afmTableGroup>
+
+</afmXmlView>

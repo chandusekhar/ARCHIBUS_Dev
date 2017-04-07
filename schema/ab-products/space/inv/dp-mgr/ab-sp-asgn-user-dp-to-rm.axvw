@@ -1,0 +1,149 @@
+<view version="2.0">
+    <layout id="main">
+        <north id="filterPosition" initialSize="13%" split="true"/>
+        <west id="treePositon" initialSize="20%" split="true"/>
+        <center/>
+    </layout>
+    
+    <layout id="nested_center" containingLayout="main" region="center">
+        <center id="dwgPosition"/>
+        <south id="assignmentsPosition" initialSize="20%" split="true"/>
+    </layout>
+    
+    <title translatable="true">Assign Department to Rooms</title>
+    
+    <message name="selectFloor" translatable="true">Please select a Floor</message>
+    <message name="selectRm" translatable="true">Please select Room</message>
+    <message name="confirmMessage" translatable="true">Switching floors will cause all changes to be lost,  do you wish to continue?</message>
+    
+    <dataSource id="ds_ab-sp-asgn-user-dp-to-rm_console_rm">
+        <table name="rm" role="main"/>
+        <field table="rm" name="bl_id"/>
+        <field table="rm" name="fl_id"/>
+    </dataSource>
+    
+    <dataSource id="ds_ab-sp-asgn-user-dp-to-rm_tree_bl">
+        <table name="bl" role="main"/>
+        <field table="bl" name="bl_id"/>
+        <parameter name="blRes" dataType="verbatim" value="bl.bl_id IS NOT NULL"/>
+        <restriction type="sql" sql="${parameters['blRes']}"/>
+		<restriction type="sql" sql="EXISTS (SELECT 1 FROM rm left join rmcat on rmcat.rm_cat=rm.rm_cat  WHERE rm.dwgname IS NOT NULL AND rm.bl_id=bl.bl_id and rmcat.supercat!='VERT')"/>
+        <sortField table="bl" name="bl_id" ascending="true"/>
+    </dataSource>
+    
+    <dataSource id="ds_ab-sp-asgn-user-dp-to-rm_tree_fl">
+   	    <sql dialect="generic">
+            SELECT
+            rm.bl_id ${sql.as} bl_id,
+            rm.fl_id ${sql.as} fl_id,
+            rm.dwgname ${sql.as} dwgname
+            FROM rm left join rmcat on rmcat.rm_cat=rm.rm_cat  WHERE  rmcat.supercat!='VERT' and rm.dwgname IS NOT NULL GROUP BY rm.bl_id,rm.fl_id,rm.dwgname
+        </sql>
+        <table name="fl" role="main"/>
+        <field name="fl_id"/>
+        <field name="dwgname"/>
+        <parameter name="flRes" dataType="verbatim" value="fl.fl_id IS NOT NULL"/>
+        <restriction type="sql" sql="${parameters['flRes']}"/>
+        <sortField table="fl" name="fl_id" ascending="true"/>
+    </dataSource>
+    
+    <dataSource id="ds_ab-sp-asgn-user-dp-to-rm_drawing_rmHighlight">
+        <table name="rm" role="main"/>
+        <table name="rmcat" role="standard"/>
+        <table name="dp" role="standard"/>
+        <field table="rm" name="bl_id" legendKey="true"/>
+        <field table="rm" name="fl_id"/>
+        <field table="rm" name="rm_id"/>
+        <field table="rm" name="rm_type"/>
+        <field table="rm" name="dv_id"/>
+        <field table="rm" name="dp_id"/>
+        <field table="dp" name="hpattern_acad"/>
+        <field table="rmcat" name="supercat"/>
+        <restriction type="sql" sql="rmcat.supercat!='VERT' AND (rm.dv_id IS NULL AND rm.dp_id IS NULL AND rmcat.occupiable=1) OR (rm.dv_id = '${user.employee.organization.divisionId}' 
+         AND rm.dp_id='${user.employee.organization.departmentId}'  AND  '${user.employee.organization.departmentId}' is not null or  rm.dv_id = '${user.employee.organization.divisionId}' AND  '${user.employee.organization.departmentId}' is null )"/>
+    </dataSource>
+    
+    <dataSource id="ds_ab-sp-asgn-user-dp-to-rm_drawing_rmNotClicked">
+        <table name="rm" role="main"/>
+        <table name="rmcat" role="standard"/>
+        <table name="dp" role="standard"/>
+        <field table="rm" name="bl_id"/>
+        <field table="rm" name="fl_id"/>
+        <field table="rm" name="rm_id"/>
+        <field table="rm" name="rm_type"/>
+        <field table="rm" name="dv_id"/>
+        <field table="rm" name="dp_id"/>
+        <field table="rmcat" name="supercat"/>
+        <restriction type="sql" sql="rmcat.supercat!='VERT' AND (rm.dv_id &lt;&gt; '${user.employee.organization.divisionId}' 
+         AND rm.dp_id &lt;&gt; '${user.employee.organization.departmentId}') OR (rm.dv_id IS NULL AND rm.dp_id IS NULL AND rmcat.occupiable=0)"/>
+    </dataSource>
+    
+    <dataSource id="ds_ab-sp-asgn-user-dp-to-rm_drawing_rmLabel">
+        <table name="rm" role="main"/>
+        <field name="bl_id" hidden="true"/>
+        <field name="fl_id" hidden="true"/>
+        <field name="rm_id"/>
+        <field name="dv_id"/>
+        <field name="dp_id"/>
+    </dataSource>
+    
+    <dataSource id="ds_ab-sp-asgn-user-dp-to-rm_grid_rm">
+        <table name="rm" role="main"/>
+        <field table="rm" name="dv_id"/>
+        <field table="rm" name="dp_id"/>
+        <field table="rm" name="bl_id"/>
+        <field table="rm" name="fl_id"/>
+        <field table="rm" name="rm_id"/>
+    </dataSource>
+    
+    <panel type="console" id="abSpAsgnUserDpToRm_filterConsole" columns="2" dataSource="ds_ab-sp-asgn-user-dp-to-rm_console_rm" layoutRegion="filterPosition">
+        <title translatable="true">Filter</title>
+        <action id="showFlTree">
+            <title translatable="true">Show</title>
+        </action>
+		<action id="clear">
+            <title translatable="true">Clear</title>
+            <command type="clearPanel" panelId="abSpAsgnUserDpToRm_filterConsole"/>
+        </action>
+    </panel>
+    
+    <panel type="tree" id="abSpAsgnUserDpToRm_blTree" dataSource="ds_ab-sp-asgn-user-dp-to-rm_tree_bl" layoutRegion="treePositon">
+        <title translatable="true">Select Floor</title>
+        <panel type="tree" id="abSpAsgnUserDpToRm_flTree" dataSource="ds_ab-sp-asgn-user-dp-to-rm_tree_fl">
+            <event type="onClickNode">
+                <command type="callFunction" functionName="onFlTreeClick"/>
+            </event>
+        </panel>
+    </panel>
+    
+    <panel type="drawing" id="abSpAsgnUserDpToRm_drawingPanel" layoutRegion="dwgPosition" multiple="false" selectionMode="2"
+     highlightDataSource="ds_ab-sp-asgn-user-dp-to-rm_drawing_rmHighlight"
+     labelsDataSource="ds_ab-sp-asgn-user-dp-to-rm_drawing_rmLabel">
+        <title></title>
+    </panel>
+    
+    <panel type="grid" id="abSpAsgnUserDpToRm_dpAssignGrid" dataSource="ds_ab-sp-asgn-user-dp-to-rm_grid_rm" layoutRegion="assignmentsPosition" showOnLoad="false">
+        <title translatable="true">Assignments</title>
+        <action id="claim" hidden="true">
+            <title translatable="true">Claim</title>
+        </action>
+        <action id="release" hidden="true">
+            <title translatable="true">Release</title>
+        </action>
+        <field table="composite" name="loc">
+            <title translatable="true">Location</title>
+        </field>
+        <field table="rm" name="dv_id">
+            <title translatable="true">Division Code</title>
+        </field>
+        <field table="rm" name="dp_id">
+            <title translatable="true">Department Code</title>
+        </field>
+		<field table="rm" name="bl_id" hidden="true"/>
+		<field table="rm" name="fl_id" hidden="true"/>
+		<field table="rm" name="rm_id" hidden="true"/>
+    </panel>
+    
+    <js file="ab-sp-asgn-user-dp-to-rm.js"/>
+    <js file="ab-sp-common.js"/>
+</view>

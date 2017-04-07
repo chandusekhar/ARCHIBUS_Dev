@@ -1,0 +1,84 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<afmXmlView>
+    <title translatable="false">Weekly work requests in January 2004</title>
+    <afmTableGroup type="report" format="table">
+        <title translatable="false">This example illustrates calendar queries and macro-style parameters.</title>
+        <dataSource>
+            <database>
+                <tables>
+                    <table name="wo" role="main"/>
+                </tables>
+                <sort><order>
+                        <field name="date_completed" table="wr" ascending="true"/>
+                </order></sort>
+                <fields>
+                    <field name="wr_id" table="wr" ascending="true"/>
+                </fields>
+            </database>
+            <mdx>
+                <preferences dimensions="1" maxDimensions="1" format="table">
+                    <query>
+
+				    <!-- queryParameters are variables you declare for a view.  They are typically
+				    only used when a complex query needs to accept restricting values, such
+				    as dates or location values, from a console frame of the view.  The console
+				    frame uses the applyMdxParameters1 afmAction to change the queryParameters
+				    from the defaults they have when the view is loaded and then the afmAction
+				    requeries the view to show the result.-->
+				    <queryParameters>
+						<queryParameter name="year" value="2004" type="java.lang.Integer"/>
+						<queryParameter name="month" value="1" type="java.lang.Integer"/>
+				    </queryParameters>
+
+				    <!-- The SQL for the analysis measures illustrate how you can analyze data by time
+				    ranges by joining the data table to the afm_cal_dates table, which has one record
+				    per day.  Aggregating the result by years, months, weeks or days results in useful
+				    trend information.  The afm_cal_dates information lets you track time periods
+				    evenly even when your data may not have entries fo certain periods.
+
+				    Since the SQL date functions vary between database servers,
+				    these querys often use the dialect keyword to supply different queries for the
+				    different servers.
+
+				    The queries also illustrate how the parameter values are retrieved and used
+				    in the view.
+				    -->
+                        <sql dialect="generic">
+                            SELECT
+                                datepart(week, cal_date) AS week,
+                                wr_id,
+                                bl_id
+                            FROM
+                                afm_cal_dates LEFT OUTER JOIN wr ON afm_cal_dates.cal_date = wr.date_completed
+                            WHERE
+                                datepart(year, cal_date) = #Parameter%year% AND datepart(month, cal_date) = #Parameter%month%
+                        </sql>
+                        <sql dialect="oracle">
+                            SELECT
+                                to_char(cal_date, 'W') AS week,
+                                wr_id,
+                                bl_id
+                            FROM
+                                afm_cal_dates, wr
+                            WHERE
+                                afm_cal_dates.cal_date = wr.date_completed(+) AND
+                                to_char(cal_date, 'YYYY') = #Parameter%year% AND to_char(cal_date, 'MM') = #Parameter%month%
+                        </sql>
+
+                     </query>
+                    <dimensions>
+                        <dimension name="Week" table="wr" column="week">
+                            <title translatable="false">Week</title>
+                            <allMemberTitle translatable="false">Weeks</allMemberTitle>
+			</dimension>
+                    </dimensions>
+                    <measures>
+                        <measure name="Count" aggregator="count" column="wr_id">
+                            <title translatable="false">Count</title>
+			</measure>
+                    </measures>
+                </preferences>
+            </mdx>
+        </dataSource>
+    </afmTableGroup>
+</afmXmlView>

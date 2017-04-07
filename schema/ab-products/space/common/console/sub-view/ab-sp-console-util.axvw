@@ -1,0 +1,127 @@
+<view version="2.0">
+    <js file="ab-sp-console-util.js"/>
+	<dataSource id="utilDS" type="grouping">
+		<sql dialect="generic">
+			select 
+				sum(bas_data_clean_num.value_reported) ${sql.as} count, 	
+				bas_measurement_scope.bl_id, 	
+				bas_measurement_scope.fl_id,  	
+				bas_measurement_scope.rm_id, 	
+				case when rm.cap_em is null or rm.cap_em=0 
+						then 0 
+						else 100*sum(bas_data_clean_num.value_reported)/avg(rm.cap_em) 
+				end ${sql.as} util  
+			from bas_data_clean_num, 
+					bas_measurement_scope	left outer join rm on rm.bl_id = bas_measurement_scope.bl_id AND rm.fl_id = bas_measurement_scope.fl_id AND rm.rm_id = bas_measurement_scope.rm_id
+															left outer join dv on rm.dv_id=dv.dv_id
+															left outer join dp on rm.dv_id=dp.dv_id and rm.dp_id=dp.dp_id 
+															left outer join rmcat on rm.rm_cat=rmcat.rm_cat 
+															left outer join rmtype on rm.rm_cat=rmtype.rm_cat  and rm.rm_type=rmtype.rm_type
+															LEFT OUTER JOIN bas_data_point ON bas_data_point.data_point_id=bas_measurement_scope.data_point_id 
+			where bas_data_clean_num.data_point_id=bas_measurement_scope.data_point_id AND bas_data_point.bill_type_id = 'OCCUPANCY' 
+					 and ${parameters['commonParameters']} 
+					 and ( ${sql.yearMonthDayOf('bas_data_clean_num.date_measured')} &gt; ${parameters['fromDate']} 
+								or  ${sql.yearMonthDayOf('bas_data_clean_num.date_measured')}=${parameters['fromDate']} and bas_data_clean_num.time_measured &gt;= ${parameters['fromTime']}
+							)
+					 and ( ${sql.yearMonthDayOf('bas_data_clean_num.date_measured')} &lt; ${parameters['toDate']} 
+								or  ${sql.yearMonthDayOf('bas_data_clean_num.date_measured')}=${parameters['toDate']} and bas_data_clean_num.time_measured &lt;= ${parameters['toTime']}
+							)
+			group by bas_measurement_scope.bl_id, 	bas_measurement_scope.fl_id,  	bas_measurement_scope.rm_id, date_measured, time_measured, rm.cap_em   	
+		</sql>
+
+        <table name="bas_data_clean_num" role="main"/>
+
+        <field name="bl_id" dataType="text" groupBy="true">
+			<title>Building Code</title>
+		</field>
+        <field name="fl_id" dataType="text" groupBy="true">
+			<title>Floor Code</title>
+		</field>
+        <field name="rm_id" dataType="text" groupBy="true">
+			<title>Room Code</title>
+		</field>
+        
+        <field name="actualValue" dataType="number" size="6" decimals="0" formula="avg" baseField="bas_data_clean_num.count">
+			<title>Count</title>
+		</field>
+        <field name="avgUtil" dataType="number" size="6" decimals="2" formula="avg" baseField="bas_data_clean_num.util">
+			<title>Util %</title>
+		</field>
+
+        <parameter name="commonParameters" dataType="verbatim" value="2=2"/>
+        <parameter name="dv_id" dataType="verbatim" value="1=1"/>
+        <parameter name="dp_id" dataType="verbatim" value="1=1"/>
+        <parameter name="bl_id" dataType="verbatim" value="1=1"/>
+        <parameter name="fl_id" dataType="verbatim" value="1=1"/>
+        <parameter name="rm_id" dataType="verbatim" value="1=1"/>
+        <parameter name="rm_cat" dataType="verbatim" value="1=1"/>
+        <parameter name="rm_type" dataType="verbatim" value="1=1"/>
+        <parameter name="rm_std" dataType="verbatim" value="1=1"/>
+        <parameter name="occupancy" dataType="verbatim" value="1=1"/>
+        <parameter name="organizationUnassigned" dataType="verbatim" value="1=1"/>
+        <parameter name="typeUnassigned" dataType="verbatim" value="1=1"/>
+        <parameter name="totalArea" dataType="verbatim" value="1=1"/>
+        <parameter name="fromDate" dataType="text" value="1900-01-01"/>
+        <parameter name="fromTime" dataType="time" value="9:00.00.000"/>
+        <parameter name="toDate" dataType="text" value="2900-01-01"/>
+        <parameter name="toTime" dataType="time" value="9:00.00.000"/>
+    </dataSource>
+
+    <panel id="utilGrid" dataSource="utilDS" type="grid">
+		<action type="menu" id="utilMenu" imageName="/schema/ab-core/graphics/icons/view/export.png">
+			<action id="showUtilRpt">
+				<title>Headcount and Utilization Rate by Location</title>
+				<command type="openDialog" viewName="ab-sp-rpt-util-by-loc.axvw" title="Headcount and Utilization Rate by Location" width="1300" height="800"/>
+			</action>
+		</action>
+    </panel>    
+
+	<dataSource id="utilDateTimeDS">
+        <table name="bas_data_clean_num" role="main"/>
+        <field name="date_measured"/>
+        <field name="time_measured"/>
+    </dataSource>
+
+	<dataSource id="utilAsOfDateTimeDS">
+		<sql dialect="generic">
+			select 
+				${parameters['numberSql']}  ${sql.as} numberId 
+			from bas_data_clean_num, 
+					bas_measurement_scope	left outer join rm on rm.bl_id = bas_measurement_scope.bl_id AND rm.fl_id = bas_measurement_scope.fl_id AND rm.rm_id = bas_measurement_scope.rm_id
+															left outer join dv on rm.dv_id=dv.dv_id
+															left outer join dp on rm.dv_id=dp.dv_id and rm.dp_id=dp.dp_id 
+															left outer join rmcat on rm.rm_cat=rmcat.rm_cat 
+															left outer join rmtype on rm.rm_cat=rmtype.rm_cat  and rm.rm_type=rmtype.rm_type
+															LEFT OUTER JOIN bas_data_point ON bas_data_point.data_point_id=bas_measurement_scope.data_point_id 
+			where bas_data_clean_num.data_point_id=bas_measurement_scope.data_point_id AND bas_data_point.bill_type_id = 'OCCUPANCY' 
+					 and (  (bas_data_clean_num.date_measured &lt; ${parameters['asOfDate']} or bas_data_clean_num.date_measured= ${parameters['asOfDate']} and bas_data_clean_num.time_measured &lt;= ${parameters['asOfTime']} ) and ${parameters['skipType']}='fastback' 
+							or	 (bas_data_clean_num.date_measured &lt; ${parameters['asOfDate']} or bas_data_clean_num.date_measured= ${parameters['asOfDate']} and bas_data_clean_num.time_measured &lt; ${parameters['asOfTime']} ) and ${parameters['skipType']}='slowback'  
+							or ( bas_data_clean_num.date_measured &gt; ${parameters['asOfDate']} or bas_data_clean_num.date_measured = ${parameters['asOfDate']} and bas_data_clean_num.time_measured &gt;= ${parameters['asOfTime']} ) and ${parameters['skipType']}='fastforward' 
+							or ( bas_data_clean_num.date_measured &gt; ${parameters['asOfDate']} or bas_data_clean_num.date_measured = ${parameters['asOfDate']} and bas_data_clean_num.time_measured &gt; ${parameters['asOfTime']} ) and ${parameters['skipType']}='slowforward' 
+							or ( bas_data_clean_num.date_measured &lt; ${sql.currentDate} or bas_data_clean_num.date_measured=${sql.currentDate} and bas_data_clean_num.time_measured &lt;= ${sql.currentTime} ) and ${parameters['skipType']}='initial' ) 
+					 and ${parameters['commonParameters']} 
+		</sql>
+
+        <table name="bas_data_clean_num" role="main"/>
+        <field name="numberId" dataType="integer"/>
+
+        <parameter name="commonParameters" dataType="verbatim" value="2=2"/>
+        <parameter name="dv_id" dataType="verbatim" value="1=1"/>
+        <parameter name="dp_id" dataType="verbatim" value="1=1"/>
+        <parameter name="bl_id" dataType="verbatim" value="1=1"/>
+        <parameter name="fl_id" dataType="verbatim" value="1=1"/>
+        <parameter name="rm_id" dataType="verbatim" value="1=1"/>
+        <parameter name="rm_cat" dataType="verbatim" value="1=1"/>
+        <parameter name="rm_type" dataType="verbatim" value="1=1"/>
+        <parameter name="rm_std" dataType="verbatim" value="1=1"/>
+        <parameter name="occupancy" dataType="verbatim" value="1=1"/>
+        <parameter name="organizationUnassigned" dataType="verbatim" value="1=1"/>
+        <parameter name="typeUnassigned" dataType="verbatim" value="1=1"/>
+        <parameter name="totalArea" dataType="verbatim" value="1=1"/>
+        <parameter name="numberSql" dataType="verbatim" value="max(auto_number)"/>
+        <parameter name="skipType" dataType="text" value="initial"/>
+        <parameter name="asOfDate" dataType="date" value="1900-01-01"/>
+        <parameter name="asOfTime" dataType="time" value="9:00.00.000"/>
+    </dataSource>
+
+</view>

@@ -1,0 +1,191 @@
+<view version="2.0">
+	<title translatable="true">Hotel Savings by Building</title>
+	<layout type="borderLayout" id="mainLayout">
+		<north id='main_north' split="true" initialSize="162"/>
+		<center id="main_center"/>
+	</layout>
+    
+	<dataSource id="ab-ht-rpt-savings-by-bl_console_ds">
+		<table name="rmpct" role="main"/>
+		<table name="bl" role="standard"/>
+		<field table="bl" name="site_id"/>
+		<field table="rmpct" name="bl_id"/>
+		<field table="rmpct" name="dv_id"/>
+		<field table="rmpct" name="dp_id"/>
+		<field table="rmpct" name="date_start"/>
+		<field table="rmpct" name="date_end"/>
+	</dataSource>
+
+	<panel type="console" id="htSavingByBlConsole" columns="2" dataSource="ab-ht-rpt-savings-by-bl_console_ds" layoutRegion="main_north">
+		<title translatable="true">Filter</title>
+		<action id="search">
+		    <title translatable="true">Show</title>
+		</action>
+		<action id="clear">
+		    <title translatable="true">Clear</title>
+		</action>
+		<field table="bl" name="site_id"/>
+		<field table="rmpct" name="bl_id"/>
+		<field table="rmpct" name="dv_id"/>
+		<field table="rmpct" name="dp_id"/>
+		<field table="rmpct" name="date_start"/>
+		<field table="rmpct" name="date_end"/>
+		<field>
+		    <title translatable="true">Show Results by</title>
+		    <html>
+			<select id="sum_type" >
+			    <option value="seat" selected="selected">
+				<span translatable="true">Seat</span>
+			    </option>
+			    <option value="area">
+				<span translatable="true">Area</span>
+			    </option>
+			</select>
+		    </html>
+		</field>
+	</panel>
+
+	<dataSource id="ab-ht-rpt-savings-by-bl_chart_seat_ds" type="grouping">
+		<sql dialect="generic">
+			SELECT 
+				rmpct.bl_id,
+				COUNT (DISTINCT rmpct.em_id  )  ${sql.as} total,
+				( bl_cap_em - 	bl_count_em )   ${sql.as}  available, 
+				COUNT (DISTINCT rmpct.em_id  )  -  ( bl_cap_em - 	bl_count_em )  ${sql.as}  savings  
+				 FROM rmpct 	left outer join activity_log on rmpct.activity_log_id=	 activity_log.activity_log_id
+											left outer join (
+												select bl.site_id, bl.bl_id,  
+													( select sum( rm.cap_em) from rm 
+														WHERE  rm.bl_id=bl.bl_id AND rm.hotelable = 1 	and  rm.dv_id  ${parameters['dvId']}  and rm.dp_id  ${parameters['dpId']} )
+													${sql.as} bl_cap_em,
+													( select count( em_id) from em left outer join rm on em.bl_id=rm.bl_id and em.fl_id=rm.fl_id and em.rm_id=rm.rm_id  
+														WHERE  rm.bl_id=bl.bl_id  and  rm.dv_id  ${parameters['dvId']}  and rm.dp_id  ${parameters['dpId']} 
+														AND rm.hotelable = 1 ) 	
+													${sql.as} bl_count_em 
+												from bl 
+											) ${sql.as} bl on bl.bl_id=rmpct.bl_id 
+				 WHERE 
+					rmpct.dv_id ${parameters['dvId']} AND rmpct.dp_id ${parameters['dpId']} 
+					AND rmpct.visitor_id IS NULL
+					AND activity_log.activity_type = 'SERVICE DESK - HOTELING' 
+					AND rmpct.bl_id  ${parameters['blId']}
+					AND exists ( SELECT 1 FROM bl WHERE bl.bl_id = rmpct.bl_id AND bl.site_id   ${parameters['siteId']} )
+					AND ${sql.yearMonthDayOf('rmpct.date_start')} &lt;=  ${parameters['dateEnd']} 
+					AND ${sql.yearMonthDayOf('rmpct.date_end')} &gt;= ${parameters['dateStart']}
+				GROUP BY rmpct.bl_id, bl.bl_cap_em,	 bl.bl_count_em 
+		</sql>
+		<table name="rmpct" role="main"/>
+		<field table="rmpct" name="bl_id" groupBy="true"/>
+		<field table="rmpct" name="total" formula="sum" baseField="rmpct.total" dataType="number" decimals="0">
+		</field>
+		<field table="rmpct" name="available" formula="sum" baseField="rmpct.available"  dataType="number" decimals="0">
+		</field>
+		<field table="rmpct" name="savings" formula="sum" baseField="rmpct.savings"  dataType="number" decimals="0">
+		</field>
+		<parameter name="dvId" dataType="verbatim" value=""/>
+		<parameter name="dpId" dataType="verbatim" value=""/>
+		<parameter name="siteId" dataType="verbatim" value=""/>
+		<parameter name="blId" dataType="verbatim" value=""/>
+		<parameter name="dateStart" dataType="text" value="1900-12-15"/>
+		<parameter name="dateEnd" dataType="text" value="2200-12-15"/>
+	</dataSource>
+	<panel id="htSavingSeatByBlChart"
+		type="chart"
+		controlType="stackedBarChart"
+		dataSource="ab-ht-rpt-savings-by-bl_chart_seat_ds"
+		layoutRegion="main_center"
+		showLegendOnLoad="true"
+		showLegendAsPopUp="false"
+		legendLocation="right"
+		showDataTips="true"
+		backgroundColor="0xc6e2ff"
+		fillType="linearGradient"
+		percentGradientChange="0.5"
+		percentTransparency="1.0"
+		 showOnLoad="false">
+		<title translatable="true">Building Stack Plan</title>
+		<groupingAxis dataSource="ab-ht-rpt-savings-by-bl_chart_seat_ds" table="rmpct" field="bl_id">
+		    <title translatable="true">Building</title>
+		</groupingAxis>
+		<dataAxis dataSource="ab-ht-rpt-savings-by-bl_chart_seat_ds" table="rmpct" field="available" displayAxis="false" labelPosition="inside">
+		    <title translatable="true">Seats Available</title>
+		</dataAxis>
+		<dataAxis dataSource="ab-ht-rpt-savings-by-bl_chart_seat_ds" table="rmpct" field="savings" displayAxis="false" labelPosition="inside">
+		    <title translatable="true">Seats Saved</title>
+		</dataAxis>
+	</panel>
+
+	<dataSource id="ab-ht-rpt-savings-by-bl_chart_area_ds" type="grouping">
+		<sql dialect="generic">
+			SELECT 
+				rmpct.bl_id,
+				( SELECT sum(emstd.std_area)  FROM emstd, em WHERE em.em_std = emstd.em_std AND em.em_id IN 
+					( SELECT DISTINCT rpa.em_id 
+									FROM rmpct ${sql.as}  rpa  LEFT OUTER JOIN activity_log on rpa.activity_log_id=	 activity_log.activity_log_id
+									WHERE	activity_log.activity_type = 'SERVICE DESK - HOTELING' 
+													and em.em_id=rpa.em_id AND rpa.bl_id=rmpct.bl_id AND rpa.visitor_id IS NULL) 
+				) ${sql.as} total,  
+				( SELECT SUM(rm.area) FROM rm WHERE rm.bl_id=rmpct.bl_id AND rm.hotelable = 1 ) 
+				${sql.as}  available, 
+				( SELECT sum(emstd.std_area)  FROM emstd, em WHERE em.em_std = emstd.em_std AND em.em_id IN 
+					( SELECT DISTINCT rpa.em_id 
+									FROM rmpct ${sql.as}  rpa  LEFT OUTER JOIN activity_log on rpa.activity_log_id=	 activity_log.activity_log_id
+									WHERE	activity_log.activity_type = 'SERVICE DESK - HOTELING' 
+													and em.em_id=rpa.em_id AND rpa.bl_id=rmpct.bl_id AND rpa.visitor_id IS NULL) 
+				) - 
+				( SELECT SUM(rm.area) FROM rm WHERE rm.bl_id=rmpct.bl_id AND rm.hotelable = 1 ) 
+				${sql.as}  savings
+				 FROM rmpct  left outer join activity_log on rmpct.activity_log_id=	 activity_log.activity_log_id
+				WHERE 
+					rmpct.dv_id ${parameters['dvId']} AND rmpct.dp_id ${parameters['dpId']} 
+					AND rmpct.visitor_id IS NULL
+					AND activity_log.activity_type = 'SERVICE DESK - HOTELING' 
+					AND rmpct.bl_id  ${parameters['blId']}
+					AND exists ( SELECT 1 FROM bl WHERE bl.bl_id = rmpct.bl_id AND bl.site_id   ${parameters['siteId']} )
+					AND ${sql.yearMonthDayOf('rmpct.date_start')} &lt;=  ${parameters['dateEnd']} 
+					AND ${sql.yearMonthDayOf('rmpct.date_end')} &gt;= ${parameters['dateStart']}
+				GROUP BY rmpct.bl_id
+		</sql>
+		<table name="rmpct" role="main"/>
+		<field table="rmpct" name="bl_id" groupBy="true"/>
+		<field table="rmpct" name="total" formula="sum" baseField="rmpct.total" dataType="number" decimals="2">
+		</field>
+		<field table="rmpct" name="available" formula="sum" baseField="rmpct.available"  dataType="number" decimals="2">
+		</field>
+		<field table="rmpct" name="savings" formula="sum" baseField="rmpct.savings"  dataType="number" decimals="2">
+		</field>
+		<parameter name="dvId" dataType="verbatim" value=""/>
+		<parameter name="dpId" dataType="verbatim" value=""/>
+		<parameter name="siteId" dataType="verbatim" value=""/>
+		<parameter name="blId" dataType="verbatim" value=""/>
+		<parameter name="dateStart" dataType="text" value="1900-12-15"/>
+		<parameter name="dateEnd" dataType="text" value="2200-12-15"/>
+	</dataSource>
+	<panel id="htSavingAreaByBlChart"
+		type="chart"
+		controlType="stackedBarChart"
+		dataSource="ab-ht-rpt-savings-by-bl_chart_area_ds"
+		layoutRegion="main_center"
+		showLegendOnLoad="true"
+		showLegendAsPopUp="false"
+		legendLocation="right"
+		showDataTips="true"
+		backgroundColor="0xc6e2ff"
+		fillType="linearGradient"
+		percentGradientChange="0.5"
+		percentTransparency="1.0"
+		 showOnLoad="false">
+		<title translatable="true">Building Stack Plan</title>
+		<groupingAxis dataSource="ab-ht-rpt-savings-by-bl_chart_area_ds" table="rmpct" field="bl_id">
+		    <title translatable="true">Building</title>
+		</groupingAxis>
+		<dataAxis dataSource="ab-ht-rpt-savings-by-bl_chart_area_ds" table="rmpct" field="available" displayAxis="false" labelPosition="inside">
+		    <title translatable="true">Area Available</title>
+		</dataAxis>
+		<dataAxis dataSource="ab-ht-rpt-savings-by-bl_chart_area_ds" table="rmpct" field="savings" displayAxis="false" labelPosition="inside">
+		    <title translatable="true">Area Saved</title>
+		</dataAxis>
+	</panel>
+
+	<js file="ab-ht-rpt-savings-by-bl.js"/>
+</view>

@@ -1,0 +1,294 @@
+<view version="2.0">
+
+    <message name="billDetails" translatable="true">Details</message>
+    <message name="lineDetails" translatable="true">Bill Lines Details</message>
+
+    <!-- Drill-down to bill_archive details datasource --> 
+    <dataSource id="ds_energyDrillDownBillArchive">
+        <table name="bill_archive" role="main"/>
+        <table name="bl" role="standard"/>
+        <sql dialect="generic">
+	        SELECT bill_id, vn_id,
+	            (CASE WHEN bl.city_id IS NOT NULL THEN RTRIM(bl.state_id)
+	                WHEN site.city_id IS NOT NULL THEN RTRIM(site.state_id)
+	                 ELSE '' END)  ${sql.as} state_id,
+	            (CASE WHEN bl.city_id IS NOT NULL THEN RTRIM(bl.city_id)
+	                WHEN site.city_id IS NOT NULL THEN RTRIM(site.city_id)
+	                 ELSE '' END)  ${sql.as} city_id,
+	            RTRIM(bill_archive.site_id)  ${sql.as} site_id,
+	            RTRIM(bill_archive.bl_id)  ${sql.as} bl_id, 
+	            (bill_archive.qty_energy / ${parameters['unitsConversionFactor']}) ${sql.as} qty_energy,
+	            bill_archive.qty_volume, 
+	            bill_archive.amount_expense,
+	            bill_archive.time_period,
+	            bill_archive.bill_type_id,
+	            bl.area_usable,
+	            bl.use1,
+	            bl.construction_type,
+	            bl.date_bl,
+	            IsNull( (SELECT metric_value FROM afm_metric_trend_values WHERE metric_name LIKE 'occ_Occupants_monthly%' AND collect_group_by = 'bl_id' 
+                   AND collect_by_value = bill_archive.bl_id                   
+                   AND ${sql.yearOf('metric_date')} = LEFT(bill_archive.time_period,4) AND ${sql.yearMonthOf('metric_date')} = bill_archive.time_period),  
+                    
+                (SELECT COUNT(em.em_id) FROM em WHERE em.bl_id = bill_archive.bl_id) ) ${sql.as} count_em         
+	                   
+	        FROM bill_archive
+	        LEFT OUTER JOIN bl ON bill_archive.bl_id = bl.bl_id 
+	        LEFT OUTER JOIN site ON bill_archive.site_id = site.site_id       
+	        WHERE ${parameters['finalRestriction']}  
+            AND ((bill_archive.prorated_aggregated = 'NO' AND bill_archive.reference_bill_id IS NULL AND NOT EXISTS (SELECT 1 FROM bill_archive b WHERE b.reference_bill_id = bill_archive.bill_id)) OR (bill_archive.prorated_aggregated &lt;&gt; 'NO'))
+        </sql>
+        <sql dialect="oracle">
+            SELECT bill_id, vn_id,
+                (CASE WHEN bl.city_id IS NOT NULL THEN RTRIM(bl.state_id)
+                    WHEN site.city_id IS NOT NULL THEN RTRIM(site.state_id)
+                     ELSE '' END)  ${sql.as} state_id,
+                (CASE WHEN bl.city_id IS NOT NULL THEN RTRIM(bl.city_id)
+                    WHEN site.city_id IS NOT NULL THEN RTRIM(site.city_id)
+                     ELSE '' END)  ${sql.as} city_id,
+                RTRIM(bill_archive.site_id)  ${sql.as} site_id,
+                RTRIM(bill_archive.bl_id)  ${sql.as} bl_id, 
+                (bill_archive.qty_energy / ${parameters['unitsConversionFactor']}) ${sql.as} qty_energy,
+                bill_archive.qty_volume, 
+                bill_archive.amount_expense,
+                bill_archive.time_period,
+                bill_archive.bill_type_id,
+                bl.area_usable,
+                bl.use1,
+                bl.construction_type,
+                bl.date_bl,
+                NVL( (SELECT metric_value FROM afm_metric_trend_values WHERE metric_name LIKE 'occ_Occupants_monthly%' AND collect_group_by = 'bl_id' 
+                   AND collect_by_value = bill_archive.bl_id                   
+                   AND ${sql.yearOf('metric_date')} = SUBSTR(bill_archive.time_period,4) AND ${sql.yearMonthOf('metric_date')} =bill_archive.time_period),  
+                    
+                (SELECT COUNT(em.em_id) FROM em WHERE em.bl_id = bill_archive.bl_id) ) ${sql.as} count_em               
+                       
+            FROM bill_archive
+            LEFT OUTER JOIN bl ON bill_archive.bl_id = bl.bl_id 
+            LEFT OUTER JOIN site ON bill_archive.site_id = site.site_id       
+            WHERE ${parameters['finalRestriction']}  
+            AND ((bill_archive.prorated_aggregated = 'NO' AND bill_archive.reference_bill_id IS NULL AND NOT EXISTS (SELECT 1 FROM bill_archive b WHERE b.reference_bill_id = bill_archive.bill_id)) OR (bill_archive.prorated_aggregated &lt;&gt; 'NO'))
+        </sql>
+        
+        <field table="bill_archive" name="state_id" dataType="text"/>
+        <field table="bill_archive" name="city_id" dataType="text"/>
+        <field table="bill_archive" name="bill_id"/>
+        <field table="bill_archive" name="vn_id"/>
+        <field table="bill_archive" name="site_id"/>
+        <field table="bill_archive" name="bl_id"/>
+        <field table="bill_archive" name="amount_expense" dataType="number" decimals="2" showTotals="true"/>
+        <field table="bill_archive" name="qty_energy" dataType="number" decimals="2" showTotals="true"/>
+        <field table="bill_archive" name="qty_volume" dataType="number" decimals="2" showTotals="true"/>
+        <field table="bill_archive" name="time_period"/>
+        <field table="bill_archive" name="bill_type_id"/>
+        <field table="bl" name="area_usable"/>
+        <field table="bl" name="use1"/>
+        <field table="bl" name="construction_type"/>
+        <field table="bl" name="date_bl"/>
+        <field table="bl" name="count_em" dataType="number" decimals="0"/>
+        <parameter name="finalRestriction" dataType="verbatim" value=" 1=1 "/>
+        <parameter name="unitsConversionFactor" dataType="verbatim" value="1"/>
+        <sortField table="bill_archive" name="state_id"/>
+        <sortField table="bill_archive" name="city_id"/>
+        <sortField table="bill_archive" name="site_id"/>
+        <sortField table="bill_archive" name="bl_id"/>
+        <sortField table="bill_archive" name="time_period"/>
+    </dataSource>
+
+    <!-- Drill-down to bill_archive details panel --> 
+    <panel type="grid" id="energyDrillDownBillArchive" dataSource="ds_energyDrillDownBillArchive" hidden="false" showOnLoad="false">
+        <title translatable="true">Cost/area for multiple locations - Details</title>
+        <event type="onClickItem">
+            <command type="callFunction" functionName="onDrillDownToBillLines()"/>
+        </event>
+        <action id="energyCostLocDrillDown_exportDOCX">
+            <title translatable="true">DOCX</title>
+            <command type="exportPanel" outputType="docx" panelId="energyDrillDownBillArchive" orientation="landscape"/>
+        </action>
+        <action id="energyCostLocDrillDown_exportXLS">
+            <title translatable="true">XLS</title>
+            <command type="exportPanel" outputType="xls" panelId="energyDrillDownBillArchive" orientation="landscape"/>
+        </action>
+        <action id="energyCostLocDrillDown_exportTXFR">
+            <title translatable="true">DATA</title>
+            <command type="exportPanel" outputType="txfr" panelId="energyDrillDownBillArchive"/>
+        </action>
+        <field table="bill_archive" name="state_id">
+            <title translatable="true">State Code</title>
+        </field>
+        <field table="bill_archive" name="city_id">
+            <title translatable="true">City Code</title>
+        </field>
+        <field table="bill_archive" name="site_id"/>
+        <field table="bill_archive" name="bl_id"/>
+        <field table="bill_archive" name="bill_type_id"/>
+        <field table="bill_archive" name="qty_energy" showTotals="true"/>
+        <field table="bill_archive" name="qty_volume" showTotals="true"/>
+        <field table="bill_archive" name="amount_expense" showTotals="true"/>
+        <field table="bill_archive" name="time_period"/>
+        <field table="bl" name="area_usable"/>
+        <field table="bill_archive" name="bill_id"/>
+        <field table="bill_archive" name="vn_id"/>
+        <field table="bl" name="use1"/>
+        <field table="bl" name="construction_type"/>
+        <field table="bl" name="date_bl"/>
+        <field table="bl" name="count_em" dataType="number" decimals="0"/>
+    </panel>    
+
+    <!-- Drill-down to bill_archive_line details datasource --> 
+    <dataSource id="ds_energyDrillDownBillLines">
+        <table name="bill_line_archive" role="main"/>
+        <field table="bill_line_archive" name="bill_id"/>
+        <field table="bill_line_archive" name="vn_id"/>
+        <field table="bill_line_archive" name="bill_line_id"/> 
+        <field table="bill_line_archive" name="amount_expense" showTotals="true" decimals="0"/>
+        <field table="bill_line_archive" name="bill_type_id"/>
+        <field table="bill_line_archive" name="description"/>
+        <sortField table="bill_line_archive" name="bill_line_id"/>
+        <sortField table="bill_line_archive" name="bill_id"/>
+        <sortField table="bill_line_archive" name="vn_id"/>
+    </dataSource>
+
+    <!-- Drill-down to bill_line_archive details panel --> 
+    <panel type="grid" id="energyDrillDownBillLines" dataSource="ds_energyDrillDownBillLines" hidden="false" showOnLoad="false">
+        <title translatable="true">Cost/area for multiple locations - Bill Lines Details</title>
+        <action id="energyCostLocDrillDown_exportDOCX">
+            <title translatable="true">DOCX</title>
+            <command type="exportPanel" outputType="docx" panelId="energyDrillDownBillLines"/>
+        </action>
+        <action id="energyCostLocDrillDown_exportXLS">
+            <title translatable="true">XLS</title>
+            <command type="exportPanel" outputType="xls" panelId="energyDrillDownBillLines"/>
+        </action>
+        <action id="energyCostLocDrillDown_exportTXFR">
+            <title translatable="true">DATA</title>
+            <command type="exportPanel" outputType="txfr" panelId="energyDrillDownBillLines"/>
+        </action>
+        <field table="bill_line_archive" name="bill_id"/>
+        <field table="bill_line_archive" name="vn_id"/>
+        <field table="bill_line_archive" name="bill_line_id"/>
+        <field table="bill_line_archive" name="amount_expense" showTotals="true" decimals="0"/>
+        <field table="bill_line_archive" name="bill_type_id"/>
+        <field table="bill_line_archive" name="description"/>
+    </panel>
+    
+    <!-- DrillDown to annual summary details datasource -->    
+    <dataSource id="ds_energyAnnualSummary_drilldown">
+        <table name="bill_archive" />
+        <sql dialect="generic">
+        SELECT
+            bill_archive.bill_id,bill_archive.vn_id,bill_archive.bl_id,bill_archive.time_period,bill_archive.amount_expense,
+            bill_archive.qty_energy,bill_archive.qty_kwh,bill_archive.cost_kwh,bill_archive.cost_mmbtu,bill_archive.qty_volume,
+            (CASE WHEN (bl.utility_type_heat='ELECTRIC') THEN 
+                    (SELECT SUM(coefficient_hdd) FROM weather_model WHERE weather_model.bl_id=bill_archive.bl_id AND time_period &gt; '${parameters['periodStart']}' AND time_period &lt;= '${parameters['periodEnd']}' AND model_type='el_regression' AND aggregation_type='MONTHLY') 
+                  WHEN (bl.utility_type_heat='GAS - NATURAL') THEN 
+                     (SELECT SUM(coefficient_hdd) FROM weather_model WHERE weather_model.bl_id=bill_archive.bl_id AND time_period &gt; '${parameters['periodStart']}' AND time_period &lt;= '${parameters['periodEnd']}' AND model_type='gas_natural_regression' AND aggregation_type='MONTHLY')
+             END) ${sql.as} electricity_hdd,
+            (SELECT SUM(coefficient_cdd) FROM weather_model WHERE weather_model.bl_id=bill_archive.bl_id AND time_period &gt; '${parameters['periodStart']}' AND time_period &lt;= '${parameters['periodEnd']}' AND model_type='el_regression' AND aggregation_type='MONTHLY') 
+                ${sql.as} electricity_cdd,
+            (CASE WHEN bill_archive.bill_type_id='ELECTRIC' THEN (bill_archive.qty_kwh*bill_archive.cost_kwh) ELSE 0 END) ${sql.as} electricity_cost, 
+            (CASE WHEN bill_archive.bill_type_id='ELECTRIC' THEN (bill_archive.qty_energy / ${parameters['unitsConversionFactor']}) ELSE 0 END) ${sql.as} electricity_consumption,
+            (CASE WHEN bill_archive.bill_type_id='GAS - NATURAL' THEN (bill_archive.qty_energy*bill_archive.cost_mmbtu) ELSE 0 END) ${sql.as} gas_cost, 
+            (CASE WHEN bill_archive.bill_type_id='GAS - NATURAL' THEN (bill_archive.qty_energy / ${parameters['unitsConversionFactorGas']}) ELSE 0 END) ${sql.as} gas_consumption,
+            bill_archive.qty_power
+            FROM bill_archive
+            LEFT OUTER JOIN bl ON bill_archive.bl_id = bl.bl_id 
+            WHERE ${parameters['finalRestriction']} 
+            AND bill_archive.time_period &gt; '${parameters['periodStart']}'
+            AND bill_archive.time_period &lt;= '${parameters['periodEnd']}'
+            AND ((bill_archive.prorated_aggregated = 'NO' AND bill_archive.reference_bill_id IS NULL AND NOT EXISTS (SELECT 1 FROM bill_archive b WHERE b.reference_bill_id = bill_archive.bill_id)) OR (bill_archive.prorated_aggregated &lt;&gt; 'NO'))
+        UNION
+        SELECT
+            bill_archive.bill_id,bill_archive.vn_id,bill_archive.bl_id,bill_archive.time_period,bill_archive.amount_expense,
+            bill_archive.qty_energy,bill_archive.qty_kwh,bill_archive.cost_kwh,bill_archive.cost_mmbtu,bill_archive.qty_volume,
+            (CASE WHEN (bl.utility_type_heat='ELECTRIC') THEN 
+                    (SELECT SUM(coefficient_hdd) FROM weather_model WHERE weather_model.bl_id=bill_archive.bl_id AND time_period &gt; '${parameters['periodStartPrev']}' AND time_period &lt;= '${parameters['periodEndPrev']}' AND model_type='el_regression' AND aggregation_type='MONTHLY') 
+                  WHEN (bl.utility_type_heat='GAS - NATURAL') THEN 
+                     (SELECT SUM(coefficient_hdd) FROM weather_model WHERE weather_model.bl_id=bill_archive.bl_id AND time_period &gt; '${parameters['periodStartPrev']}' AND time_period &lt;= '${parameters['periodEndPrev']}' AND model_type='gas_natural_regression' AND aggregation_type='MONTHLY')
+             END) ${sql.as} electricity_hdd,
+            (SELECT SUM(coefficient_cdd) FROM weather_model WHERE weather_model.bl_id=bill_archive.bl_id AND time_period &gt; '${parameters['periodStartPrev']}' AND time_period &lt;= '${parameters['periodEndPrev']}' AND model_type='el_regression' AND aggregation_type='MONTHLY') 
+                ${sql.as} electricity_cdd,
+            (CASE WHEN bill_archive.bill_type_id='ELECTRIC' THEN (bill_archive.qty_kwh*bill_archive.cost_kwh) ELSE 0 END) ${sql.as} electricity_cost, 
+            (CASE WHEN bill_archive.bill_type_id='ELECTRIC' THEN (bill_archive.qty_energy / ${parameters['unitsConversionFactor']}) ELSE 0 END) ${sql.as} electricity_consumption,
+            (CASE WHEN bill_archive.bill_type_id='GAS - NATURAL' THEN (bill_archive.qty_energy*bill_archive.cost_mmbtu) ELSE 0 END) ${sql.as} gas_cost, 
+            (CASE WHEN bill_archive.bill_type_id='GAS - NATURAL' THEN (bill_archive.qty_energy / ${parameters['unitsConversionFactorGas']}) ELSE 0 END) ${sql.as} gas_consumption,
+            bill_archive.qty_power
+            FROM bill_archive
+            LEFT OUTER JOIN bl ON bill_archive.bl_id = bl.bl_id 
+            WHERE ${parameters['finalRestriction']} 
+            AND bill_archive.time_period &gt; '${parameters['periodStartPrev']}'
+            AND bill_archive.time_period &lt;= '${parameters['periodEndPrev']}'
+            AND ((bill_archive.prorated_aggregated = 'NO' AND bill_archive.reference_bill_id IS NULL AND NOT EXISTS (SELECT 1 FROM bill_archive b WHERE b.reference_bill_id = bill_archive.bill_id)) OR (bill_archive.prorated_aggregated &lt;&gt; 'NO'))
+        </sql>
+        <field table="bill_archive" name="bill_id" />
+        <field table="bill_archive" name="vn_id" />
+        <field table="bill_archive" name="bl_id" />
+        <field table="bill_archive" name="time_period" />
+        <field table="bill_archive" name="amount_expense" />
+        <field table="bill_archive" name="qty_energy" />
+        <field table="bill_archive" name="qty_kwh" />
+        <field table="bill_archive" name="cost_kwh" />
+        <field table="bill_archive" name="cost_mmbtu" />
+        <field table="bill_archive" name="qty_volume" />
+        <field table="bill_archive" name="electricity_hdd" dataType="number" decimals="2" />           
+        <field table="bill_archive" name="electricity_cdd" dataType="number" decimals="2" />
+        <field table="bill_archive" name="electricity_cost" dataType="number" decimals="2" />
+        <field table="bill_archive" name="electricity_consumption" dataType="number" decimals="2" /> 
+        <field table="bill_archive" name="gas_cost" dataType="number" decimals="2" />
+        <field table="bill_archive" name="gas_consumption" dataType="number" decimals="2" /> 
+        <field table="bill_archive" name="qty_power" />
+        <parameter name="finalRestriction" dataType="verbatim" value=" 1=1 " />
+        <parameter name="unitsConversionFactor" dataType="verbatim" value="1" />
+        <parameter name="unitsConversionFactorGas" dataType="verbatim" value="1" />
+        <parameter name="periodStart" dataType="verbatim" value="" />
+        <parameter name="periodEnd" dataType="verbatim" value="" />
+        <parameter name="periodStartPrev" dataType="verbatim" value="" />
+        <parameter name="periodEndPrev" dataType="verbatim" value="" />
+        <sortField table="bill_archive" name="time_period"/>
+    </dataSource>
+    
+    <!-- Drill-down to bill_archive details panel --> 
+    <panel type="grid" id="energyAnnualSummaryDetails" dataSource="ds_energyAnnualSummary_drilldown" hidden="false" showOnLoad="false">
+        <action id="energyAnnualSummaryDetails_exportDOCX">
+            <title translatable="true">DOCX</title>
+            <command type="exportPanel" outputType="docx" panelId="energyAnnualSummaryDetails"/>
+        </action>
+        <action id="energyAnnualSummaryDetails_exportXLS">
+            <title translatable="true">XLS</title>
+            <command type="exportPanel" outputType="xls" panelId="energyAnnualSummaryDetails"/>
+        </action>
+        <action id="energyAnnualSummaryDetails_exportTXFR">
+            <title translatable="true">DATA</title>
+            <command type="exportPanel" outputType="txfr" panelId="energyAnnualSummaryDetails"/>
+        </action>
+        <field table="bill_archive" name="bill_id" />
+        <field table="bill_archive" name="vn_id" />
+        <field table="bill_archive" name="bl_id" />
+        <field table="bill_archive" name="time_period" />
+        <field table="bill_archive" name="amount_expense" />
+        <field table="bill_archive" name="qty_energy" />
+        <field table="bill_archive" name="qty_kwh" />
+        <field table="bill_archive" name="cost_kwh" />
+        <field table="bill_archive" name="cost_mmbtu" />
+        <field table="bill_archive" name="electricity_hdd">
+             <title translatable="true">HDD</title>
+        </field>
+        <field table="bill_archive" name="electricity_cdd">
+             <title translatable="true">CDD</title>
+        </field>
+        <field table="bill_archive" name="electricity_cost">
+             <title translatable="true">Elec. Cost</title>
+        </field>
+        <field table="bill_archive" name="electricity_consumption">
+             <title translatable="true">Elec. Consumption</title>
+        </field> 
+        <field table="bill_archive" name="gas_cost">
+             <title translatable="true">Gas Cost</title>
+        </field>
+        <field table="bill_archive" name="gas_consumption">
+             <title translatable="true">Gas Consumption</title>
+        </field> 
+        <field table="bill_archive" name="qty_power" />
+    </panel>   
+    
+</view>    

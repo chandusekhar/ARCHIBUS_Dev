@@ -1,0 +1,151 @@
+<?xml version="1.0" encoding="utf-8"?>
+<mx:Application xmlns:mx="http://www.adobe.com/2006/mxml" layout="absolute"
+	xmlns:ilog="http://www.ilog.com/2007/ilog/flex"
+	initialize="myInitialize()" resize="onResize()" backgroundColor="#FFFFFF">
+	
+	<mx:Script>
+		<![CDATA[
+			import mx.graphics.GradientEntry;
+			import mx.controls.Alert;
+		
+			private var panelId:String;
+			
+			[Bindable]
+			private var minValue:Number = 0;
+			[Bindable]
+			private var maxValue:Number = 100;
+			[Bindable]
+			private var majTickInterval:Number = 10;
+			[Bindable]
+			private var minTickInterval:Number = 5;
+			[Bindable]
+			private var trackMinimum:Number = 50;
+			[Bindable]
+			private var trackMaximum:Number = 100;
+			[Bindable]
+			private var isEditable:Boolean = false;
+			[Bindable]
+			private var trackType:String = "gyr";
+			
+			private function myInitialize():void {
+				ExternalInterface.addCallback("RefreshData", RefreshData);
+				ExternalInterface.addCallback("setMinMaxValues",setMinMaxValues);
+				ExternalInterface.addCallback("setTickIntervals",setTickIntervals);
+				ExternalInterface.addCallback("setMinMaxTrack",setMinMaxTrack);
+				ExternalInterface.addCallback("setIsEditable",setIsEditable);
+				ExternalInterface.addCallback("setControlProperty",setControlProperty);
+				ExternalInterface.addCallback("setStyleProperty",setStyleProperty);
+				
+				panelId = Application.application.parameters.panelId;
+				minValue = Application.application.parameters.minValue;
+				maxValue = Application.application.parameters.maxValue;
+				majTickInterval = Application.application.parameters.majTickInterval;
+				minTickInterval = Application.application.parameters.minTickInterval;
+				trackMinimum = Application.application.parameters.trackMinimum;
+				trackMaximum = Application.application.parameters.trackMaximum;
+				isEditable = Application.application.parameters.isEditable == "true";
+				
+				trackType = Application.application.parameters.trackType;
+				
+				var ge:Array = [];
+				switch(trackType){
+					case ("gyr"):						
+        				ge.push(new GradientEntry(0x00FF00, 0));
+        				ge.push(new GradientEntry(0xFFFF00, 0.5));
+        				ge.push(new GradientEntry(0xFF0000, 1.0));
+        				break;
+        			case ("ygy"):
+        				ge.push(new GradientEntry(0xFFFF00, 0));
+        				ge.push(new GradientEntry(0x00FF00, 0.5));
+        				ge.push(new GradientEntry(0xFFFF00, 1.0));
+        				break;
+        			case ("ryg"):
+        				ge.push(new GradientEntry(0xFF0000, 0));
+        				ge.push(new GradientEntry(0xFFFF00, 0.5));
+        				ge.push(new GradientEntry(0x00FF00, 1.0));
+        				break;
+        			default:
+        				ge.push(new GradientEntry(0x00FF00, 0));
+        				ge.push(new GradientEntry(0xFFFF00, 0.5));
+        				ge.push(new GradientEntry(0xFF0000, 1.0));
+				}
+				gauge.track['gradientEntries'] = ge;
+				gauge.track.invalidateDisplayList();
+			}
+			
+			public function onResize():void{
+				if(gauge != null){
+					gauge.width = this.width;
+				}
+			}
+			
+			// Can be called by JavaScript
+			// Refresh the data		
+			public function RefreshData():void {
+				try {
+					// get data from JavaScript
+					var data:String = ExternalInterface.call("getData_JS", panelId);
+						
+					// sanity check
+					if (data==null || data=="null" || data=="") {
+						return;
+					}
+						
+					gauge.value = Number(data);
+				}
+				catch (e: Error) {
+					Alert.show( "[RefreshData (" + data + ")] " + e.toString(), "ERROR" );
+				}
+			}
+			
+			/**
+	         * Sets control property specified by name.
+	         * Can be called from JS code to set properties not supported in AXVW format.
+	         */     
+	        public function setControlProperty(propertyName:String, propertyValue:Object):void {
+	            this.gauge[propertyName] = propertyValue;
+	        }
+	        
+	        /**
+	         * Sets style property specified by name.
+	         * Can be called from JS code to set properties not supported in AXVW format.
+	         */  
+	        public function setStyleProperty(propertyName:String, propertyValue:Object):void {
+	        	this.gauge.setStyle(propertyName,propertyValue);
+	        }
+			
+			public function setMinMaxValues(minValue:Number,maxValue:Number):void{
+				this.minValue = minValue;
+				this.maxValue = maxValue;
+			}
+			
+			public function setTickIntervals(minTick:Number,majTick:Number):void{
+				this.minTickInterval = minTick;
+				this.majTickInterval = majTick;
+			}
+			
+			public function setMinMaxTrack(minTrack:Number,maxTrack:Number):void{
+				this.trackMinimum = minTrack;
+				this.trackMaximum = maxTrack;
+			}
+			
+			public function setIsEditable(editable:Boolean):void{
+				this.isEditable = editable;
+			}
+			public function valueChanged(event:Event):void{
+				ExternalInterface.call("gaugeChange_JS", gauge.value);
+			}
+			
+			public function labelFunction(value:Object):String {
+		      	return String(Math.round(value as Number));
+    		}
+		]]>
+	</mx:Script>
+	
+	<ilog:SimpleHorizontalGauge id="gauge" width="100%" height="100%" 
+		minimum="{minValue}" maximum="{maxValue}"
+		majorTickInterval="{majTickInterval}" minorTickInterval="{minTickInterval}" showMinorTicks="true"
+		trackMaximum="{trackMaximum}" trackMinimum="{trackMinimum}" editable="{isEditable}"
+		change="valueChanged(event)"
+		indicatorLabelFunction="labelFunction"/>
+</mx:Application>

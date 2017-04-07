@@ -1,0 +1,261 @@
+<view version="2.0">
+    <js file="ab-eam-cpt-proj-console-dash.js"/>
+    
+    <message name="errNoDestinationProject" translatable="true">You must select a destination project.</message>
+    <message name="errNoDestinationProjectAndWorkPkg" translatable="true">You must select a destination project and work package.</message>
+    <message name="errNoWrkPkgSelected" translatable="true">Please select a Work Package to copy.</message>
+    <message name="errNoActionSelected" translatable="true">Please select an Action.</message>
+    
+    <layout id="main">
+        <west initialSize="420" split="true" />
+        <center/>        
+    </layout>
+    <layout id="nested_west" containingLayout="main" region="west">
+        <north id="projProfilePos" initialSize="160" split="true"/>
+        <center id="tabsPos"/>       
+    </layout>
+    <layout id="nested_center" containingLayout="main" region="center">
+        <north id="workPckgPos" initialSize="50%" split="true"/>
+        <center id="actionsPos"/>       
+    </layout>
+    
+    <panel type="view" id="projectProfile" file="ab-proj-mng-dash-prof.axvw" layoutRegion="projProfilePos"/>
+    
+    <tabs id="abEamProjConsDashTabs" tabRefreshPolicy="refreshOnSelect" layoutRegion="tabsPos">
+        <tab name="projMngDash_mileTab" file="ab-proj-mng-dash-mile.axvw" selected="true" useFrame="false">
+                <title translatable="true">Milestones</title>
+        </tab>
+        <tab name="projMngDash_teamTab" file="ab-proj-mng-dash-team.axvw" useFrame="false">
+            <title translatable="true">Team</title>
+        </tab>
+        <tab name="projMngDash_logsTab" file="ab-proj-mng-dash-logs.axvw" useFrame="false">
+            <title translatable="true">Logs</title>
+        </tab>
+        <tab name="projMngDash_docsTab" file="ab-proj-mng-dash-docs.axvw" useFrame="false">
+            <title translatable="true">Docs</title>
+        </tab>
+        <tab name="projMngDash_refDocsTab" file="ab-eam-cpt-proj-ref-docs.axvw" useFrame="false">
+            <title translatable="true">Ref Docs</title>
+        </tab>
+    </tabs>
+    
+    
+    <dataSource id="abEamProjConsoleWorkPck_ds">
+        <table name="work_pkgs"/>
+        <field name="project_id"/>
+        <field name="wbs_id"/>
+        <field name="work_pkg_id"/>
+        <field name="vf_design_cost" dataType="number" decimals="2" numericFormat="BudgetCurrency">
+            <title>Cost Est. Baseline</title>
+            <sql dialect="generic">
+                (SELECT SUM(activity_log.cost_est_cap + activity_log.cost_estimated) FROM activity_log WHERE activity_log.work_pkg_id = work_pkgs.work_pkg_id)
+            </sql>
+        </field>
+        <field name="date_est_start"/>
+        <field name="date_est_end"/>
+        <field name="proj_phase"/>
+    </dataSource>
+    
+    <panel type="grid" id="abEamProjConsoleWorkPck_list" dataSource="abEamProjConsoleWorkPck_ds" layoutRegion="workPckgPos" showOnLoad="false" multipleSelectionEnabled ="true">
+        <sortField table="work_pkgs" name="work_pkg_id" ascending="true"/>
+        <title>Work Packages</title>
+        <action id="new" imageName="/schema/ab-core/graphics/icons/view/add-icon.png">
+            <tooltip>Add New Work Package</tooltip>
+        </action>
+        <action id="copySelected">
+            <title>Copy Selected</title>
+            <command type="callFunction" functionName="prepareSelectProjectPanel"/>
+            <command type="openDialog" panelId="abEamProjConsoleDashProjectSelect" width="800" height="400" applyParentRestriction="false" applySelectionRestriction="false" applyMultipleSelectionRestriction="false"/>
+        </action>
+        <action id="abEamProjConsoleWorkPck_list_reports" type="menu">
+            <title>Reports</title>
+        </action>
+        <action id="tools" imageName="/schema/ab-core/graphics/icons/view/gear.png">
+            <tooltip>Tools</tooltip>
+            <command type="selectFields" panelId="abEamProjConsoleWorkPck_list"/>
+        </action>
+        <field id="editWP" controlType="button">
+            <title>Edit</title>
+        </field> 
+        <field name="wbs_id"/>
+        <field name="work_pkg_id"/>
+        <field name="vf_design_cost">
+            <title>Cost Est. Baseline</title>
+        </field>
+        <field name="date_est_start"/>
+        <field name="date_est_end"/>
+        <field name="proj_phase"/>
+        <field name="project_id" hidden="true"/>
+    </panel> 
+    
+    
+    <dataSource id="abEamProjConsoleActions_ds">
+        <table name="activity_log"/>
+        <field name="activity_log_id"/>
+        <field name="work_pkg_id"/>
+        <field name="wbs_id"/>
+        <field name="action_title"/>
+        <field name="date_scheduled"/>
+        <field name="date_completed"/>
+        <field name="status"/>
+        <field name="pct_complete"/>
+        <field name="vf_design_cost" dataType="number" decimals="2" numericFormat="BudgetCurrency">
+            <title>Cost Est. Baseline</title>
+            <sql dialect="generic">
+                (activity_log.cost_est_cap + activity_log.cost_estimated)
+            </sql>
+        </field>
+        <field name="activity_type"/>
+        <field name="assigned_to"/>
+    </dataSource>
+
+    <panel type="grid" id="abEamProjConsoleActions_list" dataSource="abEamProjConsoleActions_ds" showOnLoad="false" layoutRegion="actionsPos" multipleSelectionEnabled="true">
+        <sortField table="activity_log" name="action_title" ascending="true"/>
+        <title>Actions</title>
+        <action id="new" imageName="/schema/ab-core/graphics/icons/view/add-icon.png">
+            <tooltip>Add New Action</tooltip>
+        </action>
+        <action id="copySelected">
+            <title>Copy Selected</title>
+            <command type="callFunction" functionName="prepareSelectProjectAndWorkPkgPanel"/>
+            <command type="openDialog" panelId="abEamProjConsoleDashProjectWorkPkgSelect" width="800" height="400" applyParentRestriction="false" applySelectionRestriction="false" applyMultipleSelectionRestriction="false"/>
+        </action>
+        <action id="updateSelected">
+            <title>Update Selected</title>
+            <command type="callFunction" functionName="checkSelectedActions"/>
+            <command type="openDialog" panelId="abEamProjConsoleDashActionsUpdate" width="800" height="400" newRecord="true"/>
+        </action>
+        <action id="tools" imageName="/schema/ab-core/graphics/icons/view/gear.png">
+            <tooltip>Tools</tooltip>
+            <command type="selectFields" panelId="abEamProjConsoleWorkPck_list"/>
+        </action>
+        <field id="copyAsNew" controlType="button">
+            <title>Copy</title>
+        </field>
+        <field name="wbs_id" controlType="link">
+            <command type="callFunction" functionName="abEamProjConsoleDashController.abEamProjConsoleActions_list_onClickRow(this)"/>
+        </field>
+        <field name="work_pkg_id" controlType="link">
+            <command type="callFunction" functionName="abEamProjConsoleDashController.abEamProjConsoleActions_list_onClickRow(this)"/>
+        </field>
+        <field name="action_title" controlType="link">
+            <command type="callFunction" functionName="abEamProjConsoleDashController.abEamProjConsoleActions_list_onClickRow(this)"/>
+        </field>
+        <field name="date_scheduled" controlType="link">
+            <command type="callFunction" functionName="abEamProjConsoleDashController.abEamProjConsoleActions_list_onClickRow(this)"/>
+        </field>
+        <field name="date_completed" controlType="link">
+            <command type="callFunction" functionName="abEamProjConsoleDashController.abEamProjConsoleActions_list_onClickRow(this)"/>
+        </field>
+        <field name="status" controlType="link">
+            <command type="callFunction" functionName="abEamProjConsoleDashController.abEamProjConsoleActions_list_onClickRow(this)"/>
+        </field>
+        <field name="pct_complete" controlType="link">
+            <command type="callFunction" functionName="abEamProjConsoleDashController.abEamProjConsoleActions_list_onClickRow(this)"/>
+        </field>
+        <field name="vf_design_cost" controlType="link">
+            <title>Cost Est. Baseline</title>
+            <command type="callFunction" functionName="abEamProjConsoleDashController.abEamProjConsoleActions_list_onClickRow(this)"/>
+        </field>
+        <field name="activity_type" controlType="link">
+            <command type="callFunction" functionName="abEamProjConsoleDashController.abEamProjConsoleActions_list_onClickRow(this)"/>
+        </field>
+        <field name="assigned_to" controlType="link">
+            <command type="callFunction" functionName="abEamProjConsoleDashController.abEamProjConsoleActions_list_onClickRow(this)"/>
+        </field>
+        <field name="activity_log_id" controlType="link">
+            <command type="callFunction" functionName="abEamProjConsoleDashController.abEamProjConsoleActions_list_onClickRow(this)"/>
+        </field>
+    </panel>
+    
+    <panel type="view" id="abEamProjConsoleDashGenericHelper" file="ab-eam-common-ds-and-panels.axvw" hidden="true"/>
+    
+        
+    <panel type="grid" id="abEamProjConsoleDashProjectSelect" dataSource="abProject_ds" showOnLoad="false" hidden="true" multipleSelectionEnabled="true">
+        <title>Project</title>
+        <action id="cancel">
+            <title>Cancel</title>
+            <command type="closeDialog"/>
+        </action>
+        <action id="copy" mainAction="true">
+            <title>Copy</title>
+        </action>
+        <field name="project_id"/>
+        <field name="status"/>
+        <field name="summary"/>
+        <field name="scope"/>
+        <field name="description"/>
+    </panel>
+    
+    <dataSource id="abProjectWorkPkg_ds">
+        <table name="work_pkgs" role="main"/>
+        <table name="project" role="standard"/>
+        <field table="project" name="project_id"/>
+        <field table="work_pkgs" name="work_pkg_id"/>
+        <field table="project" name="status"/>
+        <field table="project" name="summary"/>
+        <restriction type="sql" sql="${parameters['sqlRestriction']}"/>
+        <parameter name="sqlRestriction" dataType="verbatim" value="1=1"/>
+    </dataSource>
+    
+    <panel type="grid" id="abEamProjConsoleDashProjectWorkPkgSelect" dataSource="abProjectWorkPkg_ds" showOnLoad="false" hidden="true" multipleSelectionEnabled="true">
+        <title>Project</title>
+        <action id="cancel">
+            <title>Cancel</title>
+            <command type="closeDialog"/>
+        </action>
+        <action id="copy" mainAction="true">
+            <title>Copy</title>
+        </action>
+        <field table="project" name="project_id"/>
+        <field table="work_pkgs" name="work_pkg_id"/>
+        <field table="project" name="status"/>
+        <field table="project" name="summary"/>
+    </panel>
+    
+    <dataSource id="abEamProjConsoleDashActionsUpdate_ds">
+        <table name="activity_log"/>
+        <field name="activity_type"/>
+        <field name="work_pkg_id"/>
+        <field name="project_id"/>
+        <field name="wbs_id"/>
+        <field name="bl_id"/>
+        <field name="fl_id"/>
+        <field name="rm_id"/>
+        <field name="date_required"/>
+        <field name="duration_est_baseline"/>
+        <field name="hours_est_baseline"/>
+        <field name="eq_id"/>
+        <field name="cost_est_cap"/>
+        <field name="cost_estimated"/>
+    </dataSource>
+
+    <panel type="form" id="abEamProjConsoleDashActionsUpdate" dataSource="abEamProjConsoleDashActionsUpdate_ds" columns="2"  showOnLoad="false" hidden="true">
+        <title>Action Items</title>
+        <action id="cancel">
+            <title>Cancel</title>
+            <command type="closeDialog"/>
+        </action>
+        <action id="save" mainAction="true">
+            <title>Save</title>
+        </action>
+
+        <field name="work_pkg_id"/>
+        <field name="activity_type" required="false"/>
+        <field name="wbs_id"/>
+        <field name="project_id"/>
+
+        <field name="bl_id"/>
+        <field name="fl_id"/>
+        <field name="rm_id"/>
+        <field name="date_required"/>
+        <field name="duration_est_baseline"/>
+        <field name="hours_est_baseline"/>
+        <field name="eq_id"/>
+        <field id="dummy_field"/>
+        <field name="cost_est_cap"/>
+        <field name="cost_estimated"/>
+    </panel>
+    
+    <panel type="view" id="abProjectSelectReportHelper" file="ab-eam-reports-common.axvw"/>
+</view>

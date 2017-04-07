@@ -1,0 +1,316 @@
+<view version="2.0">     
+    <message name="no_start_date_selected" translatable="true">Please select start date.</message>
+    <message name="save_successfully" translatable="true">Save successfully.</message>
+    <message name="error_date_range" translatable="true">The End Date cannot be earlier than Start Date.</message>
+    <message name="date_range_overlap" translatable="true">Cannot save date range for {0} due to date conflicts.</message>
+    <message name="start_date_title" translatable="true">Start Date</message>
+    <message name="end_date_title" translatable="true">End Date</message>
+    <message name="unassigned_checkbox" translatable="true">Unassigned to any team</message>
+    <message name="errorSave" translatable="true">Cannot create new Team Record.</message>
+    <message name="addEmErrorMessage" translatable="true">You must click the Show button to filter on the selected date range before assigning rooms to the team.</message>
+    <message name="varies" translatable="true">VARIES</message>
+    <message name="team_list" translatable="true">Team List</message>
+    
+    <js file="ab-sp-console-team-edit-rm-tab.js"/>
+    <js file="ab-sp-console-team-common.js"/>
+    <layout file="ab-sp-console-team-edit-layout.axvw"/>
+    
+    <!-- filter datasource for room -->
+    <dataSource id="rmFilterDS">
+        <table name="rm"/>
+        <table name="rm_team" role="standard"/>
+        <field name="bl_id"/>
+        <field name="fl_id"/>
+        <field name="rm_id"/>
+        <field name="area" dataType="number" decimals="2"/>
+        <field name="date_start" table="rm_team"/>
+        <field name="date_end" table="rm_team"/>
+    </dataSource>
+        
+    <dataSource id="rooms_on_team_ds">
+        <table name="rm_team" role="main"/>
+        <table name="rm" role="standard"/>
+        <field table="rm_team" name="rm_team_id"/>
+        <field table="rm_team" name="team_id" />
+        <field table="rm_team" name="bl_id" />
+        <field table="rm_team" name="fl_id" />
+        <field table="rm_team" name="rm_id" />
+        <field table="rm" name="area" />
+        <field table="rm" name="dv_id" />
+        <field table="rm" name="dp_id" />
+        <field table="rm" name="rm_std" />
+        <field table="rm" name="rm_cat" />
+        <field table="rm" name="rm_type" />
+        <field table="rm_team" name="date_start" />
+        <field table="rm_team" name="date_end" />
+        <field name="organization" dataType="text">
+             <sql dialect="generic">
+                (select rm.dv_id${sql.concat}'-'${sql.concat}rm.dp_id from rm where rm.bl_id=rm_team.bl_id and rm.fl_id=rm_team.fl_id and rm.rm_id=rm_team.rm_id)
+             </sql>
+        </field>
+        <field table="rm_team" name="location" dataType="text" size="200">
+             <sql dialect="generic">
+                (rm_team.bl_id${sql.concat}'-'${sql.concat}rm_team.fl_id${sql.concat}'-'${sql.concat}rm_team.rm_id)
+             </sql>
+        </field>
+        <field table="rm" name="cap_em" />
+          <restriction type="sql" sql=" 
+            ${parameters['emLocation']} AND ${parameters['areaRestriction']} AND rm_team.team_id=${parameters['editTeamId']} AND 
+            ${sql.yearMonthDayOf('rm_team.date_start')} &lt;= ${parameters['toDate']} AND (rm_team.date_end is null or ${sql.yearMonthDayOf('rm_team.date_end')} &gt;= ${parameters['fromDate']})
+            "/>    
+
+               
+        <parameter name="isInitial" dataType="text" value="1=1"/>
+        <parameter name="editTeamId" dataType="text" value="1=1"/>
+        <parameter name="asOfDate" dataType="text" value="1=1"/>
+        <parameter name="emLocation" dataType="verbatim" value="1=1"/>
+        <parameter name="areaRestriction" dataType="verbatim" value="1=1"/>       
+        <parameter name="fromDate" dataType="text" value="1=1"/> 
+        <parameter name="toDate" dataType="text" value="1=1"/>
+        
+        <sortField table="rm_team" name="date_start" />              
+    </dataSource>
+ 
+     <dataSource id="available_rm_ds">
+        <table name="rm" role="main"/>
+        <table name="rmcat" role="standard"/>
+        <field table="rmcat" name="occupiable" />
+        <field table="rm" name="bl_id" />
+        <field table="rm" name="fl_id" />
+        <field table="rm" name="rm_id" />
+        <field table="rm" name="area" />
+        <field table="rm" name="rm_std" />
+        <field table="rm" name="rm_cat" />
+        <field table="rm" name="rm_type" />
+        <field table="rm" name="cap_em" />
+        <field name="teams" dataType="text">
+            <title>Teams</title> 
+            <sql dialect="generic">
+                (select count(rm_team.team_id) from rm_team where rm.bl_id=rm_team.bl_id and rm.fl_id=rm_team.fl_id and rm.rm_id=rm_team.rm_id)
+            </sql>
+        </field>    
+        <field name="organization" dataType="text">
+             <sql dialect="generic">
+                (rm.dv_id${sql.concat}'-'${sql.concat}rm.dp_id)
+             </sql>
+        </field>    
+  
+        <restriction type="sql" sql=" ${parameters['emLocation']} AND ${parameters['areaRestriction']} and rmcat.occupiable = 1 
+        AND NOT EXISTS (select 1 from rm_team where rm_team.bl_id=rm.bl_id and rm_team.fl_id=rm.fl_id and rm_team.rm_id=rm.rm_id and rm_team.team_id=${parameters['editTeamId']} AND 
+        ${sql.yearMonthDayOf('rm_team.date_start')} &lt;= ${parameters['toDate']} AND (rm_team.date_end is null or ${sql.yearMonthDayOf('rm_team.date_end')} &gt;= ${parameters['fromDate']})
+        )"/>   
+                
+        <parameter name="isInitial" dataType="text" value="1=1"/>
+        <parameter name="editTeamId" dataType="text" value="1=1"/>
+        <parameter name="areaRestriction" dataType="verbatim" value="1=1"/>
+        <parameter name="asOfDate" dataType="text" value="1=1"/>
+        <parameter name="emLocation" dataType="verbatim" value="1=1"/>
+        <parameter name="fromDate" dataType="text" value="1900-01-01"/> 
+        <parameter name="toDate" dataType="text" value="2900-01-01"/>
+    </dataSource>
+      
+    <dataSource id="checkRmOnTeam_ds">
+        <table name="rm_team" role="main"/>
+        <field table="rm_team" name="rm_team_id"/>
+        <field table="rm_team" name="team_id" />
+        <field table="rm_team" name="bl_id" />
+        <field table="rm_team" name="fl_id" />
+        <field table="rm_team" name="rm_id" />
+        <field table="rm_team" name="date_start" />
+        <field table="rm_team" name="date_end" />
+        <parameter name="isRmOnTeam" dataType="verbatim" value="1=1"/>
+        <restriction type="sql" sql=" ${parameters['isRmOnTeam']} "/> 
+    </dataSource>
+
+    <dataSource id="rm_team_ds">
+        <table name="rm_team"/>
+        <field table="rm_team" name="date_start" />
+        <field table="rm_team" name="date_end" />
+        <field table="rm_team" name="rm_team_id" />
+        <field table="rm_team" name="team_id" />
+        <field table="rm_team" name="bl_id" />
+        <field table="rm_team" name="fl_id" />
+        <field table="rm_team" name="rm_id" />
+    </dataSource>    
+    
+    <!-- filter -->
+    <panel type="console" columns="7" id="rmFilterOptions" dataSource="rmFilterDS" showOnLoad="true" layout="tabLayout" region="north">
+        <title translatable="true">Filter</title>
+        <field table="rm" name="bl_id" cssClass="shortField" showLabel="false">
+            <title>Building</title>
+            <action id="locationSelectBuilding">
+                <title>...</title>
+                <command
+                        type="selectValue"
+                        selectValueType="multiple"
+                        autoComplete="true"
+                        fieldNames="rm.bl_id"
+                        selectFieldNames="bl.bl_id"
+                        visibleFieldNames="bl.site_id,bl.bl_id,bl.name"/>
+            </action>
+        </field>
+        <field table="rm" name="fl_id" cssClass="shortField" showLabel="false" selectValueType="multiple">
+            <title>Floor</title>
+        </field>
+        <field table="rm" name="rm_id" cssClass="shortField" showLabel="false" selectValueType="multiple">
+            <title>Room</title>
+        </field>
+        
+        <field id="area">
+            <title>Area</title>
+            <html>
+                <select id="totalAreaOp" name="totalAreaOp" style="width: 45px;">
+                    <option value="&gt;"><span translatable="true">&gt;</span></option>
+                    <option value="&gt;="><span translatable="true">&gt;=</span></option>
+                    <option value="="><span translatable="true">=</span></option>
+                    <option value="&lt;="><span translatable="true">&lt;=</span></option>
+                    <option value="&lt;"><span translatable="true">&lt;</span></option>
+                </select>
+                <input id="area" name="area" class="inputField" style="width: 75px;" size="10" maxSize="10"></input>
+                <span></span>
+            </html>
+
+        </field>
+        
+        <!--field table="rm" name="area" cssClass="shortField" showLabel="false" dataType="number" decimals="2">
+        </field-->
+
+        <field table="rm_team" name="date_start" cssClass="shortField" showLabel="true" onchange="rmOnTeamController.onFromDateChanged(this.value)">
+            <title>From Date</title>
+        </field>
+        <field table="rm_team" name="date_end" cssClass="shortField" showLabel="true" onchange="rmOnTeamController.onToDateChanged(this.value)">
+            <title>To Date</title>
+        </field>  
+        
+        <action id="filterRooms" cssClass="fieldButtonRight">
+            <title>Show</title>
+        </action>
+        <action id="clearFields" cssClass="fieldButtonRight">
+            <title>Clear</title>
+        </action>        
+    </panel>
+        
+    <panel type="grid" id="rmPanel" dataSource="rooms_on_team_ds" showOnLoad="false" layout="tabLayout" region="center"
+           showCounts="false" multipleSelectionEnabled="true">
+        <title translatable="true">Rooms Assigned to Team</title>
+        <field table="rm_team" name="bl_id" dataType="text">
+        </field>
+        <field table="rm_team" name="fl_id" dataType="text">
+        </field>
+        <field table="rm_team" name="rm_id" dataType="text">
+        </field>
+        <field table="rm" name="area" dataType="">
+        </field>
+        <field table="rm_team" name="date_start">
+            <title>Start Date</title>
+        </field>
+        <field table="rm_team" name="date_end">
+            <title>End Date</title>
+        </field>                
+ 
+        <field table="rm" name="rm_std" hidden="true">
+            <title>Room Standard</title>
+        </field>
+        <field table="rm" name="rm_cat" hidden="true">
+            <title>Room Category</title>
+        </field>
+        <field table="rm" name="rm_type" hidden="true">
+            <title>Room Type</title>
+        </field>     
+        <field name="organization" dataType="text" hidden="true">
+            <title>Organization</title>
+        </field>    
+        <field table="rm" name="cap_em" hidden="true">
+            <title>Capacity</title>
+        </field>              
+        <field table="rm_team" name="rm_team_id" hidden="true"/>
+        <field controlType="button" id="remove">
+          <title translatable="true">Remove</title>
+        </field>
+        <action type="menu" id="roomsOnTeamToolsMenu" imageName="/schema/ab-core/graphics/icons/view/gear.png">
+            <title></title>
+            <action id="selectRoomFields">
+                <title>Select Fields</title>
+                <command type="selectFields" panelId="rmPanel"/>
+            </action>
+        </action>
+    </panel>
+             
+    <panel type="grid" id="rmAvailablePanel" dataSource="available_rm_ds" recordLimit="100" showOnLoad="false" layout="tabLayout" region="south"
+           showCounts="false" multipleSelectionEnabled="true">
+        <title translatable="true">Available Rooms</title>
+        <indexField table="rm" name="bl_id"/>
+        <indexField table="rm" name="fl_id"/>
+        <indexField table="rm" name="rm_id"/>
+                
+        <field table="rm" name="bl_id" dataType="text">
+        </field>
+        <field table="rm" name="fl_id" dataType="text">
+        </field>
+        <field table="rm" name="rm_id" dataType="text">
+        </field>
+        <field table="rm" name="area" dataType="text">
+        </field>
+        <field table="rm" name="rm_std" hidden="true">
+            <title>Room Standard</title>
+        </field>
+        <field table="rm" name="rm_cat" hidden="true">
+            <title>Room Category</title>
+        </field>
+        <field table="rm" name="rm_type" hidden="true">
+            <title>Room Type</title>
+        </field>     
+        <field name="organization" dataType="text" hidden="true">
+            <title>Organization</title>
+        </field>    
+        <field table="rm" name="cap_em" hidden="true">
+            <title>Capacity</title>
+        </field>              
+        <field id="add" controlType="button">
+            <title translatable="true">Add</title>
+        </field>  
+        <action type="menu" id="availableRoomsToolsMenu" imageName="/schema/ab-core/graphics/icons/view/gear.png">
+            <title></title>
+            <action id="selectRoomFields">
+                <title>Select Fields</title>
+                <command type="selectFields" panelId="rmAvailablePanel"/>
+            </action>
+        </action>
+        <action id="addSelected" cssClass="fieldButtonRight">
+            <title>Add Selected</title>
+        </action>        
+    </panel>
+        
+    <panel type="form" id="editRoomDatePanel" dataSource="rooms_on_team_ds" layout="tabLayout" region="east" showOnLoad="false">
+        
+        <action id="save" >
+            <title translatable="true">Save</title>
+            <command type="callFunction" functionName="rmOnTeamController.onSaveSelectedRooms()"/> 
+        </action>
+        <action id="remove">
+            <title translatable="true">Remove</title>
+            <command type="callFunction" functionName="rmOnTeamController.onRemoveSelectedRooms()"/> 
+        </action>
+        <action id="cancel">
+            <title translatable="true">Cancel</title>
+            <command type="showPanel" panelId="editRoomDatePanel" show="false"/>
+            <command type="callFunction" functionName="rmOnTeamController.onHideForm()"/> 
+        </action>
+        
+        <field name="location" table="rm_team" readOnly="true" cssClass="shortField">
+            <title>Room</title> 
+        </field>
+        <field name="organization" dataType="text" readOnly="true" cssClass="shortField">
+            <title>Organization</title> 
+        </field>
+        <field table="rm" name="area" readOnly="true" cssClass="shortField">
+            <title>Area</title>
+        </field>
+        <field table="rm_team" name="date_start" alias="edit_form.rm_team.date_start" required="true" cssClass="shortField">
+            <title>Start Date</title>
+        </field>
+        <field table="rm_team" name="date_end" alias="edit_form.rm_team.date_end" cssClass="shortField">
+            <title>End Date</title>
+        </field>  
+    </panel>                
+</view>

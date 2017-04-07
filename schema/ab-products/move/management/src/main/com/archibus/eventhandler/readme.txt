@@ -1,0 +1,1 @@
+This folder can contain activity-specific event handler Java classes.

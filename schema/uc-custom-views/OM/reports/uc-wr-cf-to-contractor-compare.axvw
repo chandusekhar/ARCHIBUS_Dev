@@ -1,0 +1,108 @@
+<view version="2.0">
+	<title>Craftsperson Work Unit Hours by Zone</title>
+	<preferences>
+		<viewTitleBar show="false" />
+	</preferences>
+
+	<layout file="console-small.axvw" />
+	<js file="ab-ondemand-common.js" />
+	<js file="ab-ondemand-report-common.js" />
+	<js file="uc-wr-cf-to-contractor-compare.js" />
+
+	<message name="selectTitle" translatable="true">-select-</message>
+
+	<dataSource id="consoleDS">
+		<table name="wrhwr" role="main" />
+		<field table="wrhwr" name="prob_type" />
+		<field table="wrhwr" name="date_requested" />
+	</dataSource>
+
+	<dataSource id="crossTableDS" type="grouping">
+		<query>
+			<sql dialect="sqlserver">
+				SELECT wrhwr.*, bl.zone_id bl_zone_id,
+					CASE WHEN EXISTS (SELECT 1 FROM wrotherhwrother o WHERE wrhwr.wr_id = o.wr_id AND other_rs_type = 'CONTRACTOR') THEN 1 ELSE 0 END AS has_contractor,
+					CASE WHEN EXISTS (SELECT 1 FROM wrcfhwrcf c WHERE wrhwr.wr_id = c.wr_id) THEN 1 ELSE 0 END AS has_cf
+				FROM wrhwr
+				LEFT OUTER JOIN bl ON wrhwr.bl_id = bl.bl_id
+
+			</sql>
+		</query>
+		<table name="wrhwr" role="main" />
+
+		<field name="bl_zone_id" table="wrhwr" groupBy="true">
+			<title translatable="true">Zone</title>
+		</field>
+		<field name="tr_id" table="wrhwr" groupBy="true">
+			<title translatable="true">Trade</title>
+		</field>
+
+		<field name="count_req" formula="count" dataType="number" baseField="wrhwr.wr_id" decimals="0">
+			<title translatable="true">Total # of WR</title>
+		</field>
+
+		<field name="count_req_cf" formula="sum" dataType="number" baseField="wrhwr.has_cf" decimals="0">
+			<title translatable="true">CF Assigned</title>
+		</field>
+
+		<field name="count_req_con" formula="sum" dataType="number" baseField="wrhwr.has_contractor" decimals="0">
+			<title translatable="true">Contractor</title>
+		</field>
+
+		<field name="cost_cf_total" formula="sum" dataType="number" baseField="wrhwr.cost_labor">
+			<title translatable="true">CF Costs</title>
+			<sql dialect="sqlserver">SUM(CASE has_cf WHEN 0 THEN (cost_total) ELSE (cost_total - cost_other) END)</sql>
+		</field>
+
+		<field name="cost_cont_total" formula="sum" dataType="number" baseField="wrhwr.cost_other">
+			<title translatable="true">Cont. Costs</title>
+			<sql dialect="sqlserver">SUM(CASE has_contractor WHEN 0 THEN 0 ELSE cost_other END)</sql>
+		</field>
+
+		<field name="cost_cf_avg" formula="sum" dataType="number" baseField="wrhwr.cost_other">
+			<title translatable="true">CF Costs (avg)</title>
+			<sql dialect="sqlserver">SUM(CASE has_cf WHEN 0 THEN (cost_total) ELSE (cost_total - cost_other) END) / CASE SUM(has_cf) WHEN 0 THEN NULL ELSE SUM(has_cf) END</sql>
+		</field>
+
+		<field name="cost_cont_avg" formula="sum" dataType="number" baseField="wrhwr.cost_other">
+			<title translatable="true">Cont. Costs (avg)</title>
+			<sql dialect="sqlserver">SUM(CASE has_contractor WHEN 0 THEN 0 ELSE cost_other END) / CASE SUM(has_contractor) WHEN 0 THEN NULL ELSE SUM(has_contractor) END</sql>
+		</field>
+	</dataSource>
+
+	<panel type="console" columns="3" id="requestConsole"
+		dataSource="consoleDS" region="north">
+		<title translatable="true">Filter</title>
+		<action id="filter">
+			<title translatable="true">Show</title>
+			<command type="callFunction"
+				functionName="apply_console_restriction()" />
+		</action>
+		<action id="clear">
+			<title translatable="true">Clear</title>
+			<command type="clearForm"
+				panelId="reportPanel" />
+		</action>
+		<field table="wrhwr" name="date_requested" alias="wrhwr.date_requested.from" >
+			<title>Date From:</title>
+		</field>
+		<field table="wrhwr" name="date_requested" alias="wrhwr.date_requested.to" >
+			<title>To:</title>
+		</field>
+		<field table="wrhwr" name="prob_type" hidden="true" />
+	</panel>
+
+	<panel id="reportPanel" type="crossTable"
+		dataSource="crossTableDS" region="center">
+		<title translatable="true">
+			Craftsperson Work Unit Hours by Zone
+		</title>
+        <action id="exportXLS">
+            <title>XLS</title>
+            <command type="exportPanel" outputType="xls" panelId="reportPanel"/>
+        </action>
+		<!--event type="onClickItem">
+		    <command type="callFunction" functionName="onCrossTableClick"/>
+		</event-->
+	</panel>
+</view>

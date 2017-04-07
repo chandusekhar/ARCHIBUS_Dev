@@ -1,0 +1,68 @@
+
+<!-- 2D cross-table with two data sources:
+     - the 1st data source provides column dimension values.
+     - the 2nd data source provides the rest of the data, as in a regular cross-table. -->
+
+<view version="2.0">
+    <title>Work requests by Status and Month -- Using column dimension data source</title>
+
+    <!-- Show two cross-tables for comparison: regular and customized. -->
+    <layout file="dashboard-2x1.axvw"/>
+
+    <!-- Retrieves all months for 2008 and 2009 from afm_cal_dates. 
+         Months are used as dimension values for the main data source. -->    
+    <dataSource type="grouping" id="crossTableByMonthAndStatus_monthDS">
+        <table name="afm_cal_dates"/>
+        <field name="month" groupBy="true" dataType="text" formula="month" baseField="afm_cal_dates.cal_date">
+            <title>Month</title> 
+        </field>
+        <sortField name="month"/>
+        
+        <!-- Restriction on months to display. -->
+        <restriction type="sql" sql="${sql.yearMonthOf('afm_cal_dates.cal_date')} &gt;= '2013-01'
+                                 AND ${sql.yearMonthOf('afm_cal_dates.cal_date')} &lt;= '2015-12'"></restriction>
+    </dataSource>
+    
+    <!-- Main data source. -->
+    <dataSource type="grouping" id="crossTableByMonthAndStatus_dataDS">
+        <table name="wr"/>
+        
+        <!-- Grouping fields (dimensions). -->
+        <field name="status" groupBy="true"/>
+        <field name="month" groupBy="true" dataType="text" formula="month" baseField="wr.date_requested"/>
+        
+        <!-- calculated fields (measures). -->
+        <field name="total_requests" dataType="integer" formula="count" baseField="wr.wr_id">
+            <title>Work requests</title>
+        </field>
+        
+        <!-- Sort fields are required and must match the grouping fields by either name or baseField. -->
+        <sortField name="status"/>
+        <sortField name="month"/>
+
+        <!-- The same restriction should be applied here, otherwise the totals won't be right. -->
+        <restriction type="sql" sql="${sql.yearMonthOf('wr.date_requested')} &gt;= '2013-01'
+                                 AND ${sql.yearMonthOf('wr.date_requested')} &lt;= '2015-12'"></restriction>
+    </dataSource>
+
+    <!-- Cross-tab panel references only the main data source.
+         Only months with requests are displayed. -->
+    <panel type="crossTable" id="crossTableByMonthAndStatus_table1" layoutRegion="row1col1"
+           dataSource="crossTableByMonthAndStatus_dataDS">
+         <title>Show only months with work requests</title>
+    </panel>
+
+    <!-- Cross-tab panel references both data sources:
+         monthDS for the second dimension;
+         dataDS for the first dimension and all measures.
+         All months in the date range are displayed, even months without requests. -->
+    <panel type="crossTable" id="crossTableByMonthAndStatus_table2" layoutRegion="row2col1"
+           dataSource="crossTableByMonthAndStatus_dataDS"
+           columnDimensionDataSource="crossTableByMonthAndStatus_monthDS">
+         <title>Show all months</title>
+	<action id="exportXLS">
+            <title>Print</title>
+            <command type="exportPanel" outputType="xls" panelId="crossTableByMonthAndStatus_table2"/>
+        </action>
+    </panel>
+</view>

@@ -1,0 +1,124 @@
+<view version="2.0">
+
+	<panel type="view" id="panel_Filter" file="uc-repm-lsadmin-rentroll-nocalc-filter.axvw"/>
+
+	<dataSource id="ds_RentRoll_overview1">
+		<table name="ls" role="main"/>
+		<table name="bl" role="standard"/>
+		<table name="property" role="standard"/>
+		<field table="ls" name="uclass" hidden="true"/>
+		<field table="ls" name="ls_id"/>
+		<field table="bl" name="bl_id"/>
+		<field table="property" name="pr_id"/>
+		<field table="ls" name="date_start"/>
+		<field table="ls" name="date_end"/>
+		<field table="ls" name="landlord_tenant"/>
+		<field table="ls" name="ld_name"/>
+		<field table="ls" name="area_negotiated" showTotals="true"/>
+		<field table="ls" name="area_rentable" showTotals="true"/>
+		<field table="ls" name="amount_security" showTotals="true"/>
+		<field table="ls" name="amount_base_rent" showTotals="true"/>
+		<field table="ls" name="amount_pct_rent" showTotals="true"/>
+		<field table="ls" name="amount_operating" showTotals="true"/>
+		<field table="ls" name="amount_taxes" showTotals="true"/>
+		<field table="ls" name="amount_other" showTotals="true"/>
+		<field table="ls" name="tn_name"/>
+		<field table="ls" name="date_move"/>
+		<field table="ls" name="vf_date_last_increase" dataType="date" size="12" >
+		<field table="ls" name="comments"/>
+			<title translatable="true">Last Increase</title>
+			<sql dialect="sqlserver">
+				(SELECT MAX(date_start) FROM cost_tran_recur c WHERE c.ls_id = ls.ls_id AND c.cost_cat_id = 'RENT - BASE RENT' AND date_start &lt; GETDATE())
+			</sql>
+		</field>
+		<field table="ls" name="vf_date_next_increase" dataType="date" size="12" >
+			<title translatable="true">Next Increase</title>
+			<sql dialect="sqlserver">
+				(SELECT MIN(date_start) FROM cost_tran_recur c WHERE c.ls_id = ls.ls_id AND c.cost_cat_id = 'RENT - BASE RENT' AND date_start &gt; GETDATE())
+			</sql>
+		</field>
+		<field table="ls" name="vf_area_calculated" dataType="number" size="12" decimals="2" showTotals="true">
+			<title translatable="true">Calculated Area</title>
+			<sql dialect="sqlserver">
+				ISNULL((SELECT SUM(area) FROM rm WHERE rm.ls_id = ls.ls_id),0)
+			</sql>
+		</field>
+		<field table="ls" name="vf_rent_per_month" dataType="number" size="12" decimals="2" showTotals="true">
+			<title translatable="true">Rent per Month</title>
+			<sql dialect="sqlserver">
+				ISNULL((SELECT SUM(amount_income) FROM cost_tran_recur c WHERE c.ls_id = ls.ls_id AND c.cost_cat_id = 'RENT - BASE RENT' AND GETDATE() between date_start AND date_end AND status_active = 1),0)
+			</sql>
+		</field>
+		<field table="ls" name="vf_rent_sqft" dataType="number" size="12" decimals="2" showTotals="true">
+			<title translatable="true">Rent per Sqft</title>
+			<sql dialect="sqlserver">
+				ISNULL(((SELECT SUM(amount_income) FROM cost_tran_recur c WHERE c.ls_id = ls.ls_id AND c.cost_cat_id = 'RENT - BASE RENT' AND GETDATE() between date_start AND date_end AND status_active = 1) * 12 / CASE WHEN area_negotiated = 0 THEN NULL ELSE area_negotiated END),0)
+			</sql>
+		</field>
+		<field table="ls" name="vf_mgmt_fee" dataType="number" size="12" decimals="2" showTotals="true">
+			<title translatable="true">Mgmt Fee per Month</title>
+			<sql dialect="sqlserver">
+				ISNULL((SELECT SUM(amount_income) FROM cost_tran_recur c WHERE c.ls_id = ls.ls_id AND c.cost_cat_id = 'FEE - MANAGEMENT FEE' AND GETDATE() between date_start AND date_end AND status_active = 1),0)
+			</sql>
+		</field>
+		<field table="ls" name="vf_occ_fee" dataType="number" size="12" decimals="2" showTotals="true">
+			<title translatable="true">Occupancy per Month</title>
+			<sql dialect="sqlserver">
+				ISNULL((SELECT SUM(amount_income) FROM cost_tran_recur c WHERE c.ls_id = ls.ls_id AND c.cost_cat_id = 'OCCUPANCY COSTS - CA INCOME' AND GETDATE() between date_start AND date_end AND status_active = 1),0)
+			</sql>
+		</field>
+
+		<restriction type="parsed">
+			<clause op="=" table="ls" name="use_as_template" value="0"/>
+		</restriction>
+		<restriction type="sql" sql="${parameters['net_income']}"/>
+		<parameter name="net_income" dataType="verbatim" value=""/>
+	</dataSource>
+
+	<panel type="grid" id="listRentRoll_overview" dataSource="ds_RentRoll_overview1" showOnLoad="false">
+		<sortField table="ls" name="ls_id" ascending="true"/>
+		<title translatable="true">Rent Roll Overview</title>
+		<!--action type="DOCX">
+			<title translatable="true">Report</title>
+			<command type="callFunction" functionName="onDocX"/>
+		</action-->
+		<action type="XLS">
+			<title translatable="true">XLS</title>
+			<command type="exportPanel" outputType="xls" panelId="listRentRoll_overview"/>
+		</action>
+		<field controlType="button" onclick="onDetails">
+			<title translatable="true">Details</title>
+		</field>
+		<field table="ls" name="ls_id" hidden="true"/>
+		<field table="ls" name="tn_name"/>
+		<field table="bl" name="bl_id"/>
+		<field table="ls" name="landlord_tenant" hidden="true"/>
+		<field table="ls" name="ld_name"/>
+		<field table="property" name="pr_id"/>
+		<field table="ls" name="date_move"/>
+		<field table="ls" name="date_end"/>
+		<field table="ls" name="vf_date_last_increase" dataType="date" size="12" hidden="true">
+			<title translatable="true">Last Increase</title>
+		</field>
+		<field table="ls" name="vf_date_next_increase" dataType="date" size="12" hidden="true">
+			<title translatable="true">Next Increase</title>
+		</field>
+		<field table="ls" name="area_negotiated" showTotals="true"/>
+		<field table="ls" name="vf_area_calculated" size="12" decimals="2" showTotals="true" hidden="true">
+			<title translatable="true">Calculated Area</title>
+		</field>
+		<field table="ls" name="vf_rent_per_month" dataType="number" size="12" decimals="2" showTotals="true">
+			<title translatable="true">Rent per Month</title>
+		</field>
+		<field table="ls" name="vf_rent_sqft" dataType="number" size="12" decimals="2" showTotals="true">
+			<title translatable="true">Rent per Sqft</title>
+		</field>
+		<field table="ls" name="vf_mgmt_fee" dataType="number" size="12" decimals="2" showTotals="true">
+			<title translatable="true">Mgmt Fee per Month</title>
+		</field>
+		<field table="ls" name="vf_occ_fee" dataType="number" size="12" decimals="2" showTotals="true">
+			<title translatable="true">Occupancy per Month</title>
+		</field>
+		<field table="ls" name="comments"/>
+	</panel>
+</view>

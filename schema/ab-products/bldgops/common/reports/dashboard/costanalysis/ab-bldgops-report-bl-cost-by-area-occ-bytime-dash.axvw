@@ -1,0 +1,98 @@
+<view version="2.0">
+	<dataSource id="costByTime_ds0" type="grouping">
+		 <sql dialect="generic">
+			SELECT 	${sql.yearMonthOf('wrhwr.date_completed')} as month
+			FROM wrhwr join bl on wrhwr.bl_id=bl.bl_id
+			WHERE   wrhwr.bl_id is not null AND bl.area_gross_int>0
+				AND wrhwr.status IN ('Com','Clo') 
+				AND ${parameters['wrhwrRes']} 
+		</sql>  
+		<table name="wrhwr" role="main"/>
+		<field name="month" dataType="text"  groupBy="true"/>
+		<parameter name="wrhwrRes" dataType="verbatim" value=" 1=1 "/>
+	</dataSource>
+	<dataSource id="costByTime_ds" type="grouping">
+		 <sql dialect="generic">
+			SELECT 
+				${parameters['groupOptionParam']} ${sql.as} groupOption, 
+				${sql.yearMonthOf('wrhwr.date_completed')} ${sql.as} month,
+				wrhwr.cost_total ${sql.as} costValue
+			FROM wrhwr join bl on wrhwr.bl_id=bl.bl_id  
+			WHERE wrhwr.bl_id is not null AND bl.area_gross_int>0
+				AND wrhwr.status IN ('Com','Clo') 
+				AND ${parameters['wrhwrRes']} 
+		               AND ${sql.yearMonthOf('wrhwr.date_completed')} = ${parameters['summaryValueForThisGroup']}
+		</sql>  
+		<table name="wrhwr" role="main"/>
+		<field name="groupOption"  dataType="verbatim" groupBy="true" />
+		<field name="month" dataType="text"  groupBy="true"/>
+		<field name="costPerArea" formula="sum" baseField="wrhwr.cost_of_area" dataType="number" size="8" decimals="3">
+			<sql dialect="generic">
+				case when ( SELECT SUM(b.area_gross_int) FROM bl ${sql.as} b WHERE ${parameters['bParam']}=groupOption  )  is null  
+				     then 0
+				     else sum(costValue) /( SELECT SUM(b.area_gross_int) FROM bl ${sql.as} b WHERE ${parameters['bParam']}=groupOption ) 
+				end 
+			</sql>
+		</field>
+		<parameter name="wrhwrRes" dataType="verbatim" value=" 1=1 "/>
+		<parameter name="groupOptionParam" dataType="verbatim" value=" bl.bl_id"/>
+		<parameter name="bParam" dataType="verbatim" value=" b.bl_id"/>
+	        <parameter name="summaryValueForThisGroup" dataType="text" value=""/>
+	</dataSource>
+	<panel id="costByTimeChart"
+		type="chart"
+		controlType="lineChart"
+		dataSource="costByTime_ds"
+		showLegendOnLoad="false"
+		showLegendAsPopUp="false"
+		legendLocation="right"
+		showDataTips="true"
+		fillType="linearGradient"
+		percentGradientChange="0.5"
+		percentTransparency="1.0"
+		showOnLoad="true">
+		<title translatable="true">Costs by Area and Time</title>
+		<event type="onClickItem">                 
+			<command type="callFunction" functionName="onCostByTimeChartClick"/>
+		</event>
+		<groupingAxis dataSource="costByTime_ds0" table="wrhwr" field="month">
+			<title translatable="true">Month</title>
+		</groupingAxis>
+		<secondaryGroupingAxis dataSource="costByTime_ds" table="wrhwr" field="groupOption">
+			<title translatable="true">Location</title>
+		</secondaryGroupingAxis>
+		<dataAxis dataSource="costByTime_ds" table="wrhwr" field="costPerArea" displayAxis="false" labelPosition="inside">
+		    <title translatable="true">Average cost of area</title>
+		</dataAxis>
+	</panel>
+	<dataSource id="detailsGridDS1">
+		<table name="wrhwr" role="main" />
+		<table name="bl" role="standard" />
+		<field table="wrhwr" name="wr_id" />
+		<field table="wrhwr" name="date_completed" />
+		<field table="wrhwr" name="site_id" />
+		<field table="wrhwr" name="bl_id" />
+		<field table="wrhwr" name="fl_id" />
+		<field table="wrhwr" name="rm_id" />
+		<field table="wrhwr" name="dv_id" />
+		<field table="wrhwr" name="dp_id" />
+		<field table="wrhwr" name="prob_type" />
+		<field table="wrhwr" name="cost_total" />
+		<field table="bl" name="ctry_id" hidden="true"/>
+		<field table="bl" name="regn_id" hidden="true"/>
+		<field table="bl" name="state_id" hidden="true"/>
+		<field table="bl" name="city_id" hidden="true"/>
+		<field table="bl" name="site_id" hidden="true"/>
+		<field table="bl" name="bl_id" hidden="true"/>
+		<parameter name="otherRes" dataType="verbatim" value=" 1=1 "/>
+		<parameter name="month" dataType="verbatim" value=" is not null "/>
+		<restriction type="sql" sql="  wrhwr.status IN ('Com','Clo') 
+								AND ${sql.yearMonthOf('wrhwr.date_completed')} ${parameters['month']} " />
+	</dataSource>
+	<panel type="grid" id="detailsReport1" dataSource="detailsGridDS1" showOnLoad="false">
+		<title translatable="true">Work Requests Details</title>
+	</panel>
+
+	<js file="ab-bldgops-report-bl-cost-by-area-occ-bytime-dash.js" />
+	<js file="ab-bldgops-report-common.js" />
+</view>

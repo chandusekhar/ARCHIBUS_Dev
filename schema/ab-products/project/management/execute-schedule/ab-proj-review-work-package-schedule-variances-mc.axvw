@@ -1,0 +1,212 @@
+<view version="2.0">
+    <js file="ab-proj-review-work-package-schedule-variances-mc.js"/>
+    
+  	<dataSource id="projReviewWorkPackageScheduleVarDs0" type="grouping" applyVpaRestrictions="false">
+        <table name="activity_log" role="main"/>
+        <field name="project_work_pkg_id" table="activity_log" dataType="text" groupBy="true">
+            <title>Project - Work Package</title>
+        </field>
+        <field name="baseline_duration" dataType="number" decimals="0">
+            <title>Baseline Duration</title>
+            <sql dialect="generic">SUM(baseline_duration)</sql>
+        </field>
+        <field name="design_estimated_duration" dataType="number" decimals="0">
+            <title>Design Estimated Duration</title>
+            <sql dialect="generic">SUM(design_estimated_duration)</sql>
+        </field>
+        <field name="contracted_duration" dataType="number" decimals="0">
+            <title>Contracted Duration</title>
+            <sql dialect="generic">SUM(contracted_duration)</sql>
+        </field>
+        <field name="actual_duration" dataType="number" decimals="0">
+            <title>Actual Duration</title>
+            <sql dialect="generic">SUM(actual_duration)</sql>
+        </field>
+        <field name="design_to_baseline" dataType="number" decimals="0">
+            <title>Design to Baseline</title>
+            <sql dialect="generic">SUM(design_to_baseline)</sql>
+        </field>
+        <field name="contract_to_design" dataType="number" decimals="0">
+            <title>Contract to Design</title>
+            <sql dialect="generic">SUM(contract_to_design)</sql>
+        </field>
+        <field name="actual_to_contract" dataType="number" decimals="0">
+            <title>Actual to Contract</title>
+            <sql dialect="generic">SUM(actual_to_contract)</sql>
+        </field>
+        <field name="owner_change_order" dataType="number" decimals="0">
+            <title>Count of Owner Change Orders</title>
+            <sql dialect="generic">SUM(owner_change_order)</sql>
+        </field>
+        <field name="vendor_change_order" dataType="number" decimals="0">
+            <title>Count of Vendor Change Orders</title>
+            <sql dialect="generic">SUM(vendor_change_order)</sql>
+        </field>
+        <sql dialect="generic">
+            SELECT  (RTRIM(activity_log.project_id) ${sql.concat} ' - ' ${sql.concat} RTRIM(activity_log.work_pkg_id)) ${sql.as} project_work_pkg_id,
+                activity_log.work_pkg_id, 
+                    activity_log.project_id,
+                    activity_log.baseline_duration,
+                    activity_log.design_estimated_duration,
+                    work_pkg_bids.contracted_duration,
+                    activity_log.actual_duration,
+                    activity_log.design_to_baseline,
+                    (work_pkg_bids.contracted_duration - activity_log.design_estimated_duration) ${sql.as} contract_to_design,
+                    (activity_log.actual_duration - work_pkg_bids.contracted_duration) ${sql.as} actual_to_contract,
+                    activity_log_owner.owner_change_order,
+                    activity_log_vendor.vendor_change_order
+                FROM (((SELECT  activity_log.project_id,
+                        activity_log.work_pkg_id, 
+                        sum(activity_log.duration) ${sql.as} design_estimated_duration,
+                        sum(activity_log.duration_est_baseline) ${sql.as} baseline_duration,
+                        sum(activity_log.duration_act) ${sql.as} actual_duration,
+                        sum(activity_log.duration - activity_log.duration_est_baseline ) ${sql.as} design_to_baseline
+                    FROM activity_log
+                    WHERE activity_log.work_pkg_id IS NOT NULL
+                    AND activity_log.status NOT IN ('REJECTED', 'CANCELLED', 'STOPPED')
+                    AND ${sql.vpaRestriction}
+                    GROUP BY activity_log.project_id,
+                         activity_log.work_pkg_id) ${sql.as} activity_log 
+                LEFT OUTER JOIN (SELECT activity_log.project_id,
+                        activity_log.work_pkg_id work_pkg_id, 
+                        count (*) owner_change_order
+                    FROM activity_log
+                    WHERE activity_log.work_pkg_id IS NOT NULL
+                    AND activity_type='PROJECT - CHANGE ORDER'
+                    AND requestor_type='Owner'
+                	AND activity_log.status NOT IN ('REJECTED', 'CANCELLED', 'STOPPED')
+                	AND ${sql.vpaRestriction}
+                    GROUP BY activity_log.project_id,
+                         activity_log.work_pkg_id) ${sql.as} activity_log_owner 
+                ON activity_log.project_id = activity_log_owner.project_id 
+                AND activity_log.work_pkg_id = activity_log_owner.work_pkg_id) 
+                LEFT OUTER JOIN (SELECT activity_log.project_id,
+                        activity_log.work_pkg_id, 
+                        COUNT (*) ${sql.as} vendor_change_order
+                    FROM activity_log
+                    WHERE activity_log.work_pkg_id IS NOT NULL
+                    AND activity_log.activity_type='PROJECT - CHANGE ORDER'
+                    AND activity_log.requestor_type='Vendor'
+                    AND activity_log.status NOT IN ('REJECTED', 'CANCELLED', 'STOPPED')
+                    AND ${sql.vpaRestriction}
+                    GROUP BY activity_log.project_id,
+                         activity_log.work_pkg_id) ${sql.as} activity_log_vendor 
+                ON activity_log.project_id = activity_log_vendor.project_id 
+                AND activity_log.work_pkg_id = activity_log_vendor.work_pkg_id) 
+                LEFT OUTER JOIN (SELECT work_pkg_bids.project_id,
+                        work_pkg_bids.work_pkg_id, 
+                        MAX (duration_bidded) ${sql.as} contracted_duration
+                    FROM work_pkg_bids
+                    WHERE work_pkg_bids.status &lt;&gt; 'Rejected' 
+                    AND work_pkg_bids.status NOT LIKE 'Submitted%'
+                    GROUP BY work_pkg_bids.project_id, work_pkg_bids.work_pkg_id) ${sql.as} work_pkg_bids 
+                ON  work_pkg_bids.project_id = activity_log.project_id
+                AND work_pkg_bids.work_pkg_id = activity_log.work_pkg_id
+            </sql>
+            <sql dialect="oracle">
+              SELECT  (RTRIM(activity_log.project_id) ${sql.concat} ' - ' ${sql.concat} RTRIM(activity_log.work_pkg_id)) ${sql.as} project_work_pkg_id,
+                activity_log.work_pkg_id,
+                    activity_log.project_id,
+                    activity_log.baseline_duration,
+                    activity_log.design_estimated_duration,
+                    work_pkg_bids.contracted_duration,
+                    activity_log.actual_duration,
+                    activity_log.design_to_baseline,
+                    (work_pkg_bids.contracted_duration - activity_log.design_estimated_duration) contract_to_design,
+                    (activity_log.actual_duration - work_pkg_bids.contracted_duration) actual_to_contract,
+                    activity_log_owner.owner_change_order,
+                    activity_log_vendor.vendor_change_order
+                FROM (SELECT  activity_log.project_id, activity_log.work_pkg_id, 
+                        sum(activity_log.duration) design_estimated_duration,
+                        sum(activity_log.duration_est_baseline) baseline_duration,
+                        sum(activity_log.duration_act) actual_duration,
+                        sum(activity_log.duration - activity_log.duration_est_baseline) design_to_baseline FROM activity_log
+                    WHERE activity_log.work_pkg_id IS NOT NULL
+                    AND activity_log.status NOT IN ('REJECTED', 'CANCELLED', 'STOPPED')
+                    AND ${sql.vpaRestriction}
+                    GROUP BY activity_log.project_id, activity_log.work_pkg_id) activity_log, 
+                 (SELECT activity_log.project_id,
+                        activity_log.work_pkg_id work_pkg_id, 
+                        count (*) owner_change_order
+                    FROM activity_log
+                    WHERE activity_log.work_pkg_id IS NOT NULL
+                    AND activity_type='PROJECT - CHANGE ORDER'
+                    AND requestor_type='Owner'
+                AND activity_log.status NOT IN ('REJECTED', 'CANCELLED', 'STOPPED')
+                AND ${sql.vpaRestriction}
+                    GROUP BY activity_log.project_id,
+                         activity_log.work_pkg_id) activity_log_owner,
+                (SELECT activity_log.project_id,
+                        activity_log.work_pkg_id, 
+                        COUNT (*) ${sql.as} vendor_change_order
+                    FROM activity_log
+                    WHERE activity_log.work_pkg_id IS NOT NULL
+                    AND activity_log.activity_type='PROJECT - CHANGE ORDER'
+                    AND activity_log.requestor_type='Vendor'
+                    AND activity_log.status NOT IN ('REJECTED', 'CANCELLED', 'STOPPED')
+                    AND ${sql.vpaRestriction}
+                    GROUP BY activity_log.project_id,
+                         activity_log.work_pkg_id) activity_log_vendor , 
+                (SELECT work_pkg_bids.project_id,
+                        work_pkg_bids.work_pkg_id, 
+                        MAX (duration_bidded) contracted_duration
+                    FROM work_pkg_bids
+                    WHERE work_pkg_bids.status &lt;&gt; 'Rejected' 
+                    AND work_pkg_bids.status NOT LIKE 'Submitted%'
+                    GROUP BY work_pkg_bids.project_id, work_pkg_bids.work_pkg_id) work_pkg_bids         
+                WHERE activity_log.project_id = activity_log_owner.project_id(+) 
+                AND activity_log.work_pkg_id = activity_log_owner.work_pkg_id(+)
+                AND activity_log.project_id = activity_log_vendor.project_id(+) 
+                AND activity_log.work_pkg_id = activity_log_vendor.work_pkg_id(+)
+                AND work_pkg_bids.project_id = activity_log.project_id(+)
+                AND work_pkg_bids.work_pkg_id = activity_log.work_pkg_id(+)
+          </sql>
+          <sortField name="project_work_pkg_id" table="activity_log" ascending="true"/>
+    </dataSource>
+
+    <panel type="crossTable" id="selectProjectReport" dataSource="projReviewWorkPackageScheduleVarDs0" showOnLoad="false">
+        <title>Work Package Schedule Variances</title>
+        <action id="exportXLS">
+            <title>XLS</title>
+            <command type="exportPanel" outputType="xls" panelId="selectProjectReport"/>
+        </action>  
+        <event type="onClickItem">
+            <command type="callFunction" functionName="selectProjectReport_onclick"/>
+        </event>                    
+    </panel>
+    
+    <dataSource id="projReviewWorkPackageScheduleVarDs1">
+        <table name="activity_log" role="main" />
+        <field name="action_title" table="activity_log" />
+        <field name="duration_est_baseline" table="activity_log"/>
+        <field name="duration" table="activity_log"/>
+        <field name="duration_act" table="activity_log"/>
+        <field name="wbs_id" table="activity_log"/>
+        <field name="activity_log_id" table="activity_log" />
+        <field name="project_work_pkg_id" dataType="text">
+             <title>Project - Work Package</title>
+             <sql dialect="generic">RTRIM(activity_log.project_id) ${sql.concat} ' - ' ${sql.concat} RTRIM(activity_log.work_pkg_id)</sql>
+        </field> 
+        <restriction type="sql" sql="activity_log.work_pkg_id IS NOT NULL AND activity_log.status NOT IN ('REJECTED', 'CANCELLED', 'STOPPED')"/>  
+        <parameter name="project_work_pkg_restriction" dataType="verbatim" value="1=1"/>
+        <restriction type="sql" sql="${parameters['project_work_pkg_restriction']}" />
+    </dataSource>
+    
+    <panel type="grid" id="projReviewWorkPackageScheduleVarGrid" dataSource="projReviewWorkPackageScheduleVarDs1" showOnLoad="false">
+        <title>Work Package Action Items</title>
+        <action id="exportDOCX">
+            <title>DOC</title>
+            <command type="exportPanel" outputType="docx" panelId="projReviewWorkPackageScheduleVarGrid"/>
+        </action>
+        <action id="exportXLS">
+            <title>XLS</title>
+            <command type="exportPanel" outputType="xls" panelId="projReviewWorkPackageScheduleVarGrid"/>
+        </action>
+        <sortField name="action_title" table="activity_log" ascending="true"/>
+    </panel>
+</view>
+    
+ 
+ 
+ 
+ 

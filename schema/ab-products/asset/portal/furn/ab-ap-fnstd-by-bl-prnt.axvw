@@ -1,0 +1,68 @@
+<view version="2.0">
+    <designInfo type="paginated" pattern="ab-viewdef-paginated-parent-child" isAlterable="true"/>
+    <title translatable="true">Furniture Standards Inventory Counts by Building</title>
+    <report orientation="portrait"/>
+	
+	<!-- BUILDING -->
+	<dataSource id="ds_abApFnstdByBl_parent">
+		<table name="bl" role="main"/>
+		<field table="bl" name="bl_id"/>
+		<field table="bl" name="city_id"/>
+		<field table="bl" name="state_id"/>
+		<field table="bl" name="area_gross_int"/>
+		<field table="bl" name="address" dataType="text">
+			<title translatable="true">Address</title>
+			<sql dialect="generic">
+				(bl.address1${sql.concat}', '${sql.concat}bl.address2)
+			</sql>
+		</field>
+		<restriction type="sql" sql="EXISTS(SELECT fn.fn_id FROM fn WHERE fn.bl_id = bl.bl_id)"/>
+		<sortField table="bl" name="bl_id" ascending="true"/>
+	</dataSource>
+
+	<panel id="list_abApFnstdByBl_parent" dataSource="ds_abApFnstdByBl_parent" type="paginatedReport" format="column" columns="2" role="parent">
+		<field table="bl" name="bl_id" restrictionParameterName="blId"/>
+		<field table="bl" name="city_id"/>
+		<field table="bl" name="area_gross_int"/>
+		<field table="bl" name="state_id"/>
+		<field table="bl" name="address">
+			<title translatable="true">Address</title>
+		</field>
+    </panel>
+	
+	<!-- FURNITURE STANDARD -->
+	<dataSource id="ds_abApFnstdByBl_child" type="grouping">
+		<sql dialect="generic">
+			SELECT 
+				fn.fn_std ${sql.as} fn_std,
+				fnstd.price ${sql.as} price,
+				fnstd.description ${sql.as} description,
+				COUNT(fn.fn_std) ${sql.as} weight,
+				COUNT(fn.fn_std) * fnstd.price ${sql.as} cost_moving,
+				0.0 ${sql.as} vf_tot_std_cost,
+				fn.bl_id ${sql.as} bl_id
+			FROM 
+				fn LEFT OUTER JOIN fnstd ON fn.fn_std=fnstd.fn_std
+			GROUP BY fn.fn_std,fnstd.price,fnstd.description,fn.bl_id
+		</sql>
+		<table name="fnstd" role="main"/>
+		<field table="fnstd" name="fn_std" groupBy="true"/>
+		<field table="fnstd" name="price" groupBy="true"/>
+		<field table="fnstd" name="description" groupBy="true"/>
+		<field table="fnstd" name="vf_fnstd_count" formula="sum" baseField="fnstd.weight" dataType="number" decimals="0">
+			<title translatable="true">Furn. Std. Count</title>
+		</field>
+		<field table="fnstd" name="vf_tot_std_cost" formula="sum" baseField="fnstd.cost_moving" dataType="number" decimals="2">
+			<title translatable="true">Total Std. Cost</title>
+		</field>
+		<restriction type="sql" sql=" bl_id = ${parameters['blId']}"/>
+		<sortField table="fnstd" name="fn_std" ascending="true"/>
+		<parameter name="blId" dataType="text" value=""/>
+	</dataSource>
+
+
+	<panel id="list_abApFnstdByBl_child" dataSource="ds_abApFnstdByBl_child" type="paginatedReport" format="table" role="data">
+    </panel>
+
+	
+</view>

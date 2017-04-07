@@ -1,0 +1,345 @@
+<!-- For performance and maintainability of the code,the datasources are for creating groups from inventory. -->
+<view version="2.0">
+    <dataSource id="createUsableOwnedAreaDs">
+        <sql dialect="generic">
+            SELECT rm.bl_id ${sql.as} bl_id, rm.fl_id ${sql.as} fl_id, fl.sort_order ${sql.as} sort_order, sum(rm.area) ${sql.as} usable_owned_area
+            FROM rm LEFT OUTER JOIN rmcat ON rm.rm_cat= rmcat.rm_cat
+            LEFT OUTER JOIN fl ON rm.bl_id=fl.bl_id AND rm.fl_id = fl.fl_id
+            WHERE rmcat.supercat='USBL'
+            AND rm.bl_id = ${parameters['inventoryBlId']}
+            AND ${parameters['inventoryFlIds']}
+            AND rmcat.used_in_calcs &lt;&gt; 'no_totals'
+            AND NOT EXISTS (SELECT 1 FROM su WHERE su.bl_id=rm.bl_id AND su.fl_id=rm.fl_id)
+            GROUP BY rm.bl_id, rm.fl_id, fl.sort_order
+        </sql>
+        <table name="rm" role="main"/>
+        <field name="bl_id" table="rm" dataType="text">
+            <title>Building</title>
+        </field>
+        <field name="fl_id" table="rm" dataType="text">
+            <title>Floor</title>
+        </field>
+        <field name="sort_order" table="rm" dataType="number" decimals="0">
+            <title>Sort Order</title>
+        </field>
+        <field name="usable_owned_area" dataType="number" decimals="2" table="rm">
+            <title>Usable Area - Owned</title>
+        </field>
+        <parameter name="inventoryBlId" value="'HQ'" dataType="text"/>
+        <parameter name="inventoryFlIds" value="1=1" dataType="verbatim"/>
+    </dataSource>
+    
+    <dataSource id="createUnavailableVPAreaDs">
+         <sql dialect="generic">
+            SELECT rm.bl_id ${sql.as} bl_id, rm.fl_id ${sql.as} fl_id, sum(rm.area) ${sql.as} vert_pene_area
+            FROM rm LEFT OUTER JOIN rmcat ON rm.rm_cat= rmcat.rm_cat
+            WHERE rmcat.supercat='VERT'
+            AND rm.bl_id = ${parameters['inventoryBlId']}
+            AND ${parameters['inventoryFlIds']}
+            GROUP BY rm.bl_id, rm.fl_id
+        </sql>
+        <table name="rm" role="main"/>
+        <field name="bl_id" table="rm" dataType="text">
+            <title>Building</title>
+        </field>
+        <field name="fl_id" table="rm" dataType="text">
+            <title>Floor</title>
+        </field>
+        <field name="vert_pene_area" dataType="number" decimals="2" table="rm">
+            <title>Unavailable - Vertical Penetration Area</title>
+        </field>
+        <parameter name="inventoryBlId" value="'HQ'" dataType="text"/>
+        <parameter name="inventoryFlIds" value="1=1" dataType="verbatim"/>
+    </dataSource>
+    
+    <dataSource id="createUnavailableServiceAreaDs">
+        <sql dialect="generic">
+            SELECT rm.bl_id ${sql.as} bl_id, rm.fl_id ${sql.as} fl_id,  sum(rm.area) ${sql.as} unavail_serv_area
+            FROM rm LEFT OUTER JOIN rmcat ON rm.rm_cat= rmcat.rm_cat
+            WHERE rmcat.supercat='SERV'
+            AND rm.bl_id = ${parameters['inventoryBlId']}
+            AND ${parameters['inventoryFlIds']}
+            GROUP BY rm.bl_id, rm.fl_id
+        </sql>
+        <table name="rm" role="main"/>
+        <field name="bl_id" table="rm" dataType="text">
+            <title>Building</title>
+        </field>
+        <field name="fl_id" table="rm" dataType="text">
+            <title>Floor</title>
+        </field>
+        <field name="unavail_serv_area" dataType="number" decimals="2" table="rm">
+            <title>Unavailable - Service Area</title>
+        </field>
+        <parameter name="inventoryBlId" value="'HQ'" dataType="text"/>
+        <parameter name="inventoryFlIds" value="1=1" dataType="verbatim"/>
+    </dataSource>
+    
+    <dataSource id="createUnavailableRemainingAreaDs">
+        <sql dialect="generic">
+            SELECT rm.bl_id ${sql.as} bl_id, rm.fl_id ${sql.as} fl_id, fl.area_gross_int ${sql.as} area_gross,
+            (SELECT SUM(rm_inner.area) FROM rm rm_inner LEFT OUTER JOIN rmcat 
+             ON rm_inner.rm_cat=rmcat.rm_cat 
+             WHERE rm_inner.bl_id=rm.bl_id AND rm_inner.fl_id=rm.fl_id
+             AND rmcat.supercat IN ('SERV','VERT')
+             GROUP BY rm_inner.bl_id, rm_inner.fl_id
+            ) ${sql.as} area_vert_serv,
+            (SELECT SUM(rm_inner.area) FROM rm rm_inner LEFT OUTER JOIN rmcat 
+             ON rm_inner.rm_cat=rmcat.rm_cat 
+             WHERE rm_inner.bl_id=rm.bl_id AND rm_inner.fl_id=rm.fl_id
+             AND rmcat.supercat='USBL'
+             AND rmcat.used_in_calcs &lt;&gt; 'no_totals'
+             GROUP BY rm_inner.bl_id, rm_inner.fl_id
+            ) ${sql.as} area_usbl
+            FROM rm LEFT OUTER JOIN rmcat ON rm.rm_cat= rmcat.rm_cat
+            LEFT OUTER JOIN fl ON rm.bl_id=fl.bl_id AND rm.fl_id = fl.fl_id
+            WHERE rmcat.supercat IN ('VERT', 'SERV', 'USBL')
+            AND rm.bl_id = ${parameters['inventoryBlId']}
+            AND ${parameters['inventoryFlIds']}
+            
+            GROUP BY rm.bl_id, rm.fl_id, fl.area_gross_int
+        </sql>
+        <table name="rm" role="main"/>
+        <field name="bl_id" table="rm" dataType="text">
+            <title>Building</title>
+        </field>
+        <field name="fl_id" table="rm" dataType="text">
+            <title>Floor</title>
+        </field>
+        <field name="area_gross" table="rm" dataType="number" decimals="2">
+            <title>Gross Area</title>
+        </field>
+        <field name="area_vert_serv" dataType="number" decimals="2" table="rm">
+            <title>Vert Serv Area</title>
+        </field>
+        <field name="area_usbl" dataType="number" decimals="2" table="rm">
+            <title>USBL Area</title>
+        </field>
+        <parameter name="inventoryBlId" value="'HQ'" dataType="text"/>
+        <parameter name="inventoryFlIds" value="1=1" dataType="verbatim"/>
+    </dataSource>
+    
+    <dataSource id="createAllocatedAreaBuLevelDs">
+        <sql dialect="generic">
+            SELECT (CASE WHEN dv.bu_id = 'WW99' THEN 'UNASSIGNED'
+                         WHEN dv.bu_id IS NULL THEN 'UNASSIGNED'
+                         ELSE UPPER(RTRIM(dv.bu_id)) END) ${sql.as} name,
+                    rm.bl_id ${sql.as} bl_id, rm.fl_id ${sql.as} fl_id,
+                    (CASE WHEN dv.bu_id = 'WW99' THEN '' ELSE dv.bu_id END) ${sql.as} bu_id,
+                    (SELECT COUNT(em.em_id) FROM em LEFT OUTER JOIN (SELECT CASE WHEN dv.bu_id IS NULL THEN 'WW99' ELSE dv.bu_id END ${sql.as} bu_id, dv.dv_id FROM dv) ${sql.as} division ON em.dv_id = division.dv_id WHERE em.bl_id = rm.bl_id AND em.fl_id = rm.fl_id AND dv.bu_id = division.bu_id) ${sql.as} count_em,
+                    SUM(rm.area) ${sql.as} area_manual, 
+                    (CASE WHEN MAX(fl.area_rm) = 0 THEN 0 ELSE 100*(SUM(rm.area)/MAX(fl.area_rm)) END) ${sql.as} pct_floor,
+                    SUM(rm.area_chargable) ${sql.as} area_chargable,
+                    SUM(rm.area_comn) ${sql.as} area_comn,
+                    SUM(rm.area_comn_rm) ${sql.as} area_comn_rm,
+                    SUM(rm.area_comn_serv) ${sql.as} area_comn_serv
+            FROM rm
+            LEFT OUTER JOIN (SELECT CASE WHEN dv.bu_id IS NULL THEN 'WW99' ELSE dv.bu_id END ${sql.as} bu_id, dv_id FROM dv) ${sql.as} dv ON rm.dv_id = dv.dv_id
+            LEFT OUTER JOIN fl ON fl.fl_id = rm.fl_id AND fl.bl_id = rm.bl_id
+            LEFT OUTER JOIN rmcat ON rm.rm_cat= rmcat.rm_cat
+            WHERE rm.bl_id = ${parameters['inventoryBlId']} AND rmcat.supercat = 'USBL'
+            AND ${parameters['inventoryFlIds']}
+            AND ((SELECT COUNT(em.em_id) FROM em 
+                         LEFT OUTER JOIN 
+                         (SELECT CASE WHEN dv.bu_id IS NULL THEN 'WW99' ELSE dv.bu_id END ${sql.as} bu_id, dv.dv_id FROM dv) ${sql.as} division ON em.dv_id = division.dv_id WHERE
+                          em.bl_id = rm.bl_id AND em.fl_id = rm.fl_id AND dv.bu_id = division.bu_id) > 0 OR rm.dv_id IS NOT NULL OR rm.dp_id IS NOT NULL)
+            GROUP BY dv.bu_id, rm.bl_id, rm.fl_id
+        </sql>
+        <table name="gp" role="main"/>
+        <field name="name" table="gp" dataType="text"/>
+        <field name="bl_id" table="gp" dataType="text"/>
+        <field name="fl_id" table="gp" dataType="text"/>
+        <field name="bu_id" table="gp" dataType="text"/>
+        <field name="count_em" table="gp" dataType="integer"/>
+        <field name="area_manual" table="gp" dataType="number" decimals="2"/>
+        <field name="pct_floor" table="gp" dataType="number" decimals="0"/>
+        <field name="area_chargable" table="gp" dataType="number" decimals="2"/>
+        <field name="area_comn" table="gp" dataType="number" decimals="2"/>
+        <field name="area_comn_rm" table="gp" dataType="number" decimals="2"/>
+        <field name="area_comn_serv" table="gp" dataType="number" decimals="2"/>
+        <sortField table="gp" name="area_manual" ascending="false"/>
+        <parameter name="inventoryBlId" value="'HQ'" dataType="text"/>
+        <parameter name="inventoryFlIds" value="1=1" dataType="verbatim"/>
+    </dataSource>
+    
+    <dataSource id="createAllocatedAreaDvLevelDs">
+        <sql dialect="generic">
+            SELECT (CASE WHEN rm.dv_id IS NULL THEN 'UNASSIGNED'
+                         ELSE UPPER(RTRIM(rm.dv_id)) END) ${sql.as} name,
+                    rm.bl_id ${sql.as} bl_id, rm.fl_id ${sql.as} fl_id,
+                    (CASE WHEN dv.bu_id = 'WW99' THEN '' ELSE dv.bu_id END) ${sql.as} bu_id,
+                    rm.dv_id ${sql.as} dv_id,
+                    (SELECT COUNT(em.em_id) FROM em LEFT OUTER JOIN (SELECT CASE WHEN dv.bu_id IS NULL THEN 'WW99' ELSE dv.bu_id END ${sql.as} bu_id, dv.dv_id FROM dv) ${sql.as} division ON em.dv_id = division.dv_id WHERE em.bl_id = rm.bl_id AND em.fl_id = rm.fl_id AND em.dv_id = rm.dv_id) ${sql.as} count_em,
+                    SUM(rm.area) ${sql.as} area_manual, 
+                    (CASE WHEN MAX(fl.area_rm) = 0 THEN 0 ELSE 100*(SUM(rm.area)/MAX(fl.area_rm)) END) ${sql.as} pct_floor,
+                    SUM(rm.area_chargable) ${sql.as} area_chargable,
+                    SUM(rm.area_comn) ${sql.as} area_comn,
+                    SUM(rm.area_comn_rm) ${sql.as} area_comn_rm,
+                    SUM(rm.area_comn_serv) ${sql.as} area_comn_serv
+            FROM rm
+            LEFT OUTER JOIN (SELECT CASE WHEN dv.bu_id IS NULL THEN 'WW99' ELSE dv.bu_id END ${sql.as} bu_id, dv_id FROM dv) ${sql.as} dv ON rm.dv_id = dv.dv_id
+            LEFT OUTER JOIN fl ON fl.fl_id = rm.fl_id AND fl.bl_id = rm.bl_id
+            LEFT OUTER JOIN rmcat ON rm.rm_cat= rmcat.rm_cat
+            WHERE rm.bl_id = ${parameters['inventoryBlId']} AND rmcat.supercat = 'USBL'
+            AND ${parameters['inventoryFlIds']}
+            AND ((SELECT COUNT(em.em_id) FROM em 
+                         LEFT OUTER JOIN 
+                         (SELECT CASE WHEN dv.bu_id IS NULL THEN 'WW99' ELSE dv.bu_id END ${sql.as} bu_id, dv.dv_id FROM dv) ${sql.as} division ON em.dv_id = division.dv_id WHERE
+                          em.bl_id = rm.bl_id AND em.fl_id = rm.fl_id AND em.dv_id = rm.dv_id) > 0 OR rm.dv_id IS NOT NULL OR rm.dp_id IS NOT NULL)
+            GROUP BY rm.bl_id, rm.fl_id, dv.bu_id, rm.dv_id
+        </sql>
+        <table name="gp" role="main"/>
+        <field name="name" table="gp" dataType="text"/>
+        <field name="bl_id" table="gp" dataType="text"/>
+        <field name="fl_id" table="gp" dataType="text"/>
+        <field name="bu_id" table="gp" dataType="text"/>
+        <field name="dv_id" table="gp" dataType="text"/>
+        <field name="count_em" table="gp" dataType="integer"/>
+        <field name="area_manual" table="gp" dataType="number" decimals="2"/>
+        <field name="pct_floor" table="gp" dataType="number" decimals="0"/>
+        <field name="area_chargable" table="gp" dataType="number" decimals="2"/>
+        <field name="area_comn" table="gp" dataType="number" decimals="2"/>
+        <field name="area_comn_rm" table="gp" dataType="number" decimals="2"/>
+        <field name="area_comn_serv" table="gp" dataType="number" decimals="2"/>
+        <sortField table="gp" name="area_manual" ascending="false"/>
+        <parameter name="inventoryBlId" value="'HQ'" dataType="text"/>
+        <parameter name="inventoryFlIds" value="1=1" dataType="verbatim"/>
+    </dataSource>
+    
+    <dataSource id="createAllocatedAreaDpOrFgLevelDs">
+        <sql dialect="generic">
+            SELECT (CASE WHEN rm.dp_id IS NULL THEN 
+                   (CASE WHEN rm.dv_id IS NOT NULL THEN rm.dv_id ELSE 'UNASSIGNED' END) ELSE UPPER(RTRIM(rm.dv_id)) ${sql.concat} '-' ${sql.concat} UPPER(RTRIM(rm.dp_id)) END) ${sql.as} name,
+                    rm.bl_id ${sql.as} bl_id, rm.fl_id ${sql.as} fl_id,
+                    (CASE WHEN dv.bu_id = 'WW99' THEN '' ELSE dv.bu_id END) ${sql.as} bu_id,
+                    rm.dv_id ${sql.as} dv_id,
+                    rm.dp_id ${sql.as} dp_id,
+                    (SELECT COUNT(em.em_id) FROM em LEFT OUTER JOIN (SELECT CASE WHEN dv.bu_id IS NULL THEN 'WW99' ELSE dv.bu_id END ${sql.as} bu_id, dv.dv_id FROM dv) ${sql.as} division ON em.dv_id = division.dv_id WHERE em.bl_id = rm.bl_id AND em.fl_id = rm.fl_id AND em.dv_id = rm.dv_id AND em.dp_id = rm.dp_id) ${sql.as} count_em,
+                    SUM(rm.area) ${sql.as} area_manual, 
+                    (CASE WHEN MAX(fl.area_rm) = 0 THEN 0 ELSE 100*(SUM(rm.area)/MAX(fl.area_rm)) END) ${sql.as} pct_floor,
+                    SUM(rm.area_chargable) ${sql.as} area_chargable,
+                    SUM(rm.area_comn) ${sql.as} area_comn,
+                    SUM(rm.area_comn_rm) ${sql.as} area_comn_rm,
+                    SUM(rm.area_comn_serv) ${sql.as} area_comn_serv
+            FROM rm
+            LEFT OUTER JOIN (SELECT CASE WHEN dv.bu_id IS NULL THEN 'WW99' ELSE dv.bu_id END ${sql.as} bu_id, dv_id FROM dv) ${sql.as} dv ON rm.dv_id = dv.dv_id
+            LEFT OUTER JOIN fl ON fl.fl_id = rm.fl_id AND fl.bl_id = rm.bl_id
+            LEFT OUTER JOIN rmcat ON rm.rm_cat= rmcat.rm_cat
+            WHERE rm.bl_id = ${parameters['inventoryBlId']} AND rmcat.supercat = 'USBL'
+            AND ${parameters['inventoryFlIds']}
+            AND ((SELECT COUNT(em.em_id) FROM em 
+                         LEFT OUTER JOIN 
+                         (SELECT CASE WHEN dv.bu_id IS NULL THEN 'WW99' ELSE dv.bu_id END ${sql.as} bu_id, dv.dv_id FROM dv) ${sql.as} division ON em.dv_id = division.dv_id WHERE
+                          em.bl_id = rm.bl_id AND em.fl_id = rm.fl_id AND em.dv_id = rm.dv_id AND em.dp_id = rm.dp_id) > 0 OR rm.dv_id IS NOT NULL OR rm.dp_id IS NOT NULL)
+            GROUP BY rm.bl_id, rm.fl_id, dv.bu_id, rm.dv_id, rm.dp_id
+        </sql>
+        <table name="gp" role="main"/>
+        <field name="name" table="gp" dataType="text"/>
+        <field name="bl_id" table="gp" dataType="text"/>
+        <field name="fl_id" table="gp" dataType="text"/>
+        <field name="bu_id" table="gp" dataType="text"/>
+        <field name="dv_id" table="gp" dataType="text"/>
+        <field name="dp_id" table="gp" dataType="text"/>
+        <field name="count_em" table="gp" dataType="integer"/>
+        <field name="area_manual" table="gp" dataType="number" decimals="2"/>
+        <field name="pct_floor" table="gp" dataType="number" decimals="0"/>
+        <field name="area_chargable" table="gp" dataType="number" decimals="2"/>
+        <field name="area_comn" table="gp" dataType="number" decimals="2"/>
+        <field name="area_comn_rm" table="gp" dataType="number" decimals="2"/>
+        <field name="area_comn_serv" table="gp" dataType="number" decimals="2"/>
+        <sortField table="gp" name="area_manual" ascending="false"/>
+        <parameter name="inventoryBlId" value="'HQ'" dataType="text"/>
+        <parameter name="inventoryFlIds" value="1=1" dataType="verbatim"/>
+    </dataSource>
+    
+    <dataSource id="createLeasedAreaDs">
+        <sql dialect="generic">
+            SELECT 'LEASE INFORMATION' ${sql.as} name, su.bl_id ${sql.as} bl_id, su.fl_id ${sql.as} fl_id, ls.date_start ${sql.as} date_start,
+            MIN(ls.date_end) ${sql.as} date_end, ls.ls_id ${sql.as} ls_id, 'Lease ' ${sql.concat} ls.ls_id ${sql.as} description
+            FROM su LEFT OUTER JOIN ls ON ls.ls_id = su.ls_id
+            WHERE su.bl_id = ${parameters['inventoryBlId']}
+            AND ${parameters['inventoryFlIds']}
+            AND ls.use_as_template = 0 
+            AND ls.date_start IS NOT NULL
+            AND (ls.date_end IS NULL OR ls.date_end >= ${parameters['portfolioDateStart']})
+            AND su.ls_id IS NOT NULL
+            GROUP BY su.bl_id, su.fl_id, ls.ls_id, ls.date_start
+        </sql>
+        <table name="gp" role="main"/>
+        <field name="name" table="gp" dataType="text"/>
+        <field name="bl_id" table="gp" dataType="text"/>
+        <field name="fl_id" table="gp" dataType="text"/>
+        <field name="date_start" table="gp" dataType="text"/>
+        <field name="date_end" table="gp" dataType="text"/>
+        <field name="ls_id" table="gp" dataType="text"/>
+        <field name="description" table="gp" dataType="text"/>
+        <parameter name="inventoryBlId" value="'HQ'" dataType="text"/>
+        <parameter name="inventoryFlIds" value="1=1" dataType="verbatim"/>
+        <parameter name="portfolioDateStart" value="1999-01-01" dataType="date"/>
+    </dataSource>
+    
+    <dataSource id="calculateSuLeasedAreaDs">
+        <sql dialect="generic">
+            SELECT sum(su.area_usable) ${sql.as} area FROM su WHERE su.bl_id = ${parameters['inventoryBlId']}
+            AND su.fl_id = ${parameters['inventoryFlId']} AND su.ls_id = ${parameters['inventoryLsId']}
+            GROUP BY su.ls_id, su.bl_id, su.fl_id
+        </sql>
+        <table name="gp" role="main"/>
+        <field name="area" table="gp" dataType="number" decimals="2"/>
+        <parameter name="inventoryBlId" value="%" dataType="text"/>
+        <parameter name="inventoryFlId" value="%" dataType="text"/>
+        <parameter name="inventoryLsId" value="%" dataType="text"/>
+    </dataSource>
+    
+    <dataSource id="calculateGpLeasedAreaDs">
+        <sql dialect="generic">
+            SELECT sum(gp.area) ${sql.as} area FROM gp WHERE gp.bl_id = ${parameters['inventoryBlId']}
+            AND gp.fl_id = ${parameters['inventoryFlId']} AND gp.ls_id = ${parameters['inventoryLsId']}
+            AND gp.portfolio_scenario_id IS NULL
+            GROUP BY gp.ls_id, gp.bl_id, gp.fl_id
+        </sql>
+        <table name="gp" role="main"/>
+        <field name="area" table="gp" dataType="number" decimals="2"/>
+        <parameter name="inventoryBlId" value="%" dataType="text"/>
+        <parameter name="inventoryFlId" value="%" dataType="text"/>
+        <parameter name="inventoryLsId" value="%" dataType="text"/>
+    </dataSource>
+    
+    <dataSource id="calculateRoomCompositeOrAllLeasedAreaDs">
+        <sql dialect="generic">
+            SELECT sum(rm.area) ${sql.as} area FROM rm LEFT OUTER JOIN rmcat ON rm.rm_cat= rmcat.rm_cat WHERE rm.bl_id = ${parameters['inventoryBlId']}
+            AND rm.fl_id = ${parameters['inventoryFlId']} AND rm.ls_id = ${parameters['inventoryLsId']}
+            AND rmcat.supercat='USBL' AND rmcat.used_in_calcs='all_totals' GROUP BY rm.ls_id, rm.bl_id, rm.fl_id
+        </sql>
+        <table name="gp" role="main"/>
+        <field name="area" table="gp" dataType="number" decimals="2"/>
+        <parameter name="inventoryBlId" value="%" dataType="text"/>
+        <parameter name="inventoryFlId" value="%" dataType="text"/>
+        <parameter name="inventoryLsId" value="%" dataType="text"/>
+    </dataSource>
+    
+    <dataSource id="existingGroupFloorDataSource">
+        <table name="fl" role="main"/>
+        <field name="fl_id" table="fl"/>
+        <field name="name" table="fl"/>
+        <field name="bl_id" table="fl"/>
+        <parameter name="scn_id" dataType="text" value="%"/>
+        <parameter name="bl_id" dataType="text" value="%"/>
+		<restriction type="sql" sql=" EXISTS (SELECT 1 FROM gp WHERE gp.bl_id = fl.bl_id AND gp.fl_id=fl.fl_id AND gp.bl_id = ${parameters['bl_id']} AND gp.portfolio_scenario_id = ${parameters['scn_id']})"/>
+    </dataSource>
+
+    <dataSource id="noAvailableAreaGpFlDs">
+        <table name="fl" role="main"/>
+        <field name="fl_id" table="fl"/>
+        <field name="name" table="fl"/>
+        <field name="bl_id" table="fl"/>
+        <field name="sort_order" table="fl"/>
+        <parameter name="scn_id" dataType="text" value="%"/>
+        <parameter name="bl_id" dataType="text" value="%"/>
+        <parameter name="fl_id" dataType="verbatim" value=" 1=1 "/>
+		<restriction type="sql" sql=" ${parameters['fl_id']} and fl.bl_id = ${parameters['bl_id']} and NOT EXISTS (SELECT 1 FROM gp WHERE gp.bl_id = fl.bl_id AND gp.fl_id=fl.fl_id AND gp.bl_id = ${parameters['bl_id']} AND gp.portfolio_scenario_id = ${parameters['scn_id']} and  gp.allocation_type IN ('Allocated Area', 'Usable Area - Owned', 'Usable Area - Leased') )"/>
+    </dataSource>
+    <!-- <panel type="grid" dataSource="createUsableOwnedAreaDs" id="testAreaGrid">
+        
+    </panel> -->
+</view>

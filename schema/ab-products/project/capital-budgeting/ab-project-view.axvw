@@ -1,0 +1,350 @@
+<view version="2.0">
+	<message name="msg_no_project_id" translatable="true">No Project</message> 
+	<message name="msg_no_workpkg_id" translatable="true">No Work Package</message>
+	<layout type="borderLayout" id="mainLayout">
+	    <north initialSize="90px" split="true"/>
+	    <center autoScroll="true"/>
+	</layout>
+    <layout id="nestedLayout_1" containingLayout="mainLayout" region="center">
+        <west initialSize="30%" split="true"/>
+	    <center autoScroll="true"/>
+    </layout>
+	<title translatable="true">View My Projects</title>
+	<js file="ab-project-view.js"/>
+		
+	<dataSource id="projectView_consoleDs">
+		<table name="project"/>
+		<field table="project" name="project_id"/>
+		<field table="project" name="status"/>
+        <field table="project" name="site_id"/>
+        <field table="project" name="bl_id"/>
+        <field table="project" name="proj_mgr"/>
+        <field table="project" name="project_type"/>
+        <field table="project" name="program_id"/>
+        <field table="project" name="priority"/>
+		<sortField table="project" name="project_id" ascending="true"/>
+        <restriction type="sql" sql="project.is_template = 0"/>
+		<restriction type="sql" sql="project.requestor = ${sql.literal(user.employee.id)} AND project.status IN ('Created','Requested')"/>
+	</dataSource>
+	
+	<panel type="console" id="projectView_console" dataSource="projectView_consoleDs" columns="3" showOnLoad="true" layout="mainLayout" region="north">
+		<title translatable="true">Filter</title>
+		<action id="show">
+			<title translatable="true">Show</title>
+		</action>
+        <action id="clear">
+            <title>Clear</title>
+        </action>
+        <field table="project" name="site_id"/>
+        <field table="project" name="project_type"/>
+		<field name="project_id" table="project" op="=">
+		        	<action id="projectView_console_selValProjectId">
+		                <title>...</title>
+		                <command type="selectValue"
+		                	selectValueType="grid"
+		                    fieldNames="project.project_id"
+		                    selectFieldNames="project.project_id, project.project_name, project.project_type, project.requestor, project.summary"
+		                    visibleFieldNames="project.project_id, project.project_name, project.project_type, project.requestor, project.summary"
+		                    restriction="project.requestor = ${sql.literal(user.employee.id)} AND project.status IN ('Created','Requested') AND project.is_template = 0">
+		                    <title>Project Code</title>  
+		                </command>         
+		            </action>
+		</field>
+        <field table="project" name="bl_id">
+            <action id="projectView_console_selValBlId">
+                <title>...</title>
+                <command type="selectValue"
+                    showIndex="true"
+                    fieldNames="project.site_id, project.bl_id"
+                    selectFieldNames="bl.site_id, bl.bl_id"
+                    visibleFieldNames="bl.site_id, bl.bl_id, bl.name">   
+                    <title>Building Code</title>
+                </command>         
+             </action>
+        </field>
+        <field table="project" name="program_id"/>
+        <field>
+            <title>Status</title>
+               <html>
+                  <select class="inputField_box" id="status" name="status">
+                      <option value="All" selected="1"><span translatable="true"></span></option>
+                      <option value="Created"><span translatable="true">Created</span></option>
+                      <option value="Requested"><span translatable="true">Requested</span></option>
+                  </select>
+               </html>
+         </field>
+	</panel>
+    
+    <dataSource id="projectView_projectTreeDs">
+        <table name="project"/>
+        <field table="project" name="project_id"/>
+        <field table="project" name="project_name"/>
+        <field table="project" name="status"/>
+        <sortField table="project" name="project_id" ascending="true"/>
+        <parameter name="project_restriction" dataType="verbatim" value="1=1"/>
+        <restriction type="sql" sql="${parameters['project_restriction']}" />
+        <restriction type="sql" sql="project.requestor = ${sql.literal(user.employee.id)} AND project.status IN ('Created','Requested')"/>
+        <restriction type="sql" sql="project.is_template = 0"/>
+    </dataSource>
+	
+	<dataSource id="projectView_workpkgTreeDs">
+		<sql dialect="generic">
+			SELECT 
+				work_pkgs.work_pkg_id ${sql.as} work_pkg_id,
+				work_pkgs.project_id ${sql.as} project_id 
+			FROM work_pkgs
+		    UNION
+		    SELECT 
+		        'WW99' ${sql.as} work_pkg_id,
+		        ${sql.isNull('activity_log.project_id', '\'WW99\'')} ${sql.as} project_id
+		    FROM activity_log
+		    WHERE activity_log.work_pkg_id IS NULL
+		</sql>
+		<table name="work_pkgs"/>
+		<field table="work_pkgs" name="work_pkg_id"/>
+		<sortField table="work_pkgs" name="work_pkg_id" ascending="true"/>
+	</dataSource>
+	
+	<dataSource id="projectView_actionTreeDs">
+		<sql dialect="generic">
+			SELECT 
+				activity_log.activity_log_id ${sql.as} activity_log_id,
+                activity_log.wbs_id ${sql.as} wbs_id,
+				activity_log.action_title ${sql.as} action_title,
+				${sql.isNull('activity_log.work_pkg_id', '\'WW99\'')} ${sql.as} work_pkg_id,
+				${sql.isNull('activity_log.project_id', '\'WW99\'')} ${sql.as} project_id
+			FROM activity_log
+		</sql>
+		<table name="activity_log"/>
+		<field table="activity_log" name="activity_log_id"/>
+        <field table="activity_log" name="wbs_id"/>
+		<field table="activity_log" name="action_title"/>
+		<sortField table="activity_log" name="wbs_id" ascending="true"/>
+	</dataSource>
+	
+	<panel type="tree" id="projectView_projectTree" dataSource="projectView_projectTreeDs" layout="nestedLayout_1" region="west">
+		<title translatable="true">My Created and Requested Projects</title>
+        <event type="onClickNode">
+            <command type="callFunction" functionName="onClickTreeNode"/>
+        </event>
+		<panel type="tree" id="projectView_workpkgTree" dataSource="projectView_workpkgTreeDs">
+	        <event type="onClickNode">
+	            <command type="callFunction" functionName="onClickTreeNode"/>
+	        </event>
+			<field table="work_pkgs" name="work_pkg_id"/>
+		</panel>
+		<panel type="tree" id="projectView_actionTree" dataSource="projectView_actionTreeDs">
+	        <event type="onClickNode">
+	            <command type="callFunction" functionName="onClickTreeNode"/>
+	        </event>
+            <field table="activity_log" name="wbs_id"/>
+			<field table="activity_log" name="action_title"/>
+			<field table="activity_log" name="activity_log_id" hidden="true"/>
+		</panel>
+		<field table="project" name="project_id"/>
+        <field table="project" name="project_name"/>
+		<field table="project" name="status"/>
+	</panel>
+	
+	<tabs id="projectViewTabs" workflow="enforced" layout="nestedLayout_1" region="center">
+		<tab name="projectView_projectTab" selected="true">
+			<title translatable="true">Project</title>
+			<dataSource id="projectView_projectDs">
+		        <table name="project" role="main" />
+		        <field name="project_id" table="project" />
+                <field name="project_name" table="project" />
+                <field name="project_type" table="project" />
+		        <field name="status" table="project" />
+		        <field name="program_id" table="project" />
+		        <field name="dept_contact" table="project" />
+		        <field name="phone_dept_contact" table="project" />
+		        <field name="site_id" table="project" />
+		        <field name="bl_id" table="project" />
+		        <field name="dv_id" table="project" />
+		        <field name="dp_id" table="project" />
+		        <field name="area_affected" table="project" />
+		        <field name="emp_affected" table="project" />
+		        <field name="cost_budget" table="project" />
+		        <field name="ac_id" table="project" />
+                <field name="funding_probability" table="project"/>
+		        <field name="date_start" table="project" />
+		        <field name="date_end" table="project" />
+		        <field name="days_per_week" table="project" />
+                <field name="duration_est" table="project"/>
+		        <field name="requestor" table="project" />
+		        <field name="phone_req" table="project" />
+		        <field name="date_created" table="project" /> 
+		        <field name="doc" table="project"/>   
+                <field name="doc_risk_mgmt" table="project" />
+                <field name="doc_charter" table="project" />
+                <field name="doc_impl_plan" table="project" />    
+		        <field name="summary" table="project"/>
+		        <field name="description" table="project" />        
+		        <field name="scope" table="project" />  
+		        <field name="benefit" table="project" />
+		        <field name="contact_id" table="project"/>
+		        <field name="project_quest" table="project" />
+		    </dataSource>
+			<panel type="columnReport" id="projectView_projectForm" columns="2" dataSource="projectView_projectDs" showOnLoad="false">
+		        <title>Project Profile</title>
+		        <field name="project_id" table="project" colspan="2"/>
+                <field name="project_name" table="project" colspan="2"/>
+		        <field name="project_type" table="project" />
+		        <field name="status" table="project" />                  
+			</panel>
+			<panel id="projectView_projectForm2" dataSource="projectView_projectDs" type="columnReport" columns="2" showOnLoad="false">
+			    <title translatable="true">Project Location</title>
+		        <field name="site_id" table="project" hidden="${record['project.site_id'] == ''}"/>
+		        <field name="bl_id" table="project" />
+		        <field name="dv_id" table="project" hidden="${record['project.dv_id'] == ''}"/>
+		        <field name="dp_id" table="project" hidden="${record['project.dp_id'] == ''}"/>
+		        <field name="area_affected" table="project" hidden="${record['project.area_affected'] == ''}"/>
+		        <field name="emp_affected" table="project" hidden="${record['project.emp_affected'] == ''}"/>
+		        <field name="project_id" table="project" hidden="true"/>
+			</panel>
+			<panel id="projectView_projectForm3" dataSource="projectView_projectDs" type="columnReport" columns="2" showOnLoad="false">
+			    <title translatable="true">Project Schedule and Cost</title>
+			    <field name="date_start" table="project"/>
+		        <field name="date_end" table="project"/>
+                <field name="duration_est" table="project"/>
+		        <field name="days_per_week" table="project" />
+		        <field name="date_created" table="project" />
+                <field/>
+		    	<field name="program_id" table="project" hidden="${record['project.program_id'] == ''}"/>	
+		        <field name="ac_id" table="project" hidden="${record['project.ac_id'] == ''}"/>
+		        <field name="cost_budget" table="project" hidden="${record['project.cost_budget'] == ''}"/>
+                <field name="funding_probability" table="project" hidden="${record['project.funding_probability'] == ''}"/>
+		        <field name="project_id" table="project" hidden="true"/>
+			</panel>
+			<panel id="projectView_projectForm4" dataSource="projectView_projectDs" type="columnReport" columns="2" showOnLoad="false">
+			    <title translatable="true">Project Details</title>
+                <field name="summary" table="project" style="height:2em" colspan="2"/>     
+		        <field name="description" table="project" colspan="2" hidden="${record['project.description'] == ''}"/>        
+		        <field name="scope" table="project"  colspan="2" hidden="${record['project.scope'] == ''}"/>  
+		        <field name="benefit" table="project" colspan="2" hidden="${record['project.benefit'] == ''}"/>
+                <field name="dept_contact" table="project" />
+                <field name="phone_dept_contact" table="project" />
+                <field name="requestor" table="project" />
+                <field name="phone_req" table="project" /> 
+                <field name="doc" table="project" hidden="${record['project.doc'] == ''}" colspan="2"/>
+                <field name="doc_risk_mgmt" table="project" hidden="${record['project.doc_risk_mgmt'] == ''}" colspan="2"/>
+                <field name="doc_charter" table="project" hidden="${record['project.doc_charter'] == ''}" colspan="2"/>
+                <field name="doc_impl_plan" table="project" hidden="${record['project.doc_impl_plan'] == ''}" colspan="2"/>
+		        <field name="project_id" table="project" hidden="true"/>
+		        <field name="project_quest" table="project" hidden="true" />
+		    </panel>
+		</tab>
+		<tab name="projectView_workpkgTab">
+			<title translatable="true">Work Package</title>
+			<dataSource id="projectView_workpkgDs">
+				<table name="work_pkgs"/>
+				<field name="work_pkg_id" table="work_pkgs"/>
+		    	<field name="project_id" table="work_pkgs"/>
+		        <field name="status" table="work_pkgs"/>
+		        <field name="summary" table="work_pkgs"/>
+		        <field name="description" table="work_pkgs"/>
+		        <field name="proj_phase" table="work_pkgs"/>
+		        <field name="date_est_start" table="work_pkgs"/>
+		        <field name="date_est_end" table="work_pkgs"/>
+		        <field name="days_per_week" table="work_pkgs"/>
+			</dataSource>
+			<panel type="columnReport" id="projectView_workpkgForm" dataSource="projectView_workpkgDs" columns="1" showOnLoad="false">
+				<title translatable="true">Work Package Profile</title>
+		        <field name="work_pkg_id" table="work_pkgs" />
+		        <field name="project_id" table="work_pkgs" />
+		        <field name="proj_phase" table="work_pkgs" hidden="${record['work_pkgs.proj_phase'] == ''}" />
+		        <field name="date_est_start" table="work_pkgs" />
+		        <field name="date_est_end" table="work_pkgs" />
+		        <field name="days_per_week" table="work_pkgs"/>
+		    </panel>
+			<panel id="projectView_workpkgForm2" dataSource="projectView_workpkgDs" type="columnReport" columns="1" showOnLoad="false">
+			    <title translatable="true">Work Package Details</title>
+		        <field name="summary" table="work_pkgs" hidden="${record['work_pkgs.summary'] == ''}"/>
+		        <field name="description" table="work_pkgs" hidden="${record['work_pkgs.summary'] == ''}" />
+		        <field name="work_pkg_id" table="work_pkgs" hidden="true" />
+			</panel>
+		</tab>
+		<tab name="projectView_actionTab">
+			<title translatable="true">Action</title>
+			<dataSource id="projectView_actionDs">
+				<table name="activity_log" role="main"/>
+		        <field name="activity_log_id" table="activity_log" />
+		        <field name="project_id" table="activity_log"  />
+		        <field name="action_title" table="activity_log" />             
+		        <field name="proj_phase" table="activity_log" />
+		        <field name="activity_type" table="activity_log" />
+		        <field name="work_pkg_id" table="activity_log" />         
+		        <field name="site_id" table="activity_log" />
+		        <field name="fl_id" table="activity_log" />
+		        <field name="bl_id" table="activity_log" />
+		        <field name="rm_id" table="activity_log" />
+		        <field name="location" table="activity_log" />
+		        <field name="prob_type" table="activity_log" />
+		        <field name="tr_id" table="activity_log" />
+		        <field name="wbs_id" table="activity_log" />
+		        <field name="eq_id" table="activity_log" />
+		        <field name="date_required" table="activity_log" />
+		        <field name="date_planned_for" table="activity_log" /> 
+		        <field name="date_scheduled" table="activity_log" />             
+		        <field name="duration_est_baseline" table="activity_log" />
+		        <field name="hours_est_baseline" table="activity_log" />
+		        <field name="duration" table="activity_log"/>
+		        <field name="hours_est_design" table="activity_log"/>
+		        <field name="cost_estimated" table="activity_log" />
+		        <field name="cost_est_cap" table="activity_log" />
+		        <field name="approved_by" table="activity_log" />
+		        <field name="created_by" table="activity_log"  />
+		        <field name="doc" table="activity_log" />
+		        <field name="date_requested" table="activity_log"  />
+		        <field name="description" table="activity_log" /> 
+			</dataSource>
+			<panel type="columnReport" id="projectView_actionForm" columns="2" dataSource="projectView_actionDs" showOnLoad="false">
+				<title translatable="true">Action Item Profile</title>
+				<field name="action_title" table="activity_log"  colspan="2"/>
+				<field name="activity_type" table="activity_log"  colspan="2"/>
+				<field name="activity_log_id" table="activity_log"  />
+				<field/>
+				<field name="project_id" table="activity_log"  readOnly="false" />		
+				<field name="wbs_id" table="activity_log" hidden="${record['activity_log.wbs_id'] == ''}"/>		
+		        <field name="work_pkg_id" table="activity_log" required="false" hidden="${record['activity_log.work_pkg_id'] == ''}"/>	        
+		        <field name="proj_phase" table="activity_log" hidden="${record['activity_log.proj_phase'] == ''}"/>	
+		    </panel>
+			<panel id="projectView_actionForm2" dataSource="projectView_actionDs" type="columnReport" columns="2" showOnLoad="false">
+			    <title translatable="true">Action Item Location</title>          
+		        <field name="site_id" table="activity_log" />         
+		        <field name="bl_id" table="activity_log" />
+		        <field name="fl_id" table="activity_log" hidden="${record['activity_log.fl_id'] == ''}"/>
+		        <field name="rm_id" table="activity_log" hidden="${record['activity_log.rm_id'] == ''}"/>
+		        <field name="location" table="activity_log" hidden="${record['activity_log.location'] == ''}"/>
+		        <field name="prob_type" table="activity_log" hidden="${record['activity_log.prob_type'] == ''}"/>  
+		        <field name="eq_id" table="activity_log" hidden="${record['activity_log.eq_id'] == ''}"/>       
+		        <field name="tr_id" table="activity_log" hidden="${record['activity_log.tr_id'] == ''}"/>
+		        <field name="activity_log_id" table="activity_log"  hidden="true"/>
+		    </panel>
+			<panel id="projectView_actionForm3" dataSource="projectView_actionDs" type="columnReport" columns="2" showOnLoad="false">
+			    <title translatable="true">Action Item Schedule and Costs</title> 		        
+		        <field name="date_planned_for" table="activity_log" /> 
+		        <field name="date_required" table="activity_log" />             
+		        <field name="duration_est_baseline" table="activity_log" />
+		        <field name="hours_est_baseline" table="activity_log" />
+		        <field name="cost_estimated" table="activity_log" />
+		        <field name="cost_est_cap" table="activity_log" />
+			    <field name="activity_log_id" table="activity_log"  hidden="true"/>
+		    </panel>
+			<panel id="projectView_actionForm4" dataSource="projectView_actionDs" type="columnReport" columns="2" showOnLoad="false">
+			    <title translatable="true">Action Item Details</title> 		        		               
+		        <field name="doc" table="activity_log" colspan="2" hidden="${record['activity_log.doc'] == ''}"/>
+		        <field name="description" table="activity_log" colspan="2" hidden="${record['activity_log.description'] == ''}"/>
+		        <field name="date_requested" table="activity_log" />
+			    <field name="created_by" table="activity_log" hidden="${record['activity_log.created_by'] == ''}"/>
+		        <field name="approved_by" table="activity_log" hidden="${record['activity_log.approved_by'] == ''}"/>
+		        <field name="date_scheduled" table="activity_log" hidden="true"/>
+		        <field name="duration" table="activity_log" hidden="true"/>
+		        <field name="hours_est_design" table="activity_log" hidden="true"/>
+			    <field name="activity_log_id" table="activity_log"  hidden="true"/>
+			</panel>
+		</tab>
+	</tabs>
+	<panel type="view" id="projectViewViewPanel" file="ab-questionnaire.axvw" />
+</view>
+

@@ -1,0 +1,88 @@
+<view version="2.0">
+		<message name="expandAll">Expand All</message>
+		<message name="collapseAll">Collapse All</message>
+    <js file="ab-proj-mng-projs-alert-chg.js"/>
+    
+     <dataSource id="projMngProjsAlertChg_dsProj" applyVpaRestrictions="false">
+    		<table name="project" role="main"/>
+    		<sql dialect="generic">
+    		SELECT project.project_id, 
+    		CASE WHEN (project.date_commence_work IS NULL OR project.date_target_end IS NULL) 
+    				THEN project.date_start ELSE project.date_commence_work END ${sql.as} start_date,
+    		CASE WHEN (project.date_commence_work IS NULL OR project.date_target_end IS NULL) 
+            THEN project.date_end ELSE project.date_target_end END ${sql.as} end_date,
+        project.project_name, project.project_type, project.summary, project.proj_mgr
+        FROM project
+        LEFT OUTER JOIN program ON program.program_id = project.program_id
+        LEFT OUTER JOIN bl ON bl.bl_id = project.bl_id
+        LEFT OUTER JOIN site on site.site_id = project.site_id
+        LEFT OUTER JOIN ctry ON ctry.ctry_id = bl.ctry_id
+        WHERE ${parameters['projRestriction']} AND ${sql.vpaRestriction}
+    		</sql>
+    		<field table="project" name="project_id" dataType="text"/>
+    		<field table="project" name="start_date" dataType="date"/>
+    		<field table="project" name="end_date" dataType="date"/>
+        <field table="project" name="project_name" dataType="text"/>
+        <field table="project" name="project_type" dataType="text"/>
+        <field table="project" name="summary" dataType="text"/>
+        <field table="project" name="proj_mgr" dataType="text"/>
+        <restriction type="sql" sql="EXISTS (SELECT 1 FROM activity_log WHERE activity_log.activity_type = 'PROJECT - CHANGE ORDER' AND activity_log.status = 'REQUESTED' AND activity_log.project_id = project.project_id)"/>
+        <parameter name="projRestriction" dataType="verbatim" value=" 1=1 "/>
+    </dataSource>
+    
+    <dataSource id="projMngProjsAlertChg_dsAct" applyVpaRestrictions="false">
+        <table name="activity_log" role="main"/>
+        <table name="project" role="standard"/>
+        <field table="activity_log" name="action_title"/>
+        <field table="activity_log" name="wbs_id">
+            <title>WBS Code</title>
+        </field>
+        <field table="activity_log" name="activity_log_id"/>
+        <field table="activity_log" name="project_id"/>
+        <field table="project" name="project_name" />
+        <field table="activity_log" name="work_pkg_id"/>
+        <field table="activity_log" name="activity_type"/>
+        <field table="activity_log" name="status"/>
+        <field table="activity_log" name="date_scheduled"/>
+        <field table="activity_log" name="duration"/>
+        <field name="tot_costs_design" table="activity_log"  showTotals="true" dataType="number" decimals="0" size="12">
+            <sql dialect="generic">cost_est_design_cap + cost_est_design_exp</sql>
+        </field>
+        <restriction type="sql" sql="activity_log.project_id IS NOT NULL AND activity_log.activity_type = 'PROJECT - CHANGE ORDER' AND activity_log.status = 'REQUESTED'"/>
+    </dataSource>
+    
+    <panel type="tree" controlType="table" id="projMngProjsAlertChg_projTree" dataSource="projMngProjsAlertChg_dsProj" showOnLoad="true">
+        <title>Change Orders Pending Approval</title>
+        <action id="collapse">
+        		<title>Collapse All</title>
+        </action>
+        <field table="project" name="project_id"/>
+        <field table="project" name="project_name"/>
+
+        <panel type="tree" controlType="table" id="projMngProjsAlertChg_actTree" dataSource="projMngProjsAlertChg_dsAct" showLabels="true">
+            <sortField table="activity_log" name="wbs_id" ascending="true"/>
+		        <sortField table="activity_log" name="work_pkg_id" ascending="true"/>
+            <sortField table="activity_log" name="action_title" ascending="true"/>
+            <sortField table="activity_log" name="activity_log_id" ascending="true"/>
+            <field table="activity_log" name="project_id" hidden="true"/>
+            <field table="activity_log" name="wbs_id">
+		            <title>WBS Code</title>
+		        </field>
+		        <field table="activity_log" name="work_pkg_id"/>
+            <field table="activity_log" name="action_title"/>
+		        <field table="activity_log" name="activity_type"/>
+		        <field table="activity_log" name="date_scheduled"/>
+		        <field table="activity_log" name="duration">
+		        		<title>Duration</title>
+		        </field>
+		        <field name="tot_costs_design" table="activity_log"  showTotals="true">
+		            <title>Design Costs</title>
+		        </field>		        
+		        <field table="activity_log" name="status"/>
+		        <field table="activity_log" name="activity_log_id"/>
+            <event type="onClickNode">
+                <command type="callFunction" functionName="projMngProjsAlertChg_actTree_select"/>
+            </event>
+        </panel>
+    </panel>
+</view>

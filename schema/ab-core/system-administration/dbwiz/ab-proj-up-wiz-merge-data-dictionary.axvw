@@ -1,0 +1,219 @@
+<view version="2.0">
+    <js file="ab-proj-up-wiz-merge-data-dictionary.js"/>
+    <js url="/archibus/dwr/interface/ProjectUpdateWizardService.js" />
+    <css file="ab-proj-up-wiz-merge-data-dictionary.css"/>
+<title translatable="true">Merge Data Dictionaries</title>
+<message name="confirmApplyMessage">Are you sure you want to apply changes to ARCHIBUS data dictionary?</message>
+<message name="afterApplyMessage">ARCHIBUS data dictionary was updated. Please run the Schema Update Wizard to update the tables?</message>
+<message name="noOutputSelected">Please select whether to execute or/and log the SQL commands.</message>  
+<message name="includeDependecyTables">Your selection requires to include the following tables: </message>  
+
+<dataSource id="chosenAction_ds">
+    <table name="afm_flds_trans" role="main"/>
+    <field name="autonumbered_id"/>
+    <field name="chosen_action"/>
+</dataSource>
+
+<dataSource id="afmFldsTrans_ds">
+	<table name="afm_flds_trans" role="main"/>
+	<field name="autonumbered_id"/>
+	<field name="table_name"/>
+	<field name="field_name"/>
+	<field name="change_type"/>
+	<field name="data_dict_diffs"/>
+	<field name="sql_table_diffs"/>
+	<field name="rec_action"/>
+	<field name="chosen_action"/>
+    <parameter name="hideMLRestr" dataType="verbatim" value="1=1"/>
+    <parameter name="hideNewRestr" dataType="verbatim" value="1=1"/>
+    <parameter name="hideSizeChgRestr" dataType="verbatim" value="1=1"/>
+    <parameter name="hideDDChgRestr" dataType="verbatim" value="1=1"/>
+    <parameter name="hideSqlChgRestr" dataType="verbatim" value="1=1"/>
+    <restriction type="sql" sql="autonumbered_id NOT IN (SELECT autonumbered_id FROM afm_flds_trans a1 WHERE a1.change_type='NEW' AND EXISTS(SELECT 1 FROM afm_flds_trans a2 WHERE a2.table_name = a1.table_name AND a2.change_type='TBL_IS_NEW'))"/>
+    <restriction type="sql" sql="${parameters['hideMLRestr']} AND ${parameters['hideNewRestr']} AND ${parameters['hideSizeChgRestr']} AND ${parameters['hideDDChgRestr']} AND ${parameters['hideSqlChgRestr']}"/>
+</dataSource>
+
+<panel type="html" id="fieldsToShow">
+    <!--action id="back">
+		<title>Back</title>
+    </action-->
+    <action id="applyRecomm" mainAction="true">
+    	<title>Apply Recommended</title>
+	</action>
+    <action id="applyChosen" mainAction="true">
+    	<title>Apply Chosen</title>
+	</action>
+    <action id="keepML">
+    	<title>Keep Multi-Line Headings</title>
+	</action>
+	<action id="help">
+		<title>Help</title>
+		<command type="showHelp"
+		file="/help/system/Content/update_wiz/perform_transfer_data_dictionary.htm" />
+	</action>
+    <html>
+    <table id="optionsTable" class="panel">
+    <tr>
+        <td>
+            <fieldset id="fieldsToShow">
+                <legend>Fields to show</legend>
+                    <table cellspacing="5">
+                        <tbody>
+                            <tr>
+                                <td align="left" style="white-space: nowrap;">
+                                    <input type="checkbox" id="ml_heading" onclick="checkHideMLHeading()"/>
+                                    <span translatable="true">Hide Multi-line Heading Changes</span><br/>
+
+                                    <input type="checkbox" id="new" onclick="checkHideNew()"/>
+                                    <span translatable="true">Hide New Tables and Fields</span><br/>
+                    
+                                    <input type="checkbox" id="fieldSize" onclick="checkHideFieldSize()"/>
+                                    <span translatable="true">Hide Field Size Changes</span><br/>
+                    
+                                    <input type="checkbox" id="dataDict" onclick="checkHideDataDictDiffs()"/>
+                                    <span translatable="true">Hide All Data Dictionary Differences</span>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+            </fieldset>
+        </td>
+        <td>
+            <fieldset id="howToApply">
+                <legend>How should the wizard apply changes?</legend>
+                    <table cellspacing="5">
+                        <tbody>
+                            <tr>
+                                <td align="left" style="white-space: nowrap;">
+                                    <input type="checkbox" id="executeOnDb" checked="true" onchange="setOutput()"/>
+                                    <span translatable="true">Execute changes immediately on project database</span><br/>
+                
+                                    <input type="checkbox" id="outputToFile" checked="true"  onchange="setOutput()"/>
+                                    <span translatable="true">Output changes to SQL Script</span><br/>
+                                    <!-- span style="font-size:9pt;color:blue;">(projects\users\public\dt\database-update\personalized-database\02_changes-data-dictionary.sql)</span-->
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+            </fieldset>
+        </td>
+        <td>
+            <fieldset id="multipleSelectionChosen">
+                <legend>Multiple Selection</legend>
+                    <table cellspacing="5">
+                        <tbody>
+                            <tr>
+                                <td align="left" style="white-space: nowrap;">
+                                    <select multiple="multiple" id="selectChangeType" size="3">
+                                        <option class="selectValue_AbActionButtonFormStdWidth" value="TBL_IN_PROJ_ONLY">Table is only in project</option>
+                                        <option class="selectValue_AbActionButtonFormStdWidth" value="PROJECT_ONLY">Field is only in project</option>
+                                        <option class="selectValue_AbActionButtonFormStdWidth" value="TBL_IS_NEW">Table is new</option>
+                                        <option class="selectValue_AbActionButtonFormStdWidth" value="NEW">Field is new</option>
+                                        <option class="selectValue_AbActionButtonFormStdWidth" value="AFM_TYPE">AFM Type</option>
+                                        <option class="selectValue_AbActionButtonFormStdWidth" value="ALLOW_NULL">Is Null?</option>
+                                        <option class="selectValue_AbActionButtonFormStdWidth" value="ATTRIBUTES">Attributes</option>
+                                        <option class="selectValue_AbActionButtonFormStdWidth" value="COMMENTS">Comments</option>
+                                        <option class="selectValue_AbActionButtonFormStdWidth" value="DATA_TYPE">Data Type</option>
+                                        <option class="selectValue_AbActionButtonFormStdWidth" value="DECIMALS">Decimals</option>
+                                        <option class="selectValue_AbActionButtonFormStdWidth" value="DEP_COLS">Dependent Columns</option>
+                                        <option class="selectValue_AbActionButtonFormStdWidth" value="DFLT_VAL">Default Value</option>
+                                        <option class="selectValue_AbActionButtonFormStdWidth" value="EDIT_GROUP">Edit Group</option>
+                                        <option class="selectValue_AbActionButtonFormStdWidth" value="EDIT_MASK">Edit Mask</option>
+                                        <option class="selectValue_AbActionButtonFormStdWidth" value="ENUM_LIST">Enum List</option>
+                                        <option class="selectValue_AbActionButtonFormStdWidth" value="FIELD_GROUPING">Field Grouping</option>
+                                        <option class="selectValue_AbActionButtonFormStdWidth" value="IS_ATXT">Is Asset Text</option>
+                                        <option class="selectValue_AbActionButtonFormStdWidth" value="IS_TC_TRACEABLE">Is Tc_Traceable</option>
+                                        <option class="selectValue_AbActionButtonFormStdWidth" value="MAX_VAL">Maximum Val</option>
+                                        <option class="selectValue_AbActionButtonFormStdWidth" value="MIN_VAL">Minimum Val</option>
+                                        <option class="selectValue_AbActionButtonFormStdWidth" value="NUM_FORMAT">Numeric Format</option>
+                                        <option class="selectValue_AbActionButtonFormStdWidth" value="PRIMARY_KEY">Primary Key</option>
+                                        <option class="selectValue_AbActionButtonFormStdWidth" value="REF_TABLE">Reference Table</option>
+                                        <option class="selectValue_AbActionButtonFormStdWidth" value="REVIEW_GROUP">Review Group</option>
+                                        <option class="selectValue_AbActionButtonFormStdWidth" value="SIZE">Size</option>
+                                        <option class="selectValue_AbActionButtonFormStdWidth" value="ML_HEADING">Multi Line Heading</option>
+                                        <option class="selectValue_AbActionButtonFormStdWidth" value="SL_HEADING">Single Line Heading</option>
+                                        <option class="selectValue_AbActionButtonFormStdWidth" value="STRING_FORMAT">String Format</option>
+                                        <option class="selectValue_AbActionButtonFormStdWidth" value="VALIDATE">Validate Data</option>
+                                        <option class="selectValue_AbActionButtonFormStdWidth" value="NO_DEFAULT">Default Value not in Enum</option>
+                                        <option class="selectValue_AbActionButtonFormStdWidth" value="NO_DB_VAL_IN_ENUM">Database Value not in Enum</option>
+                                        <option class="selectValue_AbActionButtonFormStdWidth" value="CIRC_REF">Circular References</option>
+                                    </select>
+                                </td>
+                                <td>
+                                    <table cellspacing="5">
+                                        <tbody>
+                                            <tr>
+                                                <td align="left" style="white-space: nowrap;">
+                                                    <input type="button" cssClass="defaultButton" value="Filter" onclick="multiSelectionFilter()"/>
+                                                </td>
+                                            </tr>
+                                            <tr>
+                                                <td align="left" style="white-space: nowrap;">
+                                                    <input type="button" cssClass="borderButton" value="Clear" onclick="onClearFilter()"/>
+                                                </td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+            </fieldset>
+        </td>
+        <td>
+            <fieldset id="applyChosen">
+                <legend>Apply Chosen</legend>
+                    <table cellspacing="5">
+                        <tbody>
+                            <tr align="center">
+                                <td style="white-space: nowrap;">
+                                    <input type="button" cssClass="defaultButton" value="Keep Selected" onclick="setSelected('KEEP EXISTING');View.controllers.get('mergeDataDict_ctrl').afmFldsTrans_grid.refresh();"/><br/>
+                                </td>
+                            </tr>
+                            <tr align="center">
+                                <td style="white-space: nowrap;">
+                                    <input type="button" cssClass="defaultButton" value="Apply Selected" onclick="setSelected('APPLY CHANGE');View.controllers.get('mergeDataDict_ctrl').afmFldsTrans_grid.refresh();"/>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+            </fieldset>
+        </td>
+    </tr>
+    </table>
+    </html>
+</panel>
+
+<panel type="grid" id="afmFldsTrans_grid" columns="8" dataSource="afmFldsTrans_ds" selectionEnabled="true">
+	<title translatable="true">Per-field Dictionary Changes</title>
+    <action id="refresh">
+        <title translatable="true">Refresh</title>
+            <command type="showPanel" panelId="afmFldsTrans_grid"/>
+    </action>
+    <action id="exportDOCX">
+        <title translatable="true">DOC</title>
+        <tooltip translatable="true">Export to Docx file.</tooltip>
+            <command type="exportPanel" outputType="docx" panelId="afmFldsTrans_grid"/>
+    </action>
+    <action id="exportPDF">
+        <title translatable="true">PDF</title>
+        <tooltip translatable="true">Export to Pdf file.</tooltip>
+            <command type="exportPanel" outputType="pdf" panelId="afmFldsTrans_grid"/>
+    </action>
+    <sortField name="autonumbered_id" table="afm_flds_trans" ascending="true"/>
+    <indexField name="autonumbered_id" table="afm_flds_trans"/>
+	<field name="autonumbered_id" hidden="true"/>
+	<field name="table_name"/>
+	<field name="field_name"/>
+	<field name="change_type"/>
+	<field name="data_dict_diffs">
+    <title>Data Dictionary Differences:&lt;br/&gt;Project Value [Extract Value]</title>
+    </field>
+	<field name="sql_table_diffs">
+    <title>SQL Table Differences:&lt;br/&gt;Project Value [SQL Value]</title>
+	</field>
+    <field name="rec_action"/>	
+	<field name="chosen_action"/>
+</panel>
+
+</view>

@@ -1,0 +1,172 @@
+<view version="2.0">
+    <js file="ab-proj-mng-rpt-sched-var-act.js"/>
+    <js file="ab-proj-mng-common.js"/>
+      
+  	<dataSource id="projMngRptSchedVarActDs0" type="grouping" applyVpaRestrictions="false">
+        <table name="activity_log" role="main"/>
+        <field name="project_work_pkg_id" table="activity_log" dataType="text" groupBy="true">
+            <title>Project - Work Package</title>
+        </field>
+        <field name="duration_est_baseline" dataType="number" decimals="0">
+            <title>Baseline Duration</title>
+            <sql dialect="generic">SUM(duration_est_baseline)</sql>
+        </field>
+        <field name="duration" dataType="number" decimals="0">
+            <title>Design Estimated Duration</title>
+            <sql dialect="generic">SUM(duration)</sql>
+        </field>
+        <field name="duration_act" dataType="number" decimals="0">
+            <title>Actual Duration</title>
+            <sql dialect="generic">SUM(duration_act)</sql>
+        </field>
+        <field name="design_to_baseline" dataType="number" decimals="0">
+            <title>Design to Baseline</title>
+            <sql dialect="generic">SUM(design_to_baseline)</sql>
+        </field>
+        <field name="design_to_actual" dataType="number" decimals="0">
+            <title>Design to Actual</title>
+            <sql dialect="generic">SUM(design_to_actual)</sql>
+        </field>
+        <sql dialect="generic">
+            SELECT RTRIM(activity_log.project_id) ${sql.concat} ' - ' ${sql.concat} RTRIM(activity_log.work_pkg_id) ${sql.as} project_work_pkg_id,
+                    activity_log.project_id,
+                    activity_log.work_pkg_id,
+                    activity_log.duration,
+                    activity_log.duration_est_baseline,
+                    activity_log.duration_act,
+                    (activity_log.duration - activity_log.duration_est_baseline ) ${sql.as} design_to_baseline,
+                    (activity_log.duration - activity_log.duration_act ) ${sql.as} design_to_actual
+            FROM activity_log
+            WHERE activity_log.work_pkg_id IS NOT NULL
+            AND activity_log.status like 'COMPLETED%'
+            AND ${sql.vpaRestriction}
+         </sql>
+         <sortField name="project_work_pkg_id" table="activity_log" ascending="true"/>
+    </dataSource>
+
+    <panel type="crossTable" id="projMngRptSchedVarActCrossTable" dataSource="projMngRptSchedVarActDs0" showOnLoad="true">
+        <title>Actions Schedule Variances</title>
+        <action type="menu" id="projMngRptSchedVarActCrossTable_toolsMenu" imageName="/schema/ab-core/graphics/icons/view/export.png">
+            <tooltip>Tools</tooltip>
+            <action id="exportXLS">
+                <title>Export to XLS</title>
+                <command type="exportPanel" outputType="xls" panelId="projMngRptSchedVarActCrossTable"/>
+            </action>
+        </action> 
+        <event type="onClickItem">
+            <command type="callFunction" functionName="projMngRptSchedVarActCrossTable_onclick"/>
+        </event>                    
+    </panel>
+    
+    <dataSource id="projMngRptSchedVarActDrilldownDs1">
+        <table name="activity_log" role="main" />
+        <field name="project_work_pkg_id" dataType="text">
+          <title>Project - Work Package</title>
+          <sql dialect="generic">RTRIM(activity_log.project_id) ${sql.concat} ' - ' ${sql.concat} RTRIM(activity_log.work_pkg_id)</sql>
+        </field>
+        <field name="wbs_id" table="activity_log" />
+        <field name="action_title" table="activity_log" />
+        <field name="activity_type" table="activity_log"/>
+        <field name="status" table="activity_log">
+            <title>Action Item Status</title>
+        </field>
+        <field name="pct_complete" table="activity_log"/>
+        <field name="duration" table="activity_log"/>
+        <field name="duration_est_baseline" table="activity_log"/>
+        <field name="duration_act" table="activity_log"/>
+        <field name="design_to_baseline" dataType="number" decimals="0">
+            <title>Design to Baseline</title>
+            <sql dialect="generic">activity_log.duration - activity_log.duration_est_baseline</sql>
+        </field>
+        <field name="design_to_actual" dataType="number" decimals="0">
+            <title>Design to Actual</title>
+            <sql dialect="generic">activity_log.duration - activity_log.duration_act</sql>
+        </field>
+        <field name="date_required" table="activity_log" />
+        <field name="date_scheduled" table="activity_log" />
+        <field name="date_scheduled_end" table="activity_log"/>
+        <field name="date_completed" table="activity_log"/>
+        <field name="description" table="activity_log" />
+        <field name="wbs_id" table="activity_log"/>
+        <field name="activity_log_id" table="activity_log" />
+        <restriction type="sql" sql="activity_log.work_pkg_id IS NOT NULL AND activity_log.status like 'COMPLETED%'"/>
+        <parameter name="project_work_pkg_restriction" dataType="verbatim" value="1=1"/>
+        <restriction type="sql" sql="${parameters['project_work_pkg_restriction']}" />
+    </dataSource>
+    
+    <panel type="grid" id="projMngRptSchedVarActDrilldownGrid" dataSource="projMngRptSchedVarActDrilldownDs1" showOnLoad="false" hidden="true">
+        <title>Completed Action Items</title>
+        <action type="menu" id="projMngRptSchedVarActDrilldownGrid_toolsMenu" imageName="/schema/ab-core/graphics/icons/view/export.png">
+            <tooltip>Tools</tooltip>
+            <action id="exportDOCX">
+                <title>Export to DOCX</title>
+                <command type="exportPanel" outputType="docx" orientation="landscape" panelId="projMngRptSchedVarActDrilldownGrid"/>
+            </action>
+            <action id="exportXLS">
+                <title>Export to XLS</title>
+                <command type="exportPanel" outputType="xls" panelId="projMngRptSchedVarActDrilldownGrid"/>
+            </action>
+        </action>
+        <sortField name="wbs_id" table="activity_log" ascending="true"/>
+        <field name="wbs_id" table="activity_log" controlType="link">
+        		<title>WBS Code</title>
+        		<tooltip>Details</tooltip>
+            <command type="openDialog" panelId="projMngRptSchedVarActDrilldownDetails"/>
+        </field>
+        <field name="action_title" table="activity_log" />
+        <field name="duration" table="activity_log"/>
+        <field name="duration_est_baseline" table="activity_log"/>
+        <field name="duration_act" table="activity_log"/>
+        <field name="design_to_baseline" dataType="number" decimals="0">
+            <title>Design to Baseline</title>
+        </field>
+        <field name="design_to_actual" dataType="number" decimals="0">
+            <title>Design to Actual</title>
+        </field>
+        <field name="status" table="activity_log"/>
+        <field name="pct_complete" table="activity_log">
+        		<title>% Percent</title>
+        </field>
+        <field name="date_required" table="activity_log" />
+        <field name="date_scheduled" table="activity_log" />
+        <field name="date_scheduled_end" table="activity_log"/>
+        <field name="date_completed" table="activity_log"/>
+        <field name="activity_type" table="activity_log"/>
+        <field name="activity_log_id" table="activity_log" >
+        		<title>Action ID</title>
+        </field>
+        <field name="project_work_pkg_id" dataType="text">
+          <title>Project - Work Package</title>
+          <sql dialect="generic">RTRIM(activity_log.project_id) ${sql.concat} ' - ' ${sql.concat} RTRIM(activity_log.work_pkg_id)</sql>
+        </field>
+    </panel>
+    
+    <panel type="columnReport" id="projMngRptSchedVarActDrilldownDetails" dataSource="projMngRptSchedVarActDrilldownDs1" columns="2" showOnLoad="false" hidden="true">
+        <title>Action Item Details</title>
+        <field name="action_title" table="activity_log" />
+        <field name="project_work_pkg_id" dataType="text">
+          <title>Project - Work Package</title>
+          <sql dialect="generic">RTRIM(activity_log.project_id) ${sql.concat} ' - ' ${sql.concat} RTRIM(activity_log.work_pkg_id)</sql>
+        </field>
+        <field name="activity_log_id" table="activity_log" />
+        <field name="wbs_id" table="activity_log"/>
+        <field name="activity_type" table="activity_log"/>
+        <field name="status" table="activity_log">
+            <title>Action Item Status</title>
+        </field>
+        <field name="duration" table="activity_log"/>
+        <field name="duration_est_baseline" table="activity_log"/>
+        <field name="duration_act" table="activity_log"/>
+        <field name="pct_complete" table="activity_log"/>
+        <field name="date_required" table="activity_log" />
+        <field name="date_scheduled" table="activity_log" />
+        <field name="date_scheduled_end" table="activity_log"/>
+        <field name="date_completed" table="activity_log"/>
+        <field name="description" table="activity_log" colspan="2"/>
+    </panel>
+</view>
+    
+ 
+ 
+ 
+ 

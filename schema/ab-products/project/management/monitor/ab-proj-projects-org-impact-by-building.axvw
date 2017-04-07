@@ -1,0 +1,165 @@
+<view version="2.0">
+    <layout file="ab-proj-console-west-details.axvw"/>
+    <title>View Organization Impact by Building</title>    
+    <js file="ab-proj-projects-org-impact.js"/> 
+
+    <panel type="view" id="projProjectsOrgImpactConsole" file="ab-proj-projects-org-impact-console.axvw" layout="mainLayout" region="north"/>
+      
+    <dataSource id="projProjectsOrgImpactDs0" type="grouping" applyVpaRestrictions="false">
+        <table name="activity_log" role="main" />
+        <field name="dv_dp_id" groupBy="true" dataType="text">
+            <title>Division - Department</title>
+            <sql dialect="generic">dv_id ${sql.concat} '-' ${sql.concat} dp_id</sql>
+        </field>
+        <field name="count_activity_log_ids" dataType="number" decimals="0" formula="count" baseField="activity_log.activity_log_id">
+            <title>Action Items</title>
+        </field> 
+        <sortField name="dv_dp_id" table="activity_log" ascending="true"/>
+        <parameter name="date_start" value="0001-01-01" dataType="text"/>
+        <parameter name="date_end" value="9999-12-31" dataType="text"/>
+        <parameter name="bl_id" value="%%" dataType="text"/>
+        <parameter name="dv_id" value="%%" dataType="text"/>
+        <parameter name="dp_id" value="%%" dataType="text"/>
+        <parameter name="consoleRestriction" value="1=1" dataType="verbatim"/>
+        <sql dialect="generic">
+        SELECT rm.dv_id AS dv_id, rm.dp_id AS dp_id, activity_log.activity_log_id 
+        FROM activity_log 
+        LEFT OUTER JOIN rm 
+        ON (activity_log.bl_id = rm.bl_id AND activity_log.fl_id = rm.fl_id AND activity_log.rm_id = rm.rm_id)
+        LEFT OUTER JOIN project
+        ON activity_log.project_id = project.project_id
+        WHERE rm.dv_id IS NOT NULL AND rm.dp_id IS NOT NULL
+        AND rm.dv_id LIKE ${parameters['dv_id']} AND rm.dp_id LIKE ${parameters['dp_id']} AND rm.bl_id LIKE ${parameters['bl_id']}
+        AND ((${sql.yearMonthDayOf('activity_log.date_scheduled')} &gt;= ${parameters['date_start']} AND ${sql.yearMonthDayOf('activity_log.date_scheduled')} &lt;= ${parameters['date_end']})
+        OR (${sql.yearMonthDayOf('activity_log.date_scheduled_end')} &gt;= ${parameters['date_start']} AND ${sql.yearMonthDayOf('activity_log.date_scheduled_end')} &lt;= ${parameters['date_end']})
+        OR (${sql.yearMonthDayOf('activity_log.date_scheduled')} &lt;= ${parameters['date_start']} AND ${sql.yearMonthDayOf('activity_log.date_scheduled_end')} &gt;= ${parameters['date_end']})
+        OR (activity_log.date_scheduled IS NULL AND activity_log.date_scheduled_end IS NULL AND ${parameters['date_start']}='0001-01-01' AND ${parameters['date_end']}='9999-12-31')
+        )
+        AND ${parameters['consoleRestriction']}
+        AND project.is_template = 0
+        AND ${sql.vpaRestriction}
+        </sql>
+        <sql dialect="oracle">
+        SELECT rm.dv_id dv_id, rm.dp_id dp_id, activity_log.activity_log_id 
+        FROM activity_log, rm, project 
+        WHERE (activity_log.bl_id = rm.bl_id AND activity_log.fl_id = rm.fl_id AND activity_log.rm_id = rm.rm_id)
+        AND activity_log.project_id = project.project_id
+        AND rm.dv_id IS NOT NULL AND rm.dp_id IS NOT NULL
+        AND rm.dv_id LIKE ${parameters['dv_id']} AND rm.dp_id LIKE ${parameters['dp_id']} AND rm.bl_id LIKE ${parameters['bl_id']}
+        AND ((${sql.yearMonthDayOf('activity_log.date_scheduled')} &gt;= ${parameters['date_start']} AND ${sql.yearMonthDayOf('activity_log.date_scheduled')} &lt;= ${parameters['date_end']})
+        OR (${sql.yearMonthDayOf('activity_log.date_scheduled_end')} &gt;= ${parameters['date_start']} AND ${sql.yearMonthDayOf('activity_log.date_scheduled_end')} &lt;= ${parameters['date_end']})
+        OR (${sql.yearMonthDayOf('activity_log.date_scheduled')} &lt;= ${parameters['date_start']} AND ${sql.yearMonthDayOf('activity_log.date_scheduled_end')} &gt;= ${parameters['date_end']})
+        OR (activity_log.date_scheduled IS NULL AND activity_log.date_scheduled_end IS NULL AND ${parameters['date_start']}='0001-01-01' AND ${parameters['date_end']}='9999-12-31')
+        )
+        AND ${parameters['consoleRestriction']}
+        AND project.is_template = 0
+        AND ${sql.vpaRestriction}
+        </sql>
+    </dataSource>
+
+    <panel type="crossTable" id="projProjectsOrgImpactCrossTable" dataSource="projProjectsOrgImpactDs0" layout="nestedLayout_1" region="west">
+        <title>Departments</title> 
+        <action id="exportXLS">
+            <title>XLS</title>
+            <command type="exportPanel" outputType="xls" panelId="projProjectsOrgImpactCrossTable"/>
+        </action>
+        <event type="onClickItem">
+            <command type="showPanel" panelId="projProjectsOrgImpactGrid"/>  
+        </event>                   
+    </panel>
+    
+    <dataSource id="projProjectsOrgImpactDs1" applyVpaRestrictions="false">
+        <table name="activity_log" role="main"/>
+        <table name="project" role="standard"/>
+        <field name="dv_dp_id" dataType="text">
+            <title>Division - Department</title>
+        </field>
+        <field name="action_title" table="activity_log"/>
+        <field name="activity_log_id" table="activity_log"/>
+        <field name="project_id" table="activity_log"/>
+        <field name="project_name" table="project"/>
+        <field name="work_pkg_id" table="activity_log"/>
+        <field name="bl_id" table="activity_log"/>
+        <field name="date_scheduled" table="activity_log"/>
+        <field name="date_scheduled_end" table="activity_log"/>
+        <field name="status" table="activity_log"/>
+        <parameter name="date_start" value="0001-01-01" dataType="text"/>
+        <parameter name="date_end" value="9999-12-31" dataType="text"/>
+        <parameter name="bl_id" value="%%" dataType="text"/>
+        <parameter name="dv_id" value="%%" dataType="text"/>
+        <parameter name="dp_id" value="%%" dataType="text"/>
+        <parameter name="consoleRestriction" value="1=1" dataType="verbatim"/>
+        <sql dialect="generic">
+
+        SELECT rm.dv_id ${sql.concat} '-' ${sql.concat} rm.dp_id AS dv_dp_id, activity_log.project_id, project.project_name, activity_log.work_pkg_id,
+            activity_log.activity_log_id, activity_log.action_title, 
+            activity_log.activity_type, activity_log.date_scheduled, activity_log.date_scheduled_end, activity_log.status, 
+            activity_log.rm_id, activity_log.fl_id, activity_log.bl_id
+        FROM activity_log LEFT OUTER JOIN rm ON rm.bl_id = activity_log.bl_id AND rm.fl_id = activity_log.fl_id AND rm.rm_id = activity_log.rm_id
+        LEFT OUTER JOIN project ON activity_log.project_id = project.project_id
+        WHERE rm.dv_id IS NOT NULL AND rm.dp_id IS NOT NULL
+        AND rm.dv_id LIKE ${parameters['dv_id']} AND rm.dp_id LIKE ${parameters['dp_id']} AND rm.bl_id LIKE ${parameters['bl_id']}
+        AND ((${sql.yearMonthDayOf('activity_log.date_scheduled')} &gt;= ${parameters['date_start']} AND ${sql.yearMonthDayOf('activity_log.date_scheduled')} &lt;= ${parameters['date_end']})
+        OR (${sql.yearMonthDayOf('activity_log.date_scheduled_end')} &gt;= ${parameters['date_start']} AND ${sql.yearMonthDayOf('activity_log.date_scheduled_end')} &lt;= ${parameters['date_end']})
+        OR (${sql.yearMonthDayOf('activity_log.date_scheduled')} &lt;= ${parameters['date_start']} AND ${sql.yearMonthDayOf('activity_log.date_scheduled_end')} &gt;= ${parameters['date_end']})
+        OR (activity_log.date_scheduled IS NULL AND activity_log.date_scheduled_end IS NULL AND ${parameters['date_start']}='0001-01-01' AND ${parameters['date_end']}='9999-12-31')
+        )
+        AND ${parameters['consoleRestriction']}
+        AND project.is_template = 0
+        AND ${sql.vpaRestriction}
+                        </sql>
+                        <sql dialect="oracle">
+
+        SELECT rm.dv_id ${sql.concat} '-' ${sql.concat} rm.dp_id dv_dp_id, activity_log.project_id, project.project_name, activity_log.work_pkg_id,
+            activity_log.activity_log_id, activity_log.action_title, 
+            activity_log.activity_type, activity_log.date_scheduled, activity_log.date_scheduled_end, activity_log.status, 
+            activity_log.rm_id, activity_log.fl_id, activity_log.bl_id
+        FROM activity_log, rm, project 
+        WHERE rm.bl_id = activity_log.bl_id AND rm.fl_id = activity_log.fl_id AND rm.rm_id = activity_log.rm_id
+        AND activity_log.project_id = project.project_id
+        AND rm.dv_id IS NOT NULL AND rm.dp_id IS NOT NULL
+        AND rm.dv_id LIKE ${parameters['dv_id']} AND rm.dp_id LIKE ${parameters['dp_id']} AND rm.bl_id LIKE ${parameters['bl_id']}
+        AND ((${sql.yearMonthDayOf('activity_log.date_scheduled')} &gt;= ${parameters['date_start']} AND ${sql.yearMonthDayOf('activity_log.date_scheduled')} &lt;= ${parameters['date_end']})
+        OR (${sql.yearMonthDayOf('activity_log.date_scheduled_end')} &gt;= ${parameters['date_start']} AND ${sql.yearMonthDayOf('activity_log.date_scheduled_end')} &lt;= ${parameters['date_end']})
+        OR (${sql.yearMonthDayOf('activity_log.date_scheduled')} &lt;= ${parameters['date_start']} AND ${sql.yearMonthDayOf('activity_log.date_scheduled_end')} &gt;= ${parameters['date_end']})
+        OR (activity_log.date_scheduled IS NULL AND activity_log.date_scheduled_end IS NULL AND ${parameters['date_start']}='0001-01-01' AND ${parameters['date_end']}='9999-12-31')
+        )
+        AND ${parameters['consoleRestriction']}
+        AND project.is_template = 0
+		AND ${sql.vpaRestriction}
+                        </sql>
+    </dataSource>
+    
+    <panel type="grid" id="projProjectsOrgImpactGrid" dataSource="projProjectsOrgImpactDs1" showOnLoad="true" layout="nestedLayout_1" region="center">
+        <title>Action Items by Department</title>
+        <action id="exportDOCX">
+            <title>DOC</title>
+            <command type="exportPanel" outputType="docx" panelId="projProjectsOrgImpactGrid"/>
+        </action>
+        <action id="exportXLS">
+            <title>XLS</title>
+            <command type="exportPanel" outputType="xls" panelId="projProjectsOrgImpactGrid"/>
+        </action>
+        <sortField name="dv_dp_id" ascending="true"/>
+        <sortField name="action_title" table="activity_log" ascending="true"/> 
+        <field name="action_title" table="activity_log"/>
+        <field name="activity_log_id" table="activity_log"/>
+        <field name="date_scheduled" table="activity_log"/>
+        <field name="date_scheduled_end" table="activity_log"/>
+        <field name="status" table="activity_log">
+            <title>Action Item Status</title>
+        </field>
+        <field name="bl_id" table="activity_log"/>
+        <field name="dv_dp_id" dataType="text">
+            <title>Division - Department</title>
+        </field>        
+        <field name="project_id" table="activity_log"/>     
+        <field name="project_name" table="project"/>
+        <field name="work_pkg_id" table="activity_log"/>
+    </panel> 
+</view>
+    
+ 
+ 
+ 
+ 

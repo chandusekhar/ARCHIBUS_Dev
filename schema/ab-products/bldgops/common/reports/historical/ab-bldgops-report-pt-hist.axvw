@@ -1,0 +1,180 @@
+
+<view version="2.0">
+    <title translatable="true">Parts Usage History</title>
+    
+    <layout type="borderLayout" id="mainLayout">
+        <north autoScroll="true" split="true" initialSize="160"/>
+        <center autoScroll="true"/>
+    </layout>
+    
+	<js file="ab-bldgops-report-common.js"/>
+    <js file="ab-bldgops-report-pt-hist.js"/>
+    
+    <dataSource id="abBldgopsReportPtHistConsoleDS">
+        <table name="wrpt" role="main"/>
+        <table name="wr" role="standard"/>
+		<table name="pt" role="standard"/>
+        
+        <field table="pt" name="part_id"/>
+        <field table="wr" name="site_id"/>
+        <field table="wr" name="bl_id"/>
+        <field table="wr" name="fl_id"/>
+        <field table="wr" name="dv_id"/>
+        <field table="wr" name="dp_id"/>
+        <field table="wr" name="prob_type"/>
+        <field table="wrpt" name="date_assigned"/>
+    </dataSource>
+    
+    <panel type="console" columns="3" id="abBldgopsReportPtHistConsole" dataSource="abBldgopsReportPtHistConsoleDS" layout="mainLayout" region="north">
+        <title translatable="true">Filter</title>
+        
+        <action id="show">
+            <title translatable="true">Show</title>
+        </action>
+        <action id="clear">
+            <title translatable="true">Clear</title>
+        </action>
+        
+        <field table="wr" name="site_id" selectValueType="multiple"/>
+        <field table="wr" name="bl_id" selectValueType="multiple"/>
+        <field table="wr" name="fl_id" selectValueType="multiple"/>
+        <field table="wr" name="dv_id" selectValueType="multiple"/>
+        <field table="wr" name="dp_id" selectValueType="multiple"/>
+        <field table="pt" name="part_id" selectValueType="multiple"/>
+        <field table="wr" name="prob_type"/>
+        <field table="wrpt" name="date_assigned" alias="wrpt.date_assigned.from">
+            <title translatable="true">Date Part Assigned From</title>
+        </field>
+        <field table="wrpt" name="date_assigned" alias="wrpt.date_assigned.to">
+            <title translatable="true">Date Part Assigned To</title>
+        </field>
+        <field id="work_type">
+            <title translatable="true">Work Type</title>
+            <html>
+                <select name="work_type" id="work_type" class="inputField_box">
+                    <option value="">
+                        <span translatable="true">Both</span>
+                    </option>
+                    <option value="OD">
+                        <span translatable="true">On Demand</span>
+                    </option>
+                    <option value="PM">
+                        <span translatable="true">PM</span>
+                    </option>
+                </select>
+            </html>
+        </field>
+        <field id="groupBy">
+            <title translatable="true">Group By</title>
+            <html>
+                <select name="groupBy" id="groupBy" class="inputField_box">
+                    <option value="1">
+                        <span translatable="true">Month</span>
+                    </option>
+                    <option value="2">
+                        <span translatable="true">Day</span>
+                    </option>
+                    <option value="3">
+                        <span translatable="true">Problem Type</span>
+                    </option>
+                    <option value="4">
+                        <span translatable="true">Site Code</span>
+                    </option>
+                </select>
+            </html>
+        </field>
+        <field/>
+    </panel>
+    
+    <dataSource type="grouping" id="abBldgopsReportPtHistChartGroupDS">
+        <table name="hwrpt" role="main"/>
+        <table name="hwr" role="standard"/>
+        
+        <field name="groupfield" groupBy="true" dataType="text">
+            <sql dialect="generic">${parameters['groupfield']}</sql>
+        </field>
+        <field name="wr_counts" dataType="number" formula="count" baseField="hwr.wr_id"/>
+        
+        <parameter name="groupfield" dataType="verbatim" value=""/>
+        <parameter name="consoleRes" dataType="verbatim" value=""/>
+        
+        <restriction type="sql" sql="hwr.status NOT IN ('Rej','Can')  ${parameters['consoleRes']}"></restriction>
+    </dataSource>
+    
+    <dataSource type="grouping" id="abBldgopsReportPtHistChartSecondGroupDS">
+        <table name="hwrpt" role="main"/>
+        <table name="hwr" role="standard"/>
+        
+        <field table="hwrpt" name="part_id" groupBy="true"/>
+        <field name="groupfield" groupBy="true" dataType="text">
+            <sql dialect="generic">${parameters['groupfield']}</sql>
+        </field>
+        <field name="qty_actual" dataType="number" formula="sum" baseField="hwrpt.qty_actual"/>
+        <field name="wr_counts" dataType="number" formula="count" baseField="hwr.wr_id"/>
+        
+        <sortField table="hwrpt" name="part_id"/>
+        
+        <parameter name="groupfield" dataType="verbatim" value=""/>
+        <parameter name="consoleRes" dataType="verbatim" value=""/>
+        <parameter name="summaryValueForThisGroup" dataType="text" value=""/>
+        <restriction type="sql" sql="hwr.status NOT IN ('Rej','Can')  ${parameters['consoleRes']} AND ${parameters['groupfield']} = ${parameters['summaryValueForThisGroup']}"></restriction>
+    </dataSource>
+    
+    <panel type="chart" controlType="stackedBarChart" id="abBldgopsReportPtHistChart"
+     showDataTips="true"
+     showLegendOnLoad="true"
+     showLegendAsPopUp="false"
+     legendLocation="right"
+     backgroundColor="0xffffff"
+     fillType="solid"
+     dataSource="abBldgopsReportPtHistChartGroupDS"
+     layout="mainLayout"
+     region="center"
+     showOnLoad="false">
+        <title translatable="true">Parts Usage History</title>
+        
+        <action id="exportDOCX">
+            <title translatable="true">DOC</title>
+            <command type="exportPanel" outputType="docx" panelId="abBldgopsReportPtHistChart"/>
+        </action>
+        
+        <event type="onClickItem">
+            <command type="callFunction" functionName="showDetails"/>
+        </event>
+        
+        <groupingAxis dataSource="abBldgopsReportPtHistChartGroupDS" table="hwrpt" field="groupfield">
+            <title translatable="true"></title>
+        </groupingAxis>
+        
+        <secondaryGroupingAxis dataSource="abBldgopsReportPtHistChartSecondGroupDS" table="hwrpt" field="part_id"></secondaryGroupingAxis>
+        
+        <dataAxis dataSource="abBldgopsReportPtHistChartSecondGroupDS" table="hwrpt" field="qty_actual" labelPosition="inside"></dataAxis>
+    </panel>
+    
+    <dataSource id="abBldgopsReportPtHistGridDS">
+        <table name="hwrpt" role="main"/>
+        <table name="hwr" role="standard"/>
+        
+        <field table="hwrpt" name="part_id"/>
+        <field table="hwrpt" name="date_assigned"/>
+        <field table="hwrpt" name="qty_actual" showTotals="true"/>
+        <field table="hwrpt" name="debited"/>
+        <field table="hwrpt" name="status"/>
+        <field table="hwrpt" name="cost_actual"/>
+        <field table="hwrpt" name="qty_estimated"/>
+        <field table="hwrpt" name="wr_id"/>
+        <field table="hwr" name="bl_id" hidden="true"/>
+        <field name="groupfield" hidden="true" dataType="text">
+            <sql dialect="generic">${parameters['groupfield']}</sql>
+        </field>
+        
+        <parameter name="groupfield" dataType="verbatim" value=""/>
+        <parameter name="consoleRes" dataType="verbatim" value=""/>
+        
+        <restriction type="sql" sql="hwr.status NOT IN ('Rej','Can') ${parameters['consoleRes']}"></restriction>
+    </dataSource>
+    
+    <panel type="grid" id="abBldgopsReportPtHistGrid" showCounts="true" showOnLoad="false" hidden="true" dataSource="abBldgopsReportPtHistGridDS">
+        <indexField name="wr_id" table="hwrpt"/>
+    </panel>
+</view>

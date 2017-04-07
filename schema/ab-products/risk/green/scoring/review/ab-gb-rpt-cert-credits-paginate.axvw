@@ -1,0 +1,133 @@
+<view version="2.0">
+    <title translatable="true">Certification Credits</title>
+    
+    <report documentTemplate="" showBarCodes="true"/>
+    
+    <dataSource id="abGbRptCertCreditsStdDS" distinct="true">
+        <table name="gb_cert_std" role="main"/>
+        <field table="gb_cert_std" name="cert_std"/>
+        <field table="gb_cert_std" name="description"/>
+        <field table="gb_cert_std" name="std_type"/>
+        <parameter name="certPram" dataType="verbatim" value="1=1"/>
+        
+        <restriction type="sql" sql=" EXISTS(SELECT 1 FROM gb_cert_cat WHERE gb_cert_cat.cert_std= gb_cert_std.cert_std and 
+                                            EXISTS(SELECT 1 FROM gb_cert_credits WHERE gb_cert_credits.cert_std=gb_cert_cat.cert_std 
+                                            AND gb_cert_credits.cert_cat=gb_cert_cat.cert_cat 
+                                            and  ${parameters['certPram']} 
+                                            )
+                                            )"/>
+        
+    </dataSource>
+    <panel id="abGbRptCertCreditsStdGrid" type="paginatedReport" format="column" columns="2" role="parent" dataSource="abGbRptCertCreditsStdDS">
+        <title translatable="true">Certification Standard</title>
+        <field table="gb_cert_std" name="cert_std"  restrictionParameterName="certStd1"/>
+        <field table="gb_cert_std" name="description"/>
+        <field table="gb_cert_std" name="std_type"/>
+    </panel>
+    
+    <dataSource id="abGbRptCertCreditsCatDS">
+        <table name="gb_cert_cat" role="main"/>
+        <field table="gb_cert_cat" name="cat_name"/>
+        <field table="gb_cert_cat" name="cert_std"/>
+        <field table="gb_cert_cat" name="cert_cat"/>
+        <sortField table="gb_cert_cat" name="cat_order" ascending="true"/>
+        <parameter name="certStd1" dataType="verbatim" value=""/>
+        <parameter name="certPram" dataType="verbatim" value="1=1"/>
+        <restriction type="parsed">
+            <clause relop="AND" op="=" table="gb_cert_cat" name="cert_std" value="${parameters['certStd1']}"/>
+        </restriction>
+        <restriction type="sql" sql=" EXISTS(SELECT 1 FROM gb_cert_credits WHERE gb_cert_credits.cert_std=gb_cert_cat.cert_std 
+                                            AND gb_cert_credits.cert_cat=gb_cert_cat.cert_cat 
+                                            and  ${parameters['certPram']} 
+                                            )
+                                            "/>
+    </dataSource>
+    
+    <panel id="abGbRptCertCreditsCatGrid" type="paginatedReport" format="column" columns="2" role="parent" dataSource="abGbRptCertCreditsCatDS">
+        <title translatable="true">Category</title>
+        <field table="gb_cert_cat" name="cat_name"/>
+        <field table="gb_cert_cat" name="cert_std" hidden="true" restrictionParameterName="certStd2"/>
+        <field table="gb_cert_cat" name="cert_cat" hidden="true" restrictionParameterName="certCat2"/>
+    </panel>
+    
+    <dataSource id="ds_abGbCertCreditRpt" distinct="true">
+        <table name="gb_cert_credits" role="main"/>
+        <sql dialect="generic">
+        SELECT DISTINCT * FROM(
+            SELECT  
+			    gb_cert_credits.credit_type ${sql.as} credit_type, 
+                gb_cert_credits.cert_std ${sql.as} cert_std, 
+                gb_cert_credits.cert_cat ${sql.as} cert_cat,
+                gb_cert_credits.max_points ${sql.as} max_points,
+                gb_cert_credits.min_points ${sql.as} min_points,
+                (
+                case when RTRIM(gb_cert_credits.credit_type)='C' then ${parameters['credit']} ${sql.concat}' ' ${sql.concat}RTRIM(gb_cert_credits.credit_num) ${sql.concat} '.'${sql.concat}RTRIM(gb_cert_credits.subcredit_num)
+				else ${parameters['prerequisite']} ${sql.concat}' ' ${sql.concat}RTRIM(gb_cert_credits.credit_num) ${sql.concat} '.'${sql.concat}RTRIM(gb_cert_credits.subcredit_num) end
+                )${sql.as} creditType,
+                (RTRIM(gb_cert_credits.credit_name) ${sql.concat}','${sql.concat}RTRIM(gb_cert_credits.subcredit_name)) ${sql.as} credit,
+				gb_cert_cat.cat_order ${sql.as} cat_order,
+				RIGHT('0000' + RTRIM(credit_num),4) ${sql.as} credit_num_for_sort,
+				RIGHT('0000' + RTRIM(subcredit_num),4)  ${sql.as} subcredit_num_for_sort
+            FROM gb_cert_credits left outer join gb_cert_cat  on gb_cert_cat.cert_cat=gb_cert_credits.cert_cat  WHERE  ${parameters['certPram']}
+        ) ${sql.as} gc
+        </sql>
+        <sql dialect="oracle">
+        SELECT DISTINCT * FROM(
+             SELECT  
+			    gb_cert_credits.credit_type ${sql.as} credit_type, 
+	            gb_cert_credits.cert_std ${sql.as} cert_std, 
+                gb_cert_credits.cert_cat ${sql.as} cert_cat,
+                gb_cert_credits.max_points ${sql.as} max_points,
+                gb_cert_credits.min_points ${sql.as} min_points,
+                (
+                case when RTRIM(gb_cert_credits.credit_type)='C' then ${parameters['credit']} ${sql.concat}' ' ${sql.concat}RTRIM(gb_cert_credits.credit_num) ${sql.concat} '.'${sql.concat}RTRIM(gb_cert_credits.subcredit_num)
+				else ${parameters['prerequisite']} ${sql.concat}' ' ${sql.concat}RTRIM(gb_cert_credits.credit_num) ${sql.concat} '.'${sql.concat}RTRIM(gb_cert_credits.subcredit_num) end
+                )${sql.as} creditType,
+                (RTRIM(gb_cert_credits.credit_name) ${sql.concat}','${sql.concat}RTRIM(gb_cert_credits.subcredit_name)) ${sql.as} credit,
+				gb_cert_cat.cat_order ${sql.as} cat_order,
+				lpad(credit_num, 4,'0') ${sql.as} credit_num_for_sort,
+				lpad(subcredit_num, 4,'0')  ${sql.as} subcredit_num_for_sort
+            FROM gb_cert_credits left outer  join gb_cert_cat  on gb_cert_cat.cert_cat=gb_cert_credits.cert_cat  WHERE  ${parameters['certPram']}
+        ) ${sql.as} gc
+        </sql> 
+        <table name="gb_cert_credits" role="main"/>
+        <field  name="cert_std" dataType="text" />
+        <field  name="cert_cat" dataType="text"/>
+        <field  name="max_points" dataType="integer"/>
+        <field  name="min_points" dataType="integer"/>
+        <field  name="creditType" dataType="text">
+        </field>
+        <field name="credit" dataType="text">
+        </field>
+		<sortField name="cat_order" ascending="true"/>
+		<sortField name="credit_type" ascending="false"/>
+		<sortField name="credit_num_for_sort" ascending="true"/>
+		<sortField name="subcredit_num_for_sort" ascending="true"/>
+		<sortField name="credit" ascending="true"/>
+        <parameter name="certStd2" dataType="verbatim" value=""/>
+        <parameter name="certCat2" dataType="verbatim" value=""/>
+        <parameter name="credit" dataType="text" value=""/>
+        <parameter name="prerequisite" dataType="text" value=""/>
+        <parameter name="certPram" dataType="verbatim" value="1=1"/>
+        <restriction type="parsed">
+            <clause relop="AND" op="=" table="gb_cert_credits" name="cert_std" value="${parameters['certStd2']}"/>
+            <clause relop="AND" op="=" table="gb_cert_credits" name="cert_cat" value="${parameters['certCat2']}"/>
+        </restriction>
+    </dataSource>
+    
+    <panel id="abGbCertCreditRpt" type="paginatedReport" format="table" role="data" dataSource="ds_abGbCertCreditRpt">
+        <title translatable="true">Credit</title>
+        <field name="creditType">
+            <title translatable="true">Credit Type</title>
+        </field>
+        <field name="credit">
+            <title translatable="true">Credit</title>
+        </field>
+        <field  name="min_points">
+            <title translatable="true">Minimum Points</title>
+        </field>
+        <field  name="max_points">
+            <title translatable="true">Maximum Points</title>
+        </field>
+    </panel>
+</view>

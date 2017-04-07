@@ -1,0 +1,257 @@
+<view version="2.0">
+    <js file="ab-rplm-cost-mgmt-add-edit-recurring.js"/>
+    <js file="ab-rplm-cost-mc-vat-common.js"/>
+    <js file="ab-rplm-common-functions.js"/>
+
+    <style type="text/css">
+        span.formErrorText { white-space: normal; }
+    </style>
+
+    <!-- Messages -->
+    <message name="add_recur_cost" translatable="true">Add Recurring Cost Transaction</message>
+    <message name="edit_recur_cost" translatable="true">Edit Recurring Cost Transaction</message>
+    <message name="errEndGreaterThanStart" translatable="true">{0} must be after {1}</message>
+
+    <dataSource id="dsAddEditRecurringCost" applyVpaRestrictions="false">
+        <table name="cost_tran_recur" role="main"/>
+        <table name="ls" role="standard"/>
+        <field name="cost_tran_recur_id"/>
+        <field name="period"/>
+        <field name="cost_cat_id"/>
+        <field name="period_custom"/>
+        <field name="amount_expense"/>
+        <field name="date_seasonal_start"/>
+        <field name="amount_income"/>
+        <field name="date_seasonal_end"/>
+        <field name="yearly_factor"/>
+        <field name="date_trans_created"/>
+        <field name="date_start"/>
+        <field name="status_active"/>
+        <field name="date_end"/>
+        <field name="ls_id"/>
+        <field name="pr_id"/>
+        <field name="bl_id"/>
+        <field name="ac_id"/>
+        <field name="description"/>
+        <field name="ctry_id"/>
+        <field name="vat_percent_value"/>
+        <field name="amount_income_base_payment"/>
+        <field name="amount_expense_base_payment"/>
+        <field name="amount_income_vat_payment"/>
+        <field name="amount_expense_vat_payment"/>
+        <field name="amount_income_total_payment"/>
+        <field name="amount_expense_total_payment"/>
+        <field name="vat_percent_override"/>
+        <field name="exchange_rate_override"/>
+        <field name="vat_amount_override"/>
+        <field name="currency_budget"/>
+        <field name="currency_payment"/>
+        <field name="cam_cost"/>
+        <field name="parcel_id"/>
+        <field name="tax_bill_num"/>
+        <field name="tax_type"/>
+        <field name="tax_period_in_months"/>
+        <field name="tax_value_assessed"/>
+        <field name="tax_clr"/>
+        <field name="tax_authority_contact"/>
+        <field name="vat_exclude" table="ls"/>
+        <field name="date_start" table="ls"/>
+        <field name="date_end" table="ls"/>
+    </dataSource>
+
+    <!-- Edit form without MC & VAT -->
+    <panel type="form" id="recurringCostForm" columns="2" showOnLoad="false" hidden="${View.activityParameters['AbCommonResources-EnableVatAndMultiCurrency'] == 1}" dataSource="dsAddEditRecurringCost">
+        <title translatable="true">Edit Recurring Cost</title>
+        <action id="save">
+            <title translatable="true">Save</title>
+        </action>
+        <action id="cancel">
+            <title translatable="true">Cancel</title>
+            <command type="closeDialog"/>
+        </action>
+
+        <field name="cost_tran_recur_id" readOnly="true"/>
+        <field name="period" onchange="addEditRecurringCostController.enableDisableCustomPeriod('recurringCostForm')"/>
+        <field name="cost_cat_id" onchange="setCamFieldValue('cost_tran_recur.cost_cat_id', this.value);"/>
+        <field name="period_custom"/>
+        <field name="amount_expense"/>
+        <field name="date_seasonal_start"/>
+        <field name="amount_income"/>
+        <field name="date_seasonal_end"/>
+        <field name="yearly_factor"/>
+        <field name="date_trans_created" readOnly="true"/>
+        <field>
+            <html>
+                <span id="chk_cost_dates_span">
+                    <input type="checkbox" id="chk_cost_dates" onclick="setDatesMatchLease('chk_cost_dates', 'recurringCostForm')">&#32;
+                        <span class="label" translatable="true">Cost Dates Match Lease?
+                </span>
+                    </input>
+                </span>
+            </html>
+        </field>
+        <field name="status_active"/>
+        <field name="date_start" required="true" onchange="checkIfDatesMatch('chk_cost_dates', 'recurringCostForm', 'cost_tran_recur.date_start', 'cost_tran_recur.date_end')"/>
+        <field name="cam_cost"/>
+        <field name="date_end" onchange="checkIfDatesMatch('chk_cost_dates', 'recurringCostForm', 'cost_tran_recur.date_start', 'cost_tran_recur.date_end')"/>
+        <field/>
+        
+        <field name="tax_bill_num"/>
+        <field name="tax_type"/>
+        <field name="tax_period_in_months"/>
+        <field name="tax_value_assessed"/>
+        <field name="tax_clr"/>
+        <field name="tax_authority_contact">
+            <action>
+                <title translatable="false">...</title>
+                <command type="selectValue" 
+                fieldNames="cost_tran_recur.tax_authority_contact" 
+                selectFieldNames="contact.contact_id" 
+                visibleFieldNames="contact.contact_id,contact.name_first,contact.name_last,contact.contact_type,contact.tax_auth_type"
+                restriction="contact.contact_type IN ('TAX AUTHORITY','TAX COLLECTOR')"/>
+            </action>
+        </field>
+        
+        <field name="parcel_id" readOnly="true"/>
+        <field name="parcel_id_fake" dataType="text" readOnly="true"/>
+        <field name="ls_id" readOnly="true"/>
+        <field name="ls_id_fake" dataType="text" readOnly="true"/>
+        <field name="pr_id" readOnly="true"/>
+        <field name="pr_id_fake" dataType="text" readOnly="true"/>
+        <field name="bl_id" readOnly="true"/>
+        <field name="bl_id_fake" dataType="text" readOnly="true"/>
+        <field name="ac_id" readOnly="true"/>
+        <field name="ac_id_fake" dataType="text" readOnly="true"/>
+        <field name="description" colspan="2"/>
+        <field name="date_start" table="ls" hidden="true" required="false"/>
+        <field name="date_end" table="ls" hidden="true" required="false"/>
+    </panel>
+
+    <!-- Edit form with MC & VAT -->
+    <panel type="form" id="recurringCostFormVAT" columns="2" showOnLoad="false" hidden="${View.activityParameters['AbCommonResources-EnableVatAndMultiCurrency'] == 0}" dataSource="dsAddEditRecurringCost">
+        <title translatable="true">Edit Recurring Cost</title>
+        <action id="save">
+            <title translatable="true">Save</title>
+        </action>
+        <action id="cancel">
+            <title translatable="true">Cancel</title>
+            <command type="closeDialog"/>
+        </action>
+
+        <field name="cost_tran_recur_id" readOnly="true"/>
+        <field/>
+
+        <field name="ctry_id" readOnly="${!panel.newRecord}" onchange="getVATPercent('recurringCostFormVAT', 'cost_tran_recur.ctry_id', 'cost_tran_recur.cost_cat_id', 'cost_tran_recur.ls_id' , 'cost_tran_recur.vat_percent_value');
+                                            resetOverrideField('chk_vat_percent', 'recurringCostFormVAT', 'cost_tran_recur.vat_percent_override', 0);
+                                            resetOverrideField('chk_vat_amount', 'recurringCostFormVAT', 'cost_tran_recur.vat_amount_override', -1);
+                                            calculateCosts('recurringCostFormVAT', 'cost_tran_recur', 'chk_vat_amount');"/>
+
+        <field name="currency_payment" readOnly="${!panel.newRecord}"/>
+
+        <field name="cost_cat_id" onchange="getVATPercent('recurringCostFormVAT', 'cost_tran_recur.ctry_id', 'cost_tran_recur.cost_cat_id', 'cost_tran_recur.ls_id' , 'cost_tran_recur.vat_percent_value');
+                                            resetOverrideField('chk_vat_percent', 'recurringCostFormVAT', 'cost_tran_recur.vat_percent_override', 0);
+                                            resetOverrideField('chk_vat_amount', 'recurringCostFormVAT', 'cost_tran_recur.vat_amount_override', -1);
+                                            calculateCosts('recurringCostFormVAT', 'cost_tran_recur', 'chk_vat_amount');setCamFieldValue('cost_tran_recur.cost_cat_id', this.value);"/>
+        <field name="vat_percent_value"/>
+
+        <field name="amount_income_base_payment" onchange="calculateCosts('recurringCostFormVAT', 'cost_tran_recur', 'chk_vat_amount')"/>
+        <field name="amount_expense_base_payment" onchange="calculateCosts('recurringCostFormVAT', 'cost_tran_recur', 'chk_vat_amount')"/>
+
+        <field name="amount_income_vat_payment" readOnly="true"/>
+        <field name="amount_expense_vat_payment" readOnly="true"/>
+
+        <field name="amount_income_total_payment" readOnly="true"/>
+        <field name="amount_expense_total_payment" readOnly="true"/>
+
+        <field>
+            <html>
+                <input type="checkbox" name="chk_vat" id="chk_vat_percent" onclick="onSelect_Override('chk_vat_percent', 'recurringCostFormVAT', 'cost_tran_recur.vat_percent_override', 0)">&#32;
+                    <span class="label" translatable="true">Override VAT Percent?</span>
+                </input>
+            </html>
+        </field>
+        <field name="vat_percent_override" readOnly="false" onchange="onVatPercentOverride('recurringCostFormVAT', 'chk_vat_percent', 'cost_tran_recur.vat_percent_value', 'cost_tran_recur.vat_percent_override', 'cost_tran_recur.ls_id', -1);
+                                                            calculateCosts('recurringCostFormVAT', 'cost_tran_recur', 'chk_vat_amount');"/>
+
+        <field>
+            <html>
+                <input type="checkbox" name="chk_vat" id="chk_vat_amount" onclick="onSelect_Override('chk_vat_amount', 'recurringCostFormVAT', 'cost_tran_recur.vat_amount_override', -1)">&#32;
+                    <span class="label" translatable="true">Override VAT Amount?</span>
+                </input>
+            </html>
+        </field>
+        <field name="vat_amount_override" readOnly="false" onchange="calculateCosts('recurringCostFormVAT', 'cost_tran_recur', 'chk_vat_amount');"/>
+
+        <field>
+            <html>
+                <input type="checkbox" id="chk_exchange_rate" onclick="onSelect_Override('chk_exchange_rate', 'recurringCostFormVAT', 'cost_tran_recur.exchange_rate_override', 1)">&#32;
+                    <span class="label" translatable="true">Override Exchange Rate?</span>
+                </input>
+            </html>
+        </field>
+        <field name="exchange_rate_override" readOnly="false"/>
+        <field name="date_seasonal_start"/>
+        <field name="period" onchange="addEditRecurringCostController.enableDisableCustomPeriod('recurringCostFormVAT')"/>
+        <field name="date_seasonal_end"/>
+        <field name="period_custom"/>
+        <field name="yearly_factor"/>
+        <field name="date_trans_created" readOnly="true"/>
+        <field>
+            <html>
+                <span id="chk_cost_dates_span_mc">
+                    <input type="checkbox" id="chk_cost_dates_mc" onclick="setDatesMatchLease('chk_cost_dates_mc', 'recurringCostFormVAT')">&#32;
+                        <span class="label" translatable="true">Cost Dates Match Lease?</span>
+                    </input>
+                </span>
+            </html>
+        </field>
+        <field name="status_active"/>
+        <field name="date_start" required="true" onchange="checkIfDatesMatch('chk_cost_dates_mc', 'recurringCostFormVAT', 'cost_tran_recur.date_start', 'cost_tran_recur.date_end')"/>
+        <field name="cam_cost"/>
+        <field name="date_end" onchange="checkIfDatesMatch('chk_cost_dates_mc', 'recurringCostFormVAT', 'cost_tran_recur.date_start', 'cost_tran_recur.date_end')"/>
+        <field/>
+        
+        <field name="tax_bill_num"/>
+        <field name="tax_type"/>
+        <field name="tax_period_in_months"/>
+        <field name="tax_value_assessed"/>
+        <field name="tax_clr"/>
+        <field name="tax_authority_contact">
+            <action>
+                <title translatable="false">...</title>
+                <command type="selectValue" 
+                fieldNames="cost_tran_recur.tax_authority_contact" 
+                selectFieldNames="contact.contact_id" 
+                visibleFieldNames="contact.contact_id,contact.name_first,contact.name_last,contact.contact_type,contact.tax_auth_type"
+                restriction="contact.contact_type IN ('TAX AUTHORITY','TAX COLLECTOR')"/>
+            </action>
+        </field>
+        
+        <field name="parcel_id" readOnly="true"/>
+        <field name="parcel_id_fake" dataType="text" readOnly="true"/>
+        <field name="ls_id" readOnly="true"/>
+        <field name="ls_id_fake" dataType="text" readOnly="true"/>
+        <field name="pr_id" readOnly="true"/>
+        <field name="pr_id_fake" dataType="text" readOnly="true"/>
+        <field name="bl_id" readOnly="true"/>
+        <field name="bl_id_fake" dataType="text" readOnly="true"/>
+        <field name="ac_id" readOnly="true"/>
+        <field name="ac_id_fake" dataType="text" readOnly="true"/>
+        <field name="vat_exclude" table="ls" readOnly="true" required="false"/>
+        <field/>
+        <field name="description" colspan="2"/>
+
+        <field name="currency_budget" hidden="true" value="${project.budgetCurrency.code}"/>
+        <field name="amount_income" hidden="true"/>
+        <field name="amount_expense" hidden="true"/>
+        <field name="date_start" table="ls" hidden="true" required="false"/>
+        <field name="date_end" table="ls" hidden="true" required="false"/>
+    </panel>
+
+    <dataSource id="dsAddEditRecurringCost_ls" applyVpaRestrictions="false">
+        <table name="ls"/>
+        <field name="ls_id"/>
+        <field name="date_start"/>
+        <field name="date_end"/>
+    </dataSource>
+</view>

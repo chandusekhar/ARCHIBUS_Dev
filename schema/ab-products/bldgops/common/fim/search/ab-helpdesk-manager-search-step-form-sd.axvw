@@ -1,0 +1,148 @@
+<view version="2.0">
+	<js file="ab-helpdesk-manager-search-step-form-sd.js"/>
+	<js file="ab-helpdesk-manager-search-common.js"/>
+	<js file="ab-helpdesk-common-v2.js"/>
+	
+	<message name="supervisorOrWorkteam" translatable="true">Select a supervisor OR a work team</message>
+	<message name="forwardToMissing" translatable="true">Forward To is required</message>
+	
+	<dataSource id="stepFormDS">
+		<table name="activity_log_step_waiting" role="main"/>
+		<table name="activity_log" role="standard"/>
+		
+		<field table="activity_log" name="activity_log_id"/>
+		<field table="activity_log_step_waiting" name="activity_log_id"/>
+		<field table="activity_log" name="status"/>
+		<field table="activity_log" name="activity_type"/>
+	
+	<!-- approval fields -->	
+		<field table="activity_log" name="approved_by"/>
+		<field table="activity_log" name="ac_id"/>
+		<field table="activity_log" name="po_id"/>
+		<field table="activity_log" name="cost_estimated"/>
+		<field table="activity_log" name="cost_to_replace"/>
+		<field table="activity_log" name="cost_cat_id"/>
+		
+	<!-- dispatch fields -->
+		<field table="activity_log" name="supervisor"/>
+		<field table="activity_log" name="work_team_id"/>
+		
+	<!-- survey fields -->
+		<field name="satisfaction" table="activity_log"/>
+		<field name="satisfaction_notes" table="activity_log"/>
+		
+		<field table="activity_log_step_waiting" name="step_log_id"/>
+		<field table="activity_log_step_waiting" name="step"/>
+		<field table="activity_log_step_waiting" name="step_type"/>
+		<field table="activity_log_step_waiting" name="em_id"/>
+		<field table="activity_log_step_waiting" name="vn_id"/>
+		<field table="activity_log_step_waiting" name="cf_id"/>		
+		<field table="activity_log_step_waiting" name="user_name"/>
+		<field table="activity_log_step_waiting" name="comments"/>
+	</dataSource>	  
+	
+	<panel type="form" width="100%" columns="2" id="stepForm" dataSource="stepFormDS">
+		<title translatable="true">Service Request Step</title>
+		<action id="accept" hidden="${record['activity_log_step_waiting.step_type'] != 'acceptance'}">
+			<title translatable="true">Accept</title>
+		</action>
+		<action id="decline" hidden="${record['activity_log_step_waiting.step_type'] != 'acceptance'}">
+			<title translatable="true">Decline</title>
+		</action>
+		<action id="approve" hidden="${record['activity_log_step_waiting.step_type'] != 'approval'}">
+			<title translatable="true">Approve</title>
+		</action>		
+	     <action id="dispatch" hidden="${record['activity_log_step_waiting.step_type'] !='dispatch'}">
+	     	<title translatable="true">Dispatch</title>
+	     </action>	    
+		<action id="confirm" hidden="${record['activity_log_step_waiting.step_type'] !='verification' &amp;&amp; record['activity_log_step_waiting.step_type'] !='survey'}">
+	     	<title translatable="true">Confirm</title>
+	     </action>
+	     <action id="return" hidden="${record['activity_log_step_waiting.step_type'] != 'verification'}">
+			<title translatable="true">Return Incomplete</title>
+		</action>
+		<action id="reject" hidden="${record['activity_log_step_waiting.step_type'] != 'approval' &amp;&amp; record['activity_log_step_waiting.step_type'] != 'dispatch'}">
+			<title translatable="true">Reject</title>
+		</action>
+		<action id="forward" hidden="${record['activity_log_step_waiting.step_type'] != 'approval' &amp;&amp; record['activity_log_step_waiting.step_type'] != 'review'}">
+			<title translatable="true">Forward</title>
+		</action>
+		
+		<field table="activity_log" name="activity_log_id" readOnly="true">
+ 			<title translatable="true">Service Request ID</title>
+ 		</field>
+ 		<field table="activity_log" name="status" readOnly="true"/>
+ 		
+		<field table="activity_log" name="ac_id" readOnly="false" hidden="${record['activity_log_step_waiting.step_type'] != 'approval'}"/>
+		<field/>
+		<field table="activity_log" name="po_id" readOnly="false" hidden="${record['activity_log_step_waiting.step_type'] != 'approval'}"/>
+		<field/>
+		<field table="activity_log" name="cost_estimated" readOnly="false" hidden="${record['activity_log_step_waiting.step_type'] != 'approval'}"/>
+		<field/>
+		<field table="activity_log" name="cost_to_replace" readOnly="false" hidden="${record['activity_log_step_waiting.step_type'] != 'approval'}"/>
+		<field/>
+		<field table="activity_log" name="cost_cat_id" readOnly="false" hidden="${record['activity_log_step_waiting.step_type'] != 'approval'}"/>
+		<field/>
+		<field table="activity_log" name="approved_by" required="false" readOnly="false" hidden="${record['activity_log_step_waiting.step_type'] != 'approval' &amp;&amp; record['activity_log_step_waiting.step_type'] != 'review'}">
+			<title translatable="true">Forward to</title>
+			<action>
+				<title>...</title>
+				<command type="selectValue" fieldNames="activity_log.approved_by" selectFieldNames="em.em_id"
+					visibleFieldNames="em.em_id,em.em_std,em.email"
+					restriction="(EXISTS (SELECT 1 FROM afm_userprocs,afm_users WHERE afm_userprocs.activity_id ${sql.concat} afm_userprocs.process_id IN (select afm_ptasks.activity_id ${sql.concat} afm_ptasks.process_id from afm_ptasks where task_id = 'Approve Service Requests') AND afm_users.email = em.email AND afm_users.user_name = afm_userprocs.user_name)) 
+                    OR (EXISTS (SELECT 1 FROM afm_roleprocs LEFT OUTER JOIN afm_users ON (afm_roleprocs.role_name = afm_users.role_name) WHERE afm_users.email = em.email AND activity_id ${sql.concat} process_id IN (select afm_ptasks.activity_id ${sql.concat} afm_ptasks.process_id from afm_ptasks where task_id = 'Approve Service Requests')))"
+					>
+                    <title>Forward To</title>
+				</command>
+			</action>
+		</field>
+		<field/>
+		
+		<field table="activity_log" name="supervisor" readOnly="false" onchange="onChangeSupervisor()" hidden="${record['activity_log_step_waiting.step_type'] != 'dispatch'}">
+        	<action>
+       			<title>...</title>
+        		<command type="selectValue" fieldNames="activity_log.supervisor" selectFieldNames="em.em_id" 
+        			visibleFieldNames="em.em_id,em.em_std,em.email" restriction="EXISTS (select cf_id from cf where cf.email = em.email AND cf.is_supervisor = 1)"
+        			actionListener="onChangeSupervisor">
+        			<title>Supervisor</title>
+        		</command>
+      		</action>
+        </field>
+		<field table="activity_log" name="work_team_id" onchange="onChangeWorkTeamId()" readOnly="false" hidden="${record['activity_log_step_waiting.step_type'] != 'dispatch'}">
+        	<action>
+       			<title>...</title>
+        		<command type="selectValue" fieldNames="activity_log.work_team_id" selectFieldNames="work_team.work_team_id" 
+        			visibleFieldNames="work_team.work_team_id,work_team.description" actionListener="onChangeWorkTeamId">
+        			<title>Work Team</title>
+        		</command>
+      		</action>
+        </field>
+		<field name="satisfaction" table="activity_log" readOnly="false" hidden="${record['activity_log_step_waiting.step_type'] != 'survey'}"/>
+		<field/>
+		<field name="satisfaction_notes" table="activity_log" readOnly="false" colspan="2" hidden="${record['activity_log_step_waiting.step_type'] != 'survey'}"/>
+		
+		<field table="activity_log_step_waiting" name="step" readOnly="true"/>
+		<field/>
+		
+		<field table="activity_log_step_waiting" name="em_id" readOnly="true" hidden="${record['activity_log_step_waiting.em_id'] == ''}"/>
+		<field/>
+		<field table="activity_log_step_waiting" name="vn_id" readOnly="true" hidden="${record['activity_log_step_waiting.vn_id'] == ''}"/>
+		<field/>
+		<field table="activity_log_step_waiting" name="cf_id" readOnly="true" hidden="${record['activity_log_step_waiting.cf_id'] == ''}"/>
+		<field/>		
+		<field table="activity_log_step_waiting" name="user_name" readOnly="true"/>
+		<field/>
+		<field table="activity_log_step_waiting" name="comments" colspan="2" readOnly="false" hidden="${record['activity_log_step_waiting.step_type'] == 'survey'}"/>
+		<field table="activity_log_step_waiting" name="step_type" hidden="true"/>
+		<field table="activity_log_step_waiting" name="step_log_id" hidden="true"/>
+		<field table="activity_log" name="activity_type" hidden="true"/>
+		<field table="activity_log_step_waiting" name="activity_log_id" hidden="true"/>
+	</panel>
+    
+    <dataSource id="stepLogDS">
+        <table name="helpdesk_step_log" role="main"/>
+        <field table="helpdesk_step_log" name="step_log_id"/>
+        <field table="helpdesk_step_log" name="user_name"/>
+        <field table="helpdesk_step_log" name="em_id"/>
+    </dataSource>
+</view>

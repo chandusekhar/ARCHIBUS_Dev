@@ -1,0 +1,146 @@
+<afmXmlView>
+	<preferences>
+		<viewTitleBar show="false" />
+    <pdfButton show="true" style="landscape"/>
+    <export>
+        <excel>
+            <mdx>
+                <button show="true"/>
+            </mdx>
+        </excel>
+    </export>
+	</preferences>
+	<title translatable="true">Review Variances - Design to Baseline</title>
+
+	<afmTableGroup type="report" format="table" defaultActions="true" isRegularView="false">
+		<title translatable="true">Review Variances - Design to Baseline</title>
+		<dataSource>
+			<database>
+				<tables>
+					<table name="activity_log" role="main" />
+					<table name="project" role="standard" />
+				</tables>
+				<sort>
+					<order>
+						<field name="project_id" table="project" ascending="true" unique="true" />
+					</order>
+				</sort>
+				<fields>
+					<field name="project_id" table="project" />
+				</fields>
+			</database>
+			<mdx>
+				<afmAction type="render" newWindow="true" response="true" name="ab-work-pkg-variances.axvw"/>
+				<preferences dimensions="1" format="table">
+					<query>
+						<sql dialect="generic">
+							SELECT bl.city_id, bl.state_id, project.site_id, project.bl_id, project.dv_id, project.dp_id, project.is_template,
+											program.program_type, program.program_id, project.project_type, project.project_id,
+											project.proj_mgr, project.status,
+											design_cap_est, baseline_cap_est, cap_cost_variance, design_exp_est,
+											baseline_exp_est,exp_cost_variance, design_tot_est, baseline_tot_est, tot_cost_variance,
+											design_duration,baseline_duration,schedule_variance
+							FROM (SELECT project_id,
+											SUM(cost_est_design_cap) AS design_cap_est,
+											SUM(cost_est_cap) AS baseline_cap_est,
+											(SUM(cost_est_design_cap) - SUM(cost_est_cap)) AS cap_cost_variance,
+											SUM(cost_est_design_exp) AS design_exp_est,
+											SUM(cost_estimated) AS baseline_exp_est,
+											(SUM(cost_est_design_exp) - SUM(cost_estimated)) AS exp_cost_variance,
+											(SUM(cost_est_design_exp) + SUM(cost_est_design_cap)) AS design_tot_est,
+											(SUM(cost_est_cap) + SUM(cost_estimated)) AS baseline_tot_est,
+											(SUM(cost_est_design_cap) - SUM(cost_est_cap) + SUM(cost_est_design_exp) - SUM(cost_estimated)) AS tot_cost_variance,
+											SUM(duration) AS design_duration,
+											SUM(duration_est_baseline) AS baseline_duration,
+											(SUM(duration) - SUM(duration_est_baseline)) AS schedule_variance
+										FROM activity_log GROUP BY project_id ) activity_aggs
+							JOIN project ON activity_aggs.project_id = project.project_id
+							LEFT OUTER JOIN program ON program.program_id = project.program_id
+							LEFT OUTER JOIN bl ON project.bl_id = bl.bl_id
+						</sql>
+						
+						<sql dialect="oracle">
+							SELECT 	bl.city_id, bl.state_id, project.site_id, project.bl_id, project.dv_id, project.dp_id, project.is_template,
+	program.program_type, program.program_id, project.project_type, project.project_id,
+	project.proj_mgr, project.status,
+	design_cap_est, baseline_cap_est, cap_cost_variance, design_exp_est,
+	baseline_exp_est,exp_cost_variance, design_tot_est, baseline_tot_est, tot_cost_variance,
+	design_duration,baseline_duration,schedule_variance
+FROM (
+	SELECT 	project_id,
+		SUM(cost_est_design_cap) AS design_cap_est,
+		SUM(cost_est_cap) AS baseline_cap_est,
+		(SUM(cost_est_design_cap) - SUM(cost_est_cap)) AS cap_cost_variance,
+		SUM(cost_est_design_exp) AS design_exp_est,
+		SUM(cost_estimated) AS baseline_exp_est,
+		(SUM(cost_est_design_exp) - SUM(cost_estimated)) AS exp_cost_variance,
+		(SUM(cost_est_design_exp) + SUM(cost_est_design_cap)) AS design_tot_est,
+		(SUM(cost_est_cap) + SUM(cost_estimated)) AS baseline_tot_est,
+		(SUM(cost_est_design_cap) - SUM(cost_est_cap) + SUM(cost_est_design_exp) - SUM(cost_estimated)) AS tot_cost_variance,
+		SUM(duration) AS design_duration,
+		SUM(duration_est_baseline) AS baseline_duration,
+		(SUM(duration) - SUM(duration_est_baseline)) AS schedule_variance
+	FROM activity_log GROUP BY project_id ) activity_aggs, project, program, bl 
+WHERE 	activity_aggs.project_id = project.project_id AND
+	program.program_id(+) = project.program_id AND
+	project.bl_id = bl.bl_id(+)
+	
+	
+						</sql>
+					</query>
+					<dimensions>
+						<dimension name="Project Name" column="project_id" hasAll="true" >
+							<title translatable="true">Project Name</title>
+							<allMemberTitle translatable="true">Project Names</allMemberTitle>							
+						</dimension>
+					</dimensions>
+					<measures>
+					
+						<measure name="Baseline Capital Estimate" aggregator="sum" column="baseline_cap_est" type="calculated" >
+							<title translatable="true">Baseline Capital Estimate</title>
+						</measure>					
+						<measure name="Design Capital Estimate" aggregator="sum" column="design_cap_est" type="calculated" >
+							<title translatable="true">Design Capital Estimate</title>
+						</measure>
+						<measure name="Capital Cost Variance" aggregator="sum" column="cap_cost_variance" type="calculated" >
+							<title translatable="true">Capital Cost Variance</title>
+						</measure>
+						
+						<measure name="Baseline GST Estimate" aggregator="sum" column="baseline_exp_est" type="calculated" >
+							<title translatable="true">Baseline GST Estimate</title>
+						</measure>						
+						<measure name="Design GST Estimate" aggregator="sum" column="design_exp_est" type="calculated" >
+							<title translatable="true">Design GST Estimate</title>
+						</measure>
+						<measure name="Expense GST Variance" aggregator="sum" column="exp_cost_variance" type="calculated" >
+							<title translatable="true">GST Cost Variance</title>
+						</measure>
+						<measure name="Baseline Total Estimate" aggregator="sum" column="baseline_tot_est" type="calculated" >
+							<title translatable="true">Baseline Total Estimate</title>
+						</measure>						
+						<measure name="Design Total Estimate" aggregator="sum" column="design_tot_est" type="calculated" >
+							<title translatable="true">Design Total Estimate</title>
+						</measure>
+						<measure name="Total Cost Variance" aggregator="sum" column="tot_cost_variance" type="calculated" >
+							<title translatable="true">Total Cost Variance</title>
+						</measure>
+						
+						<measure name="Baseline Duration" aggregator="sum" column="baseline_duration" type="calculated" >
+							<title translatable="true">Baseline Duration</title>
+						</measure>						
+						<measure name="Design Duration" aggregator="sum" column="design_duration" type="calculated" >
+							<title translatable="true">Design Duration</title>
+						</measure>
+
+						<measure name="Schedule Variance" aggregator="sum" column="schedule_variance" type="calculated" >
+							<title translatable="true">Schedule Variance</title>
+						</measure>
+					</measures>
+				</preferences>
+			</mdx>
+		</dataSource>
+	</afmTableGroup>
+	<formatting>
+		<xsl file="brg-proj-variances-design-to-baseline.xsl" />
+	</formatting>
+</afmXmlView>

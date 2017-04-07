@@ -1,0 +1,271 @@
+<view version="2.0">
+    <designInfo type="summary" pattern="ab-viewdef-summary-report-drilldown" isAlterable="false"/>
+   
+   <js file="ab-haz-overview-hl-fl.js"/>
+   
+    <message name="dPTitle_hazMatPlans" translatable="true">Hazard Overview Plans</message>  
+	<message name="detailPanelTitle_hazMat" translatable="true">Hazard Overview Plan Details</message>
+	
+    <layout type="borderLayout" id="mainLayout">
+        <west id="top" initialSize="20%" split="true"/>
+        <center id="center" autoScroll="true"/>
+    </layout>
+    
+    <layout id="nested_west" containingLayout="main" region="west">
+        <north id="building" split="true" initialSize="50%"/>
+        <center id="flooring" initialSize="50%"/> 
+    </layout>
+    
+    <layout id="nested_center" containingLayout="main" region="center">
+        <center id="dwgPosition"/>
+        <south id="legentPosition" initialSize="20%" split="true"/>
+    </layout>
+    
+    <title translatable="true">Highlight Hazard Overview</title>
+    
+    <dataSource id="abEgressPlans-building">
+        <table name="bl" role="main"/>
+        <field name="bl_id" table="bl"/>
+        <sortField table="bl" name="bl_id" ascending="true"/>
+        <restriction type="sql" sql=" exists(select 1 from fl where bl.bl_id=fl.bl_id and exists( select 1 from rm where rm.fl_id=fl.fl_id and rm.bl_id=fl.bl_id and rm.dwgname is not null))"/>
+    </dataSource>
+    
+    <dataSource id="abEgressPlans-select-flooring">
+        <sql dialect="generic">
+            SELECT
+            rm.bl_id ${sql.as} bl_id,
+            rm.fl_id ${sql.as} fl_id,
+            rm.dwgname ${sql.as} dwgname
+            FROM rm  where rm.dwgname is not null GROUP BY rm.bl_id,rm.fl_id,rm.dwgname
+        </sql>
+        <table name="fl" role="main"/>
+		<field name="bl_id"/>
+        <field name="fl_id"/>
+        <field name="dwgname"/>
+        <sortField table="fl" name="fl_id" ascending="true"/>
+    </dataSource>
+    
+    <dataSource id="abEgressPlans_drawing_regcomplianceHighlight">
+        <table name="regcompliance" role="main"/>
+        <table name="regulation" role="standard"/>
+        <field table="regcompliance" name="bl_id" legendKey="false"/>
+        <field table="regcompliance" name="fl_id"/>
+        <field table="regcompliance" name="rm_id"/>
+        <field table="regcompliance" name="regcomp_id"/>
+        <field table="regcompliance" name="regulation"/>
+        <field table="regulation" name="hpattern_acad"/> 
+    </dataSource>
+        
+    <dataSource id="abRiskMsdsRptDrawingMsdsLocDS">
+        <table name="msds_location" role="main"/>
+        <table name="msds_data" role="standard"/>
+        <table name="bl" role="standard"/>
+        <table name="rm" role="standard"/>        
+        <field table="msds_location" name="msds_id" hidden="true"/>
+        <field table="msds_data" name="ghs_id"/>
+        <field table="msds_data" name="manufacturer_id"/>
+        <field table="msds_data" name="product_name"/>
+        <field table="bl" name="site_id"/>
+        <field table="msds_location" name="bl_id"/>
+        <field table="msds_location" name="fl_id"/>
+        <field table="msds_location" name="rm_id"/>  
+    </dataSource>
+    
+    <dataSource id="abEgressPlans_drawing_regcomplianceLabel"> <!--type="DrawingControlLabels"-->
+        <title translatable="true">Facility Hazards</title>
+        <table name="regcompliance" role="main"/>
+        <field table="regcompliance" name="regcomp_id"/>        
+        <field table="regcompliance" name="bl_id" hidden="true"/>
+        <field table="regcompliance" name="fl_id" hidden="true"/>
+        <field table="regcompliance" name="rm_id"/>
+        <field table="regcompliance" name="description"/>
+        <restriction type="sql" sql="regcompliance.regulation = 'HAZMAT'"/>
+    </dataSource> 
+    
+    <dataSource id="abEgressPlans_drawing_rmHighlight">
+        <table name="rm" role="main"/>
+        <field table="rm" name="bl_id" legendKey="true"/>
+        <field table="rm" name="fl_id"/>
+        <field table="rm" name="rm_id" />
+        <field name="rm_cat"/>
+        <field name="rm_type"/> 
+    </dataSource>    
+    
+    <dataSource id="abEgressPlans_drawing_rmLabel">
+        <table name="rm" role="main"/>
+        <field table="rm" name="bl_id"/>
+        <field table="rm" name="fl_id"/>
+        <field table="rm" name="rm_id"/>
+    </dataSource>
+          
+    <dataSource id="abEgressPlans_grid_regdetail">
+        <table name="rm" role="main"/>         
+        <sql dialect="generic">
+            SELECT bl_id, fl_id, rm_id, regcomp_id, 'FACILITY' ${sql.as} type
+            FROM regcompliance
+            WHERE regulation = 'HAZMAT'
+            UNION
+            SELECT a.bl_id, a.fl_id, a.rm_id, NULL ${sql.as} regcomp_id, 'ASSESSMENT' ${sql.as} type
+			FROM activity_log a, rm r
+			WHERE activity_type = 'ASSESSMENT - HAZMAT' 
+			AND hcm_is_hazard IN ('Yes','Presumed')
+			AND a.rm_id is not null
+            AND a.bl_id ${sql.concat} a.fl_id ${sql.concat} a.rm_id = r.bl_id ${sql.concat} r.fl_id ${sql.concat} r.rm_id
+            UNION
+            SELECT a.bl_id, a.fl_id, a.rm_id, NULL ${sql.as} regcomp_id, 'CHEMICAL' ${sql.as} type
+            FROM msds_location a, rm r
+            WHERE a.rm_id is not null
+            AND a.bl_id ${sql.concat} a.fl_id ${sql.concat} a.rm_id = r.bl_id ${sql.concat} r.fl_id ${sql.concat} r.rm_id
+            UNION
+            SELECT DISTINCT o.bl_id, o.fl_id, o.rm_id, NULL ${sql.as} regcomp_id, 'WASTE' ${sql.as} type
+			FROM   waste_out o, waste_profiles p, rm r 
+			WHERE  o.date_end IS NULL 
+			  AND  p.waste_type = 'H' 
+			  AND  o.waste_profile = p.waste_profile 
+			  AND  o.status IN ('S','A') 
+			  AND  o.rm_id IS NOT NULL              
+              AND  o.bl_id ${sql.concat} o.fl_id ${sql.concat} o.rm_id = r.bl_id ${sql.concat} r.fl_id ${sql.concat} r.rm_id            
+        </sql>
+         
+        <field table="rm" name="bl_id" dataType="text" legendKey="false"/>              
+        <field table="rm" name="fl_id" dataType="text"/>
+        <field table="rm" name="rm_id" dataType="text"/>
+        <field table="regcompliance" name="regcomp_id" dataType="text" hidden="false"/>
+        <field table="rm" name="type" dataType="text">
+            <title translatable="true">Type</title> 
+        </field>
+    </dataSource>
+    
+    <dataSource id="abEgressPlans_labelDs_allRm"> <!-- type="DrawingControlLabels"-->
+        <title translatable="true">Rooms and Hazard Types</title>
+        <table name="rm" role="main"/>         
+        <sql dialect="generic">
+            SELECT bl_id, fl_id, rm_id, NULL ${sql.as} regcomp_id, NULL ${sql.as} type
+            FROM rm
+            UNION
+            SELECT bl_id, fl_id, rm_id, regcomp_id, 'FACILITY' ${sql.as} type
+            FROM regcompliance
+            WHERE regulation = 'HAZMAT'
+            UNION
+            SELECT a.bl_id, a.fl_id, a.rm_id, NULL ${sql.as} regcomp_id, 'ASSESSMENT' ${sql.as} type
+            FROM activity_log a, rm r
+            WHERE activity_type = 'ASSESSMENT - HAZMAT' 
+            AND hcm_is_hazard IN ('Yes','Presumed')
+            AND a.rm_id is not null
+            AND a.bl_id ${sql.concat} a.fl_id ${sql.concat} a.rm_id = r.bl_id ${sql.concat} r.fl_id ${sql.concat} r.rm_id
+            UNION
+            SELECT a.bl_id, a.fl_id, a.rm_id, NULL ${sql.as} regcomp_id, 'CHEMICAL' ${sql.as} type
+            FROM msds_location a, rm r
+            WHERE a.rm_id is not null
+            AND a.bl_id ${sql.concat} a.fl_id ${sql.concat} a.rm_id = r.bl_id ${sql.concat} r.fl_id ${sql.concat} r.rm_id
+            UNION
+            SELECT DISTINCT o.bl_id, o.fl_id, o.rm_id, NULL ${sql.as} regcomp_id, 'WASTE' ${sql.as} type
+            FROM   waste_out o, waste_profiles p, rm r 
+            WHERE  o.date_end IS NULL 
+              AND  p.waste_type = 'H' 
+              AND  o.waste_profile = p.waste_profile 
+              AND  o.status IN ('S','A') 
+              AND  o.rm_id IS NOT NULL              
+              AND  o.bl_id ${sql.concat} o.fl_id ${sql.concat} o.rm_id = r.bl_id ${sql.concat} r.fl_id ${sql.concat} r.rm_id            
+        </sql>
+         
+        <field table="rm" name="bl_id" dataType="text" hidden="true"/>              
+        <field table="rm" name="fl_id" dataType="text" hidden="true"/>
+        <field table="rm" name="rm_id" dataType="text"/>
+        <field table="regcompliance" name="regcomp_id" dataType="text" hidden="true"/>
+        <field table="rm" name="type" dataType="text" hidden="false">
+            <title translatable="true">Type</title> 
+        </field>
+    </dataSource>
+    
+    <dataSource id="abEgressPlans_dwg_hl_regComp">
+        <title translatable="true">Facility Hazards</title>
+        <table name="regcompliance" role="main"/>
+        <table name="regulation" role="standard"/>         
+        <field table="regcompliance" name="bl_id" legendKey="true"/>
+        <field table="regcompliance" name="fl_id"/>
+        <field table="regcompliance" name="rm_id"/>
+        <field table="regcompliance" name="regcomp_id"/>
+        <field table="regcompliance" name="regulation"/>
+        <field table="regcompliance" name="type" value="FACILITY"/>
+        <field table="regcompliance" name="hpattern_acad" value="14 0 30 16744448"/>
+        <restriction type="sql" sql="regcompliance.regulation = 'HAZMAT'"/>
+    </dataSource>
+    
+    <dataSource id="abEgressPlans_dwg_hl_rm">
+        <title translatable="true">Material Hazards and Assessments</title>
+        <table name="rm" role="main"/>     
+            <sql dialect="generic">                
+                SELECT a.bl_id, a.fl_id, a.rm_id, 'ASSESSMENT' ${sql.as} type, '14 0 7 16510739' ${sql.as} hpattern_acad
+                FROM activity_log a
+                WHERE activity_type = 'ASSESSMENT - HAZMAT' 
+                AND hcm_is_hazard IN ('Yes','Presumed')
+                AND a.rm_id is not null              
+                UNION
+                SELECT bl_id, fl_id, rm_id, 'CHEMICAL' ${sql.as} type, '14 0 7 16510739' ${sql.as} hpattern_acad
+                FROM msds_location
+                WHERE rm_id is not null                
+                UNION
+                SELECT DISTINCT o.bl_id, o.fl_id, o.rm_id, 'WASTE' ${sql.as} type, '14 0 7 16510739' ${sql.as} hpattern_acad
+                FROM   waste_out o, waste_profiles p 
+                WHERE  o.date_end IS NULL 
+                  AND  p.waste_type = 'H' 
+                  AND  o.waste_profile = p.waste_profile 
+                  AND  o.status IN ('S','A') 
+                  AND  o.rm_id IS NOT NULL
+            </sql>
+             
+            <field table="rm" name="bl_id" dataType="text" legendKey="true"/>
+                  
+            <field table="rm" name="fl_id" dataType="text"/>
+            <field table="rm" name="rm_id" dataType="text"/>     
+            <field table="rm" name="type" dataType="text">
+                <title translatable="true">Type</title> 
+            </field>    
+            <field table="rm" name="hpattern_acad" dataType="text"/>
+    </dataSource>  
+    
+    
+    <panel type="grid" id="abEgressPlans-select-building" afterRefresh="blPanelAfterRefresh" columns="1" dataSource="abEgressPlans-building" layoutRegion="building">
+        <title translatable="true">Buildings</title>
+        
+        <field name="bl_id" table="bl" controlType="link">
+            <command type="showPanel" panelId="abEgressPlans_select_flooring"/>
+        </field>
+    </panel>
+    
+    <panel type="grid" id="abEgressPlans_select_flooring" showOnLoad="false" columns="1" dataSource="abEgressPlans-select-flooring" layoutRegion="flooring">
+        <title translatable="true">Floors</title>
+        <field name="bl_id" hidden="true"/>
+        <field name="fl_id" table="fl" controlType="link">
+            <command type="callFunction" functionName="showDrawing"/>
+        </field>
+        <field name="dwgname" table="fl" controlType="link">
+            <command type="callFunction" functionName="showDrawing"/>
+        </field>
+    </panel> 
+    
+    <panel type="drawing" id="abEgressPlans_DrawingPanel" layoutRegion="dwgPosition"       
+        highlightDataSource="abEgressPlans_dwg_hl_rm"   >  
+        <!-- labelsDataSource="abEgressPlans_labelDs_allRm"--> <!-- assetTypes="rm,regulation-hazmat" -->
+        <title>Hazard Overview Plans</title>
+    </panel>
+    
+    <panel type="grid" id="abEgressPlans_regdetailGrid" dataSource="abEgressPlans_grid_regdetail" showOnLoad="false" layoutRegion="legentPosition">
+        <title translatable="true">Hazard Overview Plans</title>
+        <field table="rm" name="bl_id" dataType="text" controlType="link" onclick="selectRoom"/>              
+        <field table="rm" name="fl_id" dataType="text" controlType="link" onclick="selectRoom"/>
+        <field table="rm" name="rm_id" dataType="text" controlType="link" onclick="selectRoom"/>
+        <field table="rm" name="regcomp_id" dataType="text" controlType="link" onclick="selectRoom" hidden="false">
+            <title translatable="true">Facility Hazard ID</title>
+        </field>
+        <field table="rm" name="type" dataType="text" controlType="link" onclick="selectRoom">
+            <title translatable="true">Type</title> 
+        </field>
+    </panel> 
+    
+    <panel type="grid" id="abEgressPlans_rmHiddenGrid" dataSource="abEgressPlans_dwg_hl_rm" showOnLoad="false"/>
+    
+    <panel type="grid" id="abEgressPlans_regulationHiddenGrid" dataSource="abEgressPlans_dwg_hl_regComp" showOnLoad="false"/>
+    
+</view>

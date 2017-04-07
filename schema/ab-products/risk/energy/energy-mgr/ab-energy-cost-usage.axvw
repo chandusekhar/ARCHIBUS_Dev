@@ -1,0 +1,949 @@
+<view version="2.0">
+  <layout type="borderLayout" id="mainLayout">
+    <west initialSize="280" split="true"/>
+    <center autoScroll="true"/>
+  </layout>
+  <layout type="borderLayout" id="nestedLayout" containingLayout="mainLayout" region="center">
+    <north split="true"/>
+    <center autoScroll="true"/>
+  </layout>
+  
+    <js file="ab-energy-cost-usage.js"/>
+    <js file="ab-energy-bill-archive-view-document.js"/>
+    
+    <message name="electric_title" translatable="true">Electric Cost with Rate</message>
+    <message name="gas_title" translatable="true">Gas Cost with Rate</message>
+    <message name="fuel1_title" translatable="true">Fuel 1 Cost with Rate</message>
+    <message name="fuel2_title" translatable="true">Fuel 2 Cost with Rate</message>
+    <message name="propane_title" translatable="true">Propane Cost with Rate</message>
+    <message name="cons_electric_title" translatable="true">Electric Cost with Consumption</message> 
+    <message name="cons_gas_title" translatable="true">Gas Cost with Consumption</message>
+    <message name="cons_fuel1_title" translatable="true">Fuel 1 Cost with Consumption</message>
+    <message name="cons_fuel2_title" translatable="true">Fuel 2 Cost with Consumption</message>
+    <message name="cons_propane_title" translatable="true">Propane Cost with Consumption</message>
+    
+    <title translatable="true">Cost and Usage</title>
+    
+    <panel type="view" id="commonView" file="ab-energy-bill-common.axvw"/>
+    
+    <!-- Console -->    
+    <dataSource id="ds_measureVerifyConsole">
+        <table name="bill_archive" role="main"/>
+        <field table="bill_archive" name="time_period"/>
+    </dataSource>
+    
+    <panel type="console" columns="3" id="panel_measureVerifyConsole" showOnLoad="true" dataSource="ds_measureVerifyConsole" layout="nestedLayout" region="north">
+        <title translatable="true">Filter</title>
+        <action id="filter">
+            <title>Apply</title>
+        </action>
+        <action id="clear">
+            <title translatable="true">Clear</title>
+        </action>
+        <field id="vf_bill_type">
+            <title translatable="true">Bill Type</title>
+            <html>
+                <select class="inputField_box" name="select_bill_type" id="select_bill_type" onchange="changeUnits();">
+                    <option id="select_bill_type_1" value="ELECTRIC" selected="true">
+                        <span translatable="true">Electric</span>
+                     </option>
+                    <option id="select_bill_type_2" value="GAS - NATURAL">
+                         <span translatable="true">Gas</span>
+                    </option>
+                    <option id="select_bill_type_3" value="FUEL OIL 1">
+                        <span translatable="true">Fuel 1</span>
+                    </option>
+                    <option id="select_bill_type_3" value="FUEL OIL 2">
+                        <span translatable="true">Fuel 2</span>
+                     </option>
+                    <option id="select_bill_type_4" value="GAS - PROPANE"> 
+                        <span translatable="true">Propane</span>
+                    </option>
+                    <option id="select_bill_type_5" value="WATER">
+                        <span translatable="true">Water</span>
+                    </option>
+                </select>
+            </html>
+        </field>
+        <field id="vf_bill_units">
+            <title translatable="true">Energy Consumption Units</title>
+            <html>
+                <select class="inputField_box" name="select_bill_units" id="select_bill_units">
+                    <option id="select_bill_units_0" value="MMBTU" selected="true">MMBTU</option>
+                </select>
+            </html>
+        </field>
+        <field/>
+        <field table="bill_archive" name="time_period" alias="bill_archive.time_period.from" showSelectValueAction="true">
+        <title translatable="true">Billing Period From</title>
+        <action>
+            <title>...</title>
+            <tooltip>Select Value</tooltip>
+                <command type="selectValue"
+                fieldNames="bill_archive.time_period.from"
+                selectFieldNames="energy_time_period.time_period"
+                visibleFieldNames="energy_time_period.time_period"
+                sortFieldNames="energy_time_period.time_period"
+                showIndex="true">
+                    <title>Billing Period From</title>
+                </command>
+        </action>       
+        </field>
+        <field table="bill_archive" name="time_period" alias="bill_archive.time_period.to" showSelectValueAction="true">
+            <title translatable="true">Billing Period To</title>
+        <action>
+            <title>...</title>
+            <tooltip>Select Value</tooltip>
+                <command type="selectValue"
+                fieldNames="bill_archive.time_period.to"
+                selectFieldNames="energy_time_period.time_period"
+                visibleFieldNames="energy_time_period.time_period"
+                sortFieldNames="energy_time_period.time_period"
+                showIndex="true">
+                    <title>Billing Period To</title>
+                </command>
+        </action>            
+        </field>
+    </panel>
+
+    <!-- Location tree -->
+    <dataSource id="ds_measureVerifyCtry">
+        <table name="ctry"/>
+        <sql dialect="generic">
+        SELECT ctry.name ${sql.as} name, ctry_id ${sql.as} ctry_id
+        FROM ctry
+            WHERE EXISTS (SELECT 1 FROM bill_archive LEFT OUTER JOIN site ON site.site_id = bill_archive.site_id WHERE site.ctry_id = ctry.ctry_id AND EXISTS (SELECT 1 FROM bl WHERE bl.site_id = bill_archive.site_id))
+            OR EXISTS (SELECT 1 FROM bill_archive LEFT OUTER JOIN bl ON bl.bl_id = bill_archive.bl_id WHERE bl.ctry_id = ctry.ctry_id)
+        </sql>
+        <field name="ctry_id"/>
+        <field name="name"/>
+        <sortField table="ctry" name="ctry_id" ascending="true"/>
+        </dataSource>
+
+    <dataSource id="ds_measureVerifyRegn">
+        <table name="regn"/>
+        <sql dialect="generic">
+        SELECT regn.name ${sql.as} name, regn_id ${sql.as} regn_id, ctry_id ${sql.as} ctry_id
+        FROM regn
+           WHERE EXISTS (SELECT 1 FROM bill_archive LEFT OUTER JOIN site ON site.site_id = bill_archive.site_id WHERE site.regn_id = regn.regn_id AND EXISTS (SELECT 1 FROM bl WHERE bl.site_id = bill_archive.site_id))
+            OR EXISTS (SELECT 1 FROM bill_archive LEFT OUTER JOIN bl ON bl.bl_id = bill_archive.bl_id WHERE bl.regn_id = regn.regn_id)
+        </sql>
+        <field name="regn_id"/>
+        <field name="name"/>
+        <sortField table="regn" name="regn_id" ascending="true"/>
+    </dataSource>
+    
+    <dataSource id="ds_measureVerifyState">
+        <table name="state"/>
+        <sql dialect="generic">
+        SELECT state.name ${sql.as} name, state_id ${sql.as} state_id, ctry_id ${sql.as} ctry_id, regn_id ${sql.as} regn_id
+        FROM state
+           WHERE EXISTS (SELECT 1 FROM bill_archive LEFT OUTER JOIN site ON site.site_id = bill_archive.site_id WHERE site.state_id = state.state_id AND EXISTS (SELECT 1 FROM bl WHERE bl.site_id = bill_archive.site_id))
+            OR EXISTS (SELECT 1 FROM bill_archive LEFT OUTER JOIN bl ON bl.bl_id = bill_archive.bl_id WHERE bl.state_id = state.state_id)
+        </sql>
+        <field name="state_id"/>
+        <field name="name"/>
+        <sortField table="state" name="state_id" ascending="true"/>
+    </dataSource>
+
+    <dataSource id="ds_measureVerifyCity">
+        <table name="city"/>
+        <sql dialect="generic">
+        SELECT city.name ${sql.as} name, city_id ${sql.as} city_id, ctry_id ${sql.as} ctry_id, regn_id ${sql.as} regn_id, state_id ${sql.as} state_id
+        FROM city
+           WHERE EXISTS (SELECT 1 FROM bill_archive LEFT OUTER JOIN site ON site.site_id = bill_archive.site_id WHERE site.city_id = city.city_id AND EXISTS (SELECT 1 FROM bl WHERE bl.site_id = bill_archive.site_id))
+            OR EXISTS (SELECT 1 FROM bill_archive LEFT OUTER JOIN bl ON bl.bl_id = bill_archive.bl_id WHERE bl.city_id = city.city_id)
+        </sql>
+        <field name="city_id"/>
+        <field name="name"/>
+        <sortField table="city" name="city_id" ascending="true"/>
+    </dataSource>
+    
+    <dataSource id="ds_measureVerifySite">
+        <table name="site"/>
+        <sql dialect="generic">
+        SELECT site.name ${sql.as} name, site_id ${sql.as} site_id, state_id ${sql.as} state_id, city_id ${sql.as} city_id, ctry_id ${sql.as} ctry_id
+        FROM site
+            WHERE (EXISTS (SELECT 1 FROM bill_archive WHERE bill_archive.site_id = site.site_id AND EXISTS (SELECT 1 FROM bl WHERE bl.bl_id = bill_archive.bl_id ))
+            OR EXISTS (SELECT 1 FROM bill_archive LEFT OUTER JOIN bl ON bl.bl_id = bill_archive.bl_id WHERE bl.site_id = site.site_id ))
+        </sql>
+        <field name="site_id"/>
+        <field name="name"/>
+        <sortField table="site" name="site_id" ascending="true"/>
+    </dataSource>
+    
+    <dataSource id="ds_measureVerifyBuilding">
+        <table name="bl"/>
+        <sql dialect="generic">
+         SELECT name ${sql.as} name, bl_id ${sql.as} bl_id, site_id ${sql.as} site_id
+        FROM bl
+            WHERE EXISTS (SELECT 1 FROM bill_archive WHERE bill_archive.bl_id = bl.bl_id)
+        </sql>
+        <field name="bl_id"/>
+        <field name="name"/>
+        <sortField table="bl" name="bl_id" ascending="true"/>
+    </dataSource>
+    
+    <panel type="tree" id="panel_measureVerifyCtry" dataSource="ds_measureVerifyCtry" layout="mainLayout" region="west">
+        <title translatable="true">Select Location</title>
+
+        <field table="ctry" name="ctry_id"/>
+        <field table="ctry" name="name"/>
+        <event type="onClickNode">
+            <command type="callFunction" functionName="selectLocation"/>
+        </event>
+
+        <panel type="tree" id="panel_measureVerifyRegn" dataSource="ds_measureVerifyRegn">
+            <field table="regn" name="regn_id"/>
+            <field table="regn" name="name"/>
+            <event type="onClickNode">
+                <command type="callFunction" functionName="selectLocation"/>
+            </event>
+        </panel>
+        
+        <panel type="tree" id="panel_measureVerifyState" dataSource="ds_measureVerifyState">
+            <field table="state" name="state_id"/>
+            <field table="state" name="name"/>
+            <event type="onClickNode">
+                <command type="callFunction" functionName="selectLocation"/>
+            </event>
+        </panel>
+        
+        <panel type="tree" id="panel_measureVerifyCity" dataSource="ds_measureVerifyCity">
+            <field table="city" name="city_id"/>
+            <field table="city" name="name"/>
+            <event type="onClickNode">
+                <command type="callFunction" functionName="selectLocation"/>
+            </event>
+        </panel>
+        
+        <panel type="tree" id="panel_measureVerifySite" dataSource="ds_measureVerifySite">
+            <field table="site" name="site_id"/>
+            <field table="site" name="name"/>
+            <event type="onClickNode">
+                <command type="callFunction" functionName="selectLocation"/>
+            </event>
+        </panel>
+        
+        <panel type="tree" id="panel_measureVerifyBuilding" dataSource="ds_measureVerifyBuilding">
+            <field table="bl" name="bl_id"/>
+            <field table="bl" name="name"/>
+            <event type="onClickNode">
+                <command type="callFunction" functionName="selectLocation"/>
+            </event>
+        </panel>
+    </panel>
+     
+    <!-- Chart data sources --> 
+     <dataSource id="ds_totalCostTypeChart" type="grouping" applyVpaRestrictions="false">
+        <!-- Define parameters for the custom SQL query -->
+        <parameter name="locationField" dataType="verbatim" value="ctry_id"/>
+        <parameter name="locationValue" dataType="text" value="USA"/>
+        
+        <!-- Define a custom SQL query that can be restricted by various location values -->
+        <sql dialect="generic">SELECT amount_expense, qty_energy, bill_type_id, time_period 
+                    FROM bill_archive 
+                    WHERE bill_archive.vn_id IN 
+                        (SELECT vn_id FROM vn 
+                            WHERE vendor_type = 'Energ')
+                    AND ((bill_archive.prorated_aggregated = 'NO' AND bill_archive.reference_bill_id IS NULL AND NOT EXISTS (SELECT 1 FROM bill_archive b WHERE b.reference_bill_id = bill_archive.bill_id)) OR (bill_archive.prorated_aggregated &lt;&gt; 'NO'))
+                    AND ${sql.vpaRestriction} AND bill_archive.bl_id IN 
+                        (SELECT bl_id FROM bl 
+                            WHERE ${parameters['locationField']} = ${parameters['locationValue']})
+        </sql>
+        
+        <table name="bill_archive" role="main"/>
+        <field name="bill_type_id" groupBy="true"/>
+        <!--field name="time_period" /-->
+        <field name="total_amount_expense" formula="sum" baseField="bill_archive.amount_expense" dataType="number" size="12" decimals="2"/>
+        <sortField table="bill_archive" name="bill_type_id" ascending="true"/>
+    </dataSource>
+    
+    <dataSource id="ds_totalCostTypeData" applyVpaRestrictions="false">
+        <!-- Define parameters for the custom SQL query -->
+        <parameter name="locationField" dataType="verbatim" value="ctry_id"/>
+        <parameter name="locationValue" dataType="text" value="USA"/>
+        <parameter name="unitsConversionFactor" dataType="verbatim" value=""/>
+            
+        <!-- Define a custom SQL query that can be restricted by various location values -->
+        <sql dialect="generic">SELECT
+                    bl.use1,
+                    bill_archive.site_id,
+                    bill_archive.bl_id,
+                    bill_archive.vn_id,
+                    bill_archive.bill_id,
+                    bill_archive.vn_ac_id,
+                    bill_archive.bill_type_id,
+                    bill_archive.time_period,
+                    bill_archive.date_service_start,
+                    bill_archive.date_service_end,
+                    bill_archive.amount_expense,
+                    bill_archive.amount_income,
+                    (bill_archive.qty_energy / ${parameters['unitsConversionFactor']}) ${sql.as} qty_energy,
+                    bill_archive.qty_power,
+                    bill_archive.qty_volume,
+                    bill_archive.qty_kwh,
+                    bill_archive.cost_kwh,
+                    bill_archive.cost_mmbtu,
+                    bill_archive.count_lines,
+                    bill_archive.description,
+                    bill_archive.doc
+                    FROM bill_archive 
+                        LEFT OUTER JOIN bl 
+                        ON bill_archive.bl_id=bl.bl_id
+                WHERE bill_archive.vn_id IN 
+                        (SELECT vn_id FROM vn 
+                            WHERE vendor_type = 'Energ')
+                    AND ((bill_archive.prorated_aggregated = 'NO' AND bill_archive.reference_bill_id IS NULL AND NOT EXISTS (SELECT 1 FROM bill_archive b WHERE b.reference_bill_id = bill_archive.bill_id)) OR (bill_archive.prorated_aggregated &lt;&gt; 'NO'))
+                    AND ${sql.vpaRestriction} AND bill_archive.bl_id IN 
+                        (SELECT bl_id FROM bl 
+                            WHERE ${parameters['locationField']} = ${parameters['locationValue']})                      
+        </sql>    
+    
+        <table name="bill_archive" role="main" />
+        <field table="bill_archive" name="site_id"/>
+        <field table="bill_archive" name="bl_id"/>
+        <field table="bill_archive" name="use1" dataType="text"/>
+        <field table="bill_archive" name="vn_id"/>
+        <field table="bill_archive" name="bill_id"/>
+        <field table="bill_archive" name="vn_ac_id"/>
+        <field table="bill_archive" name="bill_type_id"/>        
+        <field table="bill_archive" name="time_period"/>
+        <field table="bill_archive" name="date_service_start"/>
+        <field table="bill_archive" name="date_service_end"/>   
+        <field table="bill_archive" name="amount_expense" showTotals="true"/>
+        <field table="bill_archive" name="amount_income" showTotals="true"/>
+        <field table="bill_archive" name="qty_energy" showTotals="true"/>
+        <field table="bill_archive" name="qty_power" showTotals="true"/>
+        <field table="bill_archive" name="qty_volume" showTotals="true"/>
+        <field table="bill_archive" name="qty_kwh" showTotals="true"/>
+        <field table="bill_archive" name="cost_kwh" showTotals="true"/>
+        <field table="bill_archive" name="cost_mmbtu" showTotals="true"/>
+        <field table="bill_archive" name="count_lines"/>
+        <field table="bill_archive" name="description"/>
+        <field table="bill_archive" name="doc"/>
+    </dataSource>
+    
+    <panel type="grid" id="panel_totalCostTypeData" dataSource="ds_totalCostTypeData" hidden="true" showOnLoad="false" showCounts="true">
+        <title translatable="true">Archived Bills</title>
+        
+        <action id="exportXLS">
+          <title translatable="true">XLS</title>
+          <command type="exportPanel" outputType="xls" panelId="panel_totalCostTypeData"/>
+        </action>
+        
+        <action id="exportDOC">
+          <title translatable="true">DOC</title>
+          <command type="exportPanel" outputType="docx" panelId="panel_totalCostTypeData"/>
+        </action>       
+        
+          <field controlType="button" id="viewCostTypeData" enabled="${record['bill_archive.doc'] != ''}">
+             <title translatable="true">Document</title>
+          </field>
+        <field controlType="button">
+            <command type="openDialog" viewName="ab-energy-archive-bill-line-list.axvw" applySelectionRestriction="true"/>
+            <title translatable="true">Lines</title>
+        </field>
+
+        <field table="bill_archive" name="site_id"/>
+        <field table="bill_archive" name="bl_id"/>
+        <field table="bill_archive" name="use1" dataType="text">
+            <title translatable="true">Building Use</title>
+        </field>
+        <field table="bill_archive" name="vn_id"/>
+        <field table="bill_archive" name="bill_id"/>
+        <field table="bill_archive" name="vn_ac_id"/>
+        <field table="bill_archive" name="bill_type_id"/>        
+        <field table="bill_archive" name="time_period"/>
+        <field table="bill_archive" name="date_service_start"/>
+        <field table="bill_archive" name="date_service_end"/>   
+        <field table="bill_archive" name="amount_expense" showTotals="true"/>
+        <field table="bill_archive" name="amount_income" showTotals="true"/>
+        <field table="bill_archive" name="qty_energy" showTotals="true" hidden="true">
+            <title>Energy / Consumption (${view.dataSources.get('abEnergyBillCommon_ds').getRecord().getValue('bill_unit.vf_qty_energy_unit')})</title>
+        </field>
+        <field table="bill_archive" name="qty_power" showTotals="true"/>
+        <field table="bill_archive" name="qty_volume" showTotals="true"/>
+        <field table="bill_archive" name="qty_kwh" showTotals="true"/>
+        <field table="bill_archive" name="cost_kwh" showTotals="true"/>
+        <field table="bill_archive" name="cost_mmbtu" showTotals="true"/>
+        <field table="bill_archive" name="count_lines"/>
+        <field table="bill_archive" name="description"/>
+        <field table="bill_archive" name="doc"/>
+        
+        <sortField table="bill_archive" name="vn_id" ascending="true"/>
+        <sortField table="bill_archive" name="bill_id" ascending="true"/>
+        <indexField table="bill_archive" name="bill_id"/>
+    </panel>
+    
+    <dataSource id="ds_totalCostConsumpChart" type="grouping" applyVpaRestrictions="false">
+        <!-- Define parameters for the custom SQL query -->
+        <parameter name="locationField" dataType="verbatim" value="ctry_id"/>
+        <parameter name="locationValue" dataType="text" value="USA"/>
+        <parameter name="unitsConversionFactor" dataType="verbatim" value=""/>
+        <parameter name="billType" dataType="verbatim" value="bill_archive.bill_type_id='ELECTRIC'" />
+        
+        <!-- Define a custom SQL query that can be restricted by various location values -->
+        <sql dialect="generic">SELECT
+                        amount_expense,
+                        (bill_archive.qty_energy / ${parameters['unitsConversionFactor']}) ${sql.as} qty_energy,
+                        time_period 
+                    FROM bill_archive 
+                    WHERE qty_energy > 0 
+                    AND ${parameters['billType']}
+                    AND bill_archive.vn_id IN 
+                        (SELECT vn_id FROM vn 
+                            WHERE vendor_type = 'Energ')
+                    AND ((bill_archive.prorated_aggregated = 'NO' AND bill_archive.reference_bill_id IS NULL AND NOT EXISTS (SELECT 1 FROM bill_archive b WHERE b.reference_bill_id = bill_archive.bill_id)) OR (bill_archive.prorated_aggregated &lt;&gt; 'NO'))
+                    AND ${sql.vpaRestriction} AND bill_archive.bl_id IN 
+                        (SELECT bl_id FROM bl 
+                            WHERE ${parameters['locationField']} = ${parameters['locationValue']})
+        </sql>
+        
+        <table name="bill_archive"/>
+        <field name="time_period" groupBy="true"/>
+        <field name="total_amount_expense" formula="sum" baseField="bill_archive.amount_expense" dataType="number" size="12" decimals="2"/>
+        <field name="total_qty_energy" formula="sum" baseField="bill_archive.qty_energy" dataType="number" size="16" decimals="6"/>
+        <sortField name="time_period" ascending="true"/>
+    </dataSource>
+
+    <dataSource id="ds_totalCostConsumpData" applyVpaRestrictions="false">
+        <!-- Define parameters for the custom SQL query -->
+        <parameter name="locationField" dataType="verbatim" value="ctry_id"/>
+        <parameter name="locationValue" dataType="text" value="USA"/>
+        <parameter name="unitsConversionFactor" dataType="verbatim" value=""/>
+        <parameter name="billType" dataType="verbatim" value="bill_archive.bill_type_id='ELECTRIC'" />
+            
+        <!-- Define a custom SQL query that can be restricted by various location values -->
+        <sql dialect="generic">SELECT
+                    bl.use1,
+                    bill_archive.site_id,
+                    bill_archive.bl_id,
+                    bill_archive.vn_id,
+                    bill_archive.bill_id,
+                    bill_archive.vn_ac_id,
+                    bill_archive.bill_type_id,
+                    bill_archive.time_period,
+                    bill_archive.date_service_start,
+                    bill_archive.date_service_end,
+                    bill_archive.amount_expense,
+                    bill_archive.amount_income,
+                    (bill_archive.qty_energy / ${parameters['unitsConversionFactor']}) ${sql.as} qty_energy,
+                    bill_archive.qty_power,
+                    bill_archive.qty_volume,
+                    bill_archive.qty_kwh,
+                    bill_archive.cost_kwh,
+                    bill_archive.cost_mmbtu,
+                    bill_archive.count_lines,
+                    bill_archive.description,
+                    bill_archive.doc
+                    FROM bill_archive 
+                        LEFT OUTER JOIN bl 
+                        ON bill_archive.bl_id=bl.bl_id
+                WHERE qty_energy > 0
+                    AND ((bill_archive.prorated_aggregated = 'NO' AND bill_archive.reference_bill_id IS NULL AND NOT EXISTS (SELECT 1 FROM bill_archive b WHERE b.reference_bill_id = bill_archive.bill_id)) OR (bill_archive.prorated_aggregated &lt;&gt; 'NO'))
+                    AND ${parameters['billType']}
+                    AND bill_archive.vn_id IN 
+                        (SELECT vn_id FROM vn 
+                            WHERE vendor_type = 'Energ')
+                    AND ${sql.vpaRestriction} AND bill_archive.bl_id IN 
+                        (SELECT bl_id FROM bl 
+                            WHERE ${parameters['locationField']} = ${parameters['locationValue']})                      
+        </sql>    
+    
+        <table name="bill_archive" role="main" />
+        <field table="bill_archive" name="site_id"/>
+        <field table="bill_archive" name="bl_id"/>
+        <field table="bill_archive" name="use1" dataType="text"/>
+        <field table="bill_archive" name="vn_id"/>
+        <field table="bill_archive" name="bill_id"/>
+        <field table="bill_archive" name="vn_ac_id"/>
+        <field table="bill_archive" name="bill_type_id"/>        
+        <field table="bill_archive" name="time_period"/>
+        <field table="bill_archive" name="date_service_start"/>
+        <field table="bill_archive" name="date_service_end"/>   
+        <field table="bill_archive" name="amount_expense" showTotals="true"/>
+        <field table="bill_archive" name="amount_income" showTotals="true"/>
+        <field table="bill_archive" name="qty_energy" showTotals="true"/>
+        <field table="bill_archive" name="qty_power" showTotals="true"/>
+        <field table="bill_archive" name="qty_volume" showTotals="true"/>
+        <field table="bill_archive" name="qty_kwh" showTotals="true"/>
+        <field table="bill_archive" name="cost_kwh" showTotals="true"/>
+        <field table="bill_archive" name="cost_mmbtu" showTotals="true"/>
+        <field table="bill_archive" name="count_lines"/>
+        <field table="bill_archive" name="description"/>
+        <field table="bill_archive" name="doc"/>
+    </dataSource>
+    
+    <panel type="grid" id="panel_totalCostConsumpData" dataSource="ds_totalCostConsumpData" hidden="true" showOnLoad="false" showCounts="true">
+        <title translatable="true">Archived Bills</title>
+        
+        <action id="exportXLS">
+          <title translatable="true">XLS</title>
+          <command type="exportPanel" outputType="xls" panelId="panel_totalCostConsumpData"/>
+        </action>
+
+        <action id="exportDOC">
+          <title translatable="true">DOC</title>
+          <command type="exportPanel" outputType="docx" panelId="panel_totalCostConsumpData"/>
+        </action>
+        
+          <field controlType="button" id="viewCostConsumpData" enabled="${record['bill_archive.doc'] != ''}">
+             <title translatable="true">Document</title>
+          </field>
+        <field controlType="button">
+            <command type="openDialog" viewName="ab-energy-archive-bill-line-list.axvw" applySelectionRestriction="true"/>
+            <title translatable="true">Lines</title>
+        </field>
+        
+        <field table="bill_archive" name="site_id"/>
+        <field table="bill_archive" name="bl_id"/>
+        <field table="bill_archive" name="use1" dataType="text">
+            <title translatable="true">Building Use</title>
+        </field>
+        <field table="bill_archive" name="vn_id"/>
+        <field table="bill_archive" name="bill_id"/>
+        <field table="bill_archive" name="vn_ac_id"/>
+        <field table="bill_archive" name="bill_type_id"/>
+        <field table="bill_archive" name="time_period"/>
+        <field table="bill_archive" name="date_service_start"/>
+        <field table="bill_archive" name="date_service_end"/>
+        <field table="bill_archive" name="amount_expense" showTotals="true"/>
+        <field table="bill_archive" name="amount_income" showTotals="true"/>
+        <field table="bill_archive" name="qty_energy" showTotals="true">
+            <title>Energy / Consumption (${view.dataSources.get('abEnergyBillCommon_ds').getRecord().getValue('bill_unit.vf_qty_energy_unit')})</title>
+        </field>
+        <field table="bill_archive" name="qty_power" showTotals="true"/>
+        <field table="bill_archive" name="qty_volume" showTotals="true"/>
+        <field table="bill_archive" name="qty_kwh" showTotals="true"/>
+        <field table="bill_archive" name="cost_kwh" showTotals="true"/>
+        <field table="bill_archive" name="cost_mmbtu" showTotals="true"/>
+        <field table="bill_archive" name="count_lines"/>
+        <field table="bill_archive" name="description"/>
+        <field table="bill_archive" name="doc"/>
+        
+        <sortField table="bill_archive" name="vn_id" ascending="true"/>
+        <sortField table="bill_archive" name="bill_id" ascending="true"/>
+        <indexField table="bill_archive" name="bill_id"/>
+    </panel> 
+
+    <dataSource id="ds_elecCostRateChart" type="grouping" applyVpaRestrictions="false">
+        <!-- Define parameters for the custom SQL query -->
+        <parameter name="locationField" dataType="verbatim" value="ctry_id"/>
+        <parameter name="locationValue" dataType="text" value="USA"/>
+        <parameter name="billType" dataType="verbatim" value="1=1" />
+        <parameter name="unitsConversionFactor" dataType="verbatim" value="1"/>
+        
+        <!-- Define a custom SQL query that can be restricted by various location values -->
+        <sql dialect="generic">SELECT bill_archive.amount_expense, 
+                    (bill_archive.cost_kwh / ${parameters['unitsConversionFactor']}) ${sql.as} cost_kwh, 
+                    bill_archive.time_period 
+                    FROM bill_archive 
+                    WHERE ${parameters['billType']}
+                    AND ((bill_archive.prorated_aggregated = 'NO' AND bill_archive.reference_bill_id IS NULL AND NOT EXISTS (SELECT 1 FROM bill_archive b WHERE b.reference_bill_id = bill_archive.bill_id)) OR (bill_archive.prorated_aggregated &lt;&gt; 'NO'))
+                    AND bill_archive.vn_id IN 
+                        (SELECT vn_id FROM vn 
+                            WHERE vendor_type = 'Energ') 
+                    AND ${sql.vpaRestriction} AND bill_archive.bl_id IN 
+                        (SELECT bl_id FROM bl 
+                            WHERE ${parameters['locationField']} = ${parameters['locationValue']})
+        </sql>
+        
+        <table name="bill_archive"/>
+        <field name="time_period" groupBy="true"/>
+        <field name="total_amount_expense" formula="sum" baseField="bill_archive.amount_expense" dataType="number" size="12" decimals="2"/>
+        <field name="total_cost_kwh" formula="sum" baseField="bill_archive.cost_kwh" dataType="number" size="12" decimals="4"/>
+        <sortField name="time_period" ascending="true"/>
+    </dataSource>
+
+    <dataSource id="ds_elecCostRateData" applyVpaRestrictions="false">
+        <!-- Define parameters for the custom SQL query -->
+        <parameter name="locationField" dataType="verbatim" value="ctry_id"/>
+        <parameter name="locationValue" dataType="text" value="USA"/>
+        <parameter name="unitsConversionFactor" dataType="verbatim" value=""/>
+        <parameter name="billType" dataType="verbatim" value="1=1" />
+            
+        <!-- Define a custom SQL query that can be restricted by various location values -->
+        <sql dialect="generic">SELECT bl.use1,
+                    bill_archive.site_id,
+                    bill_archive.bl_id,
+                    bill_archive.vn_id,
+                    bill_archive.bill_id,
+                    bill_archive.vn_ac_id,
+                    bill_archive.bill_type_id,
+                    bill_archive.time_period,
+                    bill_archive.date_service_start,
+                    bill_archive.date_service_end,
+                    bill_archive.amount_expense,
+                    bill_archive.amount_income,
+                    (bill_archive.qty_energy / ${parameters['unitsConversionFactor']}) ${sql.as} qty_energy,
+                    bill_archive.qty_power,
+                    bill_archive.qty_volume,
+                    bill_archive.qty_kwh,
+                    bill_archive.cost_kwh,
+                    bill_archive.cost_mmbtu,
+                    bill_archive.count_lines,
+                    bill_archive.description,
+                    bill_archive.doc
+                    FROM bill_archive 
+                        LEFT OUTER JOIN bl 
+                        ON bill_archive.bl_id=bl.bl_id
+                WHERE ${parameters['billType']}
+                    AND ((bill_archive.prorated_aggregated = 'NO' AND bill_archive.reference_bill_id IS NULL AND NOT EXISTS (SELECT 1 FROM bill_archive b WHERE b.reference_bill_id = bill_archive.bill_id)) OR (bill_archive.prorated_aggregated &lt;&gt; 'NO'))
+                    AND bill_archive.vn_id IN 
+                        (SELECT vn_id FROM vn 
+                            WHERE vendor_type = 'Energ')
+                    AND ${sql.vpaRestriction} AND bill_archive.bl_id IN 
+                        (SELECT bl_id FROM bl 
+                            WHERE ${parameters['locationField']} = ${parameters['locationValue']})                      
+        </sql>    
+    
+        <table name="bill_archive" role="main" />
+        <field table="bill_archive" name="site_id"/>
+        <field table="bill_archive" name="bl_id"/>
+        <field table="bill_archive" name="use1" dataType="text"/>       
+        <field table="bill_archive" name="vn_id"/>
+        <field table="bill_archive" name="bill_id"/>
+        <field table="bill_archive" name="vn_ac_id"/>
+        <field table="bill_archive" name="bill_type_id"/>        
+        <field table="bill_archive" name="time_period"/>
+        <field table="bill_archive" name="date_service_start"/>
+        <field table="bill_archive" name="date_service_end"/>   
+        <field table="bill_archive" name="amount_expense" showTotals="true"/>
+        <field table="bill_archive" name="amount_income" showTotals="true"/>
+        <field table="bill_archive" name="qty_energy" showTotals="true"/>
+        <field table="bill_archive" name="qty_power" showTotals="true"/>
+        <field table="bill_archive" name="qty_volume" showTotals="true"/>
+        <field table="bill_archive" name="qty_kwh" showTotals="true"/>
+        <field table="bill_archive" name="cost_kwh" showTotals="true"/>
+        <field table="bill_archive" name="cost_mmbtu" showTotals="true"/>
+        <field table="bill_archive" name="count_lines"/>
+        <field table="bill_archive" name="description"/>
+        <field table="bill_archive" name="doc"/>
+    </dataSource>
+    
+    <panel type="grid" id="panel_elecCostRateData" dataSource="ds_elecCostRateData" hidden="true" showOnLoad="false" showCounts="true">
+        <title translatable="true">Archived Bills</title>
+        
+        <action id="exportXLS">
+          <title translatable="true">XLS</title>
+          <command type="exportPanel" outputType="xls" panelId="panel_elecCostRateData"/>
+        </action>
+        
+        <action id="exportDOC">
+          <title translatable="true">DOC</title>
+          <command type="exportPanel" outputType="docx" panelId="panel_elecCostRateData"/>
+        </action>
+        
+          <field controlType="button" id="viewElecRateData" enabled="${record['bill_archive.doc'] != ''}">
+             <title translatable="true">Document</title>
+          </field>
+        <field controlType="button">
+            <command type="openDialog" viewName="ab-energy-archive-bill-line-list.axvw" applySelectionRestriction="true"/>
+            <title translatable="true">Lines</title>
+        </field>
+        <field table="bill_archive" name="site_id"/>
+        <field table="bill_archive" name="bl_id"/>
+        <field table="bill_archive" name="use1" dataType="text">
+            <title translatable="true">Building Use</title>
+        </field>
+        <field table="bill_archive" name="vn_id"/>
+        <field table="bill_archive" name="bill_id"/>
+        <field table="bill_archive" name="vn_ac_id"/>
+        <field table="bill_archive" name="bill_type_id"/>
+        <field table="bill_archive" name="time_period"/>
+        <field table="bill_archive" name="date_service_start"/>
+        <field table="bill_archive" name="date_service_end"/>
+        <field table="bill_archive" name="amount_expense" showTotals="true"/>
+        <field table="bill_archive" name="amount_income" showTotals="true"/>
+        <field table="bill_archive" name="qty_energy" showTotals="true">
+            <title>Energy / Consumption (${view.dataSources.get('abEnergyBillCommon_ds').getRecord().getValue('bill_unit.vf_qty_energy_unit')})</title>
+        </field>
+        <field table="bill_archive" name="qty_power" showTotals="true"/>
+        <field table="bill_archive" name="qty_volume" showTotals="true"/>
+        <field table="bill_archive" name="qty_kwh" showTotals="true"/>
+        <field table="bill_archive" name="cost_kwh" showTotals="true"/>
+        <field table="bill_archive" name="cost_mmbtu" showTotals="true"/>
+        <field table="bill_archive" name="count_lines"/>
+        <field table="bill_archive" name="description"/>
+        <field table="bill_archive" name="doc"/>
+        
+        <sortField table="bill_archive" name="vn_id" ascending="true"/>
+        <sortField table="bill_archive" name="bill_id" ascending="true"/>
+        <indexField table="bill_archive" name="bill_id"/>
+    </panel> 
+
+    <dataSource id="ds_gasCostRateChart" type="grouping" applyVpaRestrictions="false">    
+        <!-- Define parameters for the custom SQL query -->
+        <parameter name="locationField" dataType="verbatim" value="ctry_id"/>
+        <parameter name="locationValue" dataType="text" value="USA"/>
+        <parameter name="unitsConversionFactorForCost" dataType="verbatim" value=""/>
+        <parameter name="billType" dataType="text" value="GAS - NATURAL"/>
+        
+        <!-- Define a custom SQL query that can be restricted by various location values -->
+        <sql dialect="generic">SELECT amount_expense,
+                        (cost_mmbtu * ${parameters['unitsConversionFactorForCost']}) ${sql.as} cost_mmbtu,
+                        time_period 
+                    FROM bill_archive 
+                    WHERE bill_archive.vn_id IN 
+                        (SELECT vn_id FROM vn 
+                            WHERE vendor_type = 'Energ')
+                    AND ((bill_archive.prorated_aggregated = 'NO' AND bill_archive.reference_bill_id IS NULL AND NOT EXISTS (SELECT 1 FROM bill_archive b WHERE b.reference_bill_id = bill_archive.bill_id)) OR (bill_archive.prorated_aggregated &lt;&gt; 'NO'))
+                    AND bill_archive.bill_type_id = ${parameters['billType']}
+                    AND ${sql.vpaRestriction} AND bill_archive.bl_id IN 
+                        (SELECT bl_id FROM bl 
+                            WHERE ${parameters['locationField']} = ${parameters['locationValue']})
+        </sql>
+        
+        <table name="bill_archive"/>
+        <field name="time_period" groupBy="true"/>
+        <field name="total_amount_expense" formula="sum" baseField="bill_archive.amount_expense" dataType="number" size="12" decimals="2"/>
+        <field name="total_cost_mmbtu" formula="sum" baseField="bill_archive.cost_mmbtu" dataType="number" size="12" decimals="4"/>
+        <sortField name="time_period" ascending="true"/>
+    </dataSource>
+
+    <dataSource id="ds_gasCostRateData" applyVpaRestrictions="false">
+        <!-- Define parameters for the custom SQL query -->
+        <parameter name="locationField" dataType="verbatim" value="ctry_id"/>
+        <parameter name="locationValue" dataType="text" value="USA"/>
+        <parameter name="unitsConversionFactor" dataType="verbatim" value=""/>
+         <parameter name="billType" dataType="text" value="GAS - NATURAL"/>
+            
+        <!-- Define a custom SQL query that can be restricted by various location values -->
+        <sql dialect="generic">SELECT
+                    bl.use1,
+                    bill_archive.site_id,
+                    bill_archive.bl_id,
+                    bill_archive.vn_id,
+                    bill_archive.bill_id,
+                    bill_archive.vn_ac_id,
+                    bill_archive.bill_type_id,
+                    bill_archive.time_period,
+                    bill_archive.date_service_start,
+                    bill_archive.date_service_end,
+                    bill_archive.amount_expense,
+                    bill_archive.amount_income,
+                    (bill_archive.qty_energy / ${parameters['unitsConversionFactor']}) ${sql.as} qty_energy,
+                    bill_archive.qty_power,
+                    bill_archive.qty_volume,
+                    bill_archive.qty_kwh,
+                    bill_archive.cost_kwh,
+                    bill_archive.cost_mmbtu,
+                    bill_archive.count_lines,
+                    bill_archive.description,
+                    bill_archive.doc
+                    FROM bill_archive 
+                        LEFT OUTER JOIN bl 
+                        ON bill_archive.bl_id=bl.bl_id
+                WHERE bill_archive.bill_type_id = ${parameters['billType']}
+                    AND ((bill_archive.prorated_aggregated = 'NO' AND bill_archive.reference_bill_id IS NULL AND NOT EXISTS (SELECT 1 FROM bill_archive b WHERE b.reference_bill_id = bill_archive.bill_id)) OR (bill_archive.prorated_aggregated &lt;&gt; 'NO'))
+                    AND bill_archive.vn_id IN 
+                        (SELECT vn_id FROM vn 
+                            WHERE vendor_type = 'Energ')
+                    AND ${sql.vpaRestriction} AND bill_archive.bl_id IN 
+                        (SELECT bl_id FROM bl 
+                            WHERE ${parameters['locationField']} = ${parameters['locationValue']})                      
+        </sql>    
+    
+        <table name="bill_archive" role="main" />
+        <field table="bill_archive" name="site_id"/>
+        <field table="bill_archive" name="bl_id"/>
+        <field table="bill_archive" name="use1" dataType="text"/>       
+        <field table="bill_archive" name="vn_id"/>
+        <field table="bill_archive" name="bill_id"/>
+        <field table="bill_archive" name="vn_ac_id"/>
+        <field table="bill_archive" name="bill_type_id"/>        
+        <field table="bill_archive" name="time_period"/>
+        <field table="bill_archive" name="date_service_start"/>
+        <field table="bill_archive" name="date_service_end"/>   
+        <field table="bill_archive" name="amount_expense" showTotals="true"/>
+        <field table="bill_archive" name="amount_income" showTotals="true"/>
+        <field table="bill_archive" name="qty_energy" showTotals="true"/>
+        <field table="bill_archive" name="qty_power" showTotals="true"/>
+        <field table="bill_archive" name="qty_volume" showTotals="true"/>
+        <field table="bill_archive" name="qty_kwh" showTotals="true"/>
+        <field table="bill_archive" name="cost_kwh" showTotals="true"/>
+        <field table="bill_archive" name="cost_mmbtu" showTotals="true"/>
+        <field table="bill_archive" name="count_lines"/>
+        <field table="bill_archive" name="description"/>
+        <field table="bill_archive" name="doc"/>
+    </dataSource>
+    
+    <panel type="grid" id="panel_gasCostRateData" dataSource="ds_gasCostRateData" hidden="true" showOnLoad="false" showCounts="true">
+        <title translatable="true">Archived Bills</title>
+        
+        <action id="exportXLS">
+          <title translatable="true">XLS</title>
+          <command type="exportPanel" outputType="xls" panelId="panel_gasCostRateData"/>
+        </action>
+        
+        <action id="exportDOC">
+          <title translatable="true">DOC</title>
+          <command type="exportPanel" outputType="docx" panelId="panel_gasCostRateData"/>
+        </action>
+        
+          <field controlType="button" id="viewGasRateData" enabled="${record['bill_archive.doc'] != ''}">
+             <title translatable="true">Document</title>
+          </field>
+        <field controlType="button">
+            <command type="openDialog" viewName="ab-energy-archive-bill-line-list.axvw" applySelectionRestriction="true"/>
+            <title translatable="true">Lines</title>
+        </field>
+        <field table="bill_archive" name="site_id"/>
+        <field table="bill_archive" name="bl_id"/>
+        <field table="bill_archive" name="use1" dataType="text">
+            <title translatable="true">Building Use</title>
+        </field>
+        <field table="bill_archive" name="vn_id"/>
+        <field table="bill_archive" name="bill_id"/>
+        <field table="bill_archive" name="vn_ac_id"/>
+        <field table="bill_archive" name="bill_type_id"/>
+        <field table="bill_archive" name="time_period"/>
+        <field table="bill_archive" name="date_service_start"/>
+        <field table="bill_archive" name="date_service_end"/>
+        <field table="bill_archive" name="amount_expense" showTotals="true"/>
+        <field table="bill_archive" name="amount_income" showTotals="true"/>
+        <field table="bill_archive" name="qty_energy" showTotals="true">
+            <title>Energy / Consumption (${view.dataSources.get('abEnergyBillCommon_ds').getRecord().getValue('bill_unit.vf_qty_energy_unit')})</title>
+        </field>
+        <field table="bill_archive" name="qty_power" showTotals="true"/>
+        <field table="bill_archive" name="qty_volume" showTotals="true"/>
+        <field table="bill_archive" name="qty_kwh" showTotals="true"/>
+        <field table="bill_archive" name="cost_kwh" showTotals="true"/>
+        <field table="bill_archive" name="cost_mmbtu" showTotals="true"/>
+        <field table="bill_archive" name="count_lines"/>
+        <field table="bill_archive" name="description"/>
+        <field table="bill_archive" name="doc"/>
+        
+        <sortField table="bill_archive" name="vn_id" ascending="true"/>
+        <sortField table="bill_archive" name="bill_id" ascending="true"/>
+        <indexField table="bill_archive" name="bill_id"/>
+    </panel>
+    
+    <!-- Chart tabs -->
+    <tabs workflow="free" id="tabs" layout="nestedLayout" region="center" tabRefreshPolicy="never">
+        <tab name="totalCostTypeChart" selected="true" useFrame="false" hidden="true"> 
+            <title translatable="true">Utility Cost by Type</title>
+                <panel id="panel_totalCostTypeChart" type="chart" controlType="pieChart" dataSource="ds_totalCostTypeChart" showLegendAsPopUp="false">
+                <title translatable="true">Utility Cost by Type</title>
+                <action id="data">
+                    <title translatable="true">Data</title>
+                    <command type="openDialog" panelId="panel_totalCostTypeData"/>
+                </action>               
+                <action id="exportDOC">
+                    <title translatable="true">DOC</title>
+                    <command type="exportPanel" outputType="docx" panelId="panel_totalCostTypeChart"/>
+                </action>
+                <action id="panel_totalCostTypeChart_refresh">
+                    <title translatable="true">Refresh</title>
+                    <command type="showPanel" panelId="panel_totalCostTypeChart"/>
+                </action>
+                
+                 <event type="onClickItem">
+                    <command type="openDialog" panelId="panel_totalCostTypeData"/>
+                 </event>
+                 
+                <groupingAxis table="bill_archive" field="bill_type_id" showLabel="true"> 
+                    <title translatable="true"></title> 
+                </groupingAxis>
+                <dataAxis table="bill_archive" field="total_amount_expense" displayAxis="true" showLabel="true" labelPosition="callout"> 
+                    <title translatable="true"></title> 
+                </dataAxis>
+                </panel>
+        </tab>  
+        <tab name="totalCostConsumpChart" selected="false" useFrame="false" hidden="true"> 
+            <title translatable="true">Electric Cost with Consumption</title>
+                <panel id="panel_totalCostConsumpChart" type="chart" controlType="columnChart" dataSource="ds_totalCostConsumpChart" showLegendAsPopUp="false">
+                <action id="data">
+                    <title translatable="true">Data</title>
+                    <command type="openDialog" panelId="panel_totalCostConsumpData"/>
+                </action>               
+                <action id="exportDOC">
+                    <title translatable="true">DOC</title>
+                    <command type="exportPanel" outputType="docx" panelId="panel_totalCostConsumpChart"/>
+                </action>               
+                <action id="panel_totalCostConsumpChart_refresh">
+                    <title translatable="true">Refresh</title>
+                    <command type="showPanel" panelId="panel_totalCostConsumpChart"/>
+                </action>
+
+                 <event type="onClickItem">
+                    <command type="openDialog" panelId="panel_totalCostConsumpData"/>
+                 </event>
+                
+                <groupingAxis table="bill_archive" field="time_period" labelRotation="45">
+                    <title translatable="true">Billing Period</title>
+                </groupingAxis>
+                <dataAxis  table="bill_archive" field="total_amount_expense" displayAxis="true" showLabel="true" labelPosition="inside">
+                    <title translatable="true">Cost (Sum)</title>
+                </dataAxis>
+                <dataAxis  table="bill_archive" field="total_qty_energy" displayAxis="true" showLabel="true" labelPosition="inside">
+                    <title>Consumption (${view.dataSources.get('abEnergyBillCommon_ds').getRecord().getValue('bill_unit.vf_qty_energy_unit')}) (SUM)</title>
+                </dataAxis>             
+                </panel>
+        </tab>
+        <tab name="elecCostRateChart" selected="false" useFrame="false" hidden="true"> 
+            <title translatable="true">Electric Cost with Rate</title>
+                <panel id="panel_elecCostRateChart" type="chart" controlType="columnChart" dataSource="ds_elecCostRateChart" showLegendAsPopUp="false">
+                <action id="data">
+                    <title translatable="true">Data</title>
+                    <command type="openDialog" panelId="panel_elecCostRateData"/>
+                </action>               
+                <action id="exportDOC">
+                    <title translatable="true">DOC</title>
+                    <command type="exportPanel" outputType="docx" panelId="panel_elecCostRateChart"/>
+                </action>               
+                <action id="panel_elecCostRateChart_refresh">
+                    <title translatable="true">Refresh</title>
+                    <command type="showPanel" panelId="panel_elecCostRateChart"/>
+                </action>
+
+                 <event type="onClickItem">
+                    <command type="openDialog" panelId="panel_elecCostRateData"/>
+                 </event>
+                 
+                <groupingAxis table="bill_archive" field="time_period" labelRotation="45">
+                    <title translatable="true">Billing Period</title>
+                </groupingAxis>
+                <dataAxis  table="bill_archive" field="total_amount_expense" displayAxis="true" showLabel="true" labelPosition="inside">
+                    <title translatable="true">Cost (Sum)</title>
+                </dataAxis>
+                <dataAxis  table="bill_archive" field="total_cost_kwh" displayAxis="true" showLabel="true" labelPosition="inside">
+                   <title translatable="true">Rate (${view.dataSources.get('abEnergyBillCommon_ds').getRecord().getValue('bill_unit.vf_qty_energy_unit')}) (Sum)</title>
+                </dataAxis>             
+                </panel>
+        </tab>      
+        <tab name="gasCostRateChart" selected="false" useFrame="false" hidden="true"> 
+            <title translatable="true"> Gas Cost with Rate</title>
+                <panel id="panel_gasCostRateChart" type="chart" controlType="columnChart" dataSource="ds_gasCostRateChart" showLegendAsPopUp="false">
+                <action id="data">
+                    <title translatable="true">Data</title>
+                    <command type="openDialog" panelId="panel_gasCostRateData"/>
+                </action>               
+                <action id="exportDOC">
+                    <title translatable="true">DOC</title>
+                    <command type="exportPanel" outputType="docx" panelId="panel_gasCostRateChart"/>
+                </action>               
+                <action id="panel_gasCostRateChart_refresh">
+                    <title translatable="true">Refresh</title>
+                    <command type="showPanel" panelId="panel_gasCostRateChart"/>
+                </action>
+                
+                 <event type="onClickItem">
+                    <command type="openDialog" panelId="panel_gasCostRateData"/>
+                 </event>
+                 
+                <groupingAxis table="bill_archive" field="time_period" labelRotation="45">
+                    <title translatable="true">Billing Period</title>
+                </groupingAxis>
+                <dataAxis  table="bill_archive" field="total_amount_expense" displayAxis="true" showLabel="true" labelPosition="inside">
+                    <title translatable="true">Cost (Sum)</title>
+                </dataAxis>
+                <dataAxis  table="bill_archive" field="total_cost_mmbtu" displayAxis="true" showLabel="true" labelPosition="inside">
+                   <title translatable="true">Rate (Cost/${view.dataSources.get('abEnergyBillCommon_ds').getRecord().getValue('bill_unit.vf_qty_energy_unit')}) (Sum)</title>
+                </dataAxis>             
+                </panel>
+        </tab>
+    </tabs>
+    
+</view>

@@ -1,0 +1,162 @@
+<view version="2.0">
+    
+    <dataSource id="groupYearMonthGpDataSource">
+        <sql dialect="generic">
+            SELECT DISTINCT ${sql.yearMonthOf('gp.date_start')} ${sql.as} year_month
+            FROM gp 
+            LEFT OUTER JOIN bl ON gp.bl_id = bl.bl_id
+            WHERE gp.date_start IS NOT NULL
+            AND ${parameters['siteIdRestriction']}
+            AND ${parameters['blIdRestriction']}
+            AND ${parameters['dateStartRestriction']}
+            AND ${parameters['scenarioIdRestriction']}
+            
+            UNION
+            
+            (SELECT DISTINCT ${sql.yearMonthOf('gp.date_end')} ${sql.as} year_month
+            FROM gp
+            LEFT OUTER JOIN bl ON gp.bl_id = bl.bl_id
+            WHERE gp.date_end IS NOT NULL
+            AND ${parameters['siteIdRestriction']}
+            AND ${parameters['blIdRestriction']}
+            AND ${parameters['dateEndRestriction']}
+            AND ${parameters['scenarioIdRestriction']})
+        </sql>
+        <table name="gp"/>
+        <field name="year_month" dataType="text" table="gp"/> 
+        <sortField name="year_month" table="gp" ascending="true"/>
+        <parameter name="siteIdRestriction" dataType="verbatim" value="1=1"/>
+        <parameter name="blIdRestriction" dataType="verbatim" value="1=1"/>
+        <parameter name="dateStartRestriction" dataType="verbatim" value="1=1"/>
+        <parameter name="dateEndRestriction" dataType="verbatim" value="1=1"/>
+        <parameter name="scenarioIdRestriction" dataType="verbatim" value="1=1"/>
+    </dataSource>
+    
+    <dataSource id="gapAnalysisUsableDataDs">
+        <sql dialect="generic">
+            SELECT SUM(gp.area_manual) ${sql.as} usableArea 
+            FROM gp 
+            LEFT OUTER JOIN bl ON gp.bl_id = bl.bl_id
+            WHERE ((${sql.yearMonthDayOf('gp.date_start')} &lt;= ${parameters['year_month']} ${sql.concat} '-01') AND (${sql.yearMonthDayOf('gp.date_end')} &gt;= ${parameters['year_month']} ${sql.concat} '-01' OR gp.date_end is NULL))
+            AND gp.allocation_type IN ('Usable Area - Owned', 'Usable Area - Leased')
+            AND ${parameters['siteIdRestriction']}
+            AND ${parameters['blIdRestriction']}
+            AND ${parameters['dateRestriction']}
+            AND ${parameters['scenarioIdRestriction']}
+            AND gp.bl_id &lt;&gt; 'UNALLOC'
+        </sql>
+        <table name="gp" role="main"/>
+        <field name="usableArea" table="gp" dataType="number" decimals="2" numericFormat="area"/>
+        <parameter name="year_month" dataType="text" value="%"/>
+        <parameter name="siteIdRestriction" dataType="verbatim" value="1=1"/>
+        <parameter name="blIdRestriction" dataType="verbatim" value="1=1"/>
+        <parameter name="dateRestriction" dataType="verbatim" value="1=1"/>
+        <parameter name="scenarioIdRestriction" dataType="verbatim" value="1=1"/>
+    </dataSource>
+    
+    <dataSource id="gapAnalysisUnavailableDataDs">
+        <sql dialect="generic">
+            SELECT SUM(gp.area_manual) ${sql.as} unavailableArea 
+            FROM gp
+            LEFT OUTER JOIN bl ON gp.bl_id = bl.bl_id
+           WHERE ((${sql.yearMonthDayOf('gp.date_start')} &lt;= ${parameters['year_month']} ${sql.concat} '-01') AND (${sql.yearMonthDayOf('gp.date_end')} &gt;= ${parameters['year_month']} ${sql.concat} '-01' OR gp.date_end is NULL))
+            AND gp.allocation_type = 'Unavailable Area'
+            AND ${parameters['siteIdRestriction']}
+            AND ${parameters['blIdRestriction']}
+            AND ${parameters['dateRestriction']}
+            AND ${parameters['scenarioIdRestriction']}
+            AND gp.bl_id &lt;&gt; 'UNALLOC'
+        </sql>
+        <table name="gp" role="main"/>
+        <field name="unavailableArea" table="gp" dataType="number" decimals="2" numericFormat="area"/>
+        <parameter name="year_month" dataType="text" value="%"/>
+        <parameter name="siteIdRestriction" dataType="verbatim" value="1=1"/>
+        <parameter name="blIdRestriction" dataType="verbatim" value="1=1"/>
+        <parameter name="dateRestriction" dataType="verbatim" value="1=1"/>
+        <parameter name="scenarioIdRestriction" dataType="verbatim" value="1=1"/>
+    </dataSource>
+    
+    <dataSource id="gapAnalysisAllocatedDataDs">
+        <sql dialect="generic">
+            SELECT SUM(gp.area_manual*( case when gp.option1='1' then -1 else 1 end )) ${sql.as} allocatedArea 
+            FROM gp
+            LEFT OUTER JOIN bl ON gp.bl_id = bl.bl_id
+            WHERE ((${sql.yearMonthDayOf('gp.date_start')} &lt;= ${parameters['year_month']} ${sql.concat} '-01') AND (${sql.yearMonthDayOf('gp.date_end')} &gt;= ${parameters['year_month']} ${sql.concat} '-01' OR gp.date_end is NULL))
+            AND gp.allocation_type = 'Allocated Area'
+            AND ${parameters['siteIdRestriction']}
+            AND ${parameters['blIdRestriction']}
+            AND ${parameters['dateRestriction']}
+            AND ${parameters['scenarioIdRestriction']}
+        </sql>
+        <table name="gp" role="main"/>
+        <field name="allocatedArea" table="gp" dataType="number" decimals="2" numericFormat="area"/>
+        <parameter name="year_month" dataType="text" value="%"/>
+        <parameter name="siteIdRestriction" dataType="verbatim" value="1=1"/>
+        <parameter name="blIdRestriction" dataType="verbatim" value="1=1"/>
+        <parameter name="dateRestriction" dataType="verbatim" value="1=1"/>
+        <parameter name="scenarioIdRestriction" dataType="verbatim" value="1=1"/>
+    </dataSource>
+    
+    <dataSource id="afmCalDatesDs">
+        <sql dialect="generic">
+            SELECT DISTINCT ${sql.yearMonthOf('afm_cal_dates.cal_date')} ${sql.as} year_month FROM afm_cal_dates
+            WHERE  ${sql.yearMonthOf('afm_cal_dates.cal_date')} &gt;= ${parameters['fromYearMonth']}
+            AND ${sql.yearMonthOf('afm_cal_dates.cal_date')} &lt;= ${parameters['endYearMonth']}
+        </sql>
+        <table name="afm_cal_dates" role="main"/>
+        <field name="year_month" table="afm_cal_dates" dataType="text"/>
+        <sortField name="year_month" table="afm_cal_dates" ascending="true"/>
+        <parameter name="fromYearMonth" dataType="text" value="1999-01"/>
+        <parameter name="endYearMonth" dataType="text" value="2015-01"/>
+    </dataSource>
+    
+	<dataSource id="gapAnalysisTotalSeatsDataDs">
+        <sql dialect="generic">
+            SELECT SUM(rm.cap_em) ${sql.as} totalSeats 
+			from rm 
+			where exists ( 
+				SELECT 1 
+				FROM gp 
+				LEFT OUTER JOIN bl ON gp.bl_id = bl.bl_id
+				WHERE ((${sql.yearMonthDayOf('gp.date_start')} &lt;= ${parameters['year_month']} ${sql.concat} '-01') AND (${sql.yearMonthDayOf('gp.date_end')} &gt;= ${parameters['year_month']} ${sql.concat} '-01' OR gp.date_end is NULL))
+				AND gp.allocation_type IN ('Usable Area - Owned', 'Usable Area - Leased')
+				AND ${parameters['siteIdRestriction']}
+				AND ${parameters['blIdRestriction']}
+				AND ${parameters['dateRestriction']}
+				AND ${parameters['scenarioIdRestriction']}
+				AND gp.bl_id &lt;&gt; 'UNALLOC'
+				AND gp.bl_id=rm.bl_id 
+				AND gp.fl_id=rm.fl_id 
+			)
+        </sql>
+        <table name="gp" role="main"/>
+        <field name="totalSeats" table="gp" dataType="integer"/>
+        <parameter name="year_month" dataType="text" value="%"/>
+        <parameter name="siteIdRestriction" dataType="verbatim" value="1=1"/>
+        <parameter name="blIdRestriction" dataType="verbatim" value="1=1"/>
+        <parameter name="dateRestriction" dataType="verbatim" value="1=1"/>
+        <parameter name="scenarioIdRestriction" dataType="verbatim" value="1=1"/>
+    </dataSource>
+
+     <dataSource id="gapAnalysisOccupiedSeatsDataDs">
+        <sql dialect="generic">
+            SELECT SUM(gp.count_em) ${sql.as} occupiedSeats 
+            FROM gp
+            LEFT OUTER JOIN bl ON gp.bl_id = bl.bl_id
+            WHERE ((${sql.yearMonthDayOf('gp.date_start')} &lt;= ${parameters['year_month']} ${sql.concat} '-01') AND (${sql.yearMonthDayOf('gp.date_end')} &gt;= ${parameters['year_month']} ${sql.concat} '-01' OR gp.date_end is NULL))
+            AND gp.allocation_type = 'Allocated Area'
+            AND ${parameters['siteIdRestriction']}
+            AND ${parameters['blIdRestriction']}
+            AND ${parameters['dateRestriction']}
+            AND ${parameters['scenarioIdRestriction']}
+        </sql>
+        <table name="gp" role="main"/>
+        <field name="occupiedSeats" table="gp" dataType="number" decimals="0"/>
+        <parameter name="year_month" dataType="text" value="%"/>
+        <parameter name="siteIdRestriction" dataType="verbatim" value="1=1"/>
+        <parameter name="blIdRestriction" dataType="verbatim" value="1=1"/>
+        <parameter name="dateRestriction" dataType="verbatim" value="1=1"/>
+        <parameter name="scenarioIdRestriction" dataType="verbatim" value="1=1"/>
+    </dataSource>
+   
+</view>

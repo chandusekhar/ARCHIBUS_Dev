@@ -1,0 +1,135 @@
+<view version="2.0">
+    <layout file="ab-proj-console-details.axvw"/>
+    <title>View Projects Analysis</title>    
+    <js file="ab-proj-projects-analysis.js"/>
+    
+    <panel type="view" id="projProjectsAnalysisConsole" file="ab-proj-restriction-console.axvw" layout="mainLayout" region="north"/>
+      
+  	<dataSource id="projProjectsAnalysisDs0" type="grouping" applyVpaRestrictions="false">
+        <table name="project" role="main"/>
+        <field name="project_id" table="project" groupBy="true"/>
+        <field name="design_tot_est" dataType="number" decimals="2">
+            <title>Total Estimated Costs</title>
+            <sql dialect="generic">SUM(design_tot_est)</sql>
+        </field>
+        <field name="total_act_cost" dataType="number" decimals="2">
+            <title>Total Actual Costs</title>
+            <sql dialect="generic">SUM(total_act_cost)</sql>
+        </field>
+        <field name="variance" dataType="number" decimals="2">
+            <title>Variance</title>
+            <sql dialect="generic">SUM(variance)</sql>
+        </field>
+        <field name="pct_variance" dataType="number" decimals="2">
+            <title>% Variance</title>
+            <sql dialect="generic">SUM(pct_variance)</sql>
+        </field>
+        <field name="design_pct_complete" dataType="number" decimals="2">
+            <title>% Complete: Design</title>
+            <sql dialect="generic">MAX(design_pct_complete)</sql>
+        </field>
+        <field name="constr_pct_complete" dataType="number" decimals="2">
+            <title>% Complete: Execution</title>
+            <sql dialect="generic">MAX(constr_pct_complete)</sql>
+        </field>
+        <field name="tot_pct_complete" dataType="number" decimals="2">
+            <title>% Complete: Total</title>
+            <sql dialect="generic">MAX(tot_pct_complete)</sql>
+        </field>
+        <sortField name="project_id" table="project" ascending="true"/> 
+        <sql dialect="generic">
+        SELECT bl.city_id, bl.state_id, project.site_id, project.bl_id, project.dv_id, project.dp_id,
+          project.is_template, program.program_type, program.program_id, project.project_type, project.project_id,
+          project.proj_mgr, project.status,
+          total_act_cost, design_tot_est,
+          CASE WHEN design_pct_complete IS NULL THEN 0 ELSE design_pct_complete END AS design_pct_complete,
+          CASE WHEN constr_pct_complete IS NULL THEN 0 ELSE constr_pct_complete END AS constr_pct_complete,
+          CASE WHEN tot_pct_complete IS NULL THEN 0 ELSE tot_pct_complete END AS tot_pct_complete,
+          (total_act_cost - design_tot_est) AS variance,
+          ( CASE WHEN design_tot_est = 0 OR design_tot_est IS NULL OR total_act_cost IS NULL THEN 0
+            ELSE ((100.0 * activity_aggs.total_act_cost)/activity_aggs.design_tot_est) END ) AS pct_variance
+        FROM project
+        JOIN(
+          SELECT project_id, (SUM(cost_est_design_exp) + SUM(cost_est_design_cap)) AS design_tot_est, (SUM(cost_actual) + SUM(cost_act_cap)) AS total_act_cost
+          FROM activity_log
+          GROUP BY project_id ) activity_aggs
+        ON project.project_id = activity_aggs.project_id
+        JOIN
+          (SELECT project_id, AVG(pct_complete) AS tot_pct_complete
+            FROM activity_log
+            GROUP BY project_id) tot_complete
+        ON project.project_id = tot_complete.project_id
+        LEFT OUTER JOIN
+          (SELECT project_id, AVG(pct_complete) AS design_pct_complete
+            FROM activity_log
+            WHERE activity_log.proj_phase IN ('Design')
+            GROUP BY project_id) design_complete
+        ON project.project_id = design_complete.project_id
+        LEFT OUTER JOIN
+          (SELECT project_id, AVG(pct_complete) AS constr_pct_complete
+            FROM activity_log
+            WHERE activity_log.proj_phase IN ('Execution')
+            GROUP BY project_id) constr_complete
+        ON project.project_id = constr_complete.project_id
+        LEFT OUTER JOIN program ON program.program_id = project.program_id
+        LEFT OUTER JOIN bl ON project.bl_id = bl.bl_id
+        WHERE ${sql.vpaRestriction}
+              
+        </sql>
+
+        <sql dialect="oracle">
+        SELECT bl.city_id, bl.state_id, project.site_id, project.bl_id, project.dv_id, project.dp_id,
+          project.is_template, program.program_type, program.program_id, project.project_type, project.project_id,
+          project.proj_mgr, project.status,
+          total_act_cost, design_tot_est,
+          CASE WHEN design_pct_complete IS NULL THEN 0 ELSE design_pct_complete END AS design_pct_complete,
+          CASE WHEN constr_pct_complete IS NULL THEN 0 ELSE constr_pct_complete END AS constr_pct_complete,
+          CASE WHEN tot_pct_complete IS NULL THEN 0 ELSE tot_pct_complete END AS tot_pct_complete,
+          (total_act_cost - design_tot_est) AS variance,
+          ( CASE WHEN design_tot_est = 0 OR design_tot_est IS NULL OR total_act_cost IS NULL THEN 0
+            ELSE ((100.0 * activity_aggs.total_act_cost)/activity_aggs.design_tot_est) END ) AS pct_variance
+        FROM project,
+          (SELECT project_id, (SUM(cost_est_design_exp) + SUM(cost_est_design_cap)) AS design_tot_est, (SUM(cost_actual) + SUM(cost_act_cap)) AS total_act_cost
+          FROM activity_log
+          GROUP BY project_id ) activity_aggs,
+          (SELECT project_id, AVG(pct_complete) AS tot_pct_complete
+            FROM activity_log
+            GROUP BY project_id) tot_complete,
+          (SELECT project_id, AVG(pct_complete) AS design_pct_complete
+            FROM activity_log
+            WHERE activity_log.proj_phase IN ('Design')
+            GROUP BY project_id) design_complete,
+          (SELECT project_id, AVG(pct_complete) AS constr_pct_complete
+            FROM activity_log
+            WHERE activity_log.proj_phase IN ('Execution')
+            GROUP BY project_id) constr_complete,
+          program,
+          bl
+        WHERE project.project_id = activity_aggs.project_id
+          AND project.project_id = tot_complete.project_id
+          AND project.project_id = design_complete.project_id (+)
+          AND project.project_id = constr_complete.project_id (+)
+          AND project.program_id = program.program_id (+)
+          AND project.bl_id = bl.bl_id (+)
+          AND ${sql.vpaRestriction}
+        </sql>
+        <restriction type="sql" sql="project.is_template = 0"/>
+    </dataSource>
+
+    <panel type="crossTable" id="selectProjectReport" dataSource="projProjectsAnalysisDs0" layout="mainLayout" region="center">
+    	<title>View Project Analysis</title>
+        <instructions>[li][b]Total Estimated Costs[/b] = Total estimated design costs[/li][li][b]Total Actual Costs[/b] = Total actual costs[/li][li][b]Variance[/b] = Variance between estimated design costs and actual costs[/li][li][b]% Variance[/b] = % variance between estimated design costs and actual costs[/li][li][b]% Complete: Design[/b] = % of completed project actions in the Design project phase[/li][li][b]% Complete: Execution[/b] = % of completed project actions in the Execution project phase[/li][li][b]% Complete: Total[/b] = total % of completed project actions[/li]</instructions>
+        <action id="exportXLS">
+            <title>XLS</title>
+            <command type="exportPanel" outputType="xls" panelId="selectProjectReport"/>
+        </action> 
+        <event type="onClickItem">
+            <command type="openDialog" viewName="ab-proj-projects-analysis-details.axvw"/>
+        </event>                   
+    </panel>
+</view>
+    
+ 
+ 
+ 
+ 

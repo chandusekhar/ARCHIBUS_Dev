@@ -1,0 +1,122 @@
+<view version="2.0" showLoadProgress="true">
+    <title translatable="true">Compare Billed Usage: Current vs Previous</title>
+    <layout id="mainLayout">
+        <north initialSize="140" split="true" id="console"/>
+        <center />
+  	</layout>
+  	<layout id="nestedLayout_1" containingLayout="mainLayout" region="center">
+        <west initialSize="400" split="true" id="tree"/>
+        <center id="chart"/>
+  	</layout> 
+  	
+  	<message name="axisTitle" translatable="true">Consumption</message>
+  	
+  	<js file="ab-energy-cost-base.js"/>
+  	<js file="ab-energy-consumption-compare-billed.js"/>
+    <js file="ab-energy-common.js"/>
+    
+   <panel id="costConsolePanel" type="view" file="ab-energy-cost-console.axvw" layoutRegion="console"/>
+  	
+   <panel id="costTreePanel" type="view" file="ab-energy-cost-tree.axvw" layoutRegion="tree"/>
+   
+     <dataSource id="ds_energyCost" type="grouping" >
+        <table name="bill_archive" /> 
+        <field table="bill_archive" name="time_period" groupBy="true"/>
+        <restriction type="sql" sql=" exists (select 1 from bl where bl.bl_id = bill_archive.bl_id and ${parameters['finalRestriction']} ) AND ((bill_archive.prorated_aggregated = 'NO' AND bill_archive.reference_bill_id IS NULL AND NOT EXISTS (SELECT 1 FROM bill_archive b WHERE b.reference_bill_id = bill_archive.bill_id)) OR (bill_archive.prorated_aggregated &lt;&gt; 'NO'))" />
+        <parameter name="finalRestriction" dataType="verbatim" value=" 1=1 "/> 
+    </dataSource> 
+          
+    <!-- data source for one of the two data axis  -->    
+   <dataSource id="ds_energyCostPrevious">    
+	      <table name="bill_archive"/>  
+	      <sql dialect="generic">   
+	        SELECT CASE WHEN SUM(bill_archive.qty_energy) != 0 THEN SUM(bill_archive.qty_energy) 
+                        ELSE SUM(bill_archive.qty_volume) END ${sql.as} qty_previous, bill_archive.time_period ${sql.as} time_period FROM         
+              (             
+	          SELECT bill_archive.qty_energy / ${parameters['unitsConversionFactor']} ${sql.as} qty_energy,  
+	             bill_archive.qty_volume / ${parameters['unitsConversionFactor']} ${sql.as} qty_volume,  
+	             left(left(bill_archive.time_period,4)+1,4) ${sql.concat} '-' ${sql.concat} right(bill_archive.time_period,2) ${sql.as} time_period
+	          FROM bill_archive WHERE EXISTS (select 1 from bl where bl.bl_id = bill_archive.bl_id and ${parameters['previousRestriction']})  
+                                      AND ((bill_archive.prorated_aggregated = 'NO' AND bill_archive.reference_bill_id IS NULL AND NOT EXISTS (SELECT 1 FROM bill_archive b WHERE b.reference_bill_id = bill_archive.bill_id)) OR (bill_archive.prorated_aggregated &lt;&gt; 'NO'))     
+	           ) ${sql.as} bill_archive 
+	           GROUP BY time_period                  
+	      </sql>       
+	      <sql dialect="oracle">   
+            SELECT CASE WHEN SUM(bill_archive.qty_energy) != 0 THEN SUM(bill_archive.qty_energy) 
+                        ELSE SUM(bill_archive.qty_volume) END ${sql.as} qty_previous, bill_archive.time_period ${sql.as} time_period FROM         
+              (             
+              SELECT bill_archive.qty_energy / ${parameters['unitsConversionFactor']} ${sql.as} qty_energy,  
+                 bill_archive.qty_volume / ${parameters['unitsConversionFactor']} ${sql.as} qty_volume,  
+                 substr(substr(bill_archive.time_period,1,4)+1,1,4) ${sql.concat} '-' ${sql.concat} substr(bill_archive.time_period,6,2) ${sql.as} time_period
+              FROM bill_archive WHERE EXISTS (select 1 from bl where bl.bl_id = bill_archive.bl_id and ${parameters['previousRestriction']}) 
+                                      AND ((bill_archive.prorated_aggregated = 'NO' AND bill_archive.reference_bill_id IS NULL AND NOT EXISTS (SELECT 1 FROM bill_archive b WHERE b.reference_bill_id = bill_archive.bill_id)) OR (bill_archive.prorated_aggregated &lt;&gt; 'NO'))      
+               ) ${sql.as} bill_archive 
+               GROUP BY time_period                  
+          </sql>          
+	      <field name="qty_previous" dataType="number" size="6" decimals="0"> 
+	          <title>Consumption</title>
+	      </field>    
+	      <field table="bill_archive" name="time_period"/>
+	      <parameter name="summaryValueForThisGroup" dataType="text" value=""/> 
+	      <parameter name="previousRestriction" dataType="verbatim" value=" 1=1 "/> 
+	      <parameter name="unitsConversionFactor" dataType="verbatim" value="1"/>  
+	      <restriction type="sql"  sql=" time_period = ${parameters['summaryValueForThisGroup']} "/>
+   </dataSource>     
+    
+    <!-- data source for another one of the two data axis  -->   
+    <dataSource id="ds_energyCostYear"> 
+        <table name="bill_archive"/>  
+         <sql dialect="generic">     
+              SELECT  CASE WHEN SUM(bill_archive.qty_energy) != 0 THEN SUM(bill_archive.qty_energy)
+                        ELSE SUM(bill_archive.qty_volume) END ${sql.as} qty_total, bill_archive.time_period ${sql.as} time_period FROM         
+              (
+              SELECT bill_archive.qty_energy / ${parameters['unitsConversionFactor']} ${sql.as} qty_energy,  
+                 bill_archive.qty_volume / ${parameters['unitsConversionFactor']} ${sql.as} qty_volume,  
+                 bill_archive.time_period ${sql.as} time_period
+              FROM bill_archive WHERE EXISTS (select 1 from bl where bl.bl_id = bill_archive.bl_id and ${parameters['finalRestriction']}) 
+                                      AND ((bill_archive.prorated_aggregated = 'NO' AND bill_archive.reference_bill_id IS NULL AND NOT EXISTS (SELECT 1 FROM bill_archive b WHERE b.reference_bill_id = bill_archive.bill_id)) OR (bill_archive.prorated_aggregated &lt;&gt; 'NO')) 
+              ) ${sql.as} bill_archive  
+              GROUP BY time_period                
+          </sql>
+        <field name="qty_total" dataType="number" size="6" decimals="0"> 
+            <title>Consumption</title>
+        </field>
+        <field table="bill_archive" name="time_period"/>
+        <parameter name="summaryValueForThisGroup" dataType="text" value=""/>   
+        <parameter name="finalRestriction" dataType="verbatim" value=" 1=1 "/> 
+        <parameter name="unitsConversionFactor" dataType="verbatim" value="1"/>  
+        <restriction type="sql"  sql=" time_period = ${parameters['summaryValueForThisGroup']} "/>
+    </dataSource>    
+    
+    <!-- Chart panel -->   
+    <panel  id="energyCost_chart" 
+            type="htmlChart"
+            layoutRegion="chart" 
+            controlType="columnChart"  
+            dataSource="ds_energyCost" 
+            showOnLoad="false"
+            showLegendOnLoad="true"
+            showLegendAsPopUp="false" 
+            legendLocation="right"
+            dataAxisTitle="Consumption"
+            showExportButton="true"
+            showDataTips="true">
+        <title translatable="true">Compare Billed Usage: Current vs Previous in {0}</title>
+        <event type="onClickItem">
+            <command type="callFunction" functionName="onDrillDownToBillArchiveYearCompare"/>
+        </event>
+        
+        <groupingAxis table="bill_archive" field="time_period"  dataSource="ds_energyCost" labelRotation="45">
+            <title>Time Period</title> 
+        </groupingAxis>
+        <dataAxis  table="bill_archive" field="qty_previous" dataSource="ds_energyCostPrevious">
+            <title>Consumption Previous Year</title>
+        </dataAxis>
+        <dataAxis  table="bill_archive" field="qty_total" dataSource="ds_energyCostYear">
+            <title>Consumption Selected Year</title>
+        </dataAxis>
+    </panel> 
+    
+    <panel id="costDrillDownPanel" type="view" file="ab-energy-cost-drilldown.axvw" />
+
+</view>

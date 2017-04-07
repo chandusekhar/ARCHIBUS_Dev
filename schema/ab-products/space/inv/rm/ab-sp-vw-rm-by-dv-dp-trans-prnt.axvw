@@ -1,0 +1,136 @@
+﻿<view version="2.0">
+    <designInfo type="paginated" pattern="ab-viewdef-paginated-parent-parent-child" isAlterable="true"/>
+    <title>View Rooms by Division and Department</title>
+    
+    <report orientation="landscape"/>
+
+    <dataSource id="ds_abViewdefPaginatedParentParentChild_owner2">
+        <table name="dv" role="main"/>
+        <field table="dv" name="dv_id"/>
+        <field table="dv" name="name"/>
+        <field table="dv" name="area_rm"/>
+        <field table="dv" name="area_nocup"/>
+        <field table="dv" name="area_ocup"/>
+        <field name="dv_count_em" dataType="number" decimals="0">
+            <sql dialect="generic">
+				 (select count(1) from em where em.dv_id=dv.dv_id) 
+			</sql>
+		</field>
+		<field name="dv_area_avg_em" dataType="number"  decimals="2" numericFormat="area">
+					<sql dialect="generic">
+							CASE WHEN  (select count(1) from em where em.dv_id=dv.dv_id)=0 THEN 0
+							ELSE  dv.area_rm/ (select count(1) from em where em.dv_id=dv.dv_id)  
+							END 
+					</sql>
+		</field>
+        <restriction type="sql" sql="dv.dv_id in (select rmpct.dv_id from rmpct where rmpct.dv_id=dv.dv_id 
+                                     AND rmpct.area_rm>0 )"/>
+    </dataSource>
+
+    <panel id="panel_abViewdefPaginatedParentParentChild_owner2" type="paginatedReport" format="table" role="parent" dataSource="ds_abViewdefPaginatedParentParentChild_owner2">
+        <title translatable="true">Divisions</title>    
+        <field table="dv" name="dv_id" restrictionParameterName="dvDvId"/>
+        <field table="dv" name="name"/>
+        <field table="dv" name="area_rm"/>
+        <field table="dv" name="area_nocup"/>
+        <field table="dv" name="area_ocup"/>
+        <field table="dv" name="dv_count_em">
+            <title>Employee Headcount</title>
+        </field>
+        <field table="dv" name="dv_area_avg_em">
+            <title>Avg.Area per Employee ${user.areaUnits.title}</title>
+        </field>
+        <sortField name="dv_id" table="dv" ascending="true" />
+		<restriction type="sql" sql="dv.dv_id in (select rm.dv_id from rm where rm.dv_id=dv.dv_id)"/>
+    </panel>
+    
+    <dataSource id="ds_abViewdefPaginatedParentParentChild_owner">
+        <table name="dp" role="main"/>
+        <field table="dp" name="dv_id"/>
+        <field table="dp" name="dp_id"/>
+        <field table="dp" name="name"/>
+        <field table="dp" name="area_rm"/>
+        <field table="dp" name="area_nocup"/>
+        <field table="dp" name="area_ocup"/>
+        <field table="dp" name="count_em"/>
+        <field table="dp" name="area_avg_em"/>
+        <field name="dp_count_em" dataType="number"  decimals="0">
+			<sql dialect="generic">
+					(select count(1) from em where em.dv_id=dp.dv_id and em.dp_id=dp.dp_id)			
+			</sql>
+		</field>
+		<field name="dp_area_avg_em" dataType="number"  decimals="2" numericFormat="area">
+					<sql dialect="generic">
+							CASE WHEN  (select count(1) from em where em.dv_id=dp.dv_id and em.dp_id=dp.dp_id)=0 THEN 0
+							ELSE  dp.area_rm/(select count(1) from em where em.dv_id=dp.dv_id and em.dp_id=dp.dp_id)  
+							END 
+					</sql>
+		</field>
+        <parameter name="dvDvId" dataType="verbatim" value=""/>
+        <restriction type="parsed">
+            <clause relop="AND" op="=" table="dp" name="dv_id" value="${parameters['dvDvId']}" />
+        </restriction>
+		<restriction type="sql" sql="dp.dp_id in (select rmpct.dp_id from rmpct where rmpct.dp_id=dp.dp_id and rmpct.dv_id=dp.dv_id 
+                                     AND rmpct.area_rm>0 )"/>
+    </dataSource>    
+
+    <panel id="panel_abViewdefPaginatedParentParentChild_owner" type="paginatedReport" format="table" role="parent" dataSource="ds_abViewdefPaginatedParentParentChild_owner">
+        <title translatable="true">Departments</title>    
+        <field table="dp" name="dv_id" restrictionParameterName="dpDvId"/>
+        <field table="dp" name="dp_id" restrictionParameterName="dpDpId"/>
+        <field table="dp" name="name"/>
+        <field table="dp" name="area_rm"/>
+        <field table="dp" name="area_nocup"/>
+        <field table="dp" name="area_ocup"/>
+        <field table="dp" name="dp_count_em">
+	     <title>Employee Headcount</title>
+	</field>
+        <field table="dp" name="dp_area_avg_em">
+	     <title>Avg.Area per Employee ${user.areaUnits.title}</title>
+	</field>
+        <sortField name="dv_id" table="dp" ascending="true" />
+        <sortField name="dp_id" table="dp" ascending="true" />
+    </panel>
+    
+    <dataSource id="ds_abViewdefPaginatedParentParentChild_data"  type="grouping">
+        <table name="rmpct" role="main"/>
+        <table name="rmcat" role="standard"/>
+        <table name="rm" role="standard"/>
+        <field table="rmpct" name="bl_id"  groupBy="true"/>
+        <field table="rmpct" name="fl_id"  groupBy="true"/>
+        <field table="rmpct" name="rm_id"  groupBy="true"/>
+        <field name="area_rm" formula="sum" baseField="rmpct.area_rm" dataType="number" decimals="2"/>
+        <field table="rmpct" name="rm_cat"  groupBy="true"/>
+        <field table="rmpct" name="rm_type"  groupBy="true"/>
+        <field table="rm" name="rm_std"  groupBy="true"/>
+        <field table="rmcat" name="occupiable"/>
+        <field table="rmpct" name="dv_id"  groupBy="true"/>
+        <field table="rmpct" name="dp_id"  groupBy="true"/>
+        
+        <restriction type="sql" sql=" rmpct.area_rm>0 "/>
+        
+        <parameter name="dpDvId" dataType="verbatim" value=""/>
+        <parameter name="dpDpId" dataType="verbatim" value=""/>
+        <restriction type="parsed">
+            <clause relop="AND" op="=" table="rmpct" name="dv_id" value="${parameters['dpDvId']}" />
+            <clause relop="AND" op="=" table="rmpct" name="dp_id" value="${parameters['dpDpId']}" />
+        </restriction>
+    </dataSource>
+
+    <panel id="panel_abViewdefPaginatedParentParentChild_data" type="paginatedReport" format="table" role="data" dataSource="ds_abViewdefPaginatedParentParentChild_data">
+        <title translatable="true">Rooms</title>    
+        <field table="rmpct" name="bl_id"/>
+        <field table="rmpct" name="fl_id"/>
+        <field table="rmpct" name="rm_id"/>
+        <field table="rmpct" name="area_rm">
+            <title>Allocated Room Area ${user.areaUnits.title}</title>
+        </field>
+        <field table="rmpct" name="rm_cat"/>
+        <field table="rmpct" name="rm_type"/>
+        <field table="rm" name="rm_std"/>
+        <sortField name="bl_id" table="rmpct" ascending="true"/>
+        <sortField name="fl_id" table="rmpct" ascending="true"/>
+        <sortField name="rm_id" table="rmpct" ascending="true"/>
+    </panel>
+    
+</view>

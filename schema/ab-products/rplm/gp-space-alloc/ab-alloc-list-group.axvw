@@ -1,0 +1,442 @@
+<view version="2.0">
+	<js file="ab-alloc-list-group.js" />
+	<js file="ab-alloc-common.js" />
+	<js file="ab-form-validator.js" />
+
+	<message name="area_per_employee_Imperial">200</message>
+	<message name="area_per_employee_Metric">20</message>
+
+	<message name="buildingTitle" translatable="true">Building:</message>	
+	<message name="floorTitle" translatable="true">Floor:</message>	
+	<message name="portfolioScenarioTitle" translatable="true">Scenario:</message>
+	<message name="selectFloorMessage" translatable="true">Floor</message>	
+    <message name="errorDateEnd">The end date must be greater than the start date.</message>
+    <message name="error_no_fl_id">Please select a floor.</message>
+    <message name="error_no_floor_area">The program cannot apply the % of Floor value because the floor has no area. You can enter the group's area directly in the Manual Area field or first go to the Select Floor tab, edit the floor and enter the floor area in the Manual Area field.</message>
+	<message name="error_no_portfolio_scenario_id">Please select a Portfolio Scenario.</message>
+    <message name="error_no_pct">Please enter the % of the floor.</message>
+    <message name="error_pct_total">The total of the % values cannot exceed 100%.</message>
+    <message name="error_pct_total_floor">The total % of all groups assigned to this floor will exceed 100%.</message>
+    <message name="error_no_area">Please enter the Manual Area or fill in the % of Floor or Headcount fields and use the Apply methods to calculate it.</message>
+    <message name="error_no_dates">Please enter both the Start and End Dates.</message>
+    <message name="error_negative_area">The group area cannot be a negative number.</message>
+    <message name="error_invalid_dv_dp">The department does not exist.</message>
+    <message name="confirmDelete">Proceed to delete the selected groups?</message>
+	<message name="addGroupTitle">Add Group</message>
+	<message name="addingGroups">Adding Groups</message>
+
+	<dataSource id="ds_stdAreaPerEm">
+		<sql dialect="generic">
+			SELECT (CASE WHEN fl.std_area_per_em > 0 THEN fl.std_area_per_em ELSE (SELECT bl.std_area_per_em FROM bl WHERE fl.bl_id=bl.bl_id) END) ${sql.as} std_area FROM fl WHERE fl.bl_id= '${parameters["blId"]}' AND fl.fl_id='${parameters["flId"]}'
+		</sql>
+		<sql dialect="oracle">
+			SELECT (CASE WHEN fl.std_area_per_em > 0 THEN fl.std_area_per_em ELSE (SELECT bl.std_area_per_em FROM bl WHERE fl.bl_id=bl.bl_id) END) ${sql.as} std_area FROM fl WHERE fl.bl_id= '${parameters["blId"]}' AND fl.fl_id='${parameters["flId"]}'
+		</sql>
+		<table name="fl" role="main"/>
+		<field table="fl" name="std_area" dataType="number" decimals="2"/>
+
+		<parameter name="blId" dataType="verbatim" value=""/>
+		<parameter name="flId" dataType="verbatim" value=""/>
+	</dataSource>
+
+    <dataSource type="grouping" id="pctTotal">
+        <table name="gp"/>
+        <field name="pct_floor_sum" formula="sum" baseField="gp.pct_floor" dataType="number"/>
+    </dataSource>
+	
+	<dataSource id="consoleDs">
+		<table name="gp" role="main"/>
+		<field table="gp" name="bl_id"/>
+		<field table="gp" name="fl_id"/>
+		<field table="gp" name="dv_id"/>
+		<field table="gp" name="dp_id"/>
+		<field table="gp" name="date_start"/>
+		<field table="gp" name="date_end"/>
+		<field table="gp" name="portfolio_scenario_id"/>
+		<restriction type="sql" sql="gp_id is null"/>
+	</dataSource>
+
+	<panel type="console" columns="3" id="allocGroupConsole" dataSource="consoleDs">
+		<action id="filter">
+			<title translatable="true">Show</title>
+		</action>
+		<action id="SubtractYear">
+			<title translatable="true">&lt; Year</title>
+		</action>
+		<action id="AddYear">
+			<title translatable="true">Year &gt;</title>
+		</action>
+		<action id="SubtractMonth">
+			<title translatable="true">&lt; Month</title>
+		</action>
+		<action id="AddMonth">
+			<title translatable="true">Month &gt;</title>
+		</action>
+		<!--action id="clear">
+			<title translatable="true">Clear</title>
+		</action-->
+
+		<field name="portfolio_scenario_id"/>
+		<field name="date_start">
+			<title translatable="true">Review Date</title>
+		</field>
+		<field></field>
+	</panel>
+	
+    <dataSource id="groupGrid_ds">
+        <table name="gp"/>
+        <field name="gp_id"/>
+        <field name="name"/>
+        <field name="bl_id"/>
+        <field name="fl_id"/>
+        <field name="dv_id"/>
+        <field name="dp_id"/>
+        <field name="pct_floor"/>
+        <field name="area"/>
+        <field name="area_manual"/>
+        <field name="count_em"/>
+        <field name="date_start"/>
+        <field name="date_end"/>
+        <field name="portfolio_scenario_id"/>
+    </dataSource>
+
+    <panel type="grid" id="groupGrid" multipleSelectionEnabled="true" dataSource="groupGrid_ds" showOnLoad="false">
+        <sortField name="bl_id" table="gp" ascending="true"/>
+        <sortField name="fl_id" table="gp" ascending="true"/>
+        <sortField name="date_start" table="gp" ascending="true"/>
+        <sortField name="date_end" table="gp" ascending="true"/>
+        <sortField name="dv_id" table="gp" ascending="true"/>
+        <sortField name="dp_id" table="gp" ascending="true"/>
+        <sortField name="gp_id" table="gp" ascending="true"/>
+        <title translatable="true">Groups</title>
+
+        <action type="menu" id="addGroups_menu">
+        		<title translatable="true">Add Group</title>
+        		<action id="AddNew">
+		            <title translatable="true">Add Group</title>
+		            <command type="callFunction" functionName="allocListGroupController.groupGrid_onAddNew()"/>
+		        </action>
+		       	<action id="AddGroupsRm">
+		       			<title translatable="true">Add Groups from Room Inventory</title>
+		       			<command type="callFunction" functionName="allocListGroupController.groupGrid_onAddGroups('rm')"/>
+		       	</action>
+		       	<action id="AddGroupsEm">
+		       			<title translatable="true">Add Groups from Employee Inventory</title>
+		       			<command type="callFunction" functionName="allocListGroupController.groupGrid_onAddGroups('em')"/>
+		       	</action>
+        </action>
+        
+        <action id="SplitFloor">
+            <title translatable="true">Split Floor</title>
+			<tooltip>Splits a floor into multiple groups by percentages.</tooltip>
+        </action>
+        <action id="IncludeFloor">
+            <title translatable="true">Add Empty Group</title>
+			<tooltip>Adds an empty group as a placeholder to incorporate a vacant but available floor to the forecast.</tooltip>
+        </action>
+        <action id="DeleteSelected">
+            <title translatable="true">Delete</title>
+			<tooltip>Deletes the selected groups.</tooltip>
+        </action>
+        <action id="groupGrid_export:PDF">
+            <title>PDF</title>
+            <command type="exportPanel" outputType="pdf" panelId="groupGrid" viewName="ab-alloc-list-group.axvw"/>
+        </action>
+        <action id="groupGrid_export:XLS">
+            <title>XLS</title>
+            <command type="exportPanel" outputType="xls" panelId="groupGrid" viewName="ab-alloc-list-group.axvw"/>
+        </action>
+
+		<field controlType="button" id="edit">
+			<title translatable="true">Edit</title>
+		</field>
+
+        <field name="bl_id" required="false" controlType="link" onclick="allocListGroupController.onClickLink"/>
+        <field name="fl_id" required="false" controlType="link" onclick="allocListGroupController.onClickLink"/>
+        <field name="dv_id" required="false" controlType="link" onclick="allocListGroupController.onClickLink"/>
+        <field name="dp_id" required="false" controlType="link" onclick="allocListGroupController.onClickLink"/>
+        <field name="gp_id" required="false" controlType="link" onclick="allocListGroupController.onClickLink"/>
+        <field name="name" required="false" controlType="link" onclick="allocListGroupController.onClickLink"/>
+        <field name="count_em" required="false" controlType="link" onclick="allocListGroupController.onClickLink"/>
+        <field name="pct_floor" required="false" controlType="link" onclick="allocListGroupController.onClickLink"/>
+        <field name="area" required="false" controlType="link" onclick="allocListGroupController.onClickLink">
+			<title translatable="true">CAD Area</title>
+		</field>
+        <field name="area_manual" required="false" controlType="link" onclick="allocListGroupController.onClickLink"/>
+        <field name="date_start" required="false" controlType="link" onclick="allocListGroupController.onClickLink"/>
+        <field name="date_end" required="false" controlType="link" onclick="allocListGroupController.onClickLink"/>
+        <field name="portfolio_scenario_id" required="false" controlType="link" onclick="allocListGroupController.onClickLink"/>
+    </panel>
+
+    <dataSource id="formDs">
+        <table name="gp" role="main"/>
+        <field table="gp" name="gp_id"/>
+        <field table="gp" name="area_comn" />
+        <field table="gp" name="area_comn_gp" />
+        <field table="gp" name="name"/>
+        <field table="gp" name="bl_id"/>
+        <field table="gp" name="fl_id"/>
+        <field table="gp" name="dv_id"/>
+        <field table="gp" name="dp_id"/>
+        <field table="gp" name="pct_floor"/>
+        <field table="gp" name="area"/>
+        <field table="gp" name="area_manual"/>
+        <field table="gp" name="count_em"/>
+        <field table="gp" name="date_start"/>
+        <field table="gp" name="date_end"/>
+        <field table="gp" name="description"/>
+        <field table="gp" name="portfolio_scenario_id"/>
+    </dataSource>
+
+	<panel type="form" id="editGroupForm" columns="2" dataSource="formDs" hidden="true" showOnLoad="false">
+		<title translatable="true">Edit Group</title>
+
+        <action id="applyPercent">
+            <title translatable="true">Apply % of Floor</title>
+			<tooltip translatable="true">Calculates the Group Manual Area by multiplying the % of Floor by the Floor Usable or the Floor Manual Area. This button is disabled if the group has a CAD Area.</tooltip>
+			<command type="callFunction" functionName="allocListGroupController.onApplyPercent()"/>
+        </action>
+        <action id="applyHeadcount">
+            <title translatable="true">Apply Headcount</title>
+			<tooltip translatable="true">Calculates the Group Manual Area by multiplying the Employee Headcount by a Standard Area per Employee (from the AXVW). This button is disabled if the group has a CAD Area.</tooltip>
+			<command type="callFunction" functionName="allocListGroupController.onApplyHeadcount()"/>
+        </action>
+        <action id="save">
+            <title translatable="true">Save</title>
+        </action>
+        <action id="cancel">
+            <title translatable="true">Cancel</title>
+            <command type="closeDialog"/>
+        </action>
+
+        <field table="gp" name="gp_id"/>
+        <field table="gp" name="area">
+			<title translatable="true">CAD Area</title>
+		</field>
+        <field table="gp" name="name"/>
+        <field table="gp" name="area_manual"/>
+        <field table="gp" name="bl_id" required="true"/>
+        <field table="gp" name="pct_floor">
+			<action>
+				<title>...</title>
+				<tooltip>The Apply % of Floor action calculates the Group Manual Area by multiplying the % of Floor by the Floor Usable or the Floor Manual Area.</tooltip>
+			</action>
+		</field>
+        <field table="gp" name="fl_id" required="true"/>
+        <field table="gp" name="count_em">
+			<action>
+				<title>...</title>
+				<tooltip>The Apply Headcount action calculates the Group Manual Area by multiplying the Headcount by a Standard Area per Employee (from the AXVW).</tooltip>
+			</action>
+		</field>
+        <field table="gp" name="dv_id" required="true"/>
+		<field></field>
+        <field table="gp" name="dp_id" required="true"/>
+        <field table="gp" name="portfolio_scenario_id" required="true"/>
+        <field table="gp" name="date_start" required="true"/>
+        <field table="gp" name="date_end" required="true"/>
+        <field table="gp" name="description" colspan="2" rowspan="3"/>
+	</panel>
+	
+	<panel type="form" id="addGroupsForm" columns="1" dataSource="formDs" hidden="true" showOnLoad="false">
+				<title>Enter Group Dates</title>
+				<action id="continue">
+						<title>Continue</title>
+				</action>
+				<field table="gp" name="date_start" required="true"/>
+        <field table="gp" name="date_end" required="true"/>
+	</panel>
+
+	<panel type="form" id="includeFloorForm" columns="1" dataSource="formDs" hidden="true" showOnLoad="false">
+		<title translatable="true">Add Empty Group</title>
+
+        <action id="save">
+            <title translatable="true">Save</title>
+        </action>
+        <action id="cancel">
+            <title translatable="true">Cancel</title>
+            <command type="closeDialog"/>
+        </action>
+
+        <field table="gp" name="gp_id"/>
+        <field table="gp" name="name"/>
+        <field table="gp" name="bl_id" required="true"/>
+        <field table="gp" name="fl_id" required="true"/>
+        <field table="gp" name="portfolio_scenario_id" required="true"/>
+        <field table="gp" name="date_start" required="true"/>
+        <field table="gp" name="date_end" required="true"/>
+	</panel>
+
+	<panel type="form" columns = "3" id="splitFloorForm" dataSource="formDs" hidden="true" showOnLoad="false" labelsPosition="left" newRecord="true">
+		<title translatable="true">Split Floor</title>
+
+        <action id="save">
+            <title translatable="true">Save</title>
+        </action>
+        <action id="cancel">
+            <title translatable="true">Cancel</title>
+            <command type="closeDialog"/>
+        </action>
+
+        <field table="gp" name="bl_id"/>
+        <field table="gp" name="fl_id" onchange="onChangeFloorNoSelection()">
+			<action>
+				<title>...</title>
+				<command type="selectValue" fieldNames="gp.bl_id,gp.fl_id" selectFieldNames="fl.bl_id,fl.fl_id" visibleFieldNames="fl.bl_id,fl.fl_id,fl.name,fl.area_usable,fl.area_manual" actionListener="onChangeFloor"/>
+			</action>
+		</field>
+		<field table="gp" name="area_comn" alias="fl.area_usable">
+			<title translatable="true">Floor Usable Area</title>
+		</field>
+
+        <field table="gp" name="date_start" required="true"/>
+        <field table="gp" name="date_end" required="true"/>
+		<field table="gp" name="area_comn_gp" alias="fl.area_manual">
+			<title translatable="true">Floor Manual Area</title>
+		</field>
+
+        <field table="gp" name="portfolio_scenario_id" required="true"/>
+		<field></field>
+		<field></field>
+
+        <field table="gp" name="dv_id" alias="gp.dv_id.1">
+			<action>
+				<title>...</title>
+				<command type="selectValue" fieldNames="gp.dv_id.1" selectFieldNames="dv.dv_id" visibleFieldNames="dv.dv_id,dv.name"/>
+			</action>
+		</field>
+        <field table="gp" name="dp_id" alias="gp.dp_id.1">
+			<action>
+				<title>...</title>
+				<command type="selectValue" fieldNames="gp.dv_id.1,gp.dp_id.1" selectFieldNames="dp.dv_id,dp.dp_id" visibleFieldNames="dp.dv_id,dp.dp_id,dp.name"/>
+			</action>
+		</field>
+        <field table="gp" name="pct_floor" alias="gp.pct_floor.1"/>
+
+        <field table="gp" name="dv_id" alias="gp.dv_id.2">
+			<action>
+				<title>...</title>
+				<command type="selectValue" fieldNames="gp.dv_id.2" selectFieldNames="dv.dv_id" visibleFieldNames="dv.dv_id,dv.name"/>
+			</action>
+		</field>
+        <field table="gp" name="dp_id" alias="gp.dp_id.2">
+			<action>
+				<title>...</title>
+				<command type="selectValue" fieldNames="gp.dv_id.2,gp.dp_id.2" selectFieldNames="dp.dv_id,dp.dp_id" visibleFieldNames="dp.dv_id,dp.dp_id,dp.name"/>
+			</action>
+		</field>
+        <field table="gp" name="pct_floor" alias="gp.pct_floor.2"/>
+
+        <field table="gp" name="dv_id" alias="gp.dv_id.3">
+			<action>
+				<title>...</title>
+				<command type="selectValue" fieldNames="gp.dv_id.3" selectFieldNames="dv.dv_id" visibleFieldNames="dv.dv_id,dv.name"/>
+			</action>
+		</field>
+        <field table="gp" name="dp_id" alias="gp.dp_id.3">
+			<action>
+				<title>...</title>
+				<command type="selectValue" fieldNames="gp.dv_id.3,gp.dp_id.3" selectFieldNames="dp.dv_id,dp.dp_id" visibleFieldNames="dp.dv_id,dp.dp_id,dp.name"/>
+			</action>
+		</field>
+        <field table="gp" name="pct_floor" alias="gp.pct_floor.3"/>
+
+        <field table="gp" name="dv_id" alias="gp.dv_id.4">
+			<action>
+				<title>...</title>
+				<command type="selectValue" fieldNames="gp.dv_id.4" selectFieldNames="dv.dv_id" visibleFieldNames="dv.dv_id,dv.name"/>
+			</action>
+		</field>
+        <field table="gp" name="dp_id" alias="gp.dp_id.4">
+			<action>
+				<title>...</title>
+				<command type="selectValue" fieldNames="gp.dv_id.4,gp.dp_id.4" selectFieldNames="dp.dv_id,dp.dp_id" visibleFieldNames="dp.dv_id,dp.dp_id,dp.name"/>
+			</action>
+		</field>
+        <field table="gp" name="pct_floor" alias="gp.pct_floor.4"/>
+
+        <field table="gp" name="dv_id" alias="gp.dv_id.5">
+			<action>
+				<title>...</title>
+				<command type="selectValue" fieldNames="gp.dv_id.5" selectFieldNames="dv.dv_id" visibleFieldNames="dv.dv_id,dv.name"/>
+			</action>
+		</field>
+        <field table="gp" name="dp_id" alias="gp.dp_id.5">
+			<action>
+				<title>...</title>
+				<command type="selectValue" fieldNames="gp.dv_id.5,gp.dp_id.5" selectFieldNames="dp.dv_id,dp.dp_id" visibleFieldNames="dp.dv_id,dp.dp_id,dp.name"/>
+			</action>
+		</field>
+        <field table="gp" name="pct_floor" alias="gp.pct_floor.5"/>
+
+        <field table="gp" name="dv_id" alias="gp.dv_id.6">
+			<action>
+				<title>...</title>
+				<command type="selectValue" fieldNames="gp.dv_id.6" selectFieldNames="dv.dv_id" visibleFieldNames="dv.dv_id,dv.name"/>
+			</action>
+		</field>
+        <field table="gp" name="dp_id" alias="gp.dp_id.6">
+			<action>
+				<title>...</title>
+				<command type="selectValue" fieldNames="gp.dv_id.6,gp.dp_id.6" selectFieldNames="dp.dv_id,dp.dp_id" visibleFieldNames="dp.dv_id,dp.dp_id,dp.name"/>
+			</action>
+		</field>
+        <field table="gp" name="pct_floor" alias="gp.pct_floor.6"/>
+
+        <field table="gp" name="dv_id" alias="gp.dv_id.7">
+			<action>
+				<title>...</title>
+				<command type="selectValue" fieldNames="gp.dv_id.7" selectFieldNames="dv.dv_id" visibleFieldNames="dv.dv_id,dv.name"/>
+			</action>
+		</field>
+        <field table="gp" name="dp_id" alias="gp.dp_id.7">
+			<action>
+				<title>...</title>
+				<command type="selectValue" fieldNames="gp.dv_id.7,gp.dp_id.7" selectFieldNames="dp.dv_id,dp.dp_id" visibleFieldNames="dp.dv_id,dp.dp_id,dp.name"/>
+			</action>
+		</field>
+        <field table="gp" name="pct_floor" alias="gp.pct_floor.7"/>
+
+        <field table="gp" name="dv_id" alias="gp.dv_id.8">
+			<action>
+				<title>...</title>
+				<command type="selectValue" fieldNames="gp.dv_id.8" selectFieldNames="dv.dv_id" visibleFieldNames="dv.dv_id,dv.name"/>
+			</action>
+		</field>
+        <field table="gp" name="dp_id" alias="gp.dp_id.8">
+			<action>
+				<title>...</title>
+				<command type="selectValue" fieldNames="gp.dv_id.8,gp.dp_id.8" selectFieldNames="dp.dv_id,dp.dp_id" visibleFieldNames="dp.dv_id,dp.dp_id,dp.name"/>
+			</action>
+		</field>
+        <field table="gp" name="pct_floor" alias="gp.pct_floor.8"/>
+
+        <field table="gp" name="dv_id" alias="gp.dv_id.9">
+			<action>
+				<title>...</title>
+				<command type="selectValue" fieldNames="gp.dv_id.9" selectFieldNames="dv.dv_id" visibleFieldNames="dv.dv_id,dv.name"/>
+			</action>
+		</field>
+        <field table="gp" name="dp_id" alias="gp.dp_id.9">
+			<action>
+				<title>...</title>
+				<command type="selectValue" fieldNames="gp.dv_id.9,gp.dp_id.9" selectFieldNames="dp.dv_id,dp.dp_id" visibleFieldNames="dp.dv_id,dp.dp_id,dp.name"/>
+			</action>
+		</field>
+        <field table="gp" name="pct_floor" alias="gp.pct_floor.9"/>
+
+        <field table="gp" name="dv_id" alias="gp.dv_id.10">
+			<action>
+				<title>...</title>
+				<command type="selectValue" fieldNames="gp.dv_id.10" selectFieldNames="dv.dv_id" visibleFieldNames="dv.dv_id,dv.name"/>
+			</action>
+		</field>
+        <field table="gp" name="dp_id" alias="gp.dp_id.10">
+			<action>
+				<title>...</title>
+				<command type="selectValue" fieldNames="gp.dv_id.10,gp.dp_id.10" selectFieldNames="dp.dv_id,dp.dp_id" visibleFieldNames="dp.dv_id,dp.dp_id,dp.name"/>
+			</action>
+		</field>
+        <field table="gp" name="pct_floor" alias="gp.pct_floor.10"/>
+	</panel>
+</view>

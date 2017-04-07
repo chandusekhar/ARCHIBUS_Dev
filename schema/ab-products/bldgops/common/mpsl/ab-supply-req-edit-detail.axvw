@@ -1,0 +1,328 @@
+<view version="2.0">
+    <message name="supplyReqItemTitle" translatable="true">Supply Requisition {0} Items - {1} to {2}</message>
+    <message name="mustSelectARowMsg" translatable="true">Please select at least one row</message>
+    <message name="partCodeMustNotBeEmptyMsg" translatable="true">Part code can't be empty</message>
+    <message name="savedSuccessfullyMsg" translatable="true">Saved Successfully</message>
+    <message name="QtyTransferMustBeNumberTypeAndGreaterThan0Msg" translatable="true">Transaction Quantity must be a numeric value greater than 0</message>
+    <message name="fromStorageCannotBeSameWithToStorageLocationMsg" translatable="true">To Storage Location cannot be the same as From Storage Location</message>
+    <message name="fromStorageLocationCannotBeEmptyMsg" translatable="true">From Storage Location can not be empty.</message>
+    <message name="toStorageLocationCannotBeEmptyMsg" translatable="true">To Storage Location must not be empty.</message>
+    <message name="RecordWillBeDeleteConfirmMsg" translatable="true">Record will be deleted?</message>
+    <message name="supplyReqCantbeDeleteMsg" translatable="true">supply requisition cannot be deleted if one or more of its supply requisition items has a status of Received or Error</message>
+    <message name="supplyReqItemDeleteErrorMsg" translatable="true">You should only be able to delete supply requisition items if the status is not Received or Error.</message>
+    <message name="exportSupplyReqMsg" translatable="true">Please select one or more supply requisition.</message>
+    <message name="doNotTransferMoreThanAvailableMsg" translatable="true">The Transaction Quantity cannot be greater then the Quantity Available.</message>
+    <message name="fromStorageLocCannotSameWithToStorageLocMsg" translatable="true">The From Storage Location should not be the same as To Storage Location.</message>
+    <message name="dateCreateFromCannotEarlierThanDateCreateToMsg" translatable="true">The Date Created From should be earlier than Date Created To.</message>
+    <message name="quantityNotEnoughForChangedStorageLocFromMsg" translatable="true">Change the From Storage Location causes some transaction quantities bigger than their Quantity on Available. This is not allowed.</message>
+    <js file="ab-supply-req-edit-detail.js"/>
+    <layout type="borderLayout" id="mainLayout">
+        <west initialSize="60%" split="true"/>
+        <center/>
+    </layout>
+    
+    <layout type="borderLayout" id="mainWestLayout" containingLayout="mainLayout" region="west">
+        <north initialSize="110" split="true"/>
+        <center/>
+        <south initialSize="40%" split="true"/>
+    </layout>
+    <dataSource id="ptStoreLocDs">
+        <table name="pt_store_loc_pt" role="main"/>
+        <field table="pt_store_loc_pt" name="pt_store_loc_id"/>
+        <field table="pt_store_loc_pt" name="part_id"/>
+        <field table="pt_store_loc_pt" name="qty_on_hand"/>
+    </dataSource>
+    <dataSource id="abMpiwSupplyReqItDs">
+        <table name="it" role="main"/>
+        <table name="supply_req" role="standard"/>
+        <table name="pt" role="standard"/>
+        <field table="it" name="trans_id"/>
+        <field table="it" name="supply_req_id"/>
+        <field table="it" name="pt_store_loc_from"/>
+        <field table="it" name="pt_store_loc_to"/>
+        <field table="it" name="part_id"/>
+        <field table="supply_req" name="supply_req_id"/>
+        <field table="supply_req" name="status"/>
+        <field table="supply_req" name="date_created"/>
+    </dataSource>
+    
+    <dataSource id="abMpiwSupplyReqStatusDS">
+        <table name="supply_req" role="main"/>
+        <field table="supply_req" name="supply_req_id"/>
+        <field table="supply_req" name="status"/>
+    </dataSource>
+    <dataSource id="abMpiwSupplyReqDS">
+        <table name="supply_req" role="main"/>
+        <field table="supply_req" name="supply_req_id"/>
+        <field table="supply_req" name="status"/>
+        <field name="fromStorageLocation" dataType="text">
+            <sql dialect="generic">
+                (select distinct pt_store_loc_from from it where it.supply_req_id=supply_req.supply_req_id)
+            </sql>
+        </field>
+        <field name="toStorageLocation" dataType="text">
+            <sql dialect="generic">
+                (select distinct pt_store_loc_to from it where it.supply_req_id=supply_req.supply_req_id)
+            </sql>
+        </field>
+        <field name="dateRecived" dataType="date">
+            <sql dialect="generic">
+                (select distinct max(trans_date) from it where it.supply_req_id=supply_req.supply_req_id and  (supply_req.status='Received' or supply_req.status='Partially Received'))
+            </sql>
+        </field>
+        <field table="supply_req" name="date_created"/>
+        <field table="supply_req" name="doc"/>
+        <field table="supply_req" name="last_updated_by"/>
+        <field table="supply_req" name="comments"/>
+        <parameter name="fromStorageLocationParam" dataType="verbatim" value="1=1"/>
+        <parameter name="toStorageLocationParam" dataType="verbatim" value="1=1"/>
+        <parameter name="partCodeParam" dataType="verbatim" value="1=1"/>
+        <restriction type="sql" sql="${parameters['fromStorageLocationParam']} and ${parameters['toStorageLocationParam']} and ${parameters['partCodeParam']}"/>
+    </dataSource>
+    
+    <dataSource id="abMpiwItDS">
+        <table name="it" role="main"/>
+        <field table="it" name="trans_id"/>
+        <field table="it" name="supply_req_id"/>
+        <field table="it" name="part_id"/>
+        <field table="it" name="trans_quantity"/>
+        <field table="it" name="req_item_status"/>
+        <field table="it" name="pt_store_loc_from"/>
+        <field table="it" name="pt_store_loc_to"/>
+        <field table="it" name="trans_date"/>
+        <field table="it" name="trans_time"/>
+        <field table="it" name="comments"/>
+        <field table="it" name="performed_by"/>
+        <field name="QuanityAvailableFrom" dataType="number" decimals="2" required="false">
+            <sql dialect="generic">
+                (select distinct qty_on_hand from pt_store_loc_pt where pt_store_loc_pt.pt_store_loc_id=it.pt_store_loc_from and pt_store_loc_pt.part_id=it.part_id)
+            </sql>
+        </field>
+    </dataSource>
+    
+    <dataSource id="abCheckQuantityOfStorageLocDs">
+        <sql dialect="generic">
+            select part_id from
+            (
+            select part_id,trans_quantity,
+            (select qty_on_hand from pt_store_loc_pt where part_id=it.part_id and pt_store_loc_pt.pt_store_loc_id='${parameters['fromStorageLocationParam']}') as qty_on_hand
+             from it where it.supply_req_id=${parameters['supplyReqIdParam']}
+            ) it_trans
+            where it_trans.trans_quantity &gt; ${sql.isNull("it_trans.qty_on_hand",'0')}
+        </sql>
+        <parameter name="fromStorageLocationParam" dataType="verbatim" value=""/>
+        <parameter name="supplyReqIdParam" dataType="verbatim" value=""/>
+        <table name="pt" role="main"/>
+        <field name="part_id" dataType="text"/>
+    </dataSource>
+    
+    <dataSource id="abMpiwItDetailDS">
+        <table name="it" role="main"/>
+        <field table="it" name="trans_id"/>
+        <field table="it" name="supply_req_id"/>
+        <field table="it" name="part_id"/>
+        <field table="it" name="trans_quantity"/>
+        <field table="it" name="req_item_status"/>
+        <field table="it" name="pt_store_loc_from"/>
+        <field table="it" name="pt_store_loc_to"/>
+        <field table="it" name="trans_date"/>
+        <field table="it" name="trans_time"/>
+        <field table="it" name="comments"/>
+        <field table="it" name="performed_by"/>
+    </dataSource>
+    
+    <panel type="console" id="consoleForm" dataSource="abMpiwSupplyReqItDs" layout="mainWestLayout" region="north" columns="3">
+        <title translatable="true">Filter</title>
+        <action id="btnShow">
+            <title translatable="true">Show</title>
+        </action>
+        <action id="btnClear">
+            <title translatable="true">Clear</title>
+        </action>
+        <field table="supply_req" name="supply_req_id" cssClass="shortField"/>
+        <field table="it" name="pt_store_loc_from" cssClass="shortField"/>
+        <field table="supply_req" name="date_created" alias="data_created_from" cssClass="shortField">
+            <title translatable="true">Date Created From</title>
+        </field>
+        
+        
+        <field table="supply_req" name="status" cssClass="shortField"/>
+        <field table="it" name="pt_store_loc_to" cssClass="shortField"/>
+        
+        <field table="supply_req" name="date_created" alias="data_created_to" cssClass="shortField">
+            <title translatable="true">Date Created To</title>
+        </field>
+        <field table="it" name="part_id" cssClass="shortField"/>
+        <field>
+            <html>
+                <input type="checkbox" id="receivedCkbx" checked="true"><span translatable="true">Not Received</span></input>
+            </html>
+        </field>
+    </panel>
+    
+    <panel type="grid" id="supplyRequisitionListPanel" dataSource="abMpiwSupplyReqDS" multipleSelectionEnabled="true" showOnLoad="false" layout="mainWestLayout" region="center">
+        <title translatable="true">Supply Requisitions</title>
+        <action id="tools" type="menu" imageName="/schema/ab-core/graphics/icons/view/export.png">
+            <action id="exportPDF">
+                <title>PDF</title>
+                <command type="callFunction" functionName="supplyReqController.openExportPdfDialog('pdf')"/>
+            </action>
+            <action id="exportDOCX">
+                <title>DOCX</title>
+                <command type="callFunction" functionName="supplyReqController.openExportPdfDialog('docx')"/>
+            </action>
+        </action>
+        <field table="supply_req" name="supply_req_id" controlType="link">
+            <command type="callFunction" functionName="supplyReqController.showSupplyReqItemAndDetailList()"/>
+        </field>
+        <field table="supply_req" name="status" controlType="link">
+            <command type="callFunction" functionName="supplyReqController.showSupplyReqItemAndDetailList()"/>
+        </field>
+        <field name="fromStorageLocation" dataType="text" controlType="link">
+            <title translatable="true">From Storage Location</title>
+            <command type="callFunction" functionName="supplyReqController.showSupplyReqItemAndDetailList()"/>
+        </field>
+        <field name="toStorageLocation" dataType="text" controlType="link">
+            <title translatable="true">To Storage Location</title>
+            <command type="callFunction" functionName="supplyReqController.showSupplyReqItemAndDetailList()"/>
+        </field>
+        <field table="supply_req" name="date_created" controlType="link">
+            <command type="callFunction" functionName="supplyReqController.showSupplyReqItemAndDetailList()"/>
+        </field>
+        <field name="dateRecived" dataType="date" controlType="link">
+            <title translatable="true">Date Received</title>
+            <command type="callFunction" functionName="supplyReqController.showSupplyReqItemAndDetailList()"/>
+        </field>
+
+        <field table="supply_req" name="doc" hidden="true"/>
+        <field table="supply_req" name="last_updated_by" controlType="link">
+            <command type="callFunction" functionName="supplyReqController.showSupplyReqItemAndDetailList()"/>
+        </field>
+        <field table="supply_req" name="comments" controlType="link">
+            <command type="callFunction" functionName="supplyReqController.showSupplyReqItemAndDetailList()"/>
+        </field>
+    </panel>
+    
+    <panel type="grid" id="supplyRequisitionItemListPanel" dataSource="abMpiwItDS" showOnLoad="false" layout="mainWestLayout" region="south">
+        <title translatable="true">Supply Requisitions Items</title>
+        <action id="btnAddNewSupplyReqItem">
+            <title translatable="true">Add New</title>
+        </action>
+        <field name="btnItemReceived" controlType="button">
+            <title translatable="true">Receive</title>
+            <command type="callFunction" functionName="supplyReqController.onClickReceivedButtonInPartListPanel()"/>
+        </field>
+        <field table="it" name="trans_id" controlType="link" hidden="true">
+            <command type="callFunction" functionName="supplyReqController.onClickSupplyReqListItem()"/>
+        </field>
+        <field table="it" name="supply_req_id" hidden="true"/>
+        <field table="it" name="part_id" controlType="link">
+            <command type="callFunction" functionName="supplyReqController.onClickSupplyReqListItem()"/>
+        </field>
+        <field table="it" name="trans_quantity" controlType="link">
+            <command type="callFunction" functionName="supplyReqController.onClickSupplyReqListItem()"/>
+        </field>
+        <field table="it" name="req_item_status" controlType="link">
+            <command type="callFunction" functionName="supplyReqController.onClickSupplyReqListItem()"/>
+        </field>
+        <field table="it" name="trans_date" controlType="link">
+            <title translatable="true">Date Received</title>
+            <command type="callFunction" functionName="supplyReqController.onClickSupplyReqListItem()"/>
+        </field>
+        <field table="it" name="pt_store_loc_from" hidden="true"/>
+        <field table="it" name="pt_store_loc_to" hidden="true"/>
+        <field table="it" name="comments" controlType="link">
+            <command type="callFunction" functionName="supplyReqController.onClickSupplyReqListItem()"/>
+        </field>
+    </panel>
+    
+    <panel type="form" id="supplyRequisitionEditForm" dataSource="abMpiwSupplyReqDS" layout="mainLayout" region="center" showOnLoad="false">
+        <title translatable="true">Edit Supply Requisition</title>
+        <action id="btnSave">
+            <title translatable="true">Save</title>
+        </action>
+        <action id="btnDelete" enabled="${!panel.newRecord}">
+            <title translatable="true">Delete</title>
+        </action>
+        <action id="btnCancel">
+            <title translatable="true">Cancel</title>
+            <command type="showPanel" panelId="supplyRequisitionEditForm" show="false"/>
+        </action>
+        <field table="supply_req" name="supply_req_id" />
+        <field table="supply_req" name="status"/>
+        <field name="fromStorageLocation" dataType="text">
+            <title translatable="true">From Storage Location</title>
+            <action>
+                <title translatable="true">...</title>
+                <command type="selectValue"
+                    fieldNames="supply_req.fromStorageLocation" 
+                    selectFieldNames="pt_store_loc.pt_store_loc_id"
+                    visibleFieldNames="pt_store_loc.pt_store_loc_id"
+                    >
+                </command>
+            </action>
+        </field>
+        <field name="toStorageLocation" dataType="text">
+            <title translatable="true">To Storage Location</title>
+            <action>
+                <title translatable="true">...</title>
+                <command type="selectValue"
+                    fieldNames="supply_req.toStorageLocation" 
+                    selectFieldNames="pt_store_loc.pt_store_loc_id"
+                    visibleFieldNames="pt_store_loc.pt_store_loc_id"
+                    >
+                </command>
+            </action>
+        </field>
+        <field name="dateRecived" dataType="date" readOnly="true">
+            <title translatable="true">Date Received</title>
+        </field>
+        <field table="supply_req" name="date_created" readOnly="true"/>
+        <field table="supply_req" name="last_updated_by" readOnly="true"/>
+        <field table="supply_req" name="comments" width="207" rowspan="3"/>
+        <field table="supply_req" name="doc"/>
+    </panel>
+    
+    <panel type="form" id="supplyReqItemEditPanel" dataSource="abMpiwItDS" layout="mainLayout" region="center" showOnLoad="false">
+        <title translatable="true">Edit Supply Requisition Item</title>
+        <action id="btnSave">
+            <title translatable="true">Save</title>
+        </action>
+        <action id="btnDelete" enabled="${!panel.newRecord}">
+            <title translatable="true">Delete</title>
+        </action>
+        <action id="btnCancel" enabled="${!panel.newRecord}">
+            <title translatable="true">Cancel</title>
+            <command type="showPanel" panelId="supplyReqItemEditPanel" show="false"/>
+        </action>
+        <field table="it" name="supply_req_id" readOnly="true"/>
+        <field table="it" name="trans_id"/>
+        <field table="it" name="part_id" readOnly="false" required="true">
+            <action>
+                <title translatable="true">...</title>
+                <command type="selectValue"
+                    fieldNames="it.part_id" 
+                    selectFieldNames="pt.part_id"
+                    visibleFieldNames="pt.part_id,pt.description"
+                    actionListener="afterSelectPart"
+                    >
+                </command>
+            </action>
+        </field>
+        <field table="it" name="trans_quantity" readOnly="false" required="true"/>
+        <field name="QuanityAvailableFrom" dataType="number" decimals="2" readOnly="true">
+            <title translatable="true">Quantity Available</title>
+        </field>
+        <field table="it" name="req_item_status"/>
+        <field table="it" name="trans_date" readOnly="true">
+            <title translatable="true">Date Received</title>
+        </field>
+        <field table="it" name="trans_time" hidden="true">
+            <title translatable="true">Time Received</title>
+        </field>
+        <field table="it" name="pt_store_loc_from" hidden="true"/>
+        <field table="it" name="pt_store_loc_to" hidden="true"/>
+        <field table="it" name="comments" width="207" rowspan="3"/>
+        <field table="it" name="performed_by" hidden="true"/>
+    </panel>
+</view> 

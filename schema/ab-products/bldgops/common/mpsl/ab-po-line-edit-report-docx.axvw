@@ -1,0 +1,123 @@
+<view version="2.0">
+    <title>Purchase Order</title>
+    
+    <report orientation="landscape" outputFileType="docx"/>
+
+    <dataSource id="ds_po">
+        <table name="po" role="main"/>
+        <field table="po" name="po_id"/>
+        <field table="po" name="po_number"/>
+        <field table="po" name="ac_id"/>
+        <field table="po" name="amount_approved"/>
+        <field table="po" name="approved_by"/>
+        <field table="po" name="bill_address1"/>
+        <field table="po" name="bill_address2"/>
+        <field table="po" name="bill_city_id"/>
+        <field table="po" name="bill_state_id"/>
+        <field table="po" name="bill_zip"/>
+        <field table="po" name="billing_em_id"/>
+        <field table="po" name="comments"/>
+        <field table="po" name="date_approved"/>
+        <field table="po" name="date_paid"/>
+        <field table="po" name="date_received"/>
+        <field table="po" name="date_request"/>
+        <field table="po" name="date_sent"/>
+        <field table="po" name="em_id"/>
+        <field table="po" name="federal_tax"/>
+        <field table="po" name="option1"/>
+        <field table="po" name="option2"/>
+        <field table="po" name="po_number"/>
+        <field table="po" name="receiving_location"/>
+        <field table="po" name="ship_address1"/>
+        <field table="po" name="ship_address2"/>
+        <field table="po" name="ship_city_id"/>
+        <field table="po" name="ship_state_id"/>
+        <field table="po" name="ship_zip"/>
+        <field table="po" name="shipping"/>
+        <field table="po" name="shipping_em_id"/>
+        <field table="po" name="source"/>
+        <field table="po" name="state_tax"/>
+        <field table="po" name="status"/>
+        <field table="po" name="terms"/>
+        <field table="po" name="vn_id"/>
+        <field name="poLineCount" dataType="number" decimals="0">
+            <sql dialect="generic">
+                (select count(1) from po_line where po_id=po.po_id)
+            </sql>
+        </field>
+        <field name="poValue" dataType="number" decimals="2" currency="${project.budgetCurrency.code}">
+            <sql dialect="generic">
+                (select sum(po_line.quantity*po_line.unit_cost) from po_line where po_id=po.po_id)
+            </sql>
+        </field>
+        <field name="totalCost" dataType="number" decimals="2" currency="${project.budgetCurrency.code}">
+            <sql dialect="generic">
+                ((select sum(po_line.quantity*po_line.unit_cost) from po_line where po_id=po.po_id)+po.federal_tax+po.state_tax+po.shipping)
+            </sql>
+        </field>
+        <parameter name="poIds" dataType="verbatim" value="1=1"/>
+        <restriction type="sql" sql="${parameters['poIds']}"/>
+    </dataSource>       
+    <dataSource id="ds_po_line">
+        <table name="po_line" role="main"/>
+        <table name="po" role="standard"/>
+        <field table="po_line" name="po_id"/>
+        <field table="po_line" name="po_line_id"/>
+        <field table="po_line" name="catno"/>
+        <field table="po_line" name="description"/>
+        <field table="po_line" name="status"/>
+        <field table="po" name="status"/>
+        <field table="po_line" name="quantity"/>
+        <field table="po_line" name="unit_cost"/>
+        <field name="partId" dataType="text">
+            <sql dialect="generic">
+                (select part_id from pv where pv.vn_id=(select vn_id from po where po.po_id=po_line.po_id) and pv.vn_pt_num=po_line.catno)
+            </sql>
+        </field>
+        <field name="lineCost" dataType="number" decimals="2" currency="${project.budgetCurrency.code}">
+            <sql dialect="generic">
+                (po_line.quantity * po_line.unit_cost)
+            </sql>
+        </field>
+        <field table="po_line" name="em_id" />
+        <field table="po_line" name="date_received"/>
+        <parameter name="poId" dataType="integer" value=""/>
+        <restriction type="parsed">
+            <clause relop="AND" op="=" table="po_line" name="po_id" value="${parameters['poId']}" />
+        </restriction>
+    </dataSource>
+    <panel id="panel_po_data" type="paginatedReport" format="table" role="parent" dataSource="ds_po">
+        <title translatable="true">Purchase Order</title>    
+        <field table="po" name="po_id" restrictionParameterName="poId"/>
+        <field table="po" name="po_number"/>
+        <field table="po" name="vn_id"/>
+        <field table="po" name="receiving_location"/>
+        <field table="po" name="date_request"/>
+        <field table="po" name="status"/>
+        <field table="po" name="poValue">
+            <title translatable="true">Purchase Order Value</title>
+        </field>
+        <field table="po" name="approved_by"/>
+        <field table="po" name="amount_approved"/>
+        <field table="po" name="billing_em_id"/>
+        <field table="po" name="shipping_em_id"/>
+        
+    </panel>
+    
+    <panel id="panel_po_line_data" type="paginatedReport" format="table" role="data" dataSource="ds_po_line">
+        <title translatable="true">Supply Requisition Item</title>   
+        <field table="po_line" name="status"/>
+        <field table="po_line" name="partId">
+            <title translatable="true">Part Code</title>
+        </field>
+        <field table="po_line" name="catno"/>
+        <field table="po_line" name="description"/>
+        <field table="po_line" name="quantity"/>
+        <field table="po_line" name="unit_cost"/>
+        <field table="po_line" name="lineCost">
+            <title translatable="true">Line Cost</title>
+        </field>
+        <field table="po_line" name="em_id"/>
+        <field table="po_line" name="date_received"/>
+    </panel>
+</view>

@@ -1,0 +1,236 @@
+<view version="2.0">
+    <title>&#160;</title>
+    <js file="ab-rplm-pfadmin-land-est-area-by-ownership-stat-by-location-chart.js"/>
+    
+    <!-- Messages -->
+    <message name="titleLandAreaAvailability" translatable="true">Land Area Availability by Location and Time</message>
+    
+    <dataSource id="dsLandEstAreaByOwnershipStatByLocationDataAxis" type="grouping" applyVpaRestrictions="false">
+        <sql dialect="generic">
+            SELECT 
+                property.ctry_id ${sql.as} ctry_id,
+                property.regn_id ${sql.as} regn_id,
+                property.state_id ${sql.as} state_id,
+                property.city_id ${sql.as} city_id,
+                property.site_id ${sql.as} site_id,
+                property.pr_id ${sql.as} pr_id,
+                property.property_type ${sql.as} property_type,
+                ${parameters['summaryValueForThisGroup']} ${sql.as} month,
+                (SELECT (CASE WHEN pr_int.area_cad = 0 THEN pr_int.area_manual ELSE pr_int.area_cad END) FROM property ${sql.as} pr_int
+                    WHERE pr_int.pr_id = property.pr_id AND
+                    ((EXISTS(SELECT 1 FROM ot WHERE ot.pr_id = pr_int.pr_id AND
+                            ((ot.status = 'Owned' AND
+                                (${sql.yearMonthOf('ot.date_purchase')} &lt;= ${parameters['summaryValueForThisGroup']} OR ot.date_purchase IS NULL) AND
+                                (${sql.yearMonthOf('ot.date_sold')} &gt;= ${parameters['summaryValueForThisGroup']} OR ot.date_sold IS NULL) 
+                                )OR(
+                                ot.status = 'Disposed' AND
+                                ${sql.yearMonthOf('ot.date_purchase')} &lt;= ${parameters['summaryValueForThisGroup']} AND
+                                ${sql.yearMonthOf('ot.date_sold')} &gt;= ${parameters['summaryValueForThisGroup']}
+                            ))) AND 
+                       NOT EXISTS(SELECT 1 FROM ls WHERE ls.use_as_template = 0 AND ls.pr_id = pr_int.pr_id AND ls.landlord_tenant = 'LANDLORD' AND
+                            (${sql.yearMonthOf('ls.date_start')} &lt;= ${parameters['summaryValueForThisGroup']} OR ls.date_start IS NULL) AND
+                            (${sql.yearMonthOf('ls.date_end')} &gt;= ${parameters['summaryValueForThisGroup']} OR ls.date_end IS NULL))
+                     ) OR (
+                        EXISTS(SELECT 1 FROM ls WHERE ls.use_as_template = 0 AND ls.pr_id = pr_int.pr_id AND ls.landlord_tenant = 'TENANT' AND ls.signed = 1 AND
+                            (${sql.yearMonthOf('ls.date_start')} &lt;= ${parameters['summaryValueForThisGroup']} OR ls.date_start IS NULL) AND
+                            (${sql.yearMonthOf('ls.date_end')} &gt;= ${parameters['summaryValueForThisGroup']} OR ls.date_end IS NULL)) AND 
+                        NOT EXISTS (SELECT 1 FROM ls WHERE ls.use_as_template = 0 AND ls.pr_id = pr_int.pr_id AND ls.landlord_tenant = 'LANDLORD' AND
+                            (${sql.yearMonthOf('ls.date_start')} &lt;= ${parameters['summaryValueForThisGroup']} OR ls.date_start IS NULL) AND
+                            (${sql.yearMonthOf('ls.date_end')} &gt;= ${parameters['summaryValueForThisGroup']} OR ls.date_end IS NULL))))
+                ) ${sql.as} available_area,
+                (SELECT (CASE WHEN pr_int.area_cad = 0 THEN pr_int.area_manual ELSE pr_int.area_cad END) FROM property ${sql.as} pr_int
+                    WHERE pr_int.pr_id = property.pr_id AND
+                    EXISTS (SELECT 1 FROM ls WHERE ls.use_as_template = 0 AND ls.pr_id = pr_int.pr_id AND landlord_tenant = 'LANDLORD' AND ls.signed = 1 AND
+                            (${sql.yearMonthOf('ls.date_start')} &lt;= ${parameters['summaryValueForThisGroup']} OR ls.date_start IS NULL) AND
+                            (${sql.yearMonthOf('ls.date_end')} &gt;= ${parameters['summaryValueForThisGroup']} OR ls.date_end IS NULL))
+                ) ${sql.as} area_used_by_others,
+                (SELECT (CASE WHEN pr_int.area_cad = 0 THEN pr_int.area_manual ELSE pr_int.area_cad END) FROM property ${sql.as} pr_int
+                    WHERE pr_int.pr_id = property.pr_id AND
+                    ((EXISTS(SELECT 1 FROM ot WHERE ot.pr_id = pr_int.pr_id AND ot.status = 'Pipeline' AND
+                             (${sql.yearMonthOf('ot.date_purchase')} &lt;= ${parameters['summaryValueForThisGroup']} OR ot.date_purchase IS NULL) AND 
+                             (${sql.yearMonthOf('ot.date_sold')} &gt;= ${parameters['summaryValueForThisGroup']} OR ot.date_sold IS NULL)) AND 
+                         NOT EXISTS (SELECT 1 FROM ls WHERE ls.use_as_template = 0 AND ls.pr_id = pr_int.pr_id AND ls.landlord_tenant = 'LANDLORD' AND
+                            (${sql.yearMonthOf('ls.date_start')} &lt;= ${parameters['summaryValueForThisGroup']} OR ls.date_start IS NULL) AND
+                            (${sql.yearMonthOf('ls.date_end')} &gt;= ${parameters['summaryValueForThisGroup']} OR ls.date_end IS NULL))   
+                        ) OR (
+                        EXISTS (SELECT 1 FROM ls WHERE ls.use_as_template = 0 AND ls.pr_id = pr_int.pr_id AND ls.landlord_tenant = 'TENANT' AND ls.signed = 0 AND
+                            (${sql.yearMonthOf('ls.date_start')} &lt;= ${parameters['summaryValueForThisGroup']} OR ls.date_start IS NULL) AND
+                            (${sql.yearMonthOf('ls.date_end')} &gt;= ${parameters['summaryValueForThisGroup']} OR ls.date_end IS NULL)) AND
+                        NOT EXISTS (SELECT 1 FROM ls WHERE ls.use_as_template = 0 AND ls.pr_id = pr_int.pr_id AND ls.landlord_tenant = 'LANDLORD' AND
+                            (${sql.yearMonthOf('ls.date_start')} &lt;= ${parameters['summaryValueForThisGroup']} OR ls.date_start IS NULL) AND
+                            (${sql.yearMonthOf('ls.date_end')} &gt;= ${parameters['summaryValueForThisGroup']} OR ls.date_end IS NULL))))
+                ) ${sql.as} pipeline_for_available,
+                (SELECT (CASE WHEN pr_int.area_cad = 0 THEN pr_int.area_manual ELSE pr_int.area_cad END) FROM property ${sql.as} pr_int
+                    WHERE pr_int.pr_id = property.pr_id AND
+                    EXISTS (SELECT 1 FROM ls WHERE ls.use_as_template = 0 AND ls.pr_id = pr_int.pr_id AND landlord_tenant = 'LANDLORD' AND ls.signed = 0 AND 
+                            (${sql.yearMonthOf('ls.date_start')} &lt;= ${parameters['summaryValueForThisGroup']} OR ls.date_start IS NULL) AND
+                            (${sql.yearMonthOf('ls.date_end')} &gt;= ${parameters['summaryValueForThisGroup']} OR ls.date_end IS NULL))
+                ) ${sql.as} pipeline_for_used_by_others
+            FROM property
+        </sql>
+        <table name="property"/>
+        <field name="month" dataType="text" groupBy="true"/>
+        <field name="vf_sum_available_area" formula="sum" baseField="property.available_area" dataType="number" size="20" decimals="1" numericFormat="area">
+            <title>Estimated Available Area ${(activityParameters['AbCommonResources-ConvertAreasLengthsToUserUnits'] == 1)?user.areaUnits.title:''}</title>
+        </field>
+        <field name="vf_sum_used_by_others" formula="sum" baseField="property.area_used_by_others" dataType="number" size="20" decimals="1" numericFormat="area">
+            <title>Estimated Leased Out Area ${(activityParameters['AbCommonResources-ConvertAreasLengthsToUserUnits'] == 1)?user.areaUnits.title:''}</title>
+        </field>
+        <field name="vf_sum_pipeline_available" formula="sum" baseField="property.pipeline_for_available" dataType="number" size="20" decimals="1" numericFormat="area">
+            <title>Pipeline: Available ${(activityParameters['AbCommonResources-ConvertAreasLengthsToUserUnits'] == 1)?user.areaUnits.title:''}</title>
+        </field>
+        <field name="vf_sum_pipeline_others" formula="sum" baseField="property.pipeline_for_used_by_others" dataType="number" size="20" decimals="1" numericFormat="area">
+            <title>Pipeline:Leased Out ${(activityParameters['AbCommonResources-ConvertAreasLengthsToUserUnits'] == 1)?user.areaUnits.title:''}</title>
+        </field>
+
+        <restriction type="sql" sql="property.property_type = 'Land' AND ${parameters['filter']} AND ${sql.vpaRestriction}"/>
+        <parameter name="summaryValueForThisGroup" dataType="text" value=""/>  
+        <parameter name="filter" dataType="verbatim" value="1 = 1"/>
+        <sortField table="property" name="month" ascending="true"/>
+    </dataSource>
+    
+    <panel id="chartLandEstAreaByOwnershipStatByLocation" type="chart" controlType="stackedAreaChart" showOnLoad="false" showLegendOnLoad="false" dataSource="dsLandEstAreaByOwnershipStatByLocationDataAxis" >
+        <title></title>
+        <action id="filter" imageName="/schema/ab-system/graphics/ab-filter-run.gif">
+            <tooltip>Filter</tooltip>
+        </action>
+        <action id="report" imageName="/schema/ab-system/graphics/ab-icon-report.gif">
+            <tooltip>Report</tooltip>      
+        </action>
+        <action id="export">
+            <title translatable="true">DOC </title>
+            <command type="exportPanel" outputType="docx" panelId="chartLandEstAreaByOwnershipStatByLocation" orientation="landscape"/>
+        </action>
+        <dataAxisTitle translatable="true">Area ${(activityParameters['AbCommonResources-ConvertAreasLengthsToUserUnits'] == 1)?user.areaUnits.title:''}</dataAxisTitle>
+        <groupingAxis table="afm_cal_dates" field="month"  dataSource="abRepmKpiMonths_ds" labelRotation="45">
+            <title>Date</title> 
+        </groupingAxis>
+        
+        <dataAxis  table="property" field="vf_sum_available_area" dataSource="dsLandEstAreaByOwnershipStatByLocationDataAxis">
+            <title>Estimated Available Area ${(activityParameters['AbCommonResources-ConvertAreasLengthsToUserUnits'] == 1)?user.areaUnits.title:''}</title>
+        </dataAxis>
+        <dataAxis  table="property" field="vf_sum_used_by_others" dataSource="dsLandEstAreaByOwnershipStatByLocationDataAxis">
+            <title>Estimated Leased Out Area ${(activityParameters['AbCommonResources-ConvertAreasLengthsToUserUnits'] == 1)?user.areaUnits.title:''}</title>
+        </dataAxis>
+        <dataAxis  table="property" field="vf_sum_pipeline_available" dataSource="dsLandEstAreaByOwnershipStatByLocationDataAxis">
+            <title>Pipeline: Available ${(activityParameters['AbCommonResources-ConvertAreasLengthsToUserUnits'] == 1)?user.areaUnits.title:''}</title>
+        </dataAxis>
+        <dataAxis  table="property" field="vf_sum_pipeline_others" dataSource="dsLandEstAreaByOwnershipStatByLocationDataAxis">
+            <title>Pipeline:Leased Out ${(activityParameters['AbCommonResources-ConvertAreasLengthsToUserUnits'] == 1)?user.areaUnits.title:''}</title>
+        </dataAxis>
+    </panel>
+
+    <dataSource id="dsLandEstAreaByOwnershipStatByLocation_report" type="grouping" applyVpaRestrictions="false">
+        <sql dialect="generic">
+            SELECT
+                tmp_cal_dates.month ${sql.as} month,
+                property.ctry_id ${sql.as} ctry_id,
+                property.regn_id ${sql.as} regn_id,
+                property.state_id ${sql.as} state_id,
+                property.city_id ${sql.as} city_id,
+                property.site_id ${sql.as} site_id,
+                property.pr_id ${sql.as} pr_id,
+                property.property_type ${sql.as} property_type,
+
+                (SELECT (CASE WHEN pr_int.area_cad = 0 THEN pr_int.area_manual ELSE pr_int.area_cad END) FROM property ${sql.as} pr_int
+                    WHERE pr_int.pr_id = property.pr_id AND
+                    ((EXISTS(SELECT 1 FROM ot WHERE ot.pr_id = pr_int.pr_id AND
+                            ((ot.status = 'Owned' AND
+                                (${sql.yearMonthOf('ot.date_purchase')} &lt;= tmp_cal_dates.month OR ot.date_purchase IS NULL) AND
+                                (${sql.yearMonthOf('ot.date_sold')} &gt;= tmp_cal_dates.month OR ot.date_sold IS NULL) 
+                                )OR(
+                                ot.status = 'Disposed' AND
+                                ${sql.yearMonthOf('ot.date_purchase')} &lt;= tmp_cal_dates.month AND
+                                ${sql.yearMonthOf('ot.date_sold')} &gt;= tmp_cal_dates.month
+                            ))) AND 
+                       NOT EXISTS(SELECT 1 FROM ls WHERE ls.use_as_template = 0 AND ls.pr_id = pr_int.pr_id AND ls.landlord_tenant = 'LANDLORD' AND
+                            (${sql.yearMonthOf('ls.date_start')} &lt;= tmp_cal_dates.month OR ls.date_start IS NULL) AND
+                            (${sql.yearMonthOf('ls.date_end')} &gt;= tmp_cal_dates.month OR ls.date_end IS NULL))
+                     ) OR (
+                        EXISTS(SELECT 1 FROM ls WHERE ls.use_as_template = 0 AND ls.pr_id = pr_int.pr_id AND ls.landlord_tenant = 'TENANT' AND ls.signed = 1 AND
+                            (${sql.yearMonthOf('ls.date_start')} &lt;= tmp_cal_dates.month OR ls.date_start IS NULL) AND
+                            (${sql.yearMonthOf('ls.date_end')} &gt;= tmp_cal_dates.month OR ls.date_end IS NULL)) AND 
+                        NOT EXISTS (SELECT 1 FROM ls WHERE ls.use_as_template = 0 AND ls.pr_id = pr_int.pr_id AND ls.landlord_tenant = 'LANDLORD' AND
+                            (${sql.yearMonthOf('ls.date_start')} &lt;= tmp_cal_dates.month OR ls.date_start IS NULL) AND
+                            (${sql.yearMonthOf('ls.date_end')} &gt;= tmp_cal_dates.month OR ls.date_end IS NULL))))
+                ) ${sql.as} available_area,
+                (SELECT (CASE WHEN pr_int.area_cad = 0 THEN pr_int.area_manual ELSE pr_int.area_cad END) FROM property ${sql.as} pr_int
+                    WHERE pr_int.pr_id = property.pr_id AND
+                    EXISTS (SELECT 1 FROM ls WHERE ls.use_as_template = 0 AND ls.pr_id = pr_int.pr_id AND landlord_tenant = 'LANDLORD' AND ls.signed = 1 AND
+                            (${sql.yearMonthOf('ls.date_start')} &lt;= tmp_cal_dates.month OR ls.date_start IS NULL) AND
+                            (${sql.yearMonthOf('ls.date_end')} &gt;= tmp_cal_dates.month OR ls.date_end IS NULL))
+                ) ${sql.as} area_used_by_others,
+                (SELECT (CASE WHEN pr_int.area_cad = 0 THEN pr_int.area_manual ELSE pr_int.area_cad END) FROM property ${sql.as} pr_int
+                    WHERE pr_int.pr_id = property.pr_id AND
+                    ((EXISTS(SELECT 1 FROM ot WHERE ot.pr_id = pr_int.pr_id AND ot.status = 'Pipeline' AND
+                             (${sql.yearMonthOf('ot.date_purchase')} &lt;= tmp_cal_dates.month OR ot.date_purchase IS NULL) AND 
+                             (${sql.yearMonthOf('ot.date_sold')} &gt;= tmp_cal_dates.month OR ot.date_sold IS NULL)) AND 
+                         NOT EXISTS (SELECT 1 FROM ls WHERE ls.use_as_template = 0 AND ls.pr_id = pr_int.pr_id AND ls.landlord_tenant = 'LANDLORD' AND
+                            (${sql.yearMonthOf('ls.date_start')} &lt;= tmp_cal_dates.month OR ls.date_start IS NULL) AND
+                            (${sql.yearMonthOf('ls.date_end')} &gt;= tmp_cal_dates.month OR ls.date_end IS NULL))   
+                        ) OR (
+                        EXISTS (SELECT 1 FROM ls WHERE ls.use_as_template = 0 AND ls.pr_id = pr_int.pr_id AND ls.landlord_tenant = 'TENANT' AND ls.signed = 0 AND
+                            (${sql.yearMonthOf('ls.date_start')} &lt;= tmp_cal_dates.month OR ls.date_start IS NULL) AND
+                            (${sql.yearMonthOf('ls.date_end')} &gt;= tmp_cal_dates.month OR ls.date_end IS NULL)) AND
+                        NOT EXISTS (SELECT 1 FROM ls WHERE ls.use_as_template = 0 AND ls.pr_id = pr_int.pr_id AND ls.landlord_tenant = 'LANDLORD' AND
+                            (${sql.yearMonthOf('ls.date_start')} &lt;= tmp_cal_dates.month OR ls.date_start IS NULL) AND
+                            (${sql.yearMonthOf('ls.date_end')} &gt;= tmp_cal_dates.month OR ls.date_end IS NULL))))
+                ) ${sql.as} pipeline_for_available,
+                (SELECT (CASE WHEN pr_int.area_cad = 0 THEN pr_int.area_manual ELSE pr_int.area_cad END) FROM property ${sql.as} pr_int
+                    WHERE pr_int.pr_id = property.pr_id AND
+                    EXISTS (SELECT 1 FROM ls WHERE ls.use_as_template = 0 AND ls.pr_id = pr_int.pr_id AND landlord_tenant = 'LANDLORD' AND ls.signed = 0 AND 
+                            (${sql.yearMonthOf('ls.date_start')} &lt;= tmp_cal_dates.month OR ls.date_start IS NULL) AND
+                            (${sql.yearMonthOf('ls.date_end')} &gt;= tmp_cal_dates.month OR ls.date_end IS NULL))
+                ) ${sql.as} pipeline_for_used_by_others
+            FROM 
+                (SELECT DISTINCT ${sql.yearMonthOf('afm_cal_dates.cal_date')} ${sql.as} month FROM afm_cal_dates) ${sql.as} tmp_cal_dates,
+                property
+        </sql>
+        <table name="property"/>
+        <field name="month" dataType="text" groupBy="true"/>
+        <field name="vf_sum_available_area" formula="sum" baseField="property.available_area" dataType="number" size="20" decimals="1" numericFormat="area">
+            <title>Estimated Available Area ${(activityParameters['AbCommonResources-ConvertAreasLengthsToUserUnits'] == 1)?user.areaUnits.title:''}</title>
+        </field>
+        <field name="vf_sum_used_by_others" formula="sum" baseField="property.area_used_by_others" dataType="number" size="20" decimals="1" numericFormat="area">
+            <title>Estimated Leased Out Area ${(activityParameters['AbCommonResources-ConvertAreasLengthsToUserUnits'] == 1)?user.areaUnits.title:''}</title>
+        </field>
+        <field name="vf_sum_pipeline_available" formula="sum" baseField="property.pipeline_for_available" dataType="number" size="20" decimals="1" numericFormat="area">
+            <title>Pipeline: Available ${(activityParameters['AbCommonResources-ConvertAreasLengthsToUserUnits'] == 1)?user.areaUnits.title:''}</title>
+        </field>
+        <field name="vf_sum_pipeline_others" formula="sum" baseField="property.pipeline_for_used_by_others" dataType="number" size="20" decimals="1" numericFormat="area">
+            <title>Pipeline:Leased Out ${(activityParameters['AbCommonResources-ConvertAreasLengthsToUserUnits'] == 1)?user.areaUnits.title:''}</title>
+        </field>
+        
+        <restriction type="sql" sql="property.property_type = 'Land' AND property.month &lt;= ${(parameters['dateTo'])} AND property.month &gt;= ${(parameters['dateFrom'])} AND ${parameters['filter']} AND ${sql.vpaRestriction}"/>
+        <parameter name="filter" dataType="verbatim" value="1 = 1"/>
+        <parameter name="dateFrom" dataType="text" value=""/>
+        <parameter name="dateTo" dataType="text" value=""/>
+    </dataSource>
+
+    <panel type="grid" controlType="reportGrid" id="reportLandEstAreaPropertyByOwnershipByLocation" dataSource="dsLandEstAreaByOwnershipStatByLocation_report" recordLimit="0" showOnLoad="false" hidden="true">
+        <sortField table="property" name="month" ascending="true"/>
+        <action id="exportXlS">
+            <title translatable="true">XLS</title>
+            <command type="exportPanel" outputType="xls" panelId="reportLandEstAreaPropertyByOwnershipByLocation" viewName="ab-rplm-pfadmin-land-est-area-by-ownership-stat-by-location-chart.axvw"/>
+        </action>
+        <field name="month" dataType="text">
+            <title translatable="true">Date</title>
+        </field>
+        <field name="vf_sum_available_area" dataType="number" size="20" decimals="1">
+            <title>Estimated Available Area ${(activityParameters['AbCommonResources-ConvertAreasLengthsToUserUnits'] == 1)?user.areaUnits.title:''}</title>
+        </field>
+        <field name="vf_sum_used_by_others" dataType="number" size="20" decimals="1">
+            <title>Estimated Leased Out Area ${(activityParameters['AbCommonResources-ConvertAreasLengthsToUserUnits'] == 1)?user.areaUnits.title:''}</title>
+        </field>
+        <field name="vf_sum_pipeline_available" dataType="number" size="20" decimals="1">
+            <title>Pipeline: Available ${(activityParameters['AbCommonResources-ConvertAreasLengthsToUserUnits'] == 1)?user.areaUnits.title:''}</title>
+        </field>
+        <field name="vf_sum_pipeline_others" dataType="number" size="20" decimals="1">
+            <title>Pipeline:Leased Out ${(activityParameters['AbCommonResources-ConvertAreasLengthsToUserUnits'] == 1)?user.areaUnits.title:''}</title>
+        </field>
+    </panel>
+    
+    
+    
+    <panel type="view" id="abRepmBldgEstArea_kpiCommon" file="ab-repm-kpi-common.axvw"/>
+</view>

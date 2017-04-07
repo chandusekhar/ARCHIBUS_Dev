@@ -1,0 +1,118 @@
+<view version="2.0">
+	<title>Average Days of Status Change</title>
+	<preferences>
+		<viewTitleBar show="false" />
+	</preferences>
+
+	<layout file="console-small.axvw" />
+	<js file="ab-ondemand-common.js" />
+	<js file="ab-ondemand-report-common.js" />
+	<js file="uc-ondemand-report-avg-days-trade.js" />
+
+	<message name="selectTitle" translatable="true">-select-</message>
+
+	<dataSource id="consoleDS">
+		<table name="wrhwr" role="main" />
+		<field table="wrhwr" name="prob_type" />
+        <field table="wrhwr" name="date_requested" />
+	</dataSource>
+
+	<dataSource id="crossTableDS" type="grouping">
+		<query>
+			<sql dialect="sqlserver">
+			SELECT wrhwr.wr_id, work_team_id, DATEDIFF(day, date_requested, di.date_issued) days_in_req, DATEDIFF(day, di.date_issued, dfwc.date_fwc) days_to_fwc, DATEDIFF(day, dfwc.date_fwc, date_completed) days_to_com, DATEDIFF(day, di.date_issued, date_completed) days_i_to_com, days_on_hold, date_requested, di.date_issued, date_completed, status FROM wrhwr
+			INNER JOIN (
+				SELECT wr_id, MIN(date_modified) date_issued
+				  FROM uc_wr_audit
+				 WHERE status_new = 'I'
+				 GROUP BY wr_id
+				) di ON di.wr_id = wrhwr.wr_id
+			LEFT OUTER JOIN (
+				SELECT wr_id, MAX(date_modified) date_fwc
+				  FROM uc_wr_audit
+				 WHERE status_new = 'FWC'
+				 GROUP BY wr_id
+				) dfwc ON dfwc.wr_id = wrhwr.wr_id
+			LEFT OUTER JOIN (
+				SELECT wr_id, SUM(days_on_hold) days_on_hold FROM
+				(
+				SELECT pc.wr_id, DATEDIFF(day,  MAX(hp.date_modified), pc.date_modified) days_on_hold, pc.date_modified date_part_com, MAX(hp.date_modified) date_part_hold
+				  FROM (SELECT * FROM uc_wr_audit WHERE status_new = 'PC' AND status_old = 'HP') pc, uc_wr_audit hp
+				 WHERE pc.wr_id = hp.wr_id AND hp.status_new = 'HP'
+				   AND pc.uc_wr_audit_id > hp.uc_wr_audit_id
+				 GROUP BY pc.wr_id, pc.uc_wr_audit_id, pc.status_new, pc.date_modified
+				) t
+				GROUP BY wr_id
+			) dp ON dp.wr_id = wrhwr.wr_id
+			WHERE date_completed IS NOT NULL
+			</sql>
+		</query>
+		<table name="wrhwr" role="main" />
+		<sortField name="work_team_id" ascending="true" />
+
+		<restriction type="sql" sql="1=1" />
+
+		<field name="work_team_id" table="wrhwr" groupBy="true">
+			<title translatable="true">Work Team Code</title>
+		</field>
+
+		<field name="avg_requested" formula="avg" dataType="number"
+			baseField="wrhwr.days_in_req" size="6" decimals="0">
+			<title translatable="true">Req-Iss</title>
+		</field>
+
+		<field name="avg_fwc" formula="avg" dataType="number"
+			baseField="wrhwr.days_to_fwc" size="6" decimals="0">
+			<title translatable="true">Iss-FWC</title>
+		</field>
+
+		<field name="avg_complete" formula="avg" dataType="number"
+			baseField="wrhwr.days_to_com" size="6" decimals="0">
+			<title translatable="true">FWC-Com</title>
+		</field>
+
+		<field name="avg_iss_complete" formula="avg" dataType="number"
+			baseField="wrhwr.days_i_to_com" size="6" decimals="0">
+			<title translatable="true">Iss-Com</title>
+		</field>
+
+		<field name="avg_partshold" formula="avg" dataType="number"
+			baseField="wrhwr.days_on_hold" size="6" decimals="0">
+			<title translatable="true">HP-PC</title>
+		</field>
+	</dataSource>
+
+	<panel type="console" columns="3" id="requestConsole"
+		dataSource="consoleDS" region="north">
+		<title translatable="true">Filter</title>
+		<action id="filter">
+			<title translatable="true">Show</title>
+			<!--command type="callFunction"
+				functionName="ABODRPTC_setRestriction('wrhwr.month','reportPanel')" /-->
+			<command type="callFunction"
+				functionName="apply_console_restriction()" />
+		</action>
+		<action id="clear">
+			<title translatable="true">Clear</title>
+			<command type="clearForm"
+				panelId="reportPanel" />
+		</action>
+		<field table="wrhwr" name="date_requested" alias="wrhwr.date_requested.from" >
+			<title>Requested Date From:</title>
+		</field>
+		<field table="wrhwr" name="date_requested" alias="wrhwr.date_requested.to" >
+			<title>To:</title>
+		</field>
+		<field table="wrhwr" name="prob_type" hidden="true" />
+	</panel>
+
+	<panel id="reportPanel" type="crossTable"
+		dataSource="crossTableDS" region="center" showOnLoad="false">
+		<title translatable="true">
+			Average Days Between Statuses
+		</title>
+		<event type="onClickItem">
+		    <command type="callFunction" functionName="onCrossTableClick"/>
+		</event>
+	</panel>
+</view>

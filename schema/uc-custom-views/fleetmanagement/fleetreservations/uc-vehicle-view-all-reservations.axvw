@@ -1,0 +1,181 @@
+<view version="2.0">
+	<js file="uc-vehicle-view-all-reservations.js"/>
+	
+	<title>View All Reservations</title>
+	
+   <layout type="borderLayout" id="mainLayout">
+		<north id="consolePosition" initialSize="140" split="true"/>
+		<center id="gridPosition"/>
+	</layout>
+	
+	<dataSource id="ds_reservations">
+		<table name="wr" role="main"/>
+		<field name="activity_log_id" table="wr"/>
+		<field name="wr_id" table="wr"/>
+		<field name="wo_id" table="wr"/>
+		<field name="status" table="wr"/>
+		<field name="requestor" table="wr"/>
+	    <field table="wr" name="vehicle_type_req"/>
+		<field name="date_pickup" table="wr"/>
+		<field name="date_assigned" table="wr"/>
+		<field name="date_dropoff" table="wr"/>
+		<field name="date_completed" table="wr"/>
+		<field name="time_pickup" table="wr"/>	
+		<field name="time_completed" table="wr"/>
+		<field name="time_assigned" table="wr"/>
+		<field name="time_dropoff" table="wr"/>
+		<field name="budget_owner" table="wr"/>
+		<field name="cost_total" table="wr"/>
+		<field name="cost_est_total" table="wr"/>
+		<field name="eq_id" table="wr"/>	
+		<field name="prob_type" table="wr"/>
+		<field name="driver" table="wr"/>
+		
+		<field name="vt"  dataType="text" size="36">
+			<sql dialect="generic">
+				isnull(wr.vehicle_type,vehicle_type_req)
+			</sql>
+		</field>
+
+		<field name="stat"  dataType="text" size="36">
+			<sql dialect="generic">
+				case wr.status when 'A' then 'Requested' when 'Rev' then 'Pending Approval' when 'AA' then 'Approved' when 'I' then 'Picked Up' when 'Rej' then 'Rejected' when 'Can' then 'Cancelled' when 'Com' then 'Completed' else wr.status end
+			</sql>
+		</field>
+		
+		<field name="pu"  dataType="text" size="36">
+			<sql dialect="generic">
+				case when wr.date_assigned is null and wr.time_assigned is null then
+				(select left(rtrim(wr.date_pickup),12) + e.edesc  from afm.brg_enum('wr','time_pickup') e where e.eid=wr.time_pickup)
+				else 
+				(left(rtrim(wr.date_assigned),12) +  replace(replace(substring(convert(varchar,wr.time_assigned,0), 12,8),'AM',' AM'),'PM', ' PM'))
+				end
+			</sql>
+		</field>
+		<field name="do" dataType="text" size="36">
+			<sql dialect="generic">
+				case when wr.date_completed is null and wr.time_completed is null then
+				(select left(rtrim(wr.date_dropoff),12) + e.edesc  from afm.brg_enum('wr','time_dropoff') e where e.eid=wr.time_dropoff)
+				else 
+				(left(rtrim(wr.date_completed),12) +  replace(replace(substring(convert(varchar,wr.time_completed,0), 12,8),'AM',' AM'),'PM', ' PM'))
+				end
+				
+			</sql>
+		</field>
+		
+		<restriction type="sql" sql="wr.work_team_id = 'FLEET-RESERVE' "/>
+	</dataSource>
+
+	<panel type="console" columns="3" id="wrConsolePanel" dataSource="ds_reservations" region="north">
+		<title translatable="true">Filter values ...</title>
+	
+		<action id="show">
+			<title translatable="true">Show</title>
+		</action>
+
+		<action id="clear">
+			<title translatable="true">Clear</title>
+			<command type="clearPanel" panelId="wrConsolePanel"/>
+			<command type="callFunction" functionName="$('stat').value='Active';$('subwr').value=''"/>
+		</action>
+		
+		<field name="requestor" table="wr">
+			<action id="requestorRest">
+				<tooltip>Select Value</tooltip>
+				<command type="selectValue"
+					fieldNames="wr.requestor"
+					selectFieldNames="em.em_id"
+					visibleFieldNames="em.em_id,em.name_first,em.name_last"
+					applyFilter="true"/>
+			</action>
+		</field>
+		<field name="date_pickup" table="wr"/>
+        <field name="date_dropoff" table="wr"/>
+		<field table="wr" name="vehicle_type_req"><title>Vehicle Type</title></field>
+		<field name="eq_id" table="wr"><title>Vehicle ID</title></field>
+		<!--field name="status" table="wr"/-->
+		<field>
+			<title>Status</title>
+			<html>
+			<select id="stat">
+				<option value=""></option>
+				<option value="Active"  selected="selected">Active</option>
+				<option value="A">Requested</option>
+				<option value="Rev">Pending Approval</option>
+				<option value="AA">Approved</option>
+				<option value="opu">Overdue Picked Up</option>
+				<option value="I">Picked Up</option>
+				<option value="odo">Overdue Drop off</option>
+				<option value="Com">Completed</option>
+				<option value="Rej">Rejected</option>
+				<option value="Can">Cancelled</option>
+			</select>
+			</html>
+		</field>
+		
+		<field name="budget_owner" table="wr">
+			<action id="vehicleTypeSelect">
+				<tooltip>Select Value</tooltip>
+				<command type="selectValue"
+					fieldNames="wr.budget_owner"
+					selectFieldNames="em.em_id"
+					visibleFieldNames="em.em_id,em.name_first,em.name_last"
+					applyFilter="true"/>
+			</action>
+		</field>
+		<field>
+			<title>Has Sub Work</title>
+			<html>
+			<select id="subwr">
+				<option value=""  selected="selected"></option>
+				<option value="Y">Has Sub Work</option>
+				<option value="A">Active Sub Work</option>
+				<option value="N">No Sub Work</option>
+			</select>
+			</html>
+		</field>
+		<field name="wr_id" table="wr">
+			<title>Reservation Code</title>
+			<action id="vehicleTypeSelect">
+				<tooltip>Select Value</tooltip>
+				<command type="selectValue"
+					fieldNames="wr.wr_id"
+					selectFieldNames="wr.wr_id"
+					visibleFieldNames="wr.wr_id"
+					restriction="wr.work_team_id='FLEET-RESERVE'"
+					applyFilter="true"/>
+			</action>
+		</field>
+    </panel>
+	
+	<panel type="grid" id="reservations_grid" dataSource="ds_reservations" region="center">
+		<title>Reservation Requests</title>
+		<field name="wr_id" table="wr" hidden="true"/>
+		<field name="wo_id" table="wr" hidden="true"/>
+		<indexField name="wr_id" table="wr" />
+		<field controlType="button" id="edit">
+          <title translatable="true">Edit</title>
+        </field>
+		
+		<field name="requestor" table="wr"/>
+		<field table="wr" name="vehicle_type_req" hidden="true"></field>
+		<field name="vt" ><title>Vehicle Type</title></field>
+		<field name="eq_id" table="wr"><title>Vehicle ID</title></field>
+		<field name="stat" ><title>Status</title></field>
+		<field name="pu"><title>Date Pick Up</title></field>
+		<field name="do"><title>Date Drop Off</title></field>
+		
+		<field name="wr_id" table="wr"><title>Reservation Code</title></field>
+		<field name="driver" table="wr"/>
+		
+        <!--field name="cost_est_total" table="wr"/>
+	    <field name="cost_total" table="wr"/-->
+		<field name="status" table="wr" hidden="true"/>
+		
+		<field name="budget_owner" table="wr"/>
+		<field controlType="button" id="cancel">
+          <title translatable="true">Cancel Request</title>
+        </field>
+	</panel>
+
+</view>

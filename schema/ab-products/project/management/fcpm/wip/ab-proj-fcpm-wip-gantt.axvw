@@ -1,0 +1,66 @@
+<view version="2.0">
+		<message name="cannotBeEdited">Values are not editable.</message>
+	
+		<js file="ab-flash-controls-common.js"/>
+		<js file="ab-flash-gantt.js"/>
+		<js file="ab-proj-fcpm-wip-gantt.js"/>
+		
+		<dataSource id="projFcpmWipGanttDs1">
+    		<table name="work_pkgs" role="main"/>
+    		<sql dialect="generic">
+    				SELECT 
+            ((CASE WHEN work_pkgs.wbs_id IS NULL THEN '' ELSE (RTRIM(work_pkgs.wbs_id) ${sql.concat} ' - ') END) ${sql.concat} work_pkgs.work_pkg_id) ${sql.as} wbs_title,
+            work_pkgs.project_id, work_pkgs.work_pkg_id, cost_design, (${sql.isNull('cost_contract',0)}+${sql.isNull('apprv_cost_change_orders',0)}) ${sql.as} revised_cost,
+						${sql.isNull('contract_amount.date_contract_start','work_pkgs.date_est_start')} ${sql.as} date_start, 
+    				CASE WHEN contract_amount.date_contract_end IS NULL THEN
+    				(CASE WHEN work_pkgs.date_est_end &lt; ${sql.isNull('contract_amount.date_contract_start','work_pkgs.date_est_start')}
+    				THEN ${sql.isNull('contract_amount.date_contract_start','work_pkgs.date_est_start')}
+    				ELSE work_pkgs.date_est_end END)
+    				ELSE contract_amount.date_contract_end END ${sql.as} date_end
+    				FROM work_pkgs
+    				LEFT OUTER JOIN 
+		            (SELECT work_pkg_bids.work_pkg_id, work_pkg_bids.project_id, work_pkg_bids.cost_contract, work_pkg_bids.date_contract_start, work_pkg_bids.date_contract_end
+		            FROM work_pkg_bids 
+		            WHERE work_pkg_bids.status IN ( 'Contract Signed', 'In Process', 'In Process-On Hold', 'Completed', 'Completed and Verified', 'Paid in Full')) 
+		            ${sql.as} contract_amount
+		        ON (work_pkgs.project_id = contract_amount.project_id AND work_pkgs.work_pkg_id = contract_amount.work_pkg_id ) 
+		        LEFT OUTER JOIN
+		            (SELECT activity_log.work_pkg_id, activity_log.project_id, SUM(cost_est_design_cap + cost_est_design_exp) ${sql.as} apprv_cost_change_orders 
+		            FROM activity_log 
+		            WHERE activity_log.activity_type LIKE 'PROJECT - CHANGE ORDER' AND activity_log.status NOT IN('CREATED','REQUESTED','REJECTED','CANCELLED') GROUP BY activity_log.project_id, activity_log.work_pkg_id ) ${sql.as} apprv_change_orders 
+		        ON (work_pkgs.project_id = apprv_change_orders.project_id AND work_pkgs.work_pkg_id = apprv_change_orders.work_pkg_id)
+    				LEFT OUTER JOIN
+    				    (SELECT proj_forecast_item.project_id, proj_forecast_item.work_pkg_id, SUM(cost_forecast) ${sql.as} cost_design
+    				    FROM proj_forecast_item
+                GROUP BY proj_forecast_item.project_id, proj_forecast_item.work_pkg_id) ${sql.as} design
+    				ON (design.project_id = work_pkgs.project_id AND design.work_pkg_id = work_pkgs.work_pkg_id)
+    		</sql>
+    		<field name="project_id" table="work_pkgs" dataType="text"/>
+    		<field name="work_pkg_id" table="work_pkgs" dataType="text"/>
+        <field name="revised_cost" table="work_pkgs" dataType="number" size="20" decimals="0" showTotals="true">
+        		<title>Revised Contract</title>
+        </field> 
+        <field name="date_start" table="work_pkgs" dataType="date" />
+        <field name="date_end" table="work_pkgs" dataType="date" />
+    		<sortField name="date_start" table="work_pkgs"/>
+    </dataSource>
+	
+		<panel type="console" id="projFcpmWipGantt_consolePanel" dataSource="projFcpmWipGanttDs1" showOnLoad="false">  
+	     	<field name="project_id" table="work_pkgs" />
+	     	<field name="work_pkg_id" table="work_pkgs" />
+		</panel>
+    
+	<panel type="html" id="projFcpmWipGantt_panelHtml" dataSource="projFcpmWipGanttDs1">
+		<title translatable="true">Timeline</title>
+          <action id="exportDOCX">
+            <title>DOC</title>
+            </action>
+            <action id="exportPDF">
+                <title>PDF</title>
+            </action>
+    	<html>
+ 			<div id="gantt"/>
+     	</html>
+	</panel>
+	
+</view>

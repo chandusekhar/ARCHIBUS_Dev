@@ -1,0 +1,227 @@
+<view version="2.0" showLoadProgress="true">
+    <title translatable="true">Year-to-Date Summary</title>   
+    
+    <message name="current_title" translatable="true">Current Year Period</message>
+    <message name="previous_title" translatable="true">Previous Year Period</message>
+
+    <message name="yearToDate_details" translatable="true">Year-to-Date - Summary Details</message>
+    <message name="months12_details" translatable="true">12 Months Period - Summary Details</message>
+    <message name="months6_details" translatable="true">6 Months Period - Summary Details</message>
+    <message name="month1_details" translatable="true">1 Month Period - Summary Details</message>
+    
+    <message name="elec_consumption" translatable="true">Electric Consumption</message>
+    <message name="consumption" translatable="true">Consumption</message>
+    
+    <js file="ab-energy-cost-base.js"/>
+    <js file="ab-energy-year-to-date-summary.js"/>
+    <js file="ab-energy-common.js"/>
+    
+   <panel id="costConsolePanel" type="view" file="ab-energy-cost-console.axvw"/>
+    
+    <!-- fiscal year month datasource -->    
+    <dataSource id="ds_energySummary_FiscalYear">
+        <table name="afm_scmpref" />
+        <field table="afm_scmpref" name="fiscalyear_startmonth" />
+        <field table="afm_scmpref" name="fiscalyear_startday" />
+    </dataSource>
+
+    <!-- Report datasource -->    
+    <dataSource id="ds_energyAnnualSummary">
+        <table name="bill_archive" />
+        <sql dialect="generic">
+        SELECT
+            1 AS period,
+            '${parameters['titleCurrent']}' AS title,
+            SUM(bill_archive.amount_expense) ${sql.as} cost,
+            (CASE WHEN (bl.utility_type_heat='GAS - NATURAL') THEN 
+                     (SELECT SUM(coefficient_hdd) FROM weather_model WHERE weather_model.bl_id=bill_archive.bl_id AND time_period &gt; '${parameters['periodStart']}' AND time_period &lt;= '${parameters['periodEnd']}' AND model_type='gas_natural_regression' AND aggregation_type='MONTHLY')
+                  ELSE
+                    (SELECT SUM(coefficient_hdd) FROM weather_model WHERE weather_model.bl_id=bill_archive.bl_id AND time_period &gt; '${parameters['periodStart']}' AND time_period &lt;= '${parameters['periodEnd']}' AND model_type='el_regression' AND aggregation_type='MONTHLY')           
+             END) ${sql.as} electricity_hdd,
+            (SELECT SUM(coefficient_cdd) FROM weather_model WHERE weather_model.bl_id=bill_archive.bl_id AND time_period &gt; '${parameters['periodStart']}' AND time_period &lt;= '${parameters['periodEnd']}' AND model_type='el_regression' AND aggregation_type='MONTHLY') 
+                ${sql.as} electricity_cdd,
+            SUM(CASE WHEN bill_archive.bill_type_id='ELECTRIC' THEN (bill_archive.qty_kwh*bill_archive.cost_kwh) ELSE (bill_archive.qty_energy*bill_archive.cost_mmbtu) END) ${sql.as} electricity_cost, 
+            SUM(bill_archive.qty_energy / ${parameters['unitsConversionFactor']})  ${sql.as} electricity_consumption,
+            ${parameters['consumptionUnits']} ${sql.as} consumption_units
+            FROM bill_archive
+            LEFT OUTER JOIN bl ON bill_archive.bl_id = bl.bl_id 
+            WHERE ${parameters['finalRestriction']} 
+            AND bill_archive.time_period &gt; '${parameters['periodStart']}'
+            AND bill_archive.time_period &lt;= '${parameters['periodEnd']}'
+            AND ((bill_archive.prorated_aggregated = 'NO' AND bill_archive.reference_bill_id IS NULL AND NOT EXISTS (SELECT 1 FROM bill_archive b WHERE b.reference_bill_id = bill_archive.bill_id)) OR (bill_archive.prorated_aggregated &lt;&gt; 'NO'))
+            GROUP BY bill_archive.bl_id, bl.utility_type_heat
+        UNION
+        SELECT
+            2 as period,
+            '${parameters['titlePrev']}' AS title,
+            SUM(bill_archive.amount_expense) ${sql.as} cost,
+            (CASE WHEN (bl.utility_type_heat='GAS - NATURAL') THEN 
+                     (SELECT SUM(coefficient_hdd) FROM weather_model WHERE weather_model.bl_id=bill_archive.bl_id AND time_period &gt; '${parameters['periodStartPrev']}' AND time_period &lt;= '${parameters['periodEndPrev']}' AND model_type='gas_natural_regression' AND aggregation_type='MONTHLY')
+                  ELSE
+                    (SELECT SUM(coefficient_hdd) FROM weather_model WHERE weather_model.bl_id=bill_archive.bl_id AND time_period &gt; '${parameters['periodStartPrev']}' AND time_period &lt;= '${parameters['periodEndPrev']}' AND model_type='el_regression' AND aggregation_type='MONTHLY')             
+             END) ${sql.as} electricity_hdd,
+            (SELECT SUM(coefficient_cdd) FROM weather_model WHERE weather_model.bl_id=bill_archive.bl_id AND time_period &gt; '${parameters['periodStartPrev']}' AND time_period &lt;= '${parameters['periodEndPrev']}' AND model_type='el_regression' AND aggregation_type='MONTHLY') 
+                ${sql.as} electricity_cdd,
+            SUM(CASE WHEN bill_archive.bill_type_id='ELECTRIC' THEN (bill_archive.qty_kwh*bill_archive.cost_kwh) ELSE (bill_archive.qty_energy*bill_archive.cost_mmbtu) END) ${sql.as} electricity_cost, 
+            SUM(bill_archive.qty_energy / ${parameters['unitsConversionFactor']}) ${sql.as} electricity_consumption,
+            ${parameters['consumptionUnits']} ${sql.as} consumption_units
+            FROM bill_archive
+            LEFT OUTER JOIN bl ON bill_archive.bl_id = bl.bl_id 
+            WHERE ${parameters['finalRestriction']} 
+            AND bill_archive.time_period &gt; '${parameters['periodStartPrev']}'
+            AND bill_archive.time_period &lt;= '${parameters['periodEndPrev']}'
+            AND ((bill_archive.prorated_aggregated = 'NO' AND bill_archive.reference_bill_id IS NULL AND NOT EXISTS (SELECT 1 FROM bill_archive b WHERE b.reference_bill_id = bill_archive.bill_id)) OR (bill_archive.prorated_aggregated &lt;&gt; 'NO'))
+            GROUP BY bill_archive.bl_id, bl.utility_type_heat            
+        </sql>
+        <field table="bill_archive" name="period" dataType="number" decimals="0" />
+        <field table="bill_archive" name="title" dataType="text" />
+        <field table="bill_archive" name="cost" dataType="number" decimals="2" />
+        <field table="bill_archive" name="electricity_hdd" dataType="number" decimals="2" />           
+        <field table="bill_archive" name="electricity_cdd" dataType="number" decimals="2" />
+        <field table="bill_archive" name="electricity_cost" dataType="number" decimals="2" />
+        <field table="bill_archive" name="electricity_consumption" dataType="number" decimals="2" /> 
+        <field table="bill_archive" name="consumption_units" dataType="text" />
+        <parameter name="finalRestriction" dataType="verbatim" value=" 1=1 " />
+        <parameter name="unitsConversionFactor" dataType="verbatim" value="1" />
+        <parameter name="unitsConversionFactorGas" dataType="verbatim" value="1" />
+        <parameter name="periodStart" dataType="verbatim" value="" />
+        <parameter name="periodEnd" dataType="verbatim" value="" />
+        <parameter name="periodStartPrev" dataType="verbatim" value="" />
+        <parameter name="periodEndPrev" dataType="verbatim" value="" />
+        <parameter name="titleCurrent" dataType="verbatim" value="" />
+        <parameter name="titlePrev" dataType="verbatim" value="" />
+        <parameter name="consumptionUnits" dataType="text" value="" />
+        <sortField name="period" />
+    </dataSource> 
+
+    <panel type="grid" id="energyAnnualSummary" dataSource="ds_energyAnnualSummary" showOnLoad="false" showIndexAndFilterOnLoad="false">
+        <title translatable="true">Energy Comparisons - Year-to-Date</title>
+        <action id="exportDOC">
+            <title>DOCX</title>
+            <command type="exportPanel" outputType="docx" panelId="energyAnnualSummary"/>
+        </action>
+        <event type="onClickItem">
+            <command type="callFunction" functionName="onDrillDownToDetails('YearToDate')"/>
+        </event>
+        <field table="bill_archive" name="title">
+            <title translatable="true">Year-to-Date</title>
+        </field>
+        <field table="bill_archive" name="cost">            
+        <title translatable="true">Total Cost</title>
+        </field>
+        <field table="bill_archive" name="electricity_hdd">
+             <title translatable="true">HDD</title>
+        </field>
+        <field table="bill_archive" name="electricity_cdd">
+             <title translatable="true">CDD</title>
+        </field>
+        <field table="bill_archive" name="electricity_cost">
+             <title translatable="true">Cost</title>
+        </field>
+        <field table="bill_archive" name="electricity_consumption">
+             <title translatable="true">Consumption</title>
+        </field> 
+        <field table="bill_archive" name="consumption_units">
+             <title translatable="true">Consumption Units</title>
+        </field> 
+    </panel> 
+
+    <panel type="grid" id="energyAnnualSummaryYear" dataSource="ds_energyAnnualSummary" showOnLoad="false" showIndexAndFilterOnLoad="false">
+        <title translatable="true">Energy Comparisons - 12 Months Period</title>
+        <action id="exportDOC">
+            <title>DOCX</title>
+            <command type="exportPanel" outputType="docx" panelId="energyAnnualSummaryYear"/>
+        </action>
+        <event type="onClickItem">
+            <command type="callFunction" functionName="onDrillDownToDetails('12Months')"/>
+        </event>
+        <field table="bill_archive" name="title">
+            <title translatable="true">12 Months Period</title>
+        </field>
+        <field table="bill_archive" name="cost">            
+        <title translatable="true">Total Cost</title>
+        </field>
+        <field table="bill_archive" name="electricity_hdd">
+             <title translatable="true">HDD</title>
+        </field>
+        <field table="bill_archive" name="electricity_cdd">
+             <title translatable="true">CDD</title>
+        </field>
+        <field table="bill_archive" name="electricity_cost">
+             <title translatable="true">Cost</title>
+        </field>
+        <field table="bill_archive" name="electricity_consumption">
+             <title translatable="true">Consumption</title>
+        </field> 
+        <field table="bill_archive" name="consumption_units">
+             <title translatable="true">Consumption Units</title>
+        </field> 
+    </panel> 
+
+    <panel type="grid" id="energyAnnualSummary6Month" dataSource="ds_energyAnnualSummary" showOnLoad="false" showIndexAndFilterOnLoad="false">
+        <title translatable="true">Energy Comparisons - 6 Months Period</title>
+        <action id="exportDOC">
+            <title>DOCX</title>
+            <command type="exportPanel" outputType="docx" panelId="energyAnnualSummary6Month"/>
+        </action>
+        <event type="onClickItem">
+            <command type="callFunction" functionName="onDrillDownToDetails('6Months')"/>
+        </event>
+        <field table="bill_archive" name="title">
+            <title translatable="true">6 Months Period</title>
+        </field>
+        <field table="bill_archive" name="cost">            
+        <title translatable="true">Total Cost</title>
+        </field>
+        <field table="bill_archive" name="electricity_hdd">
+             <title translatable="true">HDD</title>
+        </field>
+        <field table="bill_archive" name="electricity_cdd">
+             <title translatable="true">CDD</title>
+        </field>
+        <field table="bill_archive" name="electricity_cost">
+             <title translatable="true">Cost</title>
+        </field>
+        <field table="bill_archive" name="electricity_consumption">
+             <title translatable="true">Consumption</title>
+        </field>
+        <field table="bill_archive" name="consumption_units">
+             <title translatable="true">Consumption Units</title>
+        </field>  
+    </panel> 
+
+    <panel type="grid" id="energyAnnualSummary1Month" dataSource="ds_energyAnnualSummary" showOnLoad="false" showIndexAndFilterOnLoad="false">
+        <title translatable="true">Energy Comparisons - 1 Month Period</title>
+        <action id="exportDOC">
+            <title>DOCX</title>
+            <command type="exportPanel" outputType="docx" panelId="energyAnnualSummary1Month"/>
+        </action>
+        <event type="onClickItem">
+            <command type="callFunction" functionName="onDrillDownToDetails('1Month')"/>
+        </event>
+        <field table="bill_archive" name="title">
+            <title translatable="true">1 Month Period</title>
+        </field>
+        <field table="bill_archive" name="cost">            
+        <title translatable="true">Total Cost</title>
+        </field>
+        <field table="bill_archive" name="electricity_hdd">
+             <title translatable="true">HDD</title>
+        </field>
+        <field table="bill_archive" name="electricity_cdd">
+             <title translatable="true">CDD</title>
+        </field>
+        <field table="bill_archive" name="electricity_cost">
+             <title translatable="true">Cost</title>
+        </field>
+        <field table="bill_archive" name="electricity_consumption">
+              <title translatable="true">Consumption</title>
+        </field> 
+        <field table="bill_archive" name="consumption_units">
+             <title translatable="true">Consumption Units</title>
+        </field> 
+    </panel>
+    
+    <panel id="costDrillDownPanel" type="view" file="ab-energy-cost-drilldown.axvw" />
+    
+</view>

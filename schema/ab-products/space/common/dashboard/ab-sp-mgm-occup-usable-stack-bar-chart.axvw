@@ -1,0 +1,70 @@
+<view version="2.0">
+    <message name="useableForAreatype" translatable="true">Usable Area</message>
+    <message name="grossintForAreatype" translatable="true">Non-Usable Area</message>
+    <dataSource id="groupbyDS" type="grouping" applyVpaRestrictions="false">
+        <sql dialect="generic">
+            SELECT distinct
+                 ${parameters['groupby']} ${sql.as} groupby
+            FROM fl left join bl on bl.bl_id=fl.bl_id WHERE ${sql.vpaRestriction} and  fl.${parameters['blId']} 
+        </sql>
+        <table name="fl" role="main"/>
+        <field table="fl" name="groupby" dataType="text" groupBy="true">
+        </field>
+        <parameter name="groupby" dataType="verbatim" value="fl.bl_id"/>
+        <parameter name="blId" dataType="verbatim" value="bl_id is not null"/>
+    </dataSource>
+        
+    <dataSource id="usableGrossStackedBarDS" type="grouping" applyVpaRestrictions="false">
+        <sql dialect="generic">
+            SELECT 
+                 ${parameters['useableForAreatype']} ${sql.as} areatype,
+                 fl.area_usable ${sql.as} area
+            FROM fl LEFT JOIN bl on fl.bl_id=bl.bl_id WHERE ${sql.vpaRestriction} and  fl.${parameters['blId']} and ${parameters['groupby']}= ${parameters['summaryValueForThisGroup']}
+            union all
+            SELECT 
+                  ${parameters['grossintForAreatype']} ${sql.as} areatype,
+                (fl.area_gross_int-fl.area_usable) ${sql.as} area
+            FROM fl LEFT JOIN bl on fl.bl_id=bl.bl_id WHERE ${sql.vpaRestriction} and  fl.${parameters['blId']} and ${parameters['groupby']}= ${parameters['summaryValueForThisGroup']}
+        </sql>
+        <table name="fl" role="main"/>
+        <field table="fl" name="areatype" dataType="text" groupBy="true">
+        </field>
+        <field table="fl" name="sum_area" formula="sum" baseField="fl.area"  dataType="number" decimals="0"  numericFormat="area" >
+        </field>
+        <parameter name="summaryValueForThisGroup" dataType="text" value=""/>
+        <parameter name="blId" dataType="verbatim" value="bl_id is not null"/>
+        <parameter name="useableForAreatype" dataType="text" value="auseable"/>
+        <parameter name="grossintForAreatype" dataType="text" value="grossint"/>
+        <parameter name="groupby" dataType="verbatim" value="fl.bl_id"/>
+        <sortField table="fl" name="areatype" ascending="true"/>
+    </dataSource>
+    
+    <panel id="usableGrossStackedBar"
+        type="chart"
+        controlType="stackedBarChart"
+        dataSource="usableGrossStackedBarDS"
+        showLegendOnLoad="true"
+        showLegendAsPopUp="false"
+        legendLocation="right"
+        showDataTips="true"
+         fillColor="0x4BACC6,0xF79646,0x8064A2,0x9BBB59,0xC0504D,0x4F81BD,0x1F497D,0x938953,0x000000,0x7F7F7F,0x974806,0x205867,0x3F3151,0x4F6128,0x5E1C1B,0x244061,0x0F243E,0x1D1B10,0x0C0C0C,0x7F7F7F"
+        fillType="solid"
+        showOnLoad="false" 
+        >
+        <title translatable="true">Usable/Gross</title>
+    
+        <groupingAxis dataSource="groupbyDS" table="fl" field="groupby">
+        </groupingAxis>
+        
+        <secondaryGroupingAxis dataSource="usableGrossStackedBarDS" table="fl" field="areatype">
+            <title translatable="true">Usable/Non-Usable Area</title> 
+        </secondaryGroupingAxis>
+        <dataAxis dataSource="usableGrossStackedBarDS" table="fl" field="sum_area" displayAxis="false" labelPosition="inside">
+            <title translatable="true">Usable/Non-Usable Area</title>
+        </dataAxis>
+       
+    </panel> 
+
+	<js file="ab-sp-mgm-dash-common.js"/>
+    <js file="ab-sp-mgm-occup-usable-stack-bar-chart.js"/>
+</view>

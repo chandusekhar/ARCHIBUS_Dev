@@ -1,0 +1,120 @@
+<view version="2.0">
+    <!--
+    @summary
+    Supervisor - Close Work Order<br />
+    This view allows the user to:
+    <ul>
+    <li>View a list of work orders assigned to the current user with all work requests</li>
+    <li>Select a work order and view the work request attached to it</li>
+    <li>Select a work request to update</li>
+    <li>Select work request(s) to set complete</li>
+    </ul>
+    -->
+    <layout type="borderLayout" id="mainLayout">
+        <north id="console" initialSize="70%" split="true"/>
+        <center autoScroll="true"/>
+    </layout>
+    <message name="errorDateRange" translatable="true">Given dates are invalid.</message>
+    <message name="updateEquipmentFailed" translatable="true">Update equipment failed.</message>
+	<message name="noRecordSelected" translatable="true">Please make selection first</message>
+    <dataSource id="ds_ab-pm-wo-upd-sel_wo">
+        <table name="wo" role="main"/>
+        <field table="wo" name="date_assigned"/>
+        <field table="wo" name="wo_id"/>
+        <field table="wo" name="bl_id"/>
+        <field table="wo" name="wo_type"/>
+    </dataSource>
+    <panel type="console" columns="3" id="wo_upd_sel_wo_console" dataSource="ds_ab-pm-wo-upd-sel_wo" layout="mainLayout" region="north">
+        <title translatable="true">Filter</title>
+        <action id="filter">
+            <title translatable="true">Show</title>
+            <command type="callFunction" functionName="setRestriction"/>
+        </action>
+        <action id="clear">
+            <title translatable="true">Clear</title>
+            <command type="showPanel" panelId="wo_upd_sel_wo_report" applyParentRestriction="false" clearRestriction="true"/>
+            <command type="callFunction" functionName="clearRestriction"/>
+        </action>
+        <field table="wo" name="bl_id"/>
+        <field table="wo" name="wo_id" alias="wo.wo_id.from" readOnly="false">
+            <title translatable="true">Work Order Code From</title>
+        </field>
+        <field table="wo" name="wo_id" alias="wo.wo_id.to" readOnly="false">
+            <title translatable="true">Work Order Code To</title>
+        </field>
+        <field table="wo" name="wo_type"/>
+        <field table="wo" name="date_assigned" alias="wo.date_assigned.from">
+            <title translatable="true">Date to Perform From</title>
+        </field>
+        <field table="wo" name="date_assigned" alias="wo.date_assigned.to">
+            <title translatable="true">Date to Perform To</title>
+        </field>
+    </panel>
+    <dataSource id="ds_ab-pm-wo-upd-sel_wo_grid">
+        <table name="wo" role="main"/>
+        <field table="wo" name="wo_id"/>
+        <field table="wo" name="bl_id"/>
+        <field table="wo" name="description"/>
+        <field table="wo" name="date_assigned"/>
+        <field table="wo" name="date_issued"/>
+        <field table="wo" name="date_completed"/>
+        <restriction type="sql" sql=" wo.date_issued IS NOT NULL 
+         AND(wo.date_closed IS NULL)
+         AND(supervisor is null OR supervisor=${sql.literal(user.employee.id)})
+         AND NOT EXISTS(SELECT wo_id FROM wr WHERE wr.wo_id= wo.wo_id AND NOT
+         wr.status IN('I','HP','HA','HL','S','Can','Com')
+         AND NOT(wr.supervisor is null OR wr.supervisor=${sql.literal(user.employee.id)})) " />
+    </dataSource>
+    <panel type="grid" controlType="reportGrid" id="wo_upd_sel_wo_report" multipleSelectionEnabled="true" dataSource="ds_ab-pm-wo-upd-sel_wo_grid" layout="mainLayout" region="north">
+        <sortField name="wo_id" table="wo" ascending="false"/>
+        <title translatable="true">Work Orders</title>
+        <action id="closeWO">
+            <title translatable="true">Close Selected</title>
+            <command type="callFunction" functionName="closeWOs"/>
+        </action>
+        <field controlType="button">
+            <command type="showPanel" panelId="wo_upd_sel_wr_report"/>
+            <title translatable="true">Select</title>
+        </field>
+        <field controlType="button">
+            <command type="selectTabPage" tabPageName="update" newRecord="false"/>
+            <title translatable="true">Edit</title>
+        </field>
+        <field table="wo" name="wo_id"/>
+        <field table="wo" name="bl_id"/>
+        <field table="wo" name="description"/>
+        <field table="wo" name="date_assigned"/>
+        <field table="wo" name="date_issued"/>
+        <field table="wo" name="date_completed"/>
+    </panel>
+    
+    <dataSource id="ds_ab-pm-wo-upd-sel_wr">
+        <table name="wr" role="main"/>
+        <field table="wr" name="wr_id"/>
+        <field table="wr" name="wo_id"/>
+        <field table="wr" name="requestor"/>
+        <field table="wr" name="prob_type"/>
+        <field table="wr" name="status"/>
+        <field table="wr" name="date_requested"/>
+        <field table="wr" name="date_completed"/>
+    </dataSource>
+    <panel type="grid" controlType="reportGrid" id="wo_upd_sel_wr_report" multipleSelectionEnabled="true" showOnLoad="false" dataSource="ds_ab-pm-wo-upd-sel_wr" layout="mainLayout" region="center">
+        <sortField name="wr_id" table="wr" ascending="false"/>
+        <title translatable="true">Work Requests</title>
+        <action type="javascript" onclick="setComplete('wo_upd_sel_wr_report')">
+            <title translatable="true">Complete Selected</title>
+        </action>
+        <field controlType="button">
+            <command type="selectTabPage" tabPageName="updateWrLabor"/>
+            <title translatable="true">Select</title>
+        </field>
+        <field table="wr" name="wr_id"/>
+        <field table="wr" name="wo_id"/>
+        <field table="wr" name="requestor"/>
+        <field table="wr" name="prob_type"/>
+        <field table="wr" name="status"/>
+        <field table="wr" name="date_requested"/>
+    </panel>
+    <js file="ab-pm-wo-upd-sel.js"/>
+    <js file="ab-pm-supv-comm.js"/>
+</view>

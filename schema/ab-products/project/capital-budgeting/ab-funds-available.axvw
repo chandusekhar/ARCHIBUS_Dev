@@ -1,0 +1,194 @@
+<view version="2.0">
+    <title>Available Capital and Expense Funds</title>
+    <layout file="ab-proj-console-short-details.axvw"/>
+    <message name="invalid_date_range">Date range is invalid</message>
+    <js file="ab-funds-available.js"/>
+    
+    <dataSource id="fundsAvailableConsoleDs">
+        <table name="projfunds" role="main"/>
+        <field name="project_id" table="projfunds"/>
+        <field name="fund_id" table="projfunds"/> 
+        <field name="fiscal_year" table="projfunds"/>
+    </dataSource>
+    
+    <panel type="console" id="fundsAvailableConsole" columns="2" dataSource="fundsAvailableConsoleDs" layout="mainLayout" region="north">
+        <title>Filter</title>
+        <action id="show">
+            <title>Show</title>
+        </action>
+        <action id="clear">
+            <title>Clear</title>
+            <command type="showPanel" panelId="fundsAvailableCrossTable" applyParentRestriction="false" clearRestriction="true"/>
+        </action>
+        <field name="project_id" table="projfunds" hidden="true"/>
+        <field name="fund_id" table="projfunds" hidden="true"/>  
+        <field>
+              <title>Display Options</title>
+              <html>
+                  <input type="radio" id="display_type_grid" name="display_type" value="Grid" checked="true" onclick="toggleDisplayType()"/>
+                  <span translatable="true">Grid</span>
+                  <input type="radio" id="display_type_chart" name="display_type" value="Chart" onclick="toggleDisplayType()"/>
+                  <span translatable="true">Chart</span>
+              </html>
+        </field>
+        <field/>
+        <field>
+            <title>From Year</title>
+            <html>
+                <div style="position:relative;float:left">              
+                    <input id="from_year" class="inputField" type="text" value="" style="width:70" size="4"/>
+                </div>
+                <div style="position:relative;padding-left:2px;padding-top:1px;">
+                <div style="position:relative;float:top;height:9px;"><img id="from_yeard" style="vertical-align:top;border:0;margin:0;padding:0" alt="Up" src="/archibus/schema/ab-system/graphics/but_yeard.gif" onclick="changeYear(1, 'from_year');"/></div>
+                <div><img id="from_yearu" style="vertical-align:top;border:0;margin:0;padding:0" alt="Down" src="/archibus/schema/ab-system/graphics/but_yearu.gif" onclick="changeYear(-1, 'from_year');"/></div>
+                </div>
+            </html>
+         </field>
+         <field>
+              <title>To Year</title>
+              <html>
+                  <div style="position:relative;float:left">              
+                      <input id="to_year" class="inputField" type="text" value="" style="width:70" size="4"/>
+                  </div>
+                  <div style="position:relative;padding-left:2px;padding-top:1px;">
+                <div style="position:relative;float:top;height:9px;"><img id="to_yeard" style="vertical-align:top;border:0;margin:0;padding:0" alt="Up" src="/archibus/schema/ab-system/graphics/but_yeard.gif" onclick="changeYear(1, 'to_year');"/></div>
+                <div><img id="to_yearu" style="vertical-align:top;border:0;margin:0;padding:0" alt="Down" src="/archibus/schema/ab-system/graphics/but_yearu.gif" onclick="changeYear(-1, 'to_year');"/></div>
+                </div>
+              </html>
+          </field>
+    </panel>
+   
+    <dataSource id="fundsAvailable_fundingSourcesAndFieldsDS" type="grouping" applyVpaRestrictions="false">
+        <table name="funding" role="main"/>  
+        <field name="fund_id" table="funding" groupBy="true"/>
+        <field name="amt_total" dataType="number" decimals="0" >
+        	<title>Fund Total</title>
+            <sql dialect="generic">MIN(amt_total)</sql>
+        </field>
+        <field name="funds_avail" dataType="number" decimals="0" >
+            <title>Available Funds</title>
+            <sql dialect="generic">MIN(funds_avail)</sql>
+        </field>
+		<sortField name="fund_id" table="funding"/>
+		<sql dialect="generic">
+			SELECT funding.fund_id, MIN(funding.amt_total) AS amt_total,
+			MIN(funding.amt_total) - (CASE WHEN EXISTS(SELECT projfunds.fund_id FROM projfunds WHERE projfunds.fund_id = funding.fund_id) THEN SUM(projfunds.amount_cap + projfunds.amount_exp) ELSE 0 END) AS funds_avail 
+			FROM funding LEFT OUTER JOIN projfunds ON funding.fund_id = projfunds.fund_id GROUP BY funding.fund_id
+		</sql>
+		<sql dialect="oracle">
+	        SELECT funding.fund_id, MIN(funding.amt_total) AS amt_total,
+			MIN(funding.amt_total) - (CASE WHEN EXISTS(SELECT projfunds.fund_id FROM projfunds WHERE projfunds.fund_id = funding.fund_id) THEN SUM(projfunds.amount_cap + projfunds.amount_exp) ELSE 0 END) AS funds_avail 
+			FROM funding, projfunds WHERE funding.fund_id = projfunds.fund_id(+) GROUP BY funding.fund_id
+        </sql>
+		<restriction type="sql" sql="funding.amt_total &gt; 0"/>
+    </dataSource>
+ 
+    <dataSource id="fundsAvailable_fundsAllocatedDS" type="grouping">
+        <table name="funding" role="main"/>
+        <table name="projfunds" role="standard"/>
+        <field name="fund_id" table="projfunds" groupBy="true"/>
+        <field name="fiscal_year" table="projfunds" groupBy="true"/>
+        <field name="amount_cap" dataType="number" decimals="0" baseField="projfunds.amount_cap" formula="sum">
+            <title>Capital Allocated</title>
+        </field>
+        <field name="amount_exp" dataType="number" decimals="0" baseField="projfunds.amount_exp" formula="sum">
+            <title>Expense Allocated</title>
+        </field>
+		<sortField name="fund_id" table="projfunds"/>
+        <sortField name="fiscal_year" table="projfunds"/>
+        <restriction type="sql" sql="EXISTS(SELECT projfunds.fund_id FROM projfunds WHERE projfunds.fund_id = funding.fund_id)"/>
+    </dataSource>
+
+    <panel type="crossTable" id="fundsAvailableCrossTable" showOnLoad="false" layout="mainLayout" region="center"
+           dataSource="fundsAvailable_fundsAllocatedDS"
+           rowDimensionDataSource="fundsAvailable_fundingSourcesAndFieldsDS">
+         <title>Available Capital and Expense Funds</title>  
+         <action id="export:XLS">
+            <title>XLS</title>
+            <command type="exportPanel" outputType="xls" panelId="fundsAvailableCrossTable"/>
+         </action>
+         <event type="onClickItem">
+            <command type="openDialog" panelId="fundsAvailableDrillDownGrid"/>
+        </event>
+    </panel>
+    
+    <dataSource id="fundsAvailableChartDs_stackedBarChartDs" type="grouping">
+        <table name="funding" role="main"/>
+        <table name="projfunds" role="standard"/>   
+        <field name="fund_id" table="funding" groupBy="true"/>
+        <field name="amount_cap" dataType="number" decimals="0" baseField="projfunds.amount_cap" formula="sum">
+        	<title>Capital Allocated</title>
+        </field>
+        <field name="amount_exp" dataType="number" decimals="0" baseField="projfunds.amount_exp" formula="sum">
+        	<title>Expense Allocated</title>
+        </field>
+        <field name="funds_avail" dataType="number" decimals="0">
+            <title>Available Funds</title>
+            <sql dialect="generic">MIN(funding.amt_total) - (CASE WHEN EXISTS(SELECT projfunds.fund_id FROM projfunds WHERE projfunds.fund_id = funding.fund_id) THEN SUM(projfunds.amount_cap + projfunds.amount_exp) ELSE 0 END)</sql>
+        </field>
+		<sortField name="fund_id" table="funding" ascending="false"/>
+		<restriction type="sql" sql="funding.amt_total &gt; 0"/>
+    </dataSource>
+    
+    <panel  id="fundsAvailableChart" 
+        type="chart" 
+        controlType="stackedBarChart"  
+        dataSource="fundsAvailableChartDs_stackedBarChartDs"
+        showLegendOnLoad="true" 
+        showLegendAsPopUp="false" 
+        legendLocation="right" 
+        showDataTips="true" 
+        backgroundColor="0xc6e2ff" 
+        fillType="linearGradient"
+        percentGradientChange="0.5"
+        percentTransparency = "1.0"
+        showOnLoad="false"
+        layout="mainLayout" region="center">
+        <title>Available Capital and Expense Funds</title>
+        <event type="onClickItem">
+            <command type="openDialog" panelId="fundsAvailableDrillDownGrid"/>
+        </event>
+        <groupingAxis table="funding" field="fund_id" dataSource="fundsAvailableChartDs_stackedBarChartDs">
+            <title>Funding Source</title>
+        </groupingAxis>
+        <dataAxis table="funding" field="funds_avail" labelPosition="inside" dataSource="fundsAvailableChartDs_stackedBarChartDs">
+            <title>Available Funds</title>
+        </dataAxis>
+        <dataAxis table="funding" field="amount_cap" labelPosition="inside" dataSource="fundsAvailableChartDs_stackedBarChartDs">
+            <title>Capital Funds</title>
+        </dataAxis>
+        <dataAxis table="funding" field="amount_exp" labelPosition="inside" dataSource="fundsAvailableChartDs_stackedBarChartDs">
+            <title>Expense Funds</title>
+        </dataAxis>
+    </panel>    
+        
+    <dataSource id="fundsAvailableDrillDownDs">
+        <table name="projfunds" role="main"/>
+        <table name="funding" role="standard"/>
+        <field name="fund_id" table="projfunds"/>
+        <field name="fiscal_year" table="projfunds"/>
+        <field name="project_id" table="projfunds"/>
+        <field name="amount_cap" table="projfunds"/>
+        <field name="amount_exp" table="projfunds"/>
+        <field name="amt_total" table="funding"/>
+    </dataSource>
+    
+    <panel type="grid" id="fundsAvailableDrillDownGrid" dataSource="fundsAvailableDrillDownDs" showOnLoad="false">
+    		<title>Capital and Expense Funds</title>
+    		<action id="exportDOCX">
+            <title>DOC</title>
+            <command type="exportPanel" outputType="docx" panelId="fundsAvailableDrillDownGrid"/>
+        </action>
+		<action id="exportXLS">
+			<title>XLS</title>
+			<command type="exportPanel" outputType="xls" panelId="fundsAvailableDrillDownGrid"/>
+		</action>
+        <sortField name="fund_id" table="projfunds" ascending="true"/>
+        <sortField name="fiscal_year" table="projfunds" ascending="true"/>
+        <field name="fund_id" table="projfunds"/>
+        <field name="project_id" table="projfunds"/>
+        <field name="fiscal_year" table="projfunds"/>
+        <field name="amount_cap" table="projfunds"/>
+        <field name="amount_exp" table="projfunds"/>
+    </panel>
+</view>

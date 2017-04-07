@@ -1,0 +1,130 @@
+<view version="2.0">
+
+	<layout type="borderLayout" id="mainLayout">
+    	<north id="console" initialSize="150" split="true"/>
+    	<center autoScroll="true"/>
+  	</layout>
+  	<layout type="borderLayout" id="nestedLayout_1" containingLayout="mainLayout" region="center">
+    	<west initialSize="280" split="true"/>
+    	<center id="content" autoScroll="true"/>
+  	</layout>
+  	<layout type="borderLayout" id="westSubLayout" containingLayout="nestedLayout_1" region="west">
+  		<north id="list" initialSize="50%" split="true"/>
+  		<center id="legend" autoScroll="true"/>
+  	</layout>
+	<js file="ab-review-redlines-architect.js"/>
+	
+	<message name="msgLoadingRedlines" translatable="true">Loading Redlines</message>
+	<message name="error_date_range" translatable="true">Given dates are invalid.</message>
+	
+	<message name="selectDrawing" translatable="true">Review Redlines by Location: Select Drawing</message>
+	<message name="reviewRL" translatable="true">Review Redlines by Location</message>
+	<message name="highlights" translatable="true">Highlights: </message>
+	<message name="labels" translatable="true">Labels: </message>
+	
+	<title translatable="true">Review Redlines by Location</title>
+	
+	<dataSource id="reviewRedlinesConsoleDS">
+		<table name="afm_redlines" role="main"/>
+		<table name="activity_log_hactivity_log" role="standard"/>
+		
+		<field name="dwg_name" table="afm_redlines"/>
+		<field name="site_id" table="activity_log_hactivity_log"/>
+		<field name="bl_id" table="activity_log_hactivity_log"/>
+		<field name="fl_id" table="activity_log_hactivity_log"/>
+		<field name="activity_type" table="activity_log_hactivity_log"/>
+		<field name="prob_type" table="activity_log_hactivity_log"/>
+		<field name="date_created" table="afm_redlines"/>
+	</dataSource>
+	
+	<panel id="consolePanel" type="console" layoutRegion="console" dataSource="reviewRedlinesConsoleDS" columns="3">
+		<title translatable="true">Filter</title>
+		<action id="show">
+			<title translatable="true">Show</title>
+		</action>
+		<action id="clear">
+			<title translatable="true">Clear</title>
+		</action>
+		
+		<field name="site_id" table="activity_log_hactivity_log"/>
+		<field name="bl_id" table="activity_log_hactivity_log"/>
+		<field name="fl_id" table="activity_log_hactivity_log">
+			<action id="selectFl">
+                <command type="selectValue"
+                         selectValueType="grid"
+                         autoComplete="true"
+                         fieldNames="activity_log_hactivity_log.bl_id, activity_log_hactivity_log.fl_id"
+                         selectFieldNames="fl.bl_id, fl.fl_id"
+                         visibleFieldNames="fl.bl_id, fl.fl_id, fl.name"/>
+            </action>
+		</field>
+		<field name="activity_type" table="activity_log_hactivity_log"/>
+		<field name="prob_type" table="activity_log_hactivity_log"/>
+		<field name="dwg_name" table="afm_redlines"/>
+		<field table="afm_redlines" name="date_created"
+			alias="afm_redlines.date_created.from" required="false">
+			<title translatable="true">Date Created From</title>
+		</field>
+		<field table="afm_redlines" name="date_created"
+			alias="afm_redlines.date_created.to" required="false">
+			<title translatable="true">Date Created To</title>
+		</field>
+	</panel>
+	
+	<dataSource id="reviewRedlinesTree_dwgsDS">
+		<table name="afm_dwgs" role="main"/>
+		<field name="dwg_name" table="afm_dwgs"/>
+		<field name="title" table="afm_dwgs"/>
+		
+		<field name="nr_redlines" table="afm_dwgs" dataType="number" size="4" decimals="0">
+			<sql dialect="generic">
+				(SELECT COUNT(auto_number) FROM afm_redlines WHERE afm_redlines.dwg_name = afm_dwgs.dwg_name AND activity_log_id IS NOT NULL)
+			</sql>
+		</field>
+		
+		<restriction type="sql" sql="EXISTS (SELECT auto_number FROM afm_redlines WHERE afm_redlines.dwg_name = afm_dwgs.dwg_name AND activity_log_id IS NOT NULL)"/>
+	</dataSource>
+	
+	<dataSource id="reviewRedlinesTree_redlinesDS">
+		<table name="afm_redlines" role="main"/>
+		<table name="activity_log_hactivity_log" role="standard"/>
+		
+		<field name="activity_log_id" table="afm_redlines"/>
+		<field name="status" table="activity_log_hactivity_log"/>
+		<field name="activity_type" table="activity_log_hactivity_log"/>
+		<field name="description" table="activity_log_hactivity_log"/>
+		
+		<restriction type="sql" sql="afm_redlines.activity_log_id IS NOT NULL"/>
+	</dataSource>
+	
+	<panel id="treePanel_dwgs" type="tree" layoutRegion="list" dataSource="reviewRedlinesTree_dwgsDS">
+		<title translatable="true">Select Drawing and Redlines</title>
+		<panel type="tree" id="treePanel_redlines" dataSource="reviewRedlinesTree_redlinesDS">
+			<event type="onClickNode">
+                <command type="callFunction" functionName="showRedlinedDrawing"/>
+	        </event>
+		</panel>
+	</panel>
+	
+	<panel id="drawingPanel" type="drawing" layoutRegion="content" multiple="false" legendPanel="legendGrid">
+		<title translatable="true">[]</title>
+	</panel>
+	
+	<!-- The legend data source -->
+  	<dataSource id="legendDs" distinct="true">
+    	<table name="rm" role="main"/>
+  	</dataSource>
+  	
+	<panel type="grid" controlType="reportGrid" id="legendGrid" dataSource="legendDs" layoutRegion="legend" showOnLoad="false">
+    	<title translatable="true">Legend</title>
+     	<field table="legend" name="color" controlType="color">
+      		<title translatable="true"> </title>
+    	</field>
+    	<field table="legend" name="value" width="80%">
+      		<title translatable="true">Value</title>
+    	</field>
+  	</panel>
+	
+	<panel type="view" id="labelDSView" useFrame="true" hidden="true"/>
+	<panel type="view" id="highlightDSView" useFrame="true" hidden="true"/>
+</view>

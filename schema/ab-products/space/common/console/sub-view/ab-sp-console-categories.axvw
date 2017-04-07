@@ -1,0 +1,452 @@
+<!-- Room category/type filter and tree. -->
+
+<view version="2.0">
+     <js file="ab-sp-console-categories.js"/> 
+    <message name="addCategory" translatable="true">Add Category</message>
+    <message name="addType" translatable="true">Add Type</message>
+    <message name="editCategory" translatable="true">Edit Category</message>
+    <message name="editType" translatable="true">Edit Type</message>
+    
+    <dataSource id="categoriesDS" applyVpaRestrictions="false"> 
+        <sql dialect="generic">
+          SELECT 
+             rm_cat,
+             (CASE WHEN total_area IS NULL THEN 0 ELSE total_area END ) ${sql.as} total_area,
+             (  
+               CASE WHEN (SELECT sum(rm.area) FROM rm LEFT OUTER JOIN rmcat ON rm.rm_cat = rmcat.rm_cat WHERE ( (${parameters['dp_id']} AND ${parameters['dv_id']} ) 
+						 AND (${parameters['organizationUnassigned']}))
+                         AND ${parameters['bl_id']} AND ${parameters['fl_id']} AND ${parameters['rm_id']} AND ((${parameters['rm_cat']}
+                         AND ${parameters['rm_type']} ) AND (${parameters['typeUnassigned']})) AND ${parameters['occupancy']} AND ${sql.vpaRestriction} AND ${parameters['teamRmRestriction']})=0 
+               THEN 0 ELSE  
+                 total_area/
+                (SELECT sum(rm.area) FROM rm LEFT OUTER JOIN rmcat ON rm.rm_cat = rmcat.rm_cat 
+                    WHERE ( (${parameters['dp_id']} AND ${parameters['dv_id']} ) AND (${parameters['organizationUnassigned']}))
+                         AND ${parameters['bl_id']} AND ${parameters['fl_id']} AND ${parameters['rm_id']} AND ((${parameters['rm_cat']}
+                         AND ${parameters['rm_type']} ) AND (${parameters['typeUnassigned']})) AND ${parameters['occupancy']} AND ${sql.vpaRestriction} AND ${parameters['teamRmRestriction']}
+                 )
+               END 
+               ) * 100 ${sql.as} pec_of_total_area,
+                 total_count,
+                 description,
+                 rmcat_hpattern_acad
+             FROM 
+             (SELECT
+                '' ${sql.as} rm_cat,
+                sum(rm.area) ${sql.as} total_area,
+                COUNT(distinct rm.bl_id ${sql.concat} rm.fl_id ${sql.concat} rm.rm_id) ${sql.as} total_count,
+                '' ${sql.as} description,
+                '' ${sql.as} rmcat_hpattern_acad
+             FROM rmcat
+                    RIGHT OUTER JOIN rm ON rm.rm_cat = rmcat.rm_cat
+                    WHERE ( (${parameters['dp_id']} AND ${parameters['dv_id']} ) AND (${parameters['organizationUnassigned']}))
+                         AND ${parameters['bl_id']} AND ${parameters['fl_id']} AND ${parameters['rm_id']} AND ((${parameters['rm_cat']}
+                         AND ${parameters['rm_type']} ) AND (${parameters['typeUnassigned']})) AND ${parameters['occupancy']} AND ${sql.vpaRestriction}  AND ${parameters['teamRmRestriction']} 
+                    AND rm.rm_cat is null AND rm.rm_type is null 
+                ) ${sql.as} wraped_rmcat WHERE total_count !=0 
+            UNION 
+                SELECT * FROM  (SELECT
+                    rmcat.rm_cat ${sql.as} rm_cat,
+                    (CASE WHEN SUM(rm.area) IS NULL THEN 0 ELSE SUM(rm.area) END ) ${sql.as} total_area,
+                    (
+                      CASE WHEN (SELECT sum(rm.area) FROM rm LEFT OUTER JOIN rmcat ON rm.rm_cat = rmcat.rm_cat WHERE ( (${parameters['dp_id']} AND ${parameters['dv_id']} ) 
+						 AND (${parameters['organizationUnassigned']}))
+                         AND ${parameters['bl_id']} AND ${parameters['fl_id']} AND ${parameters['rm_id']} AND ((${parameters['rm_cat']}
+                         AND ${parameters['rm_type']} ) AND (${parameters['typeUnassigned']})) AND ${parameters['occupancy']} AND ${sql.vpaRestriction} AND ${parameters['teamRmRestriction']})=0 
+                      THEN 0 ELSE  
+                        sum(rm.area)/
+                        (SELECT sum(rm.area) FROM rm LEFT OUTER JOIN rmcat ON rm.rm_cat = rmcat.rm_cat 
+                        WHERE ( (${parameters['dp_id']} AND ${parameters['dv_id']} ) AND (${parameters['organizationUnassigned']}))
+                         AND ${parameters['bl_id']} AND ${parameters['fl_id']} AND ${parameters['rm_id']} AND ((${parameters['rm_cat']}
+                         AND ${parameters['rm_type']} ) AND (${parameters['typeUnassigned']})) AND ${parameters['occupancy']} AND ${sql.vpaRestriction} AND ${parameters['teamRmRestriction']}
+                         )
+                      END 
+                     ) * 100  ${sql.as} pec_of_total_area,
+                    COUNT(distinct rm.bl_id ${sql.concat} rm.fl_id ${sql.concat} rm.rm_id) ${sql.as} total_count,
+                    rmcat.description ${sql.as} description,
+                    min(rmcat.hpattern_acad) ${sql.as} rmcat_hpattern_acad
+                FROM rmcat
+                LEFT OUTER JOIN rm ON rm.rm_cat = rmcat.rm_cat
+                    WHERE ( (${parameters['dp_id']} AND ${parameters['dv_id']} ) AND (${parameters['organizationUnassigned']}))
+                         AND ${parameters['bl_id']} AND ${parameters['fl_id']} AND ${parameters['rm_id']} AND ((${parameters['rm_cat']}
+                         AND ${parameters['rm_type']} ) AND (${parameters['typeUnassigned']})) AND ${parameters['occupancy']} AND ${sql.vpaRestriction} AND ${parameters['teamRmRestriction']}
+                GROUP BY rmcat.rm_cat, rmcat.description 
+                 ) ${sql.as} wraped_rmcat 
+        </sql>
+
+        <table name="rm" role="main"/>
+
+        <field table="rm" name="rm_cat" dataType="text"/>
+        <field table="rm" name="description" dataType="text">
+            <title>Description</title>
+        </field>
+        <field table="rm" name="total_area" dataType="number" size="8" decimals="2" showTotals="true" numericFormat="area">
+           <title>Total Area ${user.areaUnits.title}</title>
+        </field>
+        <field table="rm" name="total_count" baseField="rm.rm_id"  dataType="integer">
+            <title>Room Count</title>
+        </field>
+        <field table="rm" name="rmcat_hpattern_acad" baseField="rm.rmcat_hpattern_acad" dataType="text">
+            <title>Legend</title>
+        </field>
+        <field table="rm" name="pec_of_total_area" dataType="number" size="8" decimals="2" showTotals="true">
+            <title>% of Total Area</title>
+        </field>
+
+        <sortField table="rm" name="rm_cat"/>
+        <sortField table="rm" name="description"/>
+        
+<!--         <parameter name="commonParameters" dataType="verbatim" value="2=2"/> -->
+        <parameter name="dv_id" dataType="verbatim" value="1=1"/>
+        <parameter name="dp_id" dataType="verbatim" value="1=1"/>
+        <parameter name="bl_id" dataType="verbatim" value="1=1"/>
+        <parameter name="fl_id" dataType="verbatim" value="1=1"/>
+        <parameter name="rm_id" dataType="verbatim" value="1=1"/>
+        <parameter name="rm_cat" dataType="verbatim" value="1=1"/>
+        <parameter name="rm_type" dataType="verbatim" value="1=1"/>
+        <parameter name="occupancy" dataType="verbatim" value="1=1"/>
+        <parameter name="organizationUnassigned" dataType="verbatim" value="1=1"/>
+        <parameter name="typeUnassigned" dataType="verbatim" value="1=1"/>
+        <parameter name="totalArea" dataType="verbatim" value="1=1"/>
+        <parameter name="teamRmRestriction" dataType="verbatim" value="6=6"/>
+    </dataSource>
+
+    <dataSource id="typesDS" applyVpaRestrictions="false">
+        <sql dialect="generic">
+         SELECT 
+             rm_cat,
+             rm_type,
+             description,
+            (CASE WHEN total_area IS NULL THEN 0 ELSE total_area END ) ${sql.as} total_area,
+             (
+                CASE WHEN (SELECT sum(rm.area) FROM rm LEFT OUTER JOIN rmcat ON rm.rm_cat = rmcat.rm_cat WHERE ( (${parameters['dp_id']} AND ${parameters['dv_id']} ) 
+						 AND (${parameters['organizationUnassigned']}))
+                         AND ${parameters['bl_id']} AND ${parameters['fl_id']} AND ${parameters['rm_id']} AND ((${parameters['rm_cat']}
+                         AND ${parameters['rm_type']} ) AND (${parameters['typeUnassigned']})) AND ${parameters['occupancy']} AND ${sql.vpaRestriction} AND ${parameters['teamRmRestriction']})=0 
+                THEN 0 ELSE 
+                 total_area/
+                    (SELECT sum(rm.area) FROM rm LEFT OUTER JOIN rmcat ON rm.rm_cat = rmcat.rm_cat 
+                     WHERE ( (${parameters['dp_id']} AND ${parameters['dv_id']} ) AND (${parameters['organizationUnassigned']}))
+                         AND ${parameters['bl_id']} AND ${parameters['fl_id']} AND ${parameters['rm_id']} AND ((${parameters['rm_cat']}
+                         AND ${parameters['rm_type']} ) AND (${parameters['typeUnassigned']})) AND ${parameters['occupancy']} AND ${sql.vpaRestriction} AND ${parameters['teamRmRestriction']}
+                     )
+                 END 
+                ) * 100  ${sql.as} pec_of_total_area,
+              total_count,
+              rmtype_hpattern_acad
+         FROM 
+          (SELECT
+                    rmcat.rm_cat ${sql.as} rm_cat,
+                    '' ${sql.as} rm_type,
+                    '' ${sql.as} description,
+                    (SELECT 
+                        sum(rm.area) 
+                      FROM rmtype
+                        RIGHT OUTER JOIN rm ON rm.rm_type = rmtype.rm_type
+                        LEFT OUTER JOIN rmcat ON rmcat.rm_cat = rmtype.rm_cat
+                         WHERE ( (${parameters['dp_id']} AND ${parameters['dv_id']} ) AND (${parameters['organizationUnassigned']}))
+                         AND ${parameters['bl_id']} AND ${parameters['fl_id']} AND ${parameters['rm_id']} AND ((${parameters['rm_cat']}
+                         AND ${parameters['rm_type']} ) AND (${parameters['typeUnassigned']})) AND ${parameters['occupancy']} AND ${sql.vpaRestriction} AND ${parameters['teamRmRestriction']}  
+                        AND ${parameters['rmcatClauseTbRm']}  
+                        AND rm.rm_type is null )  ${sql.as} total_area, 
+                        
+                        (SELECT
+                        COUNT(distinct rm.bl_id ${sql.concat} rm.fl_id ${sql.concat} rm.rm_id) 
+                      FROM rmtype
+                        RIGHT OUTER JOIN rm ON rm.rm_type = rmtype.rm_type
+                        LEFT OUTER JOIN rmcat ON rmcat.rm_cat = rmtype.rm_cat
+                         WHERE ( (${parameters['dp_id']} AND ${parameters['dv_id']} ) AND (${parameters['organizationUnassigned']}))
+                         AND ${parameters['bl_id']} AND ${parameters['fl_id']} AND ${parameters['rm_id']} AND ((${parameters['rm_cat']}
+                         AND ${parameters['rm_type']} ) AND (${parameters['typeUnassigned']})) AND ${parameters['occupancy']} AND ${sql.vpaRestriction} 
+                        AND ${parameters['rmcatClauseTbRm']}  
+                        AND rm.rm_type is null) ${sql.as} total_count,
+                        '' ${sql.as} rmtype_hpattern_acad
+                    FROM rmcat LEFT OUTER JOIN rm on rm.rm_cat = rmcat.rm_cat  
+                     where ${parameters['rmcatClause']}  
+                    AND ${sql.vpaRestriction} AND ${parameters['teamRmRestriction']} 
+                ) ${sql.as} wraped_rmtype WHERE total_count !=0 
+            UNION 
+                 SELECT * FROM  (SELECT
+                    rmtype.rm_cat ${sql.as} rm_cat,
+                    rmtype.rm_type ${sql.as} rm_type,
+                    rmtype.description ${sql.as} description,
+                    (CASE WHEN SUM(rm.area) IS NULL THEN 0 ELSE SUM(rm.area) END ) ${sql.as} total_area,
+                    (
+                      CASE WHEN (SELECT sum(rm.area) FROM rm LEFT OUTER JOIN rmcat ON rm.rm_cat = rmcat.rm_cat WHERE ( (${parameters['dp_id']} AND ${parameters['dv_id']} ) 
+						 AND (${parameters['organizationUnassigned']}))
+                         AND ${parameters['bl_id']} AND ${parameters['fl_id']} AND ${parameters['rm_id']} AND ((${parameters['rm_cat']}
+                         AND ${parameters['rm_type']} ) AND (${parameters['typeUnassigned']})) AND ${parameters['occupancy']} AND ${sql.vpaRestriction} AND ${parameters['teamRmRestriction']})=0 
+                      THEN 0 ELSE 
+                        sum(rm.area)/
+                        (SELECT sum(rm.area) FROM rm LEFT OUTER JOIN rmcat ON rm.rm_cat = rmcat.rm_cat 
+                             WHERE ( (${parameters['dp_id']} AND ${parameters['dv_id']} ) AND (${parameters['organizationUnassigned']}))
+                         AND ${parameters['bl_id']} AND ${parameters['fl_id']} AND ${parameters['rm_id']} AND ((${parameters['rm_cat']}
+                         AND ${parameters['rm_type']} ) AND (${parameters['typeUnassigned']})) AND ${parameters['occupancy']} AND ${sql.vpaRestriction} AND ${parameters['teamRmRestriction']}
+                         )
+                      END 
+                     ) * 100  ${sql.as} pec_of_total_area,
+                    COUNT(distinct rm.bl_id ${sql.concat} rm.fl_id ${sql.concat} rm.rm_id) ${sql.as} total_count,
+                    min(rmtype.hpattern_acad) ${sql.as} rmtype_hpattern_acad
+                FROM rmtype
+                LEFT OUTER JOIN rm ON rm.rm_type = rmtype.rm_type and rmtype.rm_cat = rm.rm_cat 
+                LEFT OUTER JOIN rmcat ON rmcat.rm_cat = rmtype.rm_cat 
+                         WHERE ( (${parameters['dp_id']} AND ${parameters['dv_id']} ) AND (${parameters['organizationUnassigned']}))
+                         AND ${parameters['bl_id']} AND ${parameters['fl_id']} AND ${parameters['rm_id']} AND ((${parameters['rm_cat']}
+                         AND ${parameters['rm_type']} ) AND (${parameters['typeUnassigned']})) AND ${parameters['occupancy']} AND ${sql.vpaRestriction} AND ${parameters['teamRmRestriction']}
+                GROUP BY rmtype.rm_cat, rmtype.rm_type, rmtype.description 
+                )  ${sql.as} wraped_rmtype  
+        </sql>
+
+        <table name="rm" role="main"/>
+
+        <field table="rm" name="rm_cat" dataType="text"/>
+        <field table="rm" name="rm_type" dataType="text"/>
+        <field table="rm" name="description" dataType="text">
+            <title>Description</title>
+        </field>
+        <field table="rm" name="total_area" dataType="number" size="8" decimals="2" numericFormat="area">
+            <title>Total Area ${user.areaUnits.title}</title>
+        </field>
+        <field table="rm" name="total_count" baseField="rm.rm_id"  dataType="integer">
+            <title>Room Count</title>
+        </field>
+        <field table="rm" name="rmtype_hpattern_acad" baseField="rm.rmtype_hpattern_acad" dataType="text">
+            <title>Legend</title>
+        </field>
+        <field table="rm" name="pec_of_total_area" dataType="number" size="8" decimals="2">
+            <title>% of Total Area</title>
+        </field>
+
+        <sortField table="rm" name="rm_cat"/>
+        <sortField table="rm" name="rm_type"/>
+        <sortField table="rm" name="description"/>
+        
+<!--         <parameter name="commonParameters" dataType="verbatim" value="2=2"/> -->
+        <parameter name="dv_id" dataType="verbatim" value="1=1"/>
+        <parameter name="dp_id" dataType="verbatim" value="1=1"/>
+        <parameter name="bl_id" dataType="verbatim" value="1=1"/>
+        <parameter name="fl_id" dataType="verbatim" value="1=1"/>
+        <parameter name="rm_id" dataType="verbatim" value="1=1"/>
+        <parameter name="rm_cat" dataType="verbatim" value="1=1"/>
+        <parameter name="rm_type" dataType="verbatim" value="1=1"/>
+        <parameter name="occupancy" dataType="verbatim" value="1=1"/>
+        <parameter name="organizationUnassigned" dataType="verbatim" value="1=1"/>
+        <parameter name="typeUnassigned" dataType="verbatim" value="1=1"/>
+        <parameter name="totalArea" dataType="verbatim" value="1=1"/>
+        
+        <parameter name="rmcatClause" dataType="verbatim" value="1=1"/>
+        <parameter name="rmcatClauseTbRm" dataType="verbatim" value="1=1"/>
+        <parameter name="teamRmRestriction" dataType="verbatim" value="6=6"/>
+    </dataSource>
+
+    <panel type="tree" controlType="table" id="categoriesTree" dataSource="categoriesDS" showOnLoad="false">
+        <action id="categoriesMenu" type="menu" enabled="${user.isMemberOfGroup('SPACE-CONSOLE-ALL-ACCESS')}">
+            <title>Add New</title>
+            <action id="addCategory">
+                <title>Category</title>
+                <command type="openDialog" panelId="edit_cate_detail" width="880" height="550" newRecord="true" closeButton="false">
+                     <title>Add Category</title>
+                </command>
+            </action>
+            <action id="addType">
+                <title>Type</title>
+                <command type="openDialog" panelId="edit_type_detail" width="880" height="550" newRecord="true" closeButton="false">
+                     <title>Add Type</title>
+                </command>
+            </action>
+        </action>
+         <action type="menu" id="exportCategoryMenu"   imageName="/schema/ab-core/graphics/icons/view/export.png">
+            <title></title>
+            <action id="exportCategoriesDOCX">
+                <title>Export to DOCX</title>
+                <command type="callFunction" functionName="exportCategoriesTreeToDOCX()"/>
+            </action>
+            <action id="exportCategoriesXLS">
+                <title>Export to XLS</title>
+                <command type="callFunction" functionName="exportCategoriesTreeToXLS()"/>
+            </action>
+        </action>
+        <action type="menu" id="categoriesToolsMenu" imageName="/schema/ab-core/graphics/icons/view/gear.png">
+            <title></title>
+            <action id="selectFieldsCategories">
+                <title>Select Fields</title>
+                <command type="selectFields" panelId="categoriesTree"/>
+            </action>
+        </action>
+
+        <field table="rm" name="rm_cat" legendKey="true">
+            <title>Category/Type</title>
+        </field>
+        <field table="rm" name="description">
+            <title>Description</title>
+        </field>
+        <field table="rm" name="total_area" dataType="number"  size="8" decimals="2">
+            <title>Total Area ${user.areaUnits.title}</title>
+        </field>
+        <field table="rm" name="total_count" dataType="integer">
+            <title>Room Count</title>
+        </field>
+        <field table="rm" name="rmcat_hpattern_acad" controlType="color">
+            <title>Legend</title>
+        </field>
+        <field id="assignCategory" controlType="button" hidden="${!user.isMemberOfGroup('SPACE-CONSOLE-ALL-ACCESS')}" enabled="${user.isMemberOfGroup('SPACE-CONSOLE-ALL-ACCESS')}">
+            <title>Assign</title>
+        </field>
+        <field table="rm" name="pec_of_total_area" dataType="number" size="8" decimals="2" hidden="true">
+           <title>% of Total Area</title>
+        </field>
+        <field id="editCategory" controlType="image" imageName="pencil.png" hidden="${!user.isMemberOfGroup('SPACE-CONSOLE-ALL-ACCESS')}" enabled="${user.isMemberOfGroup('SPACE-CONSOLE-ALL-ACCESS')}">
+            <title>Edit</title>
+        </field>
+        <event type="onClickNode">
+            <command type="callFunction" functionName="filterDrawingByCat"/>
+        </event>
+
+        <panel type="tree" controlType="table" id="typesTree" dataSource="typesDS" showLabels="false">
+            <field table="rm" name="rm_type" legendKey="true"/>
+            <field table="rm" name="description">
+                <title>Description</title>
+            </field>
+            <field table="rm" name="total_area" dataType="number" baseField="rm.area" size="8" decimals="2">
+                <title>Total Area ${user.areaUnits.title}</title>
+            </field>
+            <field table="rm" name="total_count" dataType="integer">
+                <title>Room Count</title>
+            </field>
+            <field table="rm" name="rmtype_hpattern_acad" controlType="color">
+                <title>Legend</title>
+            </field>
+            <field id="assignType" controlType="button" hidden="${!user.isMemberOfGroup('SPACE-CONSOLE-ALL-ACCESS')}" enabled="${user.isMemberOfGroup('SPACE-CONSOLE-ALL-ACCESS')}">
+                <title>Assign</title>
+            </field>
+            <field table="rm" name="pec_of_total_area" dataType="number" size="8" decimals="2" hidden="true">
+               <title>% of Total Area </title>
+            </field>
+            <field id="editType" controlType="image" imageName="pencil.png" hidden="${!user.isMemberOfGroup('SPACE-CONSOLE-ALL-ACCESS')}" enabled="${user.isMemberOfGroup('SPACE-CONSOLE-ALL-ACCESS')}">
+                <title>Edit</title>
+            </field>
+            <event type="onClickNode">
+                <command type="callFunction" functionName="filterDrawingByType"/>
+            </event>
+        </panel>
+    </panel>
+
+    <!-- Pending assignment panel -->
+
+    <dataSource id="categoryPendingAssignmentsDS">
+        <table name="rm" role="main"/>
+        <field name="bl_id"/>
+        <field name="fl_id"/>
+        <field name="rm_id"/>
+        <field name="rm_cat"/>
+        <field name="rm_type"/>
+    </dataSource>
+
+    <panel type="grid" id="categoryPendingAssignments" dataSource="categoryPendingAssignmentsDS" showOnLoad="false" hidden="true"
+           controlType="reportGrid" sortEnabled="false" buttonsPosition="footer">
+        <action id="commitCategoryPendingAssignments" mainAction="true">
+            <title>Commit Assignments</title>
+            <command type="closeDialog"/>
+        </action>
+        <action id="cancelCategoryPendingAssignments">
+            <title>Cancel Assignments</title>
+            <command type="closeDialog"/>
+        </action>
+        <action id="hideCategoryPendingAssignments">
+            <title>Close</title>
+            <command type="closeDialog"/>
+        </action>
+
+        <field name="bl_id"/>
+        <field name="fl_id"/>
+        <field name="rm_id"/>
+        <field name="rm_cat" hidden="true"/>
+        <field name="rm_type" hidden="true"/>
+        <field name="from">
+            <title>From</title>
+        </field>
+        <field name="to">
+            <title>To</title>
+        </field>
+        <field id="removePendingAssignment" controlType="image" imageName="delete.gif">
+        </field>
+    </panel>
+
+<!-- below were pop-up panel or datasource when you click 'add new' or 'edit' row -->
+    <dataSource id="ds_ab-sp-def-rmcat-rmtype_form_cate">
+        <table name="rmcat" role="main"/>
+        <field table="rmcat" name="rm_cat"/>
+        <field table="rmcat" name="description"/>
+        <field table="rmcat" name="occupiable"/>
+        <field table="rmcat" name="hpattern_acad"/>
+        <field table="rmcat" name="used_in_calcs"/>
+        <field table="rmcat" name="supercat"/>
+        <field table="rmcat" name="cost_sqft"/>
+    </dataSource>
+    
+    <dataSource id="ds_ab-sp-def-rmcat-rmtype_form_type">
+        <table name="rmtype" role="main"/>
+        <field table="rmtype" name="rm_cat"/>
+        <field table="rmtype" name="rm_type"/>
+        <field table="rmtype" name="description"/>
+        <field table="rmtype" name="hpattern_acad"/>
+    </dataSource>
+    
+    <panel type="form" id="edit_cate_detail" showOnLoad="false" hidden="true" dataSource="ds_ab-sp-def-rmcat-rmtype_form_cate" columns="2" buttonsPosition="footer">
+        <action id="save" enabled="${user.isMemberOfGroup('SPACE-CONSOLE-ALL-ACCESS')}">
+            <title translatable="true">Save</title>
+            <command type="saveForm"/>
+            <command type="closeDialog"/>
+            <command type="showPanel" panelId="categoriesTree" applyParentRestriction="false"/>
+        </action>
+        <action id="delete" enabled="${user.isMemberOfGroup('SPACE-CONSOLE-ALL-ACCESS')} &amp;&amp; ${!panel.newRecord}">
+            <title translatable="true">Delete</title>
+            <command type="deleteRecord"/>
+            <command type="closeDialog"/>
+            <command type="showPanel" panelId="categoriesTree" applyParentRestriction="false"/>
+        </action>
+        <action id="cancel">
+            <title translatable="true">Cancel</title>
+            <command type="closeDialog"/>
+        </action>
+        <field table="rmcat" name="rm_cat"/>
+        <field table="rmcat" name="cost_sqft"/>
+        <field table="rmcat" name="description"/>
+        <field table="rmcat" name="occupiable"/>
+        <field table="rmcat" name="used_in_calcs"/>
+        <field table="rmcat" name="supercat"/>
+        <field table="rmcat" name="hpattern_acad" readOnly="false">
+            <action id="openCategoryHpattern" enabled="${user.isMemberOfGroup('SPACE-CONSOLE-ALL-ACCESS')}">
+                <title>...</title>
+                <command type="callFunction" functionName="abSpConsole_openHpatternDialog('edit_cate_detail', 'rmcat.hpattern_acad')"/>
+            </action>
+        </field>
+    </panel>
+    
+    <panel type="form" id="edit_type_detail" showOnLoad="false" hidden="true" dataSource="ds_ab-sp-def-rmcat-rmtype_form_type" columns="2" buttonsPosition="footer">
+        <action id="save" enabled="${user.isMemberOfGroup('SPACE-CONSOLE-ALL-ACCESS')}">
+            <title translatable="true">Save</title>
+            <command type="saveForm"/>
+            <command type="closeDialog"/>
+            <command type="showPanel" panelId="categoriesTree" applyParentRestriction="false"/>
+        </action>
+        <action id="delete" enabled="${user.isMemberOfGroup('SPACE-CONSOLE-ALL-ACCESS')} &amp;&amp; ${!panel.newRecord}">
+            <title translatable="true">Delete</title>
+            <command type="deleteRecord"/>
+            <command type="closeDialog"/>
+            <command type="showPanel" panelId="categoriesTree" applyParentRestriction="false"/>
+        </action>
+        <action id="cancel">
+            <title translatable="true">Cancel</title>
+            <command type="closeDialog"/>
+        </action>
+        <field table="rmtype" name="rm_cat"/>
+        <field table="rmtype" name="rm_type"/>
+        <field table="rmtype" name="description"/>
+        <field table="rmtype" name="hpattern_acad" readOnly="false">
+            <action id="openTypeHpattern" enabled="${user.isMemberOfGroup('SPACE-CONSOLE-ALL-ACCESS')}">
+                <title>...</title>
+                <command type="callFunction" functionName="abSpConsole_openHpatternDialog('edit_type_detail', 'rmtype.hpattern_acad')"/>
+            </action>
+        </field>
+    </panel>
+</view>

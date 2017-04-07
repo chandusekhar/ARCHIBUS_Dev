@@ -1,0 +1,103 @@
+<view version="2.0">
+    <title translatable="false">&#160;</title>
+    <js file="ab-rplm-pfadmin-sales.js"/>
+    
+    <!-- Messages -->
+    <message name="titlePfadminSales" translatable="true">Sales</message>
+    
+    <dataSource id="dsSalesDataAxis" type="grouping"  applyVpaRestrictions="false">
+        <sql dialect="generic">
+            SELECT 
+                (CASE WHEN ot.bl_id IS NOT NULL THEN bl.ctry_id WHEN ot.pr_id IS NOT NULL THEN property.ctry_id END) ${sql.as} ctry_id,
+                (CASE WHEN ot.bl_id IS NOT NULL THEN bl.regn_id WHEN ot.pr_id IS NOT NULL THEN property.regn_id END) ${sql.as} regn_id,
+                (CASE WHEN ot.bl_id IS NOT NULL THEN bl.state_id WHEN ot.pr_id IS NOT NULL THEN property.state_id END) ${sql.as} state_id,
+                (CASE WHEN ot.bl_id IS NOT NULL THEN bl.city_id WHEN ot.pr_id IS NOT NULL THEN property.city_id END) ${sql.as} city_id,
+                (CASE WHEN ot.bl_id IS NOT NULL THEN bl.site_id WHEN ot.pr_id IS NOT NULL THEN property.site_id END) ${sql.as} site_id,
+                (CASE WHEN ot.bl_id IS NOT NULL THEN bl.pr_id WHEN ot.pr_id IS NOT NULL THEN property.pr_id END) ${sql.as} pr_id,
+                bl.bl_id ${sql.as} bl_id,
+                (ot.cost_selling * ${sql.exchangeRateFromBudgetToUserForDate('Budget', 'ot.date_sold')}) ${sql.as} cost_selling,
+                ${sql.yearMonthOf('ot.date_sold')} ${sql.as} month
+            FROM ot
+                LEFT OUTER JOIN property ON ot.pr_id = property.pr_id  AND ${sql.getVpaRestrictionForTable('property')}
+                LEFT OUTER JOIN bl ON ot.bl_id = bl.bl_id AND ${sql.getVpaRestrictionForTable('bl')}
+            WHERE ot.bl_id IS NOT NULL OR ot.pr_id IS NOT NULL
+        </sql>
+        <table name="bl" role="main"/>
+        <table name="property" role="standard"/>
+        <field table="bl" name="month" dataType="text" groupBy="true"/>        
+        <field name="vf_sum_cost_selling" formula="sum" baseField="bl.cost_selling" dataType="number" size="20" decimals="2" currency="${user.userCurrency.code}">
+            <title>Selling Cost</title>
+        </field>
+        <restriction type="sql" sql="bl.month = ${parameters['summaryValueForThisGroup']} AND ${parameters['filter']}"/>
+        <parameter name="summaryValueForThisGroup" dataType="text" value=""/>  
+        <parameter name="filter" dataType="verbatim" value="1 = 1"/>
+        <sortField table="bl" name="month" ascending="true"/>
+    </dataSource>
+    
+    <panel id="chartSales" type="chart" controlType="barChart" showOnLoad="false" showLegendOnLoad="false" dataSource="dsSalesDataAxis">
+        <title></title>
+        <action id="filter" imageName="/schema/ab-system/graphics/ab-filter-run.gif">
+            <tooltip>Filter</tooltip>
+        </action>
+        <action id="report" imageName="/schema/ab-system/graphics/ab-icon-report.gif">
+            <tooltip>Report</tooltip>      
+        </action>
+        <action id="export">
+            <title translatable="true">DOC </title>
+            <command type="exportPanel" outputType="docx" panelId="chartSales" orientation="landscape"/>
+        </action>
+
+        <groupingAxis table="afm_cal_dates" field="month"  dataSource="abRepmKpiMonths_ds" labelRotation="45">
+            <title>Date</title> 
+        </groupingAxis>
+        <dataAxis  table="bl" field="vf_sum_cost_selling" dataSource="dsSalesDataAxis">
+             <title>Selling Cost</title>
+        </dataAxis>
+    </panel>
+    
+    <dataSource id="dsSales_report" type="grouping" applyVpaRestrictions="false">
+        <sql dialect="generic">
+            SELECT
+                tmp_cal_dates.month ${sql.as} month, 
+                (CASE WHEN ot.bl_id IS NOT NULL THEN bl.ctry_id WHEN ot.pr_id IS NOT NULL THEN property.ctry_id END) ${sql.as} ctry_id,
+                (CASE WHEN ot.bl_id IS NOT NULL THEN bl.regn_id WHEN ot.pr_id IS NOT NULL THEN property.regn_id END) ${sql.as} regn_id,
+                (CASE WHEN ot.bl_id IS NOT NULL THEN bl.state_id WHEN ot.pr_id IS NOT NULL THEN property.state_id END) ${sql.as} state_id,
+                (CASE WHEN ot.bl_id IS NOT NULL THEN bl.city_id WHEN ot.pr_id IS NOT NULL THEN property.city_id END) ${sql.as} city_id,
+                (CASE WHEN ot.bl_id IS NOT NULL THEN bl.site_id WHEN ot.pr_id IS NOT NULL THEN property.site_id END) ${sql.as} site_id,
+                (CASE WHEN ot.bl_id IS NOT NULL THEN bl.pr_id WHEN ot.pr_id IS NOT NULL THEN property.pr_id END) ${sql.as} pr_id,
+                bl.bl_id ${sql.as} bl_id,
+                (${sql.isNull('ot.cost_selling', 0)} * ${sql.exchangeRateFromBudgetToUserForDate('Budget', 'ot.date_sold')}) ${sql.as} cost_selling
+            FROM 
+                (SELECT DISTINCT ${sql.yearMonthOf('afm_cal_dates.cal_date')} ${sql.as} month FROM afm_cal_dates) ${sql.as} tmp_cal_dates
+                LEFT OUTER JOIN ot ON ${sql.yearMonthOf('ot.date_sold')} = tmp_cal_dates.month AND (ot.bl_id IS NOT NULL OR ot.pr_id IS NOT NULL)
+                LEFT OUTER JOIN property ON ot.pr_id = property.pr_id AND ${sql.getVpaRestrictionForTable('property')}
+                LEFT OUTER JOIN bl ON ot.bl_id = bl.bl_id AND ${sql.getVpaRestrictionForTable('bl')}
+        </sql>
+        <table name="bl" role="main"/>
+        <table name="property" role="standard"/>
+        <field table="bl" name="month" dataType="text" groupBy="true"/>        
+        <field name="vf_sum_cost_selling" formula="sum" baseField="bl.cost_selling" dataType="number" size="20" decimals="2" currency="${user.userCurrency.code}">
+            <title>Selling Cost</title>
+        </field>
+        <restriction type="sql" sql="bl.month &lt;= ${(parameters['dateTo'])} AND bl.month &gt;= ${(parameters['dateFrom'])} AND ${parameters['filter']}"/>
+        <parameter name="filter" dataType="verbatim" value="1 = 1"/>
+        <parameter name="dateFrom" dataType="text" value=""/>
+        <parameter name="dateTo" dataType="text" value=""/>
+    </dataSource>
+    
+    <panel type="grid" controlType="reportGrid" id="reportSales" dataSource="dsSales_report" recordLimit="0" showOnLoad="false" hidden="true">
+        <sortField table="bl" name="month" ascending="true"/>
+        <action id="exportXlS">
+            <title translatable="true">XLS</title>
+            <command type="exportPanel" outputType="xls" panelId="reportSales" viewName="ab-rplm-pfadmin-sales.axvw"/>
+        </action>
+        <field name="month" dataType="text">
+            <title translatable="true">Date</title>
+        </field>
+        <field name="vf_sum_cost_selling" dataType="number" size="20" decimals="2" currency="${user.userCurrency.code}">
+            <title>Selling Cost</title>
+        </field>
+    </panel>
+    
+    <panel type="view" id="abRepmLandBookMarketVal_kpiCommon" file="ab-repm-kpi-common.axvw"/>
+</view>

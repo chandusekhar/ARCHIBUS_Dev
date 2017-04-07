@@ -1,0 +1,123 @@
+<!-- This assembly shows the list of tasks 
+     that need to be / can be / have been 
+     converted from version 1 to version 2 format.
+
+     Tasks are shown by domain and activity. 
+     A report of domains is shown in the top left panel.
+     A report of activities is shown in the bottom left panel. 
+     A report of tasks is shown in the right panel. -->
+
+<view version="2.0">
+    <title translatable="true">Domain-Application-Task Conversions</title>
+    <js file="ab-ptask-conversion.js" />
+
+    <layout type="borderLayout" id="mainLayout">
+        <west initialSize="270" split="true"/>
+	<center autoScroll="true"/>
+    </layout>
+    <layout type="borderLayout" id="nestedLayout_1" containingLayout="mainLayout" region="west">
+        <north initialSize="320" split="true"/>
+	<center autoScroll="true"/>
+    </layout>
+
+    <!-- panel type="view" id="processNavigatorDataSource" file="ab-navigator-datasource.axvw"/  -->
+
+    <dataSource id="productDataSource">
+        <table name="afm_products" role="main"/>
+        <field table="afm_products" name="title"/>
+        <field table="afm_products" name="product_id"/>
+        <field table="afm_products" name="summary"/>
+	<field table="afm_products" name="display_order" />
+        <restriction type="sql" sql="is_active='1'"/>
+        <restriction type="sql" sql="EXISTS(SELECT 1 FROM afm_actprods WHERE afm_actprods.product_id=afm_products.product_id AND EXISTS(SELECT 1 FROM afm_activities WHERE afm_actprods.activity_id=afm_activities.activity_id AND EXISTS(SELECT 1 FROM afm_processes WHERE afm_processes.activity_id=afm_activities.activity_id AND EXISTS(SELECT 1 FROM afm_userprocs WHERE afm_processes.activity_id=afm_userprocs.activity_id AND afm_processes.process_id=afm_userprocs.process_id AND user_name='${user.name}' AND afm_processes.is_active='1' AND (afm_processes.process_type='WEB' OR afm_processes.process_type='WEB URL' OR afm_processes.process_type='WEB-DASH' OR afm_processes.process_type='WEB HOTLIST')))))"/>
+   </dataSource>
+
+    <dataSource id="activityDataSource">
+        <table name="afm_actprods" role="main"/>
+        <table name="afm_activities" role="standard"/>
+        <field table="afm_actprods" name="product_id"/>
+        <field table="afm_actprods" name="activity_id"/>
+        <field table="afm_activities" name="title"/>
+        <field table="afm_activities" name="display_order"/>
+        <field table="afm_activities" name="summary"/>
+        <restriction type="sql" sql="EXISTS(SELECT 1 FROM afm_processes WHERE afm_processes.activity_id=afm_activities.activity_id AND EXISTS(SELECT 1 FROM afm_userprocs WHERE afm_processes.activity_id=afm_userprocs.activity_id AND afm_processes.process_id=afm_userprocs.process_id AND user_name='${user.name}' AND afm_processes.is_active='1' AND (afm_processes.process_type='WEB' OR afm_processes.process_type='WEB URL' OR afm_processes.process_type='WEB-DASH' OR afm_processes.process_type='WEB HOTLIST')))"/>
+	<restriction type="sql" sql="is_active='1'"/>
+    </dataSource>
+
+    <dataSource id="ptaskDataSource">
+        <table name="afm_ptasks" role="main"/>
+        <field table="afm_ptasks" name="activity_id"/>
+        <field table="afm_ptasks" name="process_id"/>
+        <field table="afm_ptasks" name="task_id"/>
+        <field table="afm_ptasks" name="task_file"/>
+        <field table="afm_ptasks" name="display_order"/>
+        <field table="afm_ptasks" name="task_type"/>
+        <field table="afm_ptasks" name="is_hotlist"/>
+        <field table="afm_ptasks" name="hot_user_name"/>
+        <field table="afm_ptasks" name="comments"/>
+        <restriction type="parsed" >
+           <clause op="=" value="WEB URL" name="task_type" table="afm_ptasks"/>
+        </restriction>
+        <restriction type="sql" sql="is_hotlist='0' OR (is_hotlist='1' AND (hot_user_name IS NULL OR hot_user_name='${user.name}'))"/>
+    </dataSource>
+
+
+    <panel type="grid" id="domainPanel" dataSource="productDataSource" layout="nestedLayout_1" region="north">
+        <title translatable="true">Select Domain</title>
+        <sortField table="afm_products" name="product_id" ascending="true"/>
+
+        <field table="afm_products" name="product_id" controlType="link">
+            <command type="showPanel" panelId="activityPanel"/>
+            <command type="clearPanel" panelId="ptaskPanel" />
+        </field>
+        <field table="afm_products" name="title" controlType="link">
+            <command type="showPanel" panelId="activityPanel"/>
+        </field>
+    </panel>
+
+    
+    <panel type="grid" id="activityPanel" dataSource="activityDataSource" showOnLoad="false"  layout="nestedLayout_1" region="center">
+        <title translatable="true">Select Applications</title>
+
+        <sortField table="afm_activities" name="display_order" ascending="true"/>
+        <field table="afm_actprods" name="activity_id" controlType="link">
+            <command type="showPanel" panelId="ptaskPanel"/>
+        </field>
+        <field table="afm_activities" name="title" controlType="link">
+            <command type="showPanel" panelId="ptaskPanel"/>
+        </field>
+    </panel>
+
+    <panel type="grid" id="ptaskPanel" dataSource="ptaskDataSource" showOnLoad="false" layout="mainLayout" region="center">
+        <title translatable="true">Conversion Candidate Tasks</title>
+	
+        <sortField table="afm_ptasks" name="process_id" ascending="true"/>
+	<!-- titlebar commands -->
+        <action id="analyzeActivity">
+            <title translatable="true">Analyze Views</title>
+        </action>
+        <action id="convertActivity">
+            <title translatable="true">Convert Views</title>
+        </action>
+        <action id="displayLog">
+            <title translatable="true">Display Last Log</title>
+        </action>
+
+	<field id="analyzeView" controlType="button">
+            <title>Analyze View</title>
+	</field>
+        <field id="forceViewConversion" controlType="button">
+            <title>Force Conv.</title>
+        </field>
+
+        <field table="afm_ptasks" name="activity_id" hidden="true"/>
+        <field table="afm_ptasks" name="process_id">
+	    <title translatable="true">Process</title>
+        </field>
+        <field table="afm_ptasks" name="task_id" />
+        <field table="afm_ptasks" name="task_file"/>
+        <field table="afm_ptasks" name="comments">
+	    <title translatable="true">Comments</title>
+        </field>
+    </panel>
+</view>

@@ -1,0 +1,165 @@
+<view version="2.0">
+    <title translatable="true">Highlight Groups by Standard</title>
+    
+    <layout id="main">
+        <north id="filterPosition" initialSize="13%" split="true"/>
+        <west id="selectedPosition" initialSize="20%" split="true"/>
+        <center/>
+    </layout>
+    
+    <layout id="nested_center" containingLayout="main" region="center">
+        <center id="dwgPosition"/>
+        <south id="legentPosition" initialSize="20%" split="true"/>
+    </layout>
+    
+    <message name="total" translatable="true">Total</message>
+    <message name="drawingPanelTitle1" translatable="true">Highlight Groups by Standard</message>
+    <message name="drawingPanelTitle2" translatable="true">Highlight Groups for Floor: {0}</message>
+    <message name="drawingPanelTitle3" translatable="true">Highlight Groups for Floor: {0} , Standard: {1}</message>
+    
+    <dataSource id="ds_ab-sp-hl-gp-by-gpstd_console_gp">
+        <table name="gp" role="main"/>
+        <field table="gp" name="bl_id"/>
+    </dataSource>
+    
+    <dataSource id="ds_ab-sp-hl-gp-by-gpstd_tree_bl">
+        <table name="bl" role="main"/>
+        <field table="bl" name="bl_id"/>
+        <parameter name="blId" dataType="verbatim" value="IS NOT NULL"/>
+        <restriction type="sql" sql="bl.bl_id ${parameters['blId']} AND EXISTS (SELECT 1 FROM gp WHERE gp.dwgname IS NOT NULL AND gp.gp_std IS NOT NULL AND gp.bl_id = bl.bl_id and gp.portfolio_scenario_id is null)"/>
+        <sortField table="bl" name="bl_id" ascending="true"/>
+    </dataSource>
+    
+    <dataSource id="ds_ab-sp-hl-gp-by-gpstd_tree_fl">
+        <sql dialect="generic">
+            SELECT
+            gp.bl_id ${sql.as} bl_id,
+            gp.fl_id ${sql.as} fl_id,
+            gp.dwgname ${sql.as} dwgname
+            FROM gp WHERE gp.dwgname IS NOT NULL and gp.portfolio_scenario_id is null GROUP BY gp.bl_id,gp.fl_id,gp.dwgname
+        </sql>
+        <table name="fl" role="main"/>
+        <field name="fl_id"/>
+        <field name="dwgname"/>
+        <restriction type="sql" sql="EXISTS (SELECT 1 FROM gp WHERE gp.gp_std IS NOT NULL AND gp.bl_id = fl.bl_id AND gp.fl_id = fl.fl_id AND gp.dwgname = fl.dwgname and gp.portfolio_scenario_id is null)"/>
+        <sortField table="fl" name="fl_id" ascending="true"/>
+    </dataSource>
+    
+    <dataSource id="ds_ab-sp-hl-gp-by-gpstd_tree_gp" distinct="true">
+        <table name="gp" role="main"/>
+        <field table="gp" name="gp_std"/>
+        <sortField table="gp" name="gp_std" ascending="true"/>
+        <restriction type="sql" sql="gp.gp_std IS NOT NULL  and gp.portfolio_scenario_id is null"/>
+    </dataSource>
+    
+    <dataSource id="ds_ab-sp-hl-gp-by-gpstd_grid_gp" type="grouping">
+        <table name="gp" role="main"/>
+        <table name="gpstd" role="standard"/>
+        <field name="gp_std" table="gpstd" groupBy="true"/>
+        <field name="description" table="gpstd" groupBy="true"/>
+        <field name="hpattern_acad" table="gpstd" groupBy="true"/>
+        <field name="total_count" formula="count" baseField="gp.gp_id" dataType="number" decimals="0"/>
+        <field name="total_area" formula="sum" baseField="gp.area" dataType="number" decimals="2"/>
+        <field name="avg_area" formula="avg" baseField="gp.area" dataType="number" decimals="2"/>
+        <restriction type="sql" sql="gp.gp_std IS NOT NULL and gp.portfolio_scenario_id is null"/>
+    </dataSource>
+    
+    <dataSource id="ds_ab-sp-hl-gp-by-gpstd_drawing_gpHighlight" type="DrawingControlHighlight">
+        <table name="gp" role="main"/>
+        <table name="gpstd" role="standard"/>
+        <field table="gp" name="bl_id"/>
+        <field table="gp" name="fl_id"/>
+        <field table="gp" name="gp_id"/>
+        <field table="gp" name="gp_std" legendKey="true"/>
+        <field table="gpstd" name="hpattern_acad"/>
+        <parameter name="gpStd" dataType="verbatim" value=""/>
+        <restriction type="sql" sql="${parameters['gpStd']} and gp.portfolio_scenario_id is null"/>
+    </dataSource>
+    
+    <dataSource id="ds_ab-sp-hl-gp-by-gpstd_drawing_gpLabel">
+        <table name="gp" role="main"/>
+        <field name="bl_id" hidden="true"/>
+        <field name="fl_id" hidden="true"/>
+        <field name="gp_id"/>
+        <field name="gp_std"/>
+        <field name="area"/>
+        <restriction type="sql" sql="gp.portfolio_scenario_id is null"/>
+    </dataSource>
+    
+    <dataSource id="ds_ab-sp-hl-gp-by-gpstd_columnReport_gp">
+        <table name="gp" role="main"/>
+        <table name="dp" role="standard"/>
+        <field table="gp" name="bl_id"/>
+        <field table="gp" name="fl_id"/>
+        <field table="gp" name="gp_id"/>
+        <field table="gp" name="gp_std"/>
+        <field table="dp" name="name"/>
+        <field table="gp" name="area"/>
+        <restriction type="sql" sql="gp.portfolio_scenario_id is null"/>
+    </dataSource>
+    
+    <panel type="console" id="abSpHlGpByGpStd_filterConsole" columns="1" dataSource="ds_ab-sp-hl-gp-by-gpstd_console_gp" layoutRegion="filterPosition">
+        <title translatable="true">Filter</title>
+        <action id="showTree">
+            <title translatable="true">Show</title>
+        </action>
+        <action id="clear">
+            <title translatable="true">Clear</title>
+            <command type="clearPanel" panelId="abSpHlGpByGpStd_filterConsole"/>
+        </action>
+        <field table="gp" name="bl_id"/>
+    </panel>
+    
+    <panel type="tree" id="abSpHlGpByGpStd_BlTree" dataSource="ds_ab-sp-hl-gp-by-gpstd_tree_bl" layoutRegion="selectedPosition">
+        <title translatable="true">Select Floor</title>
+        <panel type="tree" id="abSpHlGpByGpStd_FlTree" dataSource="ds_ab-sp-hl-gp-by-gpstd_tree_fl">
+            <event type="onClickNode">
+                <command type="callFunction" functionName="onFlTreeClick"/>
+            </event>
+        </panel>
+        <panel type="tree" id="abSpHlGpByGpStd_StdTree" dataSource="ds_ab-sp-hl-gp-by-gpstd_tree_gp">
+            <event type="onClickNode">
+                <command type="callFunction" functionName="onGpStdTreeClick"/>
+            </event>
+            <field table="gp" name="gp_std"/>
+        </panel>
+    </panel>
+    
+    <panel type="drawing" id="abSpHlGpByGpStd_DrawingPanel" layoutRegion="dwgPosition" multiple="false"
+     highlightDataSource="ds_ab-sp-hl-gp-by-gpstd_drawing_gpHighlight"
+     labelsDataSource="ds_ab-sp-hl-gp-by-gpstd_drawing_gpLabel"
+     assetTypes="gp">
+     	<action id="exportDOCX">
+			<title translatable="true">DOC</title>
+			<tooltip translatable="true">Export current view of drawing to Docx file.</tooltip>
+			<command type="exportPanel" outputType="docx" panelId="abSpHlGpByGpStd_DrawingPanel"/>
+		</action>
+        <title></title>
+    </panel>
+    
+    <panel type="grid" id="abSpHlGpByGpStd_SumGrid" dataSource="ds_ab-sp-hl-gp-by-gpstd_grid_gp" showOnLoad="false" layoutRegion="legentPosition">
+        <title translatable="true">Summary by Group Standard</title>
+        <sortField table="gpstd" name="gp_std" ascending="true"/>
+        <field id="abSpHlGpByGpStd_SumGrid_legend" table="gpstd" name="hpattern_acad" controlType="color">
+            <title translatable="true">Legend</title>
+        </field>
+        <field name="gp_std" table="gpstd" groupBy="true"/>
+        <field name="description" table="gpstd" groupBy="true"/>
+        <field name="total_count" formula="count" baseField="gp.gp_id" dataType="number" decimals="0">
+            <title translatable="true">Total Count</title>
+        </field>
+        <field name="total_area" formula="sum" baseField="gp.area" dataType="number" decimals="2">
+            <title translatable="true">Total Area</title>
+        </field>
+        <field name="avg_area" formula="avg" baseField="gp.area" dataType="number" decimals="2">
+            <title translatable="true">Average Area</title>
+        </field>
+    </panel>
+    
+    <panel type="columnReport" id="abSpHlGpByGpStd_GpDetailPanel" columns="2" dataSource="ds_ab-sp-hl-gp-by-gpstd_columnReport_gp" showOnLoad="false" hidden="true" layoutRegion="dwgPosition">
+        <title translatable="true">Group Details</title>
+    </panel>
+    
+    <js file="ab-sp-hl-gp-by-gpstd.js"/>
+    <js file="ab-sp-common.js"/>
+</view>

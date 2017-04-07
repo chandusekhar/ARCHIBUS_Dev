@@ -1,0 +1,92 @@
+<view version="2.0">
+    <js file="ab-ehs-rpt-em-restrictions.js"/>
+    
+    <title translatable="true">Employee Work Restrictions</title>
+
+    <message translatable="true" name="activeRestrictionsPanelTitle">Active Employee Work Restrictions</message>
+    <message translatable="true" name="allRestrictionsPanelTitle">Employee Work Restrictions</message>
+
+    <layout type="borderLayout" id="mainLayout">
+        <north initialSize="95" split="true"/>
+        <center autoScroll="true"/>
+    </layout>
+    
+    <dataSource id="abEhsRptEmRestrictions_dsConsole">
+        <table name="em" role="main"/>
+        <field table="em" name="em_id"/>
+    </dataSource>
+    
+    <panel type="console" id="abEhsRptEmRestrictions_console" dataSource="abEhsRptEmRestrictions_dsConsole" layout="mainLayout" region="north">
+        <title translatable="true">Filter</title>
+        
+        <action id="filter">
+            <title translatable="true">Show</title>
+        </action>
+        <action id="clear">
+            <title translatable="true">Clear</title>
+            <command type="callFunction" functionName="abEhsRptEmRestrictionsCtrl.clearForm()"/>
+        </action>
+        
+        <field table="em" name="em_id" readOnly="${abEhsRptEmRestrictionsCtrl.userRestricted}"/>
+        <field>
+            <html>
+                <input id="onlyActiveRestrictions" name="onlyActiveRestrictions" type="checkbox" checked="true">
+                    <span translatable="true">See Active Restrictions Only</span>
+                </input>
+            </html>
+        </field>    
+    </panel>
+    
+    <dataSource id="abEhsRptEmRestrictions_dsGrid">
+        <table name="ehs_restrictions" role="main"/>
+        <table name="ehs_incidents" role="standard"/>
+        <field table="ehs_restrictions" name="em_id"/>
+        <field table="ehs_restrictions" name="restriction_id"/>
+        <field table="ehs_restrictions" name="restriction_category_id"/>
+        <field table="ehs_restrictions" name="restriction_type_id"/>
+        <field table="ehs_restrictions" name="restriction_class"/>
+        <field table="ehs_restrictions" name="date_start"/>
+        <field table="ehs_restrictions" name="date_end"/>
+        <field name="lost_work_days_auto" dataType="number" decimals="2">
+            <title>Duration (Days), Auto-Calculated</title>
+            <sql dialect="generic">
+            (CASE ehs_restrictions.lost_work_days
+                WHEN 0 THEN
+                    (SELECT COUNT(cal_date) FROM afm_cal_dates WHERE 
+                        day_type = 'Workday' AND 
+                        date_start &lt;= cal_date AND 
+                        cal_date &lt;= CASE WHEN date_end IS NULL THEN ${sql.currentDate} ELSE date_end END) 
+                ELSE 0
+            END)
+            </sql>
+        </field>
+        <field table="ehs_restrictions" name="lost_work_days"/>
+        <field table="ehs_restrictions" name="description"/>
+        <field table="ehs_restrictions" name="incident_id"/>
+        <field table="ehs_incidents" name="incident_type"/>
+        <field table="ehs_incidents" name="date_incident"/>
+        
+        <restriction type="sql" sql="${parameters['activeRestriction']}"/>
+        
+        <parameter name="activeRestriction" dataType="verbatim" value=""/>
+        
+    </dataSource>
+    
+    <panel type="grid" id="abEhsRptEmRestrictions_panel" dataSource="abEhsRptEmRestrictions_dsGrid" layout="mainLayout" region="center" showOnLoad="false">
+        <action id="exportDOCX">
+            <title translatable="true">DOCX</title>
+            <command type="exportPanel" outputType="docx" panelId="abEhsRptEmRestrictions_panel" printRestriction="true" orientation="landscape"/>
+        </action>
+        <action id="exportXLS">
+            <title translatable="true">XLS</title>
+            <command type="exportPanel" outputType="xls" panelId="abEhsRptEmRestrictions_panel"/>
+        </action>
+        
+        <sortField table="ehs_restrictions" name="em_id"/>
+        <sortField table="ehs_restrictions" name="restriction_category_id"/>
+        <sortField table="ehs_restrictions" name="restriction_type_id"/>
+        <sortField table="ehs_restrictions" name="date_start"/>
+        <sortField table="ehs_restrictions" name="date_end"/>
+        <sortField table="ehs_restrictions" name="restriction_class"/>
+    </panel>
+</view>

@@ -1,0 +1,259 @@
+<!-- This view defines the dialog for the "Work Request Details" section of the Ops Express example. -->
+<view version="2.0">
+
+    <message name="forwordFormTitle">Forward Work Request</message>
+    
+    <js file="ab-bldgops-console-wr-bulk-update.js"/>
+
+    <dataSource id="wrDetailsDS">
+        <table name="wr" role="main"/>
+        <field name="wr_id"/>
+        <field name="status"/>
+        <field name="cause_type"/>
+        <field name="repair_type"/>
+        <field name="cf_notes"/>
+        <field name="ac_id"/>
+    </dataSource>
+    
+    <dataSource id="cfPlannerDS">
+        <table name="cf" role="main"/>
+        <field name="cf_id"/>
+        <field name="is_planner"/>
+        <restriction type="sql" sql="email = ${sql.literal(user.email)}"/>
+    </dataSource>
+
+    <dataSource id="wrcfDS">
+        <table name="wrcf"/>
+        <field name="wr_id"/>
+        <field name="cf_id"/>
+        <field name="date_assigned"/>
+        <field name="time_assigned"/>
+        <field name="hours_est"/>
+        <field name="cost_estimated"/>
+        <field name="comments"/>
+        <field name="hours_straight"/>
+        <field name="hours_double"/>
+        <field name="hours_over"/>
+        <field name="date_start"/>
+        <field name="time_start"/>
+        <field name="date_end"/>
+        <field name="time_end"/>
+        <field table="wrcf" name="work_type"/>
+    </dataSource>
+
+    <dataSource id="wrptDS">
+        <table name="wrpt"/>
+        <field name="wr_id"/>
+        <field name="part_id"/>
+        <field name="pt_store_loc_id"/>
+        <field name="date_assigned"/>
+        <field name="time_assigned"/>
+        <field name="qty_estimated"/>
+        <field name="cost_estimated"/>
+        <field name="comments"/>
+        <field name="qty_actual"/>
+    </dataSource>
+
+    <dataSource id="wrtlDS">
+        <table name="wrtl"/>
+        <field name="wr_id"/>
+        <field name="tool_id"/>
+        <field name="date_assigned"/>
+        <field name="time_assigned"/>
+        <field name="hours_straight"/>
+        <field name="date_start"/>
+        <field name="time_start"/>
+        <field name="date_end"/>
+        <field name="time_end"/>
+    </dataSource>
+
+    <dataSource id="wrotherDS">
+        <table name="wr_other"/>
+        <field name="wr_id"/>
+        <field name="other_rs_type"/>
+        <field name="date_used"/>
+        <field name="cost_estimated"/>
+        <field name="qty_used"/>
+        <field name="units_used"/>
+        <field name="cost_total"/>
+        <field name="description"/>
+    </dataSource>
+
+    <!-- Updates -->
+    <panel type="form" id="wrUpdates" dataSource="wrDetailsDS">
+        <title>Work Request</title>
+        <fieldset>
+            <field name="ac_id"/>
+            <field name="cause_type"/>
+            <field name="repair_type"/>
+            <field name="cf_notes" colspan="2"/>
+        </fieldset>
+
+        <fieldset layout="fluid">
+            <action cssClass="fieldButtonRight">
+                <title>Cancel</title>
+                <command type="closeDialog"/>
+            </action>
+            <action id="forwardIssuedRequest" cssClass="fieldButtonRight">
+                <title>Forward Request</title>
+            </action>
+            <action id="updateRequest" mainAction="true" cssClass="fieldButtonRight">
+                <title>Update Request</title>
+            </action>
+        </fieldset>
+        <action id="addCf" mainAction="true">
+            <title>Add Craftspersons</title>
+            <command type="openDialog" panelId="wrcfForm" newRecord="true" width="400" applyParentRestriction="false" closeButton="false">
+                <title>Add Craftspersons</title>
+            </command>
+        </action>
+        <action id="addPt" mainAction="true">
+            <title>Add Parts</title>
+            <command type="openDialog" panelId="wrptForm" newRecord="true" width="400" closeButton="false">
+                <title>Add Part</title>
+            </command>
+        </action>
+        <action id="addTool" mainAction="true">
+            <title>Add Tools</title>
+            <command type="openDialog" panelId="wrtlForm" newRecord="true" width="400" applyParentRestriction="false" closeButton="false">
+                <title>Add Tool</title>
+            </command>
+        </action>
+        <action id="addOtherCost" mainAction="true">
+            <title>Add Other Costs</title>
+            <command type="openDialog" panelId="wrotherForm" newRecord="true" width="650" height="400" closeButton="false">
+                <title>Add Other Cost</title>
+            </command>
+        </action>
+    </panel>
+
+    <panel type="form" id="wrptForm" dataSource="wrptDS" showOnLoad="false" hidden="true" buttonsPosition="footer">
+        <field name="wr_id" hidden="true" required="false"/>
+        <field name="part_id">
+            <action id="selectPt">
+                <title translatable="false">...</title>
+                <command type="selectValue" showDialog="false" fieldNames="wrpt.part_id" selectFieldNames="pt.part_id" visibleFieldNames="pt.part_id"/>
+                <command type="callFunction" functionName="wrBulkUpdate.openFindPartDialog()"/>
+            </action>
+        </field>
+        <field name="date_assigned" readOnly="true"/>
+        <field name="time_assigned" readOnly="true"/>
+        <field name="qty_actual"/>
+        <field name="pt_store_loc_id">
+          <action id="selectPtLoc">
+                <command type="selectValue" selectValueType="grid" autoComplete="true" fieldNames="wrpt.pt_store_loc_id" selectFieldNames="pt_store_loc.pt_store_loc_id" visibleFieldNames="pt_store_loc.pt_store_loc_id, pt_store_loc.pt_store_loc_name, pt_store_loc.site_id, pt_store_loc.bl_id">
+                    <title>Storage Location</title>
+                </command>
+            </action>
+        </field>
+        <action id="saveWrpt" mainAction="true">
+            <title>Save</title>
+            <command type="callFunction" functionName="runBulkUpdate('wrptForm','wrpt','AbBldgOpsOnDemandWork-WorkRequestService-saveWorkRequestPartForMPSL')"/>
+        </action>
+        <action id="cancelWrpt">
+            <title>Cancel</title>
+            <command type="closeDialog"/>
+        </action>
+    </panel>
+
+    <panel type="form" id="wrcfForm" dataSource="wrcfDS" showOnLoad="false" hidden="true" buttonsPosition="footer">
+        <field table="wrcf" name="wr_id" hidden="true" required="false"/>
+        <field name="cf_id" required="true" focus="true">
+            <action id="selectVCf">
+                <title translatable="false">...</title>
+                <command type="selectValue" showIndex="false" fieldNames="wrcf.cf_id" selectFieldNames="cf.cf_id" visibleFieldNames="cf.cf_id,cf.tr_id" addNewDialog="ab-bldgops-console-add-new-cf.axvw"  showAddNewButton="${user.isMemberOfGroup('ADD-NEW-OPS-DATA')}">
+                    <title>Craftsperson</title>
+                </command>
+            </action>
+        </field>
+        <field name="date_assigned" required="true" readOnly="true" hidden="true">
+            
+        </field>
+        <field name="time_assigned" required="true" readOnly="true" hidden="true">
+           
+        </field>
+        <field table="wrcf" name="hours_straight"/>
+        <field table="wrcf" name="hours_double"/>
+        <field table="wrcf" name="hours_over"/>
+        <field>
+            <html>
+                <input type="radio" name="diveTimeRadio" checked="true">
+                    <span translatable="true">Add this time to each work request</span>
+                </input>
+                <br/>
+                <input type="radio" name="diveTimeRadio" id="divideTime">
+                    <span translatable="true">Divide this time evenly among each work request</span>
+                </input>
+            </html>
+        </field>
+        <field table="wrcf" name="date_start"/>
+        <field table="wrcf" name="time_start"/>
+        <field table="wrcf" name="date_end"/>
+        <field table="wrcf" name="time_end"/>
+        <field table="wrcf" name="work_type"/>
+        <action id="saveWrcf" mainAction="true">
+            <title>Save</title>
+            <command type="callFunction" functionName="runBulkUpdate('wrcfForm','wrcf','AbBldgOpsOnDemandWork-WorkRequestService-saveWorkRequestCraftsperson')"/>
+        </action>
+        <action id="cancelWrcf">
+            <title>Cancel</title>
+            <command type="closeDialog"/>
+        </action>
+    </panel>
+
+    <!-- Quick panel for tooltype -->
+    <panel type="form" id="wrtlForm" dataSource="wrtlDS" showOnLoad="false" hidden="true" buttonsPosition="footer">
+        <field table="wrtl" name="wr_id" hidden="true" required="false"/>
+        <field table="wrtl" name="tool_id" required="true" focus="true">
+            <action id="selectTool">
+                <title translatable="false">...</title>
+                <command type="selectValue" showIndex="false" fieldNames="wrtl.tool_id" selectFieldNames="tl.tool_id" visibleFieldNames="tl.tool_id" >
+                    <title>Tool</title>
+                </command>
+            </action>
+        </field>
+        <field name="date_assigned" required="true" readOnly="true">
+            
+        </field>
+        <field name="time_assigned" required="true" readOnly="true">
+           
+        </field>
+        <field name="date_start"/>
+        <field name="time_start"/>
+        <field name="date_end"/>
+        <field name="time_end"/>
+        <field name="hours_straight">
+            <title>Straight Time Hours Used</title>
+        </field>
+        <action id="saveWrtl" mainAction="true">
+            <title>Save</title>
+            <command type="callFunction" functionName="runBulkUpdate('wrtlForm','wrtl','AbBldgOpsOnDemandWork-WorkRequestService-saveWorkRequestTool')"/>
+        </action>
+        <action id="cancelWrtl">
+            <title>Cancel</title>
+            <command type="closeDialog"/>
+        </action>
+    </panel>
+    
+    <panel type="form" id="wrotherForm" dataSource="wrotherDS" showOnLoad="false" hidden="true" buttonsPosition="footer">
+        <field table="wr_other" name="wr_id" hidden="true"/>    
+        <field table="wr_other" name="other_rs_type"/>
+        <field table="wr_other" name="date_used" hidden="true"/>
+        <field table="wr_other" name="description"/>        
+        <field table="wr_other" name="qty_used"/>
+        <field table="wr_other" name="units_used"/>
+        <field table="wr_other" name="cost_total"/>
+        <action id="saveOthercosts" mainAction="true">
+            <title>Save</title>
+            <command type="callFunction" functionName="runBulkUpdate('wrotherForm','wr_other','AbBldgOpsOnDemandWork-WorkRequestService-saveOtherCosts')"/>
+        </action>
+        <action id="cancelWrOtherCosts">
+            <title>Cancel</title>
+            <command type="closeDialog"/>
+        </action>
+    </panel>
+    
+    <!-- Forward form -->
+    <panel type="view" id="forwardPanel" file="ab-bldgops-console-wr-forward.axvw"/>
+
+</view>

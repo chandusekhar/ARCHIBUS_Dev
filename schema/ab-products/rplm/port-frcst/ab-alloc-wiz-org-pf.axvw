@@ -1,0 +1,130 @@
+<view version="2.0">
+		<message name="eventsTitle">Allocation Events</message>
+		<message name="msg_no_bu_id" translatable="true">No Business Unit</message>
+		<message name="msg_no_dv_id" translatable="true">No Division</message> 
+		<message name="msg_no_dp_id" translatable="true">No Department</message>
+		<js file="ab-alloc-wiz-org-pf.js"/>
+    
+    <dataSource id="allocWizOrg_dsBuTree" applyVpaRestrictions="false">
+    	<sql dialect="generic">			   
+    		SELECT bu.name ${sql.as} name,
+						bu_id ${sql.as} bu_id
+				FROM bu
+				WHERE EXISTS (SELECT 1 FROM gp WHERE gp.planning_bu_id = bu.bu_id AND gp.portfolio_scenario_id LIKE ${parameters['scn_id']} AND ${sql.getVpaRestrictionForTable('gp')})
+				UNION
+		    (SELECT '' ${sql.as} name,
+		    		'WW99' ${sql.as} bu_id		       				        
+		    FROM gp
+		    WHERE gp.planning_bu_id IS NULL AND gp.portfolio_scenario_id LIKE ${parameters['scn_id']} AND ${sql.getVpaRestrictionForTable('gp')})	
+		</sql>
+        <table name="bu" role="main"/>
+        <field table="bu" name="bu_id" dataType="text"/>
+        <field table="bu" name="name" dataType="text"/>
+				<sortField table="bu" name="bu_id" ascending="true"/>
+				<parameter name="scn_id" dataType="text" value="%"/>
+    </dataSource>
+    
+    <dataSource id="allocWizOrg_dvTreeDs" applyVpaRestrictions="false">
+        <sql dialect="generic">
+        SELECT dv.name ${sql.as} name,
+						dv.dv_id ${sql.as} dv_id,
+						${sql.isNull('dv.bu_id', '\'WW99\'')} ${sql.as} bu_id
+				FROM dv 
+				WHERE EXISTS (SELECT 1 FROM gp WHERE gp.dv_id = dv.dv_id AND gp.portfolio_scenario_id LIKE ${parameters['scn_id']} AND ${sql.getVpaRestrictionForTable('gp')})
+				UNION
+		    (SELECT '' ${sql.as} name,
+		    		'WW99' ${sql.as} dv_id,
+		    		${sql.isNull('gp.planning_bu_id', '\'WW99\'')} ${sql.as} bu_id		       				        
+		    FROM gp
+		    WHERE gp.dv_id IS NULL AND gp.portfolio_scenario_id LIKE ${parameters['scn_id']} AND ${sql.getVpaRestrictionForTable('gp')})				   
+				</sql>
+        <table name="dv" role="main"/>
+				<field table="dv" name="bu_id" dataType="text" hidden="true"/>
+        <field table="dv" name="dv_id" dataType="text"/>
+        <field table="dv" name="name" dataType="text"/>
+				<sortField table="dv" name="dv_id" ascending="true"/>
+				<parameter name="scn_id" dataType="text" value="%"/>  
+    </dataSource>
+    
+    <dataSource id="allocWizOrg_dpTreeDs" applyVpaRestrictions="false">
+    	<sql dialect="generic">
+    		SELECT dp.name ${sql.as} name,
+						dp.dp_id ${sql.as} dp_id,
+						${sql.isNull('dp.dv_id', '\'WW99\'')} ${sql.as} dv_id,
+						${sql.isNull('dv.bu_id', '\'WW99\'')} ${sql.as} bu_id
+				FROM dp
+				LEFT OUTER JOIN dv ON dp.dv_id = dv.dv_id
+				WHERE EXISTS (SELECT 1 FROM gp WHERE gp.dv_id = dp.dv_id AND gp.dp_id = dp.dp_id AND gp.portfolio_scenario_id LIKE ${parameters['scn_id']} AND ${sql.getVpaRestrictionForTable('gp')})
+				UNION
+		    (SELECT '' ${sql.as} name,
+		    		'WW99' ${sql.as} dp_id,
+		    		${sql.isNull('gp.dv_id', '\'WW99\'')} ${sql.as} dv_id,
+		        ${sql.isNull('gp.planning_bu_id', '\'WW99\'')} ${sql.as} bu_id		        
+		    FROM gp
+		    WHERE gp.dp_id IS NULL AND gp.portfolio_scenario_id LIKE ${parameters['scn_id']} AND ${sql.getVpaRestrictionForTable('gp')})
+				</sql>
+        <table name="dp" role="main"/>
+				<field table="dp" name="bu_id" dataType="text" hidden="true"/>
+        <field table="dp" name="dv_id" dataType="text" hidden="true"/>
+        <field table="dp" name="dp_id" dataType="text"/>
+        <field table="dp" name="name" dataType="text"/>
+        <sortField table="dp" name="dp_id" ascending="true"/>
+				<parameter name="scn_id" dataType="text" value="%"/>  
+    </dataSource>
+    
+    <dataSource id="allocWizOrg_groupTreeDs" applyVpaRestrictions="false">
+				<sql dialect="generic">
+					SELECT 
+						DISTINCT gp.name, is_available,
+	    			CASE WHEN ls_id IS NOT NULL THEN '1' ELSE '0' END ${sql.as} option2,
+						${sql.isNull('gp.dp_id', '\'WW99\'')} ${sql.as} dp_id,
+						${sql.isNull('gp.dv_id', '\'WW99\'')} ${sql.as} dv_id,
+						${sql.isNull('gp.planning_bu_id', '\'WW99\'')} ${sql.as} bu_id
+					FROM gp
+					WHERE gp.portfolio_scenario_id LIKE ${parameters['scn_id']} AND ${sql.vpaRestriction}
+				</sql>
+				<table name="gp"/>
+				<field table="gp" name="name" dataType="text"/>
+				<field table="gp" name="dp_id" dataType="text"/>
+				<field table="gp" name="dv_id" dataType="text"/>
+				<field table="gp" name="bu_id" dataType="text"/>
+				<parameter name="scn_id" dataType="text" value="%"/>
+				<sortField table="gp" name="option2" ascending="true"/>	
+				<sortField table="gp" name="is_available" ascending="false"/>  
+				<sortField table="gp" name="name" ascending="true"/>
+		</dataSource>
+    
+    <panel type="tree" id="allocWizOrg_buTree" dataSource="allocWizOrg_dsBuTree" showOnLoad="false">
+        <title translatable="true">Business Units, Divisions, Departments, Groups</title>
+        <event type="onClickNode">
+            <command type="callFunction" functionName="onClickTreeNode"/>
+        </event>
+				<panel type="tree" id="allocWizOrg_dvTree" dataSource="allocWizOrg_dvTreeDs">
+            <event type="onClickNode">
+                <command type="callFunction" functionName="onClickTreeNode"/>
+            </event>
+            <field table="dv" name="dv_id" dataType="text"/>
+            <field table="dv" name="name" dataType="text"/>
+        </panel>
+        <panel type="tree" id="allocWizOrg_dpTree" dataSource="allocWizOrg_dpTreeDs">
+            <event type="onClickNode">
+                <command type="callFunction" functionName="onClickTreeNode"/>
+            </event>
+            <field table="dp" name="dv_id" dataType="text" hidden="true"/>
+            <field table="dp" name="dp_id" dataType="text"/>
+            <field table="dp" name="name" dataType="text"/>
+        </panel>
+        <panel type="tree" id="allocWizOrg_gpTree" dataSource="allocWizOrg_groupTreeDs">
+            <event type="onClickNode">
+                <command type="callFunction" functionName="onClickTreeNode"/>
+            </event>
+            <field table="gp" name="name" dataType="text"/>
+            <field table="gp" name="dp_id" dataType="text" hidden="true"/>
+            <field table="gp" name="dv_id" dataType="text" hidden="true"/>
+            <field table="gp" name="bu_id" dataType="text" hidden="true"/>
+        </panel>
+        <field table="bu" name="bu_id" dataType="text"/>
+        <field table="bu" name="name" dataType="text"/>
+    </panel>
+
+</view>

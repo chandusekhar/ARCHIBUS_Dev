@@ -1,0 +1,143 @@
+<view version="2.0">
+	<title translatable="true">Equipment General Ledger Journal Entry</title>
+	<js file="ab-ap-eq-ta-gl-entries.js"/>
+	<js file="ab-ap-deprec-common.js"/>
+
+    <message name="calculateMessage" translatable="true">Recalculating equipment depreciation</message>
+	<message name="confirmRecalculation" translatable="true">Confirm the recalculation of the equipment depreciation ?</message>
+	<message name="title_summary" translatable="true">Depreciation Summary Table</message>
+	<message name="title_details" translatable="true">Equipment General Ledger Journal Entry</message>
+	
+	<layout type="borderLayout" id="mainLayout">
+		<north id="consolePos" initialSize="15%" split="true"/>
+		<west id="pkeyPos" initialSize="20%" split="true"/>
+		<center id="detailPos"/>
+	</layout>	
+	
+	<!-- FILTER CONSOLE -->
+	<dataSource id="ds_abApEqGLEntriesGd_filter">
+		<table name="eq" role="main"/>
+		<table name="eq_dep" role="standard"/>
+		<field table="eq_dep" name="report_id"/>
+		<field table="eq" name="property_type"/>
+		<field table="eq" name="dv_id"/>
+		<field table="eq" name="dp_id"/>
+	</dataSource>
+	
+	<panel type="console" id="console_abApEqGLEntriesGd" dataSource="ds_abApEqGLEntriesGd_filter" columns="4" layoutRegion="consolePos">
+		<title translatable="true">Filter</title>
+		<action id="filter">
+			<title translatable="true">Show</title>
+		</action>
+		<action id="clear">
+			<title translatable="true">Clear</title>
+			<command type="clearPanel" panelId="console_abApEqGLEntriesGd"/>
+		</action>
+		<action>
+			<title translatable="true">Recalculate Equipment Depreciation</title>
+			<command type="callFunction" functionName="recalculateDepreciation('eq','crossTable_abApEqGLEntriesGd_summary')"/>
+		</action>
+		<field table="eq_dep" name="report_id">
+			<title translatable="true">Log Name</title>
+		</field>
+		<field table="eq" name="property_type"/>
+		<field table="eq" name="dv_id"/>
+		<field table="eq" name="dp_id"/>
+	</panel>	
+	
+	<!-- DEPRECIATION REPORTS -->
+	<dataSource id="ds_abApEqGLEntriesGd_depRep">
+		<table name="dep_reports" role="main"/>
+		<field table="dep_reports" name="last_date"/>
+		<field table="dep_reports" name="report_id"/>
+		<field table="dep_reports" name="active"/>
+	</dataSource>
+	<panel type="grid" id="grid_abApEqGLEntriesGd_depRep" dataSource="ds_abApEqGLEntriesGd_depRep" layoutRegion="pkeyPos">
+		<sortField table="dep_reports" name="last_date" ascending="false"/>
+		<title translatable="true">Depreciation Logs</title>
+		<field table="dep_reports" name="last_date" controlType="link">
+			<command type="callFunction" functionName="showEqSummary"/>
+		</field>
+		<field table="dep_reports" name="report_id" controlType="link">
+			<command type="callFunction" functionName="showEqSummary"/>
+		</field>
+		<field table="dep_reports" name="active" controlType="link">
+			<command type="callFunction" functionName="showEqSummary"/>
+		</field>
+	</panel>
+	
+	<!-- SUMMARY TABLE -->
+	<dataSource id="ds_abApEqGLEntriesGd_summary" type="grouping">
+		<table name="eq" role="main"/>
+		<table name="eq_dep" role="standard"/>
+		<field table="eq" name="dv_dp_id" dataType="text" groupBy="true">
+			<title translatable="true">Division - Department</title>
+			<sql dialect="generic">
+				(eq.dv_id${sql.concat}'-'${sql.concat}eq.dp_id)
+			</sql>
+		</field>
+		<field table="eq" name="property_type" groupBy="true"/>
+        <field name="current_dep_summary" formula="sum" baseField="eq_dep.value_current_dep" dataType="number">
+            <title translatable="true">Depreciation Expense</title>
+        </field>
+        <field name="accum_dep_summary" formula="sum" baseField="eq_dep.value_accum_dep" dataType="number">
+            <title translatable="true">Accumulated Depreciation</title>
+        </field>
+		<sortField table="eq" name="dv_dp_id" ascending="true"/>
+		<sortField table="eq" name="property_type" ascending="true"/>
+	</dataSource>
+	
+    <panel type="crossTable" id="crossTable_abApEqGLEntriesGd_summary" showOnLoad="false" dataSource="ds_abApEqGLEntriesGd_summary" layoutRegion="detailPos">
+    	 <title translatable="true">Depreciation Summary Table</title>
+         <event type="onClickItem">
+            <command type="callFunction" functionName="showEqDetails"/>
+         </event>
+    </panel>
+	
+	<!-- DETAILS PANEL -->
+	<dataSource id="ds_abApEqGLEntriesGd_details">
+		<table name="eq_dep" role="main"/>
+		<table name="eq" role="standard"/>
+		<field table="eq" name="dv_dp_id" dataType="text">
+			<title translatable="true">Division - Department</title>
+			<sql dialect="generic">
+				(eq.dv_id${sql.concat}'-'${sql.concat}eq.dp_id)
+			</sql>
+		</field>
+		<field table="eq" name="property_type"/>
+		<field table="eq" name="dv_id"/>
+		<field table="eq" name="dp_id"/>
+		<field table="eq" name="eq_id"/>
+		<field table="eq" name="cost_purchase"/>
+		<field table="eq_dep" name="value_current_dep"/>
+		<field table="eq_dep" name="value_accum_dep"/>
+		<field table="eq_dep" name="value_current"/>
+		<field table="eq" name="value_salvage"/>
+		<field table="eq" name="date_installed"/>
+		<field table="eq_dep" name="report_id"/>
+		<restriction type="sql" sql="${parameters['dvDpId']}"/>
+		<parameter name="dvDpId" dataType="verbatim" value=" 1 = 1"/>
+		<sortField table="eq" name="property_type" ascending="true"/>
+		<sortField table="eq" name="dv_id" ascending="true"/>
+		<sortField table="eq" name="dp_id" ascending="true"/>
+		<sortField table="eq" name="eq_id" ascending="true"/>
+	</dataSource>
+	
+	<panel type="grid" id="grid_abApEqGLEntriesGd_details" dataSource="ds_abApEqGLEntriesGd_details" showOnLoad="false" hidden="true" layoutRegion="detailPos">
+		<sortField table="eq" name="property_type" ascending="true"/>
+		<sortField table="eq" name="dv_id" ascending="true"/>
+		<sortField table="eq" name="dp_id" ascending="true"/>
+		<sortField table="eq" name="eq_id" ascending="true"/>
+		<field table="eq" name="property_type"/>
+		<field table="eq" name="dv_id"/>
+		<field table="eq" name="dp_id"/>
+		<field table="eq" name="eq_id"/>
+		<field table="eq" name="cost_purchase"/>
+		<field table="eq_dep" name="value_current_dep"/>
+		<field table="eq_dep" name="value_accum_dep"/>
+		<field table="eq_dep" name="value_current"/>
+		<field table="eq" name="value_salvage"/>
+		<field table="eq" name="date_installed"/>
+	</panel>
+	
+</view>

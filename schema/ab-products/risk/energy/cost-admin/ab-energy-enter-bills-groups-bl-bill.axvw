@@ -1,0 +1,253 @@
+<view version="2.0">
+    <js file="ab-energy-enter-bills-groups-bl-bill.js"/>
+    
+    <message name="date" translatable="true">The date service end must be after date service start</message>
+    <message name="consistency" translatable="true">One or more values for a bill are not consistent with those of the selected vendor account.  Please check the values for Vendor Account, Bill Type, Site Code, and Building Code.</message>
+    <message name="multBld" translatable="true">Please select a different Vendor Account Code.  The one you have selected is not configured for multiple buildings.</message>
+    
+    <layout type="borderLayout" id="mainLayout">
+        <north id="grid" initialSize="40%" split="true"/>
+        <center id="form" autoScroll="true"/>
+    </layout>
+
+    <dataSource id="bill_AbEnergyDefBills_ds" applyVpaRestrictions="false">
+        <table name="bill" role="main"/>
+        <field table="bill" name="vn_id"/>
+        <field table="bill" name="vn_ac_id"/>
+        <field table="bill" name="bill_id"/>
+        <field table="bill" name="bill_type_id"/>
+        <field table="bill" name="site_id"/>
+        <field table="bill" name="bl_id"/>
+        <field table="bill" name="amount_expense"/>
+        <field table="bill" name="amount_income"/>
+        <field table="bill" name="status"/>
+        <field name="vf_qty_energy" dataType="number" decimals="6">
+            <sql dialect="generic">
+                (qty_energy /
+                    (CASE WHEN (SELECT conversion_factor FROM bill_unit WHERE bill_unit.bill_type_id = 'ELECTRIC' AND bill_unit.rollup_type = 'Energy' AND bill_unit.is_dflt = 1) IS NULL
+                          THEN ${sql.replaceZero('0')}
+                          ELSE (SELECT ${sql.replaceZero('conversion_factor')} FROM bill_unit WHERE bill_unit.bill_type_id = 'ELECTRIC' AND bill_unit.rollup_type = 'Energy' AND bill_unit.is_dflt = 1)
+                    END))
+            </sql>
+        </field>
+        <field table="bill" name="qty_power"/>
+        <field table="bill" name="qty_volume"/>
+        <field table="bill" name="date_service_start"/>
+        <field table="bill" name="date_service_end"/>
+        <field table="bill" name="date_issued"/>
+        <field table="bill" name="date_due"/>
+        <field table="bill" name="time_period"/>
+        <field table="bill" name="date_approved"/>
+        <field table="bill" name="doc"/>
+        <field table="bill" name="count_lines"/>
+        <field table="bill" name="description"/>
+        
+        <restriction type="sql" sql="bill.status != 'Pending Approval'AND ${parameters['vendorType']}AND prorated_aggregated='NO' AND EXISTS ( SELECT 1 FROM vn_ac WHERE vn_ac.vn_ac_id = bill.vn_ac_id AND (vn_ac.proration_action &lt;&gt; 'NONE' OR EXISTS(SELECT 1 FROM bill b WHERE b.vn_ac_id = vn_ac.vn_ac_id AND b.prorated_aggregated = 'PRORATED-LOCATION')))"/>
+        <parameter name="vendorType" dataType="verbatim" value="1=1"/>
+    </dataSource>
+    
+    <dataSource id="bill_ds">
+        <table name="bill" role="main"/>
+        <field table="bill" name="vn_id"/>
+        <field table="bill" name="vn_ac_id"/>
+        <field table="bill" name="bill_id"/>
+        <field table="bill" name="bill_type_id"/>
+        <field table="bill" name="site_id"/>
+        <field table="bill" name="bl_id"/>
+        <field table="bill" name="amount_expense"/>
+        <field table="bill" name="amount_income"/>
+        <field table="bill" name="status"/>
+        <field name="vf_qty_energy" dataType="number" decimals="6">
+            <sql dialect="generic">
+                (qty_energy /
+                    (CASE WHEN (SELECT conversion_factor FROM bill_unit WHERE bill_unit.bill_type_id = 'ELECTRIC' AND bill_unit.rollup_type = 'Energy' AND bill_unit.is_dflt = 1) IS NULL
+                          THEN ${sql.replaceZero('0')}
+                          ELSE (SELECT ${sql.replaceZero('conversion_factor')} FROM bill_unit WHERE bill_unit.bill_type_id = 'ELECTRIC' AND bill_unit.rollup_type = 'Energy' AND bill_unit.is_dflt = 1)
+                    END))
+            </sql>
+        </field>
+        <field table="bill" name="qty_power"/>
+        <field table="bill" name="qty_volume"/>
+        <field table="bill" name="date_service_start"/>
+        <field table="bill" name="date_service_end"/>
+        <field table="bill" name="date_issued"/>
+        <field table="bill" name="date_due"/>
+        <field table="bill" name="time_period"/>
+        <field table="bill" name="date_approved"/>
+    </dataSource>
+    
+    <dataSource id="vendorAccount_ds">
+        <table name="vn_ac" role="main"/>
+        <field table="vn_ac" name="vn_ac_id"/>
+        <field table="vn_ac" name="proration_action"/>
+    </dataSource>
+    
+    
+    <panel type="grid" id="bill_AbEnergyDefBills_grid" dataSource="bill_AbEnergyDefBills_ds" multipleSelectionEnabled="true" layoutRegion="grid">
+        <action id="addNew">
+            <title translatable="true">Add New</title>
+            <command type="showPanel" panelId="bill_AbEnergyDefBills" newRecord="true"/>
+        </action>
+        <action id="sendForApprovalMulti">
+            <title translatable="true">Send for Approval</title>
+        </action>
+        <field table="bill" name="vn_id" controlType="link">
+            <command type="callFunction" functionName="ctrlAbEnergyDefBillsCommon.onGridLineUserSelect(this)"/>
+        </field>
+        <field table="bill" name="bill_id" controlType="link">
+            <command type="callFunction" functionName="ctrlAbEnergyDefBillsCommon.onGridLineUserSelect(this)"/>
+        </field>
+        <field table="bill" name="vn_ac_id" controlType="link">
+            <command type="callFunction" functionName="ctrlAbEnergyDefBillsCommon.onGridLineUserSelect(this)"/>
+        </field>
+        <field table="bill" name="bill_type_id" controlType="link">
+            <command type="callFunction" functionName="ctrlAbEnergyDefBillsCommon.onGridLineUserSelect(this)"/>
+        </field>
+        <field table="bill" name="site_id" controlType="link">
+            <command type="callFunction" functionName="ctrlAbEnergyDefBillsCommon.onGridLineUserSelect(this)"/>
+        </field>
+        <field table="bill" name="bl_id" controlType="link">
+            <command type="callFunction" functionName="ctrlAbEnergyDefBillsCommon.onGridLineUserSelect(this)"/>
+        </field>
+    </panel>
+    
+    <panel type="form" id="bill_AbEnergyDefBills" dataSource="bill_AbEnergyDefBills_ds" showOnLoad="false" columns="2" layoutRegion="form" beforeSave="bill_AbEnergyDefBills_beforeSave">
+        <action id="save">
+            <title translatable="true">Save</title>
+        </action>
+        <action id="generateBills" enabled="${!panel.newRecord}">
+            <title translatable="true">Prorate between buildings</title>
+        </action>
+        <action id="sendForApproval" enabled="${!panel.newRecord}">
+            <title translatable="true">Send All for Approval</title>
+        </action>
+        <action id="viewProratedBills" enabled="${!panel.newRecord}">
+            <title translatable="true">View Prorated Bills</title>
+        </action>
+        <action id="delete" enabled="${!panel.newRecord}">
+            <title translatable="true">Delete</title>
+        </action>
+        <field table="bill" name="vn_id">
+            <action id="bill_AbEnergyDefBills_selVendor">
+                <title>...</title>
+                <tooltip>Select Value</tooltip>
+                <command type="selectValue"
+                    fieldNames="bill.vn_id"
+                    selectFieldNames="vn.vn_id"
+                    visibleFieldNames="vn.vn_id, vn.company, vn.vendor_type" 
+                    sortFieldNames="vn.vn_id"
+                    restriction="EXISTS(SELECT 1 FROM vn_ac WHERE vn_ac.vn_id = vn.vn_id AND vn_ac.proration_action &lt;&gt; 'NONE')"
+                    showIndex="true">
+                </command>
+            </action>
+        </field>
+        <field table="bill" name="vn_ac_id">
+        <action id="bill_AbEnergyDefBills_selVendorAccount">
+                <title>...</title>
+                <tooltip>Select Value</tooltip>
+                <command type="selectValue"
+                    fieldNames="bill.vn_id,bill.vn_ac_id,bill.bill_type_id,bill.bl_id,bill.site_id"
+                    selectFieldNames="vn.vn_id,vn_ac.vn_ac_id,vn_ac.bill_type_id,vn_ac.bl_id,vn_ac.site_id,vn_ac.proration_group_name,vn_ac.proration_action"
+                    visibleFieldNames="vn.vn_id,vn_ac.vn_ac_id,vn_ac.bill_type_id,vn_ac.bl_id,vn_ac.site_id,vn_ac.proration_group_name,vn_ac.proration_action" 
+                    sortFieldNames="vn_ac.vn_ac_id"
+                    restriction="vn_ac.proration_action &lt;&gt; 'NONE'"
+                    showIndex="true">
+                </command>
+            </action>
+        </field>
+        <field table="bill" name="bill_id"/>
+        <field name="bill_type_id" table="bill">
+            <action>
+                <title>...</title>
+                    <command type="selectValue"
+                        fieldNames="bill.bill_type_id"
+                        selectFieldNames="bill_type.bill_type_id"
+                        visibleFieldNames="bill_type.bill_type_id" 
+                        sortFieldNames="bill_type.bill_type_id"
+                        restriction="bill_type.activity_id IS NULL"
+                        showIndex="true">
+                    </command>
+            </action>
+        </field>
+        <field table="bill" name="bl_id" readOnly="true"/>
+        <field table="bill" name="site_id" readOnly="true"/>
+        <field table="bill" name="date_service_start" required="true"/>
+        <field table="bill" name="date_service_end" required="true"/>
+        <field table="bill" name="date_issued"/>
+        <field table="bill" name="date_due"/>
+        <field table="bill" name="time_period" required="true">
+            <action>
+                <title translatable="false">...</title>
+                <tooltip>Select Value</tooltip>
+                <command type="callFunction" functionName="ctrlAbEnergyDefBillsCommon.selectValueTimePeriod()"/>
+            </action>
+        </field>
+        <field table="bill" name="doc"/>
+        <field table="bill" name="description" colspan="2">
+            <action>
+                <title>Select Recently Entered Descriptions</title>
+                <command type="selectValue" fieldNames="bill.description" selectFieldNames="bill.description" sortFieldNames="bill.description" showIndex="true">
+                    <title>Recently Entered Descriptions</title>
+                </command>
+            </action>
+        </field>
+        <field table="bill" name="status" readOnly="true"/>
+        <field table="bill" name="date_approved" readOnly="true"/>
+        <field table="bill" name="amount_expense" readOnly="true"/>
+        <field table="bill" name="amount_income" readOnly="true"/>
+        <field name="vf_qty_energy" dataType="number" decimals="6" readOnly="true">
+            <title>Energy / Consumption (${view.dataSources.get('abEnergyBillCommon_ds').getRecord().getValue('bill_unit.vf_qty_energy_unit')})</title>
+        </field>
+        <field table="bill" name="qty_power" readOnly="true"/>
+        <field table="bill" name="qty_volume" readOnly="true"/>
+        <field table="bill" name="count_lines" readOnly="true"/>
+    </panel>
+    
+    <dataSource id="bill_AbEnergyDefBills_ds_time">
+        <table name="energy_time_period"/>
+        <field name="time_period"/>
+        <restriction type="sql" sql="${parameters['timePeriod']}"/>
+        <parameter name="timePeriod" dataType="verbatim" value="1=1"/>
+        <sortField name="time_period" ascending="false"/>
+    </dataSource>
+    
+    <panel type="grid" id="bill_AbEnergyDefBills_grid_time" dataSource="bill_AbEnergyDefBills_ds_time" showOnLoad="false" hidden="true">
+        <action id="seeAll">
+            <title translatable="true">See All</title>
+        </action>
+        <field name="time_period" controlType="link">
+            <command type="callFunction" functionName="ctrlAbEnergyDefBillsCommon.onSelectTimePeriod(this)"/>
+        </field>
+    </panel>
+    
+    <panel type="grid" id="bill_grid" dataSource="bill_ds" showOnLoad="false">
+        <title translatable="true">Prorated Bills</title>
+        <action id="sendForApproval">
+            <title translatable="true">Send All for Approval</title>
+        </action>
+        <action id="deleteAll">
+            <title translatable="true">Delete All Prorated</title>
+        </action>
+        <field table="bill" name="vn_id"/>
+        <field table="bill" name="vn_ac_id"/>
+        <field table="bill" name="bill_id"/>
+        <field table="bill" name="bill_type_id"/>
+        <field table="bill" name="site_id"/>
+        <field table="bill" name="bl_id"/>
+        <field table="bill" name="amount_expense"/>
+        <field table="bill" name="amount_income"/>
+        <field name="vf_qty_energy" dataType="number" decimals="6">
+            <title>Energy / Consumption (${view.dataSources.get('abEnergyBillCommon_ds').getRecord().getValue('bill_unit.vf_qty_energy_unit')})</title>
+        </field>
+        <field table="bill" name="qty_power"/>
+        <field table="bill" name="qty_volume"/>
+        <field table="bill" name="date_service_start"/>
+        <field table="bill" name="date_service_end"/>
+        <field table="bill" name="date_issued"/>
+        <field table="bill" name="date_due"/>
+        <field table="bill" name="time_period"/>
+        <field table="bill" name="date_approved"/>
+   </panel>
+    
+    <panel type="view" id="abEnergyCommon" file="ab-energy-enter-bills-groups-bl-common.axvw"/>
+</view>

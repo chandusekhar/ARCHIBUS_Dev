@@ -1,0 +1,236 @@
+<view version="2.0">
+
+<!--  Change Log -->
+<!--  2010/03/31 - JJYCHAN - Issue: 26. Changed confirmation dialog message to be more descriptive. -->
+<!--  2010/04/13 - JJYCHAN - Issue: 80. Changed confirmation dialog message to be more descriptive. -->
+<!-- 2010/04/19 - JJYCHAN - Issue: 136. Added select values for dp and dv.  Now shows a description -->
+<!-- 2010/04/20 - JJYCHAN - Issue: 151. Removed field labels for dv.name and dp.name				-->
+<!-- 2010/05/10 - EWONG - Issue: 129. Clear fl/rm when changing bl, clear dp when changing dv	-->
+<!-- 2010/05/21 - EWONG - Issue: 167. Validate the pre-filled fields.	-->
+<!-- 2010/05/21 - EWONG - Issue: 192. Error when CCC change and saves em.	-->
+<!-- 2010/09/01 - JJYCHAN - Issue: 26. Added the Unitis Link. -->
+<!-- 2010/09/01 - EWONG - Issue: 305. Added Room Error Report Link.  -->
+<!-- 2010/11/24 - EWONG - 18.2 Upgrade: Removed spaces from the visibleFieldNames in the custom selectValue (causing only first field displayed). -->
+<!-- 2010/12/15 - EWONG - Error Report changed to use the same view as the Create Work Request view. -->
+
+	<js file="uc-vehicle-wr-create-1-Info.js" />
+	<js file="uc-common-functions-data.js" />
+	<script type="text/javascript" src="/resource/uc-email.js"></script>
+
+	<message name="confirmChangeSave">
+	If this is your correct Phone, Department and Location Archibus can submit a change
+	request to PeopleSoft.  Do you want the system to submit the request for you?
+	There may be a waiting period before the changes are made permanent.</message>
+	<message name="invalidEmName">Employee Name Invalid</message>
+	<message name="invalidDpId">Division and/or Department codes are invalid.</message>
+
+	<!--layout id="mainLayout"-->
+		<!--north autoScroll="false" split="false"  id="row1"/-->
+		<!--center autoScroll="false" initialSize="200" minSize="200" id="row2"/-->
+	<!--/layout-->
+
+
+	<dataSource id="ds_em1">
+		<table name="em" role="main" />
+		<table name="dv" role="standard"/>
+		<table name="dp" role="standard"/>
+
+		<field table="em" name="em_id" />
+		<field table="em" name="dv_id" />
+		<field table="em" name="dp_id" />
+		<field table="em" name="phone" />
+		<field table="em" name="email" />
+		<field table="em" name="bl_id" />
+		<field table="em" name="fl_id" />
+		<field table="em" name="rm_id" />
+
+		<field table="dv" name="name"  />
+		<field table="dp" name="name"  />
+	</dataSource>
+
+	<!-- The two datasources below are used for updating emails -->
+	<dataSource id="ds_afm_users">
+		<table name="afm_users" role="main" />
+		<field table="afm_users" name="user_name" />
+		<field table="afm_users" name="email" />
+	</dataSource>
+
+	<dataSource id="ds_cf">
+		<table name="cf" role="main" />
+		<field table="cf" name="cf_id" />
+		<field table="cf" name="email" />
+	</dataSource>
+
+
+
+	<!--panel type="form" id="my_info_form" dataSource="ds_em" columns="1" showOnLoad="false" layoutRegion="row1"-->
+	<panel type="form" id="my_info_form" dataSource="ds_em1" columns="1" showOnLoad="false">
+		<action id="next">
+			<title>Next</title>
+			<tooltip>Go To Next Step</tooltip>
+			<command type="callFunction" functionName="goToDetailsTab" />
+		</action>
+
+		<field table="em" name="em_id" required="true" readOnly="${1==1}" onchange="afterEmChange('em.em_id', this.value, '')"> <!-- Add role exceptions to js. -->
+			<action id="emSelect" hidden="true">
+				<title>...</title>
+				<tooltip>Select Employee</tooltip>
+				<command type="selectValue"
+					fieldNames="em.em_id"
+					selectFieldNames="em.em_id"
+					visibleFieldNames="em.em_id,em.dv_id,em.dp_id,em.phone,em.email,em.bl_id,em.fl_id,em.rm_id"
+					actionListener="afterEmChange" />
+			</action>
+		</field>
+
+		<!--field table="em" name="phone" required="false" readOnly="${!record.isNew}" showSelectValueAction="false" /-->
+		<!-- field table="em" name="email" readOnly="${!record.isNew}" showSelectValueAction="false" /-->
+
+		<field table="em" name="phone" required="false" readOnly="false" showSelectValueAction="false" />
+		<field table="em" name="email" readOnly="false" showSelectValueAction="false" />
+
+		<field hidden="true">
+			<html>
+				<body>
+					<a id="unitisLink" href="javascript:infoTabController.openUnitisLink()">Is the default information above incorrect? Click here.</a>
+				</body>
+			</html>
+		</field>
+		<field table="em" name="bl_id" onchange="clearMyInfoFl();">
+			<action id="blSelect">
+				<title>Select Building</title>
+				<tooltip>Select Value</tooltip>
+				<command type="selectValue"
+					fieldNames="em.bl_id"
+					selectFieldNames="bl.bl_id"
+					visibleFieldNames="bl.bl_id,bl.name"
+					actionListener="clearMyInfoFl" />
+			</action>
+		</field>
+		<field table="em" name="fl_id" />
+		<field table="em" name="rm_id" />
+		<field>
+			<html>
+				<body>
+					<a id="roomErrorLink" href="javascript:infoTabController.openRoomReportLink()">Can't find your room? Click here to send us an Error report.</a>
+				</body>
+			</html>
+		</field>
+
+		<field table="em" name="dv_id" onchange="clearMyInfoDp();">
+			<action id="dvSelect">
+				<title>...</title>
+				<tooltip>Select Division</tooltip>
+				<command type="selectValue"
+					fieldNames="em.dv_id, dv.name.display"
+					selectFieldNames="dv.dv_id, dv.name"
+					visibleFieldNames="dv.dv_id,dv.name"
+					actionListener="clearMyInfoDp" />
+			</action>
+		</field>
+		<field table="dv" name="name" alias="dv.name.display" required="false"  readOnly="${1==1}" showSelectValueAction="false" size="100" showLabel="false"/>
+		<field table="em" name="dp_id">
+			<action id="dpSelect">
+				<title>...</title>
+				<tooltip>Select Department</tooltip>
+				<command type="selectValue"
+					fieldNames="em.dv_id, em.dp_id, dp.name.display"
+					selectFieldNames="dp.dv_id, dp.dp_id, dp.name"
+					visibleFieldNames="dp.dv_id,dp.dp_id,dp.name" />
+			</action>
+		</field>
+		<field table="dp" name="name" alias="dp.name.display" required="false"  readOnly="${1==1}" showSelectValueAction="false" size="100" showLabel="false"/>
+
+	</panel>
+
+
+
+		<!-- INFORMATION PANEL -->
+	<panel type="html" id="instructionsPanel" showOnLoad="true" >
+			<html>
+				<br></br>
+				<br></br>
+				<table width="90%" cellspacing="5" cellpadding="3" border="1" style="margin-left: auto;margin-right: auto;">
+					<tr style="background-color:#EEEEEE;font-size:11px;font-face:Verdana;">
+						<td colspan="2" width="50%" valign="top">
+											<p style="background-color:#3D79BD;color:#FFFFFF;font-weight:bold;">
+											What is the Work Request system?
+											</p>
+											<p>
+											The Work Request system is a simple way to request a service from
+											Facilities Management. Completed forms go directly
+											to our Customer Care Representatives, who review them
+											and pass them on to the appropriate department or service
+											area.</p>
+
+											<p>
+											Please fill out the request form the best you can (fields
+											marked with "*" are required) to ensure your request is processed
+											quickly. Your request will be passed on to the Customer Care Representatives,
+											who will route it as required. Someone will be in touch with you as soon as
+											they get this information.</p>
+						</td>
+						<td width="25%" valign="top">
+											<p style="background-color:#FF6600;color:#FFFFFF;font-weight:bold;">
+											Emergencies
+											</p>
+											<p style="font-size:18px;color:#FF6600;">(403)220-7555</p>
+											<p>For building related emergencies such as water leaks, broken glass,
+											and power outages, please contact FMD at (403)220-7555.</p>
+											<p>For after hours emergency contact Campus Security at (403)220-5333</p>
+											
+
+
+
+
+						</td>
+						<td width="25%" valign="top">
+											<p style="background-color:#FF6600;color:#FFFFFF;font-weight:bold;">
+											IT Requests
+											</p>
+											<p style="font-size:18px;color:#FF6600;">(403)220-5555</p>
+											<p >All requests for Corporate Technology Services should be
+											submitted to central IT helpdesk</p>
+
+											<p>By Phone: (403)220-5555 </p>
+
+											<p>or</p>
+
+											<p><a href="https://pr1web.ucalgary.ca/osr/Public/Login.aspx?ReturnUrl=%2fosr%2fDefault.aspx"
+											target="_blank">
+											Online IT service request.
+											</a>
+											</p>
+						</td>
+					</tr>
+				</table>
+
+			</html>
+	</panel>
+
+
+	<panel type="form" id="create_em_form" dataSource="ds_em1" showOnLoad="false">
+		<title>Create Requestor</title>
+		<action id="btnSave" imageName="/schema/ab-core/graphics/save.gif">
+			<title>Create</title>
+			<tooltip>Create New Requestor</tooltip>
+			<command type="saveForm"/>
+			<command type="callFunction" functionName="refreshParent"/>
+			<command type="closeDialog" />
+		</action>
+		<action id="btnCancel">
+			<title>Cancel</title>
+			<tooltip>Cancel</tooltip>
+			<command type="closeDialog" />
+		</action>
+
+		<field table="em" name="em_id" required="true"/>
+		<field table="em" name="dv_id" />
+		<field table="em" name="dp_id" />
+		<field table="em" name="phone" required="true" />
+		<field table="em" name="email" required="true" />
+		<field table="em" name="bl_id" />
+		<field table="em" name="fl_id" />
+		<field table="em" name="rm_id" />
+	</panel>
+</view>

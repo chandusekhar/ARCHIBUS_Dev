@@ -1,0 +1,1652 @@
+/*****************************************************************************
+lssup.abs
+02-14-97
+
+Supplementary functions for the lease module.
+
+11-05-1998 JH Changed lssup_CreateCashFlowData() - 
+            looping over the 12 months was neglecting the 11th month. 
+            Changed: ElseIf iMonth < 11 Then    '---- iMonth = 10 or 11
+            To:      ElseIf iMonth < 12 Then    '---- iMonth = 10 or 11
+12-04-1998 JH 1) Changed lssup_CreateCashFlowData() - 
+               Month 12 was not incrementing the Year for the ToDate value 
+               to the next year. iNextYear variable added to handle that.
+            2) Changed lssup_CreateBudgetOrProjRecordsFromRecurCosts()
+              i)  Changed declaration of iYearStart from String to Integer.
+                  The string declaration does not change results.
+              ii) Changed declaration of dDateEnd from String to Date.
+                  The string declaration does not change results.
+04-12-1999 JH dNextDate in Sub lssup_CreateBudgetOrProjRecordsFromRecurCosts()
+            was being set to the FromDate if there were no costs or
+            scheduled costs after the FromDate. Now, dNextDate is set
+            to the first interval after or equal to FromDate. 
+            Also, added brackets to MsgSetThermometer calc. This overcomes
+            issues with large numbers of leases and recurring costs. 
+03.08.00 - JH - Localization - Updated string constants for trailing spaces
+11.20.00 - JH - "9999-12-31" changed to "8888-12-31" for v11 since 9999 is not
+             handled well. Prevents issues with recurring costs that 
+             have null end dates.
+11.30.00 - JH - lssup_CreateCashFlowData() - changed Sleep 300 to Sleep 1500:
+              solves crash in Summit Basic which appears to be timing based.
+12.26.00 - JH - Localization: Added calls for international number formats:
+             Sup_ReplaceDecimalSymbol...()
+01.08.00 - JH - Localization: Add call Sup_ReplaceDecimalSymbolWithDotForDouble
+01.09.00 - JH - Localization: Add call Sup_ReplaceCommaWithDot()
+07.10.01 - JH - Added If iIncrement <> 0 condition to 
+             lssup_CreateBudgetOrProjRecordsFromRecurCosts()
+             to handle Recurring costs with an interval of 0
+03.12.03 - YQ - Change kAll to kAllAll as kAll is a reserved name for BS.
+01.13.06 - EZ - Added monthly/yearly factor and methods to handle the actual number of days in lease.
+            Merged NS's changes in.
+
+******************************************************************************/
+
+Option Explicit
+
+Type CostAnalysisDlgValueStructure
+    sCostsForTable As String
+    bCostsFromCosts As Boolean
+    bCostsFromSchedCosts As Boolean
+    bCostsFromRecurCosts As Boolean
+    bCostsFromBudget As Boolean
+    sFromDateStr As String
+    sToDateStr As String
+    sCostsFromBudgetName As String
+End Type
+
+Type BudgetItemDatesAndCostsStructure
+    sDateStart      As String
+    sDateEnd            As String 
+    dDateStart      As Date
+    dDateEnd            As Date 
+    sDateSeasonStart    As String
+    sDateSeasonEnd      As String
+    dDateSeasonStart    As Date
+    dDateSeasonEnd      As Date
+    nIncomePerMonth As Double
+    nExpensePerMonth    As Double
+    nYearlyFactor       As Double
+End Type
+
+'---- External Functions
+Declare Function sup_ISO_Date ( Date_to_Convert As String ) As String
+Declare Function sup_ISOtoBasic ( ISOdateString As String ) As Double
+Declare Function Sup_ReplaceDecimalSymbolWithDotForSingle( rForeignNumber As Single ) As String
+Declare Function Sup_ReplaceDecimalSymbolWithDotForDouble( dForeignNumber As Double ) As String
+Declare Function Sup_ReplaceCommaWithDot( sForeignNumber As String ) As String
+Declare Function costapp_GetRecurChangeOverDate( sCostTranRecurId As String, _
+        sDateStart As String, sInterval As String, _
+        iIncrement As Integer ) As Date
+Declare Function costapp_GetInterval( sPeriod As String ) As String
+Declare Function costapp_OutOfSeason( dNextDate As Date, _
+        sSeasonStartDate As String, sSeasonEndDate As String) As Boolean
+Declare Sub costapp_ComputeIncomeAndExpense( ByRef rAmountIncome As Double, _
+        ByRef rAmountExpense As Double, ByVal rYearlyFactor As Single, _
+        ByVal sDateStart As String, ByVal sNextDate As String, _
+        ByVal rRsAmountIncome As Double, ByVal rRsAmountExpense As Double, _ 
+        ByVal rMonthlyFactor As Single )
+Declare Function SqlFunc_SQLIsNull() As String
+Declare Function SqlFunc_SQLMakeDate() As String
+Declare Function budproja_GetWeightedYearlyFactor( iYear As Integer, _
+        iYearsFromStart As Integer, iDaysInSeason As Integer, _
+          nBudgetYearlyFactor As Double, sBudItemStartDate As String, _
+          dVirtualSeasonStartDate As Date, dVirtualSeasonEndDate As Date ) _
+        As Double
+
+
+
+'---- Internal Functions
+Declare Sub lssup_CreateBudgetItems( CostAnalDlgVals As _
+        CostAnalysisDlgValueStructure, sBudgetNameToCreate As String, _
+        bIsTaxBudget As Boolean )
+Declare Sub CreateBudgetRecordsFromCosts( sCostTable As String, _
+        sPrBlLsDpOrAcKeyField As String, sKeyFieldRest As String, _
+        sNumMonths As String, sBudgetNameToCreate As String, _
+        sFromDate As String, sToDate As String )
+Declare Sub lssup_CreateBudgetOrProjRecordsFromRecurCosts( _
+        sPrBlLsDpOrAcKeyField As String, sKeyFieldRest As String, _
+        rNumMonths As Single, sBudgetNameToCreate As String, _
+        sFromDate As String, sToDate As String, iOperationType As Integer, _
+        sAddlRest As String, iThermomValue As Integer )
+Declare Sub CreateBudRecFromRecur( sRecurRecId As String, _
+        sIncomePerMonth As String, sExpensePerMonth As String, _
+        sPrBlLsDpOrAcKeyField As String, sBudgetNameToCreate As String )
+Declare Sub CreateBudgetRecordsFromBudget( sCostsFromBudgetName As String, _
+        sPrBlLsDpOrAcKeyField As String, sKeyFieldRest As String, _
+        sBudgetNameToCreate As String )
+Declare Sub SumTempBudgetRecordsToCostCat( sPrBlLsDpOrAcKeyField As String, _
+        sKeyFieldRest As String, sBudgetNameToCreate As String )
+
+Declare Function lssup_CreateFinancialProjections( CostAnalDlgVals As _
+        CostAnalysisDlgValueStructure, sProjectionType As String, _
+        bIsHistory As Boolean ) As String
+Declare Sub CreateFinanProjRecordsFromCosts( sCostTable As String, _
+        sPrOrLsKeyField As String, sAddlRest As String, _ 
+        sBudgetNameToCreate As String, sYearCounter As String, _
+        sFromDate As String, sToDate As String )
+Declare Sub CreateProjRecFromRecur( sRecurRecId As String, _
+        sPrOrLsKeyField As String, sBudgetNameToCreate As String, _
+        rYearlyCosts() As Double )
+Declare Sub SumTempFinanProjRecordsToCostCat( sPrOrLsKeyField As String, _
+        sBudgetNameToCreate As String )
+
+Declare Sub lssup_CreateCashFlowData( CostAnalDlgVals As _
+        CostAnalysisDlgValueStructure, sCashFlowType As String, _
+        bIsVariance As Boolean )
+Declare Sub CreateCashFlowCostRecordsFromCosts( sCostTable As String, _
+        sPrOrLsKeyField As String, sAddlRest As String, _ 
+        sMonth As String, sFromDate As String, sToDate As String )
+Declare Sub CreateBudgetCashFlowRecords( iYear As Integer, _
+        sBudgetName As String, sOwnerKey As String, _
+        sKeyFieldRest As String,    sOwnerTableName As String )
+Declare Sub CreateCashFlowRecFromRecur( sRecurRecId As String, _
+        sPrOrLsKeyField As String, rMonthlyCosts() As Double )
+Declare Sub SumTempCashFlowRecordsToCostCat( sPrOrLsKeyField As String )
+Declare Sub CalcQtrAndYearCashFlowCosts()
+Declare Sub CalcCashFlowVariances()
+Declare Function CalcProjectedMonthBudgetCost( ByVal iSeason As Integer, _
+        ByVal iYear As Integer, ByVal iMonth As Integer, _
+        ByVal BudItem As BudgetItemDatesAndCostsStructure ) As Double
+Declare Sub GetMonthVirtualSeasonStartAndEndDates( iSeason As Integer, _
+        iYear As Integer, iMonth As Integer, _
+        dDateBudgetStart As Date, dDateBudgetEnd As Date, _
+        dDateSeasonStart As Date, dDateSeasonEnd As Date, _
+        dDateVirtualSeasonStart As Date, dDateVirtualSeasonEnd As Date )
+
+Declare Function LSSUP_GetDaysInMonth(InputDate As Date) As Integer
+
+'------------------------------------------------------------------------------
+'----                            TRANSLATE
+Const kCreatingBudgetRecordsMsg$    = "Creating Budget records."
+Const kCreatingFinanProjRecordsMsg$= "Creating Financial Projection records." 
+Const kCreatingCostHistoryRecordsMsg$="Creating Cost History records." 
+Const kCreatingCashFlowRecordsMsg$ = "Creating Cash Flow records." 
+Const kCreatingBudVarRecordsMsg$   = "Creating Budget vs. Cost records." 
+Const kPleaseWaitMsg$           = "     Please wait..."
+Const kNoBudgetItemRecordsForBudMsg$="There are no records in the budget item table for budget:"
+Const kForMsg$                  = "For"
+Const kPropTableName$           = "Properties"
+Const kPropTaxesName$           = "Property Taxes"
+Const kLeaseTableName$          = "Leases"
+Const kBuildingTableName$       = "Buildings"
+Const kDepartmentTableName$     = "Departments"
+Const kAccountTableName$            = "Accounts"
+
+'---- Note: The items below can NOT be more than 32 characters
+Const kPropCostProjectionName$  = "PROPERTY COST PROJECTION"
+Const kLeaseCostProjectionName$ = "LEASE COST PROJECTION"
+Const kPropTaxCostProjectionName$   = "TAX COST PROJECTION"
+Const kBldgCostProjectionName$  = "BUILDING COST PROJECTION"
+Const kAcCostProjectionName$        = "ACCOUNT COST PROJECTION"
+Const kDpCostProjectionName$        = "DEPARTMENT COST PROJECTION"
+
+Const kPropCostHistoryName$     = "PROPERTY COST HISTORY"
+Const kLeaseCostHistoryName$        = "LEASE COST HISTORY"
+Const kBldgCostHistoryName$     = "BUILDING COST HISTORY"
+Const kAcCostHistoryName$       = "ACCOUNT COST HISTORY"
+Const kDpCostHistoryName$       = "DEPARTMENT COST HISTORY"
+
+'------------------------------------------------------------------------------
+'---- Do NOT Translate
+Const ksDefaultStartDate$       = "1900-01-01"
+Const ksDefaultEndDate$         = "8888-12-31"
+
+Const kPropertyTable$           = "property"
+Const kBlTable$             = "bl"
+Const kLsTable$             = "ls"
+Const kDpTable$             = "dp"
+Const kAcTable$             = "ac"
+
+Const kTaxes$                   = "taxes"
+Const kAllAll$                  = "all"
+
+Const kPropertyTableKey$            = "pr_id"
+Const kBlTableKey$              = "bl_id"
+Const kLsTableKey$              = "ls_id"
+Const kDpTableKey$              = "dv_id, dp_id"
+Const kAcTableKey$              = "ac_id"
+
+Const kBudgetType%              = 1
+Const kFinancialProjType%       = 2
+Const kCashFlowType%            = 3
+'---- The following value MUST match the corresponding value in lsprcost.abs
+Const kPropOrLsSumType%         = 4
+
+Const knAvgNumberOfDaysPerMonth = 30.4375  '---- ( 365 * 3 + 366 ) / 4) / 12
+'------------------------------------------------------------------------------
+'------------------------------------------------------------------------------
+
+'------------------------------------------------------------------------------
+'---- Calls the functions which create the records in the ccshflw
+'---- table from the values in the costs tables.
+Sub lssup_CreateCashFlowData( CostAnalDlgVals As _
+        CostAnalysisDlgValueStructure, sCashFlowType As String, _
+        bIsVariance As Boolean )
+        
+    MsgOpen kCreatingCashFlowRecordsMsg & BASIC.EOLN$ & kPleaseWaitMsg, _
+            0, FALSE, TRUE
+
+    Dim sForTblKeyField     As String
+    Dim sOwnerTableName     As String
+    Dim sKeyFieldRest       As String
+    Dim sAddlRest           As String
+    Dim iMonth          As Integer
+    Dim sMonth          As String
+    Dim sNextMonth          As String
+    Dim iYear               As Integer
+    Dim iNextYear           As Integer
+    Dim sFromDate           As String
+    Dim sToDate         As String
+    Dim nMsgThermomVal      As Single
+    Dim nMsgThermomIncrement As Single
+    Dim iBaseThermomVal     As Integer
+
+    Select Case sCashFlowType
+    Case kPropertyTable
+        sForTblKeyField = kPropertyTableKey
+        sOwnerTableName = kPropTableName
+    Case kTaxes
+        sAddlRest = " AND cost_cat.cost_type = 'TAX'"
+        sForTblKeyField = kPropertyTableKey
+        sOwnerTableName = kPropTaxesName
+    Case kLsTable
+        sForTblKeyField = kLsTableKey
+        sOwnerTableName = kLeaseTableName
+    Case kBlTable
+        sForTblKeyField = kBlTableKey
+        sOwnerTableName = kBuildingTableName
+    Case kDpTable
+        sForTblKeyField = kDpTableKey
+        sKeyFieldRest = "dp_id"
+        sOwnerTableName = kDepartmentTableName
+    Case kAcTable
+        sForTblKeyField = kAcTableKey
+        sOwnerTableName = kAccountTableName
+    End Select
+    If sKeyFieldRest = "" Then sKeyFieldRest = sForTblKeyField
+
+    iYear = CInt( CostAnalDlgVals.sFromDateStr )
+
+    If bIsVariance Then iBaseThermomVal = 20 Else iBaseThermomVal = 40
+'   ---- Increment the MsgThermometer when looping over the 12 Months   
+    nMsgThermomIncrement = ( iBaseThermomVal / ( 12 * 2 ) )
+
+    MsgSetThermometer 3
+
+    ProjDb.ExecuteSQL "DELETE FROM ccshflw"
+
+    nMsgThermomVal = 10            
+    MsgSetThermometer nMsgThermomVal
+
+'   ---- Create TEMPCALC records in the ccshflw table for each of
+'   ---- the tables chosen as 'from tables' in the Costs Analysis Dialog
+    iNextYear = 0
+    For iMonth = 1 To 12
+        If iMonth < 9 Then 
+            sMonth = "0" & CStr( iMonth )
+            sNextMonth = "0" & CStr( ( iMonth + 1 ) )
+        ElseIf iMonth = 9 Then
+            sMonth = "09"
+            sNextMonth = "10"
+        ElseIf iMonth < 12 Then     '---- iMonth = 10 or 11
+            sMonth = CStr( iMonth ) 
+            sNextMonth = CStr( ( iMonth + 1 ) )
+        Else                        '---- iMonth = 12
+            sMonth = "12" 
+            sNextMonth = "01"
+            iNextYear = 1
+        End If
+
+        sFromDate = CStr( iYear ) & "-" & sMonth & "-01"
+        sToDate = CStr( iYear + iNextYear ) & "-" & sNextMonth & "-01"
+
+        If CostAnalDlgVals.bCostsFromCosts Then
+            CreateCashFlowCostRecordsFromCosts "cost_tran", _
+                sForTblKeyField, sAddlRest, sMonth, sFromDate, sToDate
+        End If
+
+        nMsgThermomVal = nMsgThermomVal + nMsgThermomIncrement 
+        MsgSetThermometer nMsgThermomVal
+
+        If CostAnalDlgVals.bCostsFromSchedCosts Then
+            CreateCashFlowCostRecordsFromCosts "cost_tran_sched", _
+                sForTblKeyField, sAddlRest, sMonth, sFromDate, sToDate
+        End If
+
+        nMsgThermomVal = nMsgThermomVal + nMsgThermomIncrement 
+        MsgSetThermometer nMsgThermomVal
+
+    Next iMonth
+
+
+    If bIsVariance Then CreateBudgetCashFlowRecords iYear, _
+        CostAnalDlgVals.sCostsFromBudgetName, sForTblKeyField, _
+        sKeyFieldRest, sOwnerTableName
+
+    sFromDate = CStr( iYear ) & "-01-01"
+    sToDate = CStr( iYear ) & "-12-31"
+
+    MsgSetThermometer 50
+
+    If CostAnalDlgVals.bCostsFromRecurCosts Then
+        lssup_CreateBudgetOrProjRecordsFromRecurCosts sForTblKeyField, _
+            sKeyFieldRest, 0, "", sFromDate, sToDate, _
+            kCashFlowType, sAddlRest, 50
+    End If
+
+    MsgSetThermometer 90
+
+'   ---- Sum up all temp records by entity_id and cost_cat_id so get only
+'   ---- one record per entity_id and cost_cat_id
+    SumTempCashFlowRecordsToCostCat sForTblKeyField
+
+    MsgSetThermometer 94
+
+'   ---- Delete all of the records used as intermediaries:
+    ProjDb.ExecuteSql "DELETE FROM ccshflw" & _
+                   " WHERE source = 'TEMPCALC'"
+
+    MsgSetThermometer 96
+
+    CalcQtrAndYearCashFlowCosts
+
+    If bIsVariance Then 
+        MsgSetThermometer 98
+        CalcCashFlowVariances
+    End If
+
+    MsgSetThermometer 100
+    Sleep 1500
+    MsgClose
+
+End Sub
+'------------------------------------------------------------------------------
+
+
+'------------------------------------------------------------------------------
+'---- Calls the functions which create the records in the ccostprjns
+'---- table from the values in the costs tables.
+Function lssup_CreateFinancialProjections( CostAnalDlgVals As _
+        CostAnalysisDlgValueStructure, sProjectionType As String, _
+        bIsHistory As Boolean ) As String
+
+    Dim sMsgThermMsg As String
+
+    If bIsHistory Then 
+        sMsgThermMsg = kCreatingCostHistoryRecordsMsg
+    Else 
+        sMsgThermMsg = kCreatingFinanProjRecordsMsg
+    End If
+
+    MsgOpen sMsgThermMsg & BASIC.EOLN$ & kPleaseWaitMsg, 0, FALSE, TRUE
+
+    Dim sBudgetName     As String
+    Dim sForTblKeyField     As String
+    Dim sKeyFieldRest       As String
+    Dim sAddlRest           As String
+    Dim iFromYear           As Integer
+    Dim iToYear         As Integer
+    Dim iYear               As Integer
+    Dim iYearCounter        As Integer
+    Dim sYearCounter        As String
+    Dim sFromDate           As String
+    Dim sToDate         As String
+    Dim iTotalYearsCount    As Integer
+    Dim nMsgThermomVal      As Single
+    Dim nMsgThermomIncrement As Single
+
+    Select Case sProjectionType
+    Case kPropertyTable
+        If bIsHistory Then 
+            sBudgetName = kPropCostHistoryName
+        Else
+            sBudgetName = kPropCostProjectionName
+        End If
+        sForTblKeyField = kPropertyTableKey
+        sKeyFieldRest = sForTblKeyField 
+    Case kTaxes
+        sBudgetName = kPropTaxCostProjectionName
+        sAddlRest = " AND cost_cat.cost_type = 'TAX'"
+        sForTblKeyField = kPropertyTableKey
+        sKeyFieldRest = sForTblKeyField 
+    Case kLsTable
+        If bIsHistory Then
+            sBudgetName = kLeaseCostHistoryName
+        Else
+            sBudgetName = kLeaseCostProjectionName
+        End If
+        sForTblKeyField = kLsTableKey
+        sKeyFieldRest = sForTblKeyField 
+    Case kBlTable
+        If bIsHistory Then
+            sBudgetName = kBldgCostHistoryName
+        Else
+            sBudgetName = kBldgCostProjectionName
+        End If
+        sForTblKeyField = kBlTableKey
+        sKeyFieldRest = sForTblKeyField 
+    Case kAcTable
+        If bIsHistory Then
+            sBudgetName = kAcCostHistoryName
+        Else
+            sBudgetName = kAcCostProjectionName
+        End If
+        sForTblKeyField = kAcTableKey
+        sKeyFieldRest = sForTblKeyField 
+    Case kDpTable
+        If bIsHistory Then
+            sBudgetName = kDpCostHistoryName
+        Else
+            sBudgetName = kDpCostProjectionName
+        End If
+        sForTblKeyField = kDpTableKey
+        sKeyFieldRest = "dp_id" 
+    End Select
+
+    iFromYear = CInt( CostAnalDlgVals.sFromDateStr )
+    iToYear = CInt( CostAnalDlgVals.sToDateStr )
+    iTotalYearsCount = iToYear - iFromYear + 1
+    nMsgThermomIncrement = ( 40 / ( iTotalYearsCount * 2 ) )
+
+    MsgSetThermometer 3
+
+    ProjDb.ExecuteSQL "DELETE FROM ccostprjn" & _
+                   " WHERE budget_id = '" & sBudgetName & "'"
+
+    nMsgThermomVal = 10            
+    MsgSetThermometer nMsgThermomVal
+
+    iYearCounter = 1
+
+'   ---- Create TEMPCALC records in the ccostprjn table for each of
+'   ---- the tables chosen as 'from tables' in the Costs Analysis Dialog for
+'   ---- each year.
+    For iYear = iFromYear To iToYear
+    
+        sFromDate = CStr( iYear ) & "-01-01"
+        sToDate = CStr( iYear ) & "-12-31"
+
+        If iYearCounter < 10 Then 
+            sYearCounter = "0" & CStr( iYearCounter ) 
+        Else
+            sYearCounter = CStr( iYearCounter ) 
+        End If
+    
+        If CostAnalDlgVals.bCostsFromCosts Then
+            CreateFinanProjRecordsFromCosts "cost_tran", _
+                sForTblKeyField, sAddlRest, sBudgetName, sYearCounter, _
+                sFromDate, sToDate
+        End If
+
+        nMsgThermomVal = nMsgThermomVal + nMsgThermomIncrement 
+        MsgSetThermometer nMsgThermomVal
+
+        If CostAnalDlgVals.bCostsFromSchedCosts Then
+            CreateFinanProjRecordsFromCosts "cost_tran_sched", _
+                sForTblKeyField, sAddlRest, sBudgetName, sYearCounter, _
+                sFromDate, sToDate
+        End If
+
+        nMsgThermomVal = nMsgThermomVal + nMsgThermomIncrement 
+        MsgSetThermometer nMsgThermomVal
+
+        iYearCounter = iYearCounter + 1
+    Next iYear
+
+    MsgSetThermometer 50
+
+    sFromDate = CStr( iFromYear ) & "-01-01"
+    sToDate = CStr( iToYear ) & "-12-31"
+
+    If CostAnalDlgVals.bCostsFromRecurCosts Then
+        lssup_CreateBudgetOrProjRecordsFromRecurCosts sForTblKeyField, _
+            sKeyFieldRest, 0, sBudgetName, _
+            sFromDate, sToDate, kFinancialProjType, sAddlRest, 50
+    End If
+
+    MsgSetThermometer 90
+
+'   ---- Sum up all temp records by entity_id and cost_cat_id so get only
+'   ---- one record per entity_id and cost_cat_id for this budget:
+    SumTempFinanProjRecordsToCostCat sForTblKeyField, sBudgetName
+
+    MsgSetThermometer 95
+
+'   ---- Delete all of the records used as intermediaries:
+    ProjDb.ExecuteSql "DELETE FROM ccostprjn" & _
+                   " WHERE budget_id = '" & sBudgetName & "'" & _
+                   " AND source = 'TEMPCALC'"
+
+    MsgSetThermometer 100
+
+    lssup_CreateFinancialProjections = sBudgetName
+
+    MsgClose
+
+End Function
+'------------------------------------------------------------------------------
+
+
+'------------------------------------------------------------------------------
+'---- Creates budget records from cost, sched cost, recur cost, and/or another
+'---- budget - based on choices picked in the Analyze Costs dialog box which
+'---- is defined in lsanal.abs.
+Sub lssup_CreateBudgetItems( CostAnalDlgVals As _
+        CostAnalysisDlgValueStructure, sBudgetNameToCreate As String, _
+        bIsTaxBudget As Boolean )
+
+    Dim sForTblKeyField As String
+    Dim sKeyFieldRest As String
+    Dim rNumMonths As Single
+    Dim sNumMonths As String
+
+    MsgOpen kCreatingBudgetRecordsMsg & BASIC.EOLN$ & kPleaseWaitMsg, _
+            0, FALSE, TRUE
+
+'   ---- Determine 'for table' primary key: pr_id, bl_id, ls_id, dp_id, ac_id
+    Select Case CostAnalDlgVals.sCostsForTable
+    Case kPropertyTable
+        sForTblKeyField = kPropertyTableKey
+        If bIsTaxBudget Then
+            sKeyFieldRest = " cost_cat.cost_type = 'TAX' AND " & _
+                                                kPropertyTableKey
+        Else
+            sKeyFieldRest = kPropertyTableKey
+        End If
+     Case kBlTable
+        sForTblKeyField = kBlTableKey
+        sKeyFieldRest = kBlTableKey
+     Case kLsTable
+        sForTblKeyField = kLsTableKey
+        sKeyFieldRest = kLsTableKey
+     Case kDpTable
+        sForTblKeyField = kDpTableKey
+        sKeyFieldRest = "dp_id"
+     Case kAcTable
+        sForTblKeyField = kAcTableKey
+        sKeyFieldRest = kAcTableKey
+    End Select
+
+
+'   ---- Calc number of months in date range picked
+    rNumMonths = DateDiff( "d", CostAnalDlgVals.sFromDateStr, _
+                DateAdd( "d", 1, CostAnalDlgVals.sToDateStr ) ) / _
+                    knAvgNumberOfDaysPerMonth
+    sNumMonths = Sup_ReplaceDecimalSymbolWithDotForSingle( rNumMonths )
+    
+    MsgSetThermometer 1
+
+'   ---- Create TEMPCALC records in the budget_item table for each of the 
+'   ---- tables chosen as 'from tables' in the Costs Analysis Dialog
+    If CostAnalDlgVals.bCostsFromCosts Then
+        CreateBudgetRecordsFromCosts "cost_tran", sForTblKeyField, _
+            sKeyFieldRest, sNumMonths, sBudgetNameToCreate, _
+            CostAnalDlgVals.sFromDateStr, CostAnalDlgVals.sToDateStr
+        MsgSetThermometer 15
+    End If
+
+    If CostAnalDlgVals.bCostsFromSchedCosts Then
+        CreateBudgetRecordsFromCosts "cost_tran_sched", sForTblKeyField, _
+            sKeyFieldRest, sNumMonths, sBudgetNameToCreate, _
+            CostAnalDlgVals.sFromDateStr, CostAnalDlgVals.sToDateStr
+
+        MsgSetThermometer 30
+    End If
+
+    If CostAnalDlgVals.bCostsFromRecurCosts Then
+        lssup_CreateBudgetOrProjRecordsFromRecurCosts sForTblKeyField, _
+            sKeyFieldRest, rNumMonths, sBudgetNameToCreate, _
+            CostAnalDlgVals.sFromDateStr, CostAnalDlgVals.sToDateStr, _
+            kBudgetType, "", 30
+        MsgSetThermometer 70
+    End If
+
+    If CostAnalDlgVals.bCostsFromBudget Then
+        CreateBudgetRecordsFromBudget CostAnalDlgVals.sCostsFromBudgetName, _
+            sForTblKeyField, sKeyFieldRest, sBudgetNameToCreate
+        MsgSetThermometer 80
+    End If
+
+'   ---- Sum up all temp records by entity_id and cost_cat_id so get only
+'   ---- one record per entity_id and cost_cat_id for this budget:
+    SumTempBudgetRecordsToCostCat   sForTblKeyField, sKeyFieldRest, _
+        sBudgetNameToCreate
+    MsgSetThermometer 90
+    
+
+'   ---- Delete all of the records used as intermediaries:
+    ProjDb.ExecuteSql "DELETE FROM budget_item" & _
+                   " WHERE budget_id = '" & sBudgetNameToCreate & "'" & _
+                   " AND source = 'TEMPCALC'"
+
+    MsgSetThermometer 100
+    Sleep 300
+    MsgClose
+
+End Sub
+'------------------------------------------------------------------------------
+
+'------------------------------------------------------------------------------
+'---- Creates budget records from Costs or Scheduled Costs: 
+Sub CreateBudgetRecordsFromCosts( sCostTable As String, _
+        sPrBlLsDpOrAcKeyField As String, sKeyFieldRest As String, _
+        sNumMonths As String, sBudgetNameToCreate As String, _
+        sFromDate As String, sToDate As String )
+
+    Dim sSqlStmt As String
+
+    sSqlStmt = "INSERT INTO budget_item (" & sPrBlLsDpOrAcKeyField & _
+                ", cost_cat_id, budget_id," & _
+                " month_inc," & _
+                " month_exp, source )" & _
+            " SELECT " & sPrBlLsDpOrAcKeyField & _
+                ", " & sCostTable & ".cost_cat_id, '" & _
+                    sBudgetNameToCreate & "'," & _
+                " SUM( amount_income ) / " & sNumMonths & "," &  _
+                " SUM( amount_expense ) / " & sNumMonths & "," & _
+                " 'TEMPCALC'" & _
+            " FROM " & sCostTable & ", cost_cat" & _
+            " WHERE cost_cat.cost_cat_id=" & sCostTable & ".cost_cat_id" & _
+            " AND " & sKeyFieldRest & " IS NOT NULL" & _
+            " AND " & SqlFunc_SQLIsNull() & "( date_paid, date_due ) >=" & _
+                ProjDb.ISOToNativeDate( sup_ISO_Date( sFromDate ) ) & _
+            " AND " & SqlFunc_SQLIsNull() & "( date_paid, date_due ) <=" & _
+                ProjDb.ISOToNativeDate( sup_ISO_Date( sToDate ) ) & _
+            " GROUP BY " & sPrBlLsDpOrAcKeyField & _
+                    ", " & sCostTable & ".cost_cat_id"
+    ProjDb.ExecuteSql sSqlStmt
+
+End Sub
+'------------------------------------------------------------------------------
+
+'------------------------------------------------------------------------------
+'---- Creates records from Recurring Costs based on the rules in the
+'---- Recurring Cost tables records. This is quite complex. A number of 
+'---- functions in costapp.abs are used to determine:
+'----   - what date costs and sched costs last used for this recur cost
+'----       to get the date to start looking at recurring costs;
+'----       if the fromDate is > changeover date then use FromDate
+'----   - different periods of recurrance ( days, months, quarters, year )
+'----   - seasonal periods that the recur costs only occur in
+'----   - yearly factors
+'----   - records whose status is not active
+'---- This is used for budgets, Financial Projections, Cash Flow
+'---- This function uses 40% of the MsgThermometer from iThermomValue passed
+Sub lssup_CreateBudgetOrProjRecordsFromRecurCosts( _
+        sPrBlLsDpOrAcKeyField As String, sKeyFieldRest As String, _
+        rNumMonths As Single, sBudgetNameToCreate As String, _
+        sFromDate As String, sToDate As String, iOperationType As Integer, _
+        sAddlRest As String, iThermomValue As Integer )
+
+    Dim rDaysDiff As Double
+    
+    MsgSetThermometer iThermomValue + 1
+        
+    Dim sSqlStmt            As String
+    Dim sFromWhereStmt      As String
+    Dim rsRecur         As New RecordSet
+    Dim iNumRecurRecs       As Integer
+    Dim iCurrentRecNum      As Integer
+    Dim sCostTranRecurId    As String
+    Dim sDateStart          As String
+    Dim iYearStart          As Integer
+    Dim sInterval           As String
+    Dim iIncrement          As Integer
+    Dim sDateEnd            As String
+    Dim dDateEnd            As Date
+    Dim dNextDate           As Date
+    Dim iCurrentMonth       As Integer
+    Dim iCurrentYearItem    As Integer
+    Dim sSeasonStartDate    As String
+    Dim sSeasonEndDate      As String
+    Dim rYearlyFactor       As Single
+    Dim rRsAmountIncome     As Double
+    Dim rRsAmountExpense    As Double
+    Dim rAmountIncome       As Double
+    Dim rAmountExpense      As Double
+    Dim rAmountIncomeTotal  As Double
+    Dim rAmountExpenseTotal As Double
+    Dim sKeyFieldRestStmt   As String
+    Dim rMonthlyCosts( 13 )  As Double      '---- we don't use element 0
+    Dim rYearlyCosts( 16 )  As Double       '---- we don't use element 0
+    Dim rCalcMonthlyFactor As Single
+
+    If sKeyFieldRest <> "" Then
+        sKeyFieldRestStmt = " AND " & sKeyFieldRest & " IS NOT NULL"
+    End If
+    iYearStart = Year( sFromDate )
+
+    MsgSetThermometer iThermomValue + 2
+
+'   ---- Get data from recurring cost records for active recur records which
+'   ---- have an id for the picked 'for table' (pr, bl, ls, dp, or ac)
+'   ---- and which fall within the chosen date range.
+'   ---- Null end date cause rec not to be selected; 8888-12-31 is substituted
+'    ---- cost_cat table is joined so sAddlRest can restrict on cost_type.
+    sFromWhereStmt = " FROM cost_tran_recur, cost_cat" & _
+            " WHERE status_active = 1" & _
+            " AND cost_cat.cost_cat_id = cost_tran_recur.cost_cat_id" & _
+            sKeyFieldRestStmt & _
+            " AND ((" & SqlFunc_SQLIsNull() & "( date_end," & _
+                SqlFunc_SQLMakeDate() & "(" & _
+                    ProjDb.ISOToNativeDate( ksDefaultEndDate ) & "))) >= " & _
+                ProjDb.ISOToNativeDate( sup_ISO_Date( sFromDate)) & ")" & _
+            " AND ( date_start <= " & _
+                ProjDb.ISOToNativeDate( sup_ISO_Date( sToDate ) ) & ")" & _
+            sAddlRest
+
+    sSqlStmt = "SELECT COUNT(*)" & sFromWhereStmt
+
+    rsRecur.Open sSqlStmt
+    iNumRecurRecs = rsRecur.Fields( 0 ).NumValue
+    rsRecur.Close
+    MsgSetThermometer iThermomValue + 3
+
+    sSqlStmt = "SELECT cost_tran_recur_id, amount_income, amount_expense," & _
+                    " date_end, date_seasonal_end," & _
+                    " date_seasonal_start, date_start," & _
+                    " period, period_custom, yearly_factor" & _
+                    sFromWhereStmt
+    rsRecur.Open sSqlStmt
+
+'   ---- Loop over the Recurring cost records; create Budget cost records
+'   ---- based on the values in each Recurring cost record
+    Do While Not rsRecur.EOF 
+    
+        iCurrentRecNum = iCurrentRecNum + 1
+        MsgSetThermometer iThermomValue + 3 + _
+                        ( 37 * ( iCurrentRecNum / iNumRecurRecs ) )
+
+        Erase rMonthlyCosts
+        Erase rYearlyCosts
+        rAmountIncomeTotal = 0.0
+        rAmountExpenseTotal = 0.0
+        rRsAmountIncome = rsRecur.Fields( "amount_income" ).NumValue
+        rRsAmountExpense = rsRecur.Fields( "amount_expense" ).NumValue
+
+        'Found correct value here
+
+        sCostTranRecurId = rsRecur.Fields( "cost_tran_recur_id" ).Value
+        sDateStart = rsRecur.Fields( "date_start" ).Value
+
+'       ---- Set the values required by the DateAdd function
+'       ---- to determine the date intervals at which this recur cost occurs
+        sInterval = costapp_GetInterval( rsRecur.Fields( "period" ).Value )
+        If sInterval = "d" Then 
+            iIncrement = rsRecur.Fields( "period_custom" ).NumValue
+        Else 
+            iIncrement = 1
+        End If
+
+'       ---- Get the date when the last cost or sched cost was created for
+        dNextDate = costapp_GetRecurChangeOverDate( sCostTranRecurId, _
+                    sDateStart, sInterval, iIncrement )
+        
+'       ---- If the from date is > ChangeOverDate skip to the from date to 
+'       ---- start looking at recurring costs
+        If DateValue( sFromDate ) > dNextDate Then 
+            Do While dNextDate < DateValue( sFromDate )
+                dNextDate = DateAdd( sInterval, iIncrement, _
+                                Format$( dNextDate, "yyyy-mm-dd" ) )
+            Loop
+            'NKS -- 6/14/2005 Added to correct for partial month date range
+            dNextDate=DateValue( sFromDate )
+        End If
+
+'       ---- Set the seasonal dates and yearly factor
+        sSeasonStartDate = rsRecur.Fields( "date_seasonal_start" ).Value
+        sSeasonEndDate = rsRecur.Fields( "date_seasonal_end" ).Value
+        rYearlyFactor = rsRecur.Fields( "yearly_factor" ).NumValue
+
+'       ---- Get earliest end date for rec - check chosen date vs. recur date
+        sDateEnd = rsRecur.Fields( "date_end" ).Value
+        If sDateEnd <> "" Then
+            dDateEnd = sup_ISOtoBasic( sDateEnd )
+            If DateValue( sToDate ) < dDateEnd Then 
+                dDateEnd = DateValue( sToDate )
+            End If
+        Else
+            dDateEnd = DateValue( sToDate )
+        End If
+        
+        'NKS - Testing for Qualcomm 6/10/2005
+
+'       ---- Repeat incrementing date and creating budget costs,
+'       ---- for each increment create a new budget cost record, until
+'       ---- reach the end date picked or the end date of the recur cost.
+        If iIncrement <> 0 Then
+            Do While dNextDate <= dDateEnd
+
+
+                If DateDiff( sInterval, dNextDate, dDateEnd ) < 1 Then
+                    '-- NKS Modified this calculation to determine partial month days
+                    rDaysDiff = (LSSUP_GetDaysInMonth(dNextDate)-(dDateEnd - dNextDate ))/LSSUP_GetDaysInMonth(dNextDate)       
+                Else 
+                    rDaysDiff = 1
+                End If
+
+                If Not costapp_OutOfSeason( dNextDate, sSeasonStartDate, _
+                                            sSeasonEndDate ) Then
+                                                
+                    rCalcMonthlyFactor = 1      
+                    If DateDiff("y",dNextDate,dDateEnd) < LSSUP_GetDaysInMonth(dNextDate) AND _ 
+                                                        DateDiff("y",dNextDate,dDateEnd) > 0 Then
+                        
+                        rCalcMonthlyFactor = DateDiff("y",dNextDate,dDateEnd) / LSSUP_GetDaysInMonth(dNextDate)
+                                                
+                    End If 
+
+                    ' NKS added rCalcMonthlyFactor to function.
+'                   ---- Compute Income and Expense values using yearly factor
+                    costapp_ComputeIncomeAndExpense _
+                        rAmountIncome, rAmountExpense, _
+                        rYearlyFactor, sDateStart, _
+                        Format$( dNextDate, "yyyy-mm-dd" ), _
+                        rRsAmountIncome, rRsAmountExpense, rCalcMonthlyFactor
+
+                    'NKS - Testing for Qualcomm 6/10/2005
+
+                    If ( iOperationType = kBudgetType ) Or _
+                            ( iOperationType = kPropOrLsSumType ) Then
+'                       ---- keep running total for this record
+                        
+                        'NKS - 6/10/2005 removed "* rDaysDiff" from calculation below.  
+                        rAmountIncomeTotal =rAmountIncomeTotal + ( rAmountIncome)
+                        rAmountExpenseTotal=rAmountExpenseTotal+ ( rAmountExpense)
+                    ElseIf iOperationType = kFinancialProjType Then
+                        iCurrentYearItem = 1 + Year( dNextDate ) - iYearStart
+                        rYearlyCosts( iCurrentYearItem ) = _
+                            rYearlyCosts( iCurrentYearItem ) + _
+                            rAmountIncome - rAmountExpense
+                    ElseIf iOperationType = kCashFlowType Then
+                        iCurrentMonth = Month( dNextDate )
+                        rMonthlyCosts( iCurrentMonth ) = _
+                            rMonthlyCosts( iCurrentMonth ) + _
+                            rAmountIncome - rAmountExpense
+                    End If
+
+                End If
+
+
+                dNextDate = DateAdd( sInterval, iIncrement, _
+                                Format$( dNextDate, "yyyy-mm-dd" ) )
+            Loop    '---- Next date
+        End If
+
+'       ---- Create budget, projection or cash flow record for the recur
+'       ---- cost. Proj & Cash Flow get one rec per recur cost.
+'       ---- For budgets, each recur cost is divided by rNumMonths to give a
+'       ---- cost per the time period chosen & one rec created per dNextDate
+
+        If ( iOperationType = kBudgetType ) And ((rAmountIncomeTotal<>0) _
+                Or ( rAmountExpenseTotal <> 0 )) Then
+            CreateBudRecFromRecur _
+                rsRecur.Fields( "cost_tran_recur_id" ).Value, _
+                Sup_ReplaceDecimalSymbolWithDotForDouble( rAmountIncomeTotal / rNumMonths ), _
+                Sup_ReplaceDecimalSymbolWithDotForDouble( rAmountExpenseTotal / rNumMonths ), _
+                sPrBlLsDpOrAcKeyField, sBudgetNameToCreate
+        ElseIf ( iOperationType = kPropOrLsSumType ) And _
+                ((rAmountIncomeTotal<>0) Or ( rAmountExpenseTotal<>0)) Then
+            CreateBudRecFromRecur _
+                rsRecur.Fields( "cost_tran_recur_id" ).Value, _
+                Sup_ReplaceDecimalSymbolWithDotForDouble( rAmountIncomeTotal ), _
+                Sup_ReplaceDecimalSymbolWithDotForDouble( rAmountExpenseTotal ), _
+                sPrBlLsDpOrAcKeyField, sBudgetNameToCreate
+        ElseIf iOperationType = kFinancialProjType Then
+            CreateProjRecFromRecur _
+                rsRecur.Fields( "cost_tran_recur_id" ).Value, _
+                sPrBlLsDpOrAcKeyField, sBudgetNameToCreate, rYearlyCosts
+        ElseIf iOperationType = kCashFlowType Then
+            CreateCashFlowRecFromRecur _
+                rsRecur.Fields( "cost_tran_recur_id" ).Value, _
+                sPrBlLsDpOrAcKeyField, rMonthlyCosts
+        End If
+        rsRecur.MoveNext
+    Loop '---- Next Recurring cost record
+
+    rsRecur.Close
+
+End Sub
+'------------------------------------------------------------------------------
+
+'------------------------------------------------------------------------------
+'---- Creates a budget item record from a recurring cost
+Sub CreateBudRecFromRecur( sRecurRecId As String, _
+        sIncomePerMonth As String, sExpensePerMonth As String, _
+        sPrBlLsDpOrAcKeyField As String, sBudgetNameToCreate As String )
+
+    Dim sSqlStmt As String
+
+    sSqlStmt = "INSERT INTO budget_item (" & sPrBlLsDpOrAcKeyField & _
+                ", cost_cat_id, budget_id," & _
+                " month_inc," & _
+                " month_exp, source )" & _
+             " SELECT " & sPrBlLsDpOrAcKeyField & _
+                ", cost_cat_id, '" & sBudgetNameToCreate & "'," & _
+                 sIncomePerMonth & "," & sExpensePerMonth & "," & _
+                " 'TEMPCALC'" & _
+             " FROM cost_tran_recur" & _
+             " WHERE cost_tran_recur_id = '" & sRecurRecId & "'"
+
+    ProjDb.ExecuteSql sSqlStmt
+
+End Sub
+'------------------------------------------------------------------------------
+
+
+'------------------------------------------------------------------------------
+'---- Creates budget records from other budget records
+Sub CreateBudgetRecordsFromBudget( sCostsFromBudgetName As String, _
+        sPrBlLsDpOrAcKeyField As String, sKeyFieldRest As String, _
+        sBudgetNameToCreate As String )
+
+    Dim sSqlStmt As String
+
+    sSqlStmt = "INSERT INTO budget_item (" & sPrBlLsDpOrAcKeyField & _
+                ", cost_cat_id, budget_id," & _
+                " month_inc," & _
+                " month_exp, source )" & _
+            " SELECT " & sPrBlLsDpOrAcKeyField & _
+                ", budget_item.cost_cat_id, '" & _
+                sBudgetNameToCreate & "'," & _
+                " month_inc," & _
+                " month_exp, 'TEMPCALC'" & _
+            " FROM budget_item, cost_cat" & _
+            " WHERE cost_cat.cost_cat_id = budget_item.cost_cat_id" & _
+            " AND " & sKeyFieldRest & " IS NOT NULL" & _
+            " AND budget_id = '" & sCostsFromBudgetName & "'"
+
+    ProjDb.ExecuteSql sSqlStmt
+
+End Sub
+'------------------------------------------------------------------------------
+
+'------------------------------------------------------------------------------
+'---- Sum up all temp records by enitity_id and cost_cat_id so get only one 
+'---- record per entity_id and cost_cat_id for this budget:
+Sub SumTempBudgetRecordsToCostCat( sPrBlLsDpOrAcKeyField As String, _
+        sKeyFieldRest As String, sBudgetNameToCreate As String )
+
+    Dim sSqlStmt As String
+
+    sSqlStmt = "INSERT INTO budget_item (" & sPrBlLsDpOrAcKeyField & _
+                ", cost_cat_id, budget_id," & _
+                " month_inc," & _
+                " month_exp, source )" & _
+            " SELECT " & sPrBlLsDpOrAcKeyField & _
+                ", budget_item.cost_cat_id, '" & _
+                sBudgetNameToCreate & "'," & _
+                " SUM(month_inc)," & _
+                " SUM(month_exp), 'AUTO-GEN'" & _
+            " FROM budget_item, cost_cat" & _
+            " WHERE budget_id = '" & sBudgetNameToCreate & "'" & _
+            " AND source = 'TEMPCALC'" & _
+            " AND cost_cat.cost_cat_id = budget_item.cost_cat_id" & _
+            " AND " & sKeyFieldRest & " IS NOT NULL" & _
+            " GROUP BY " & sPrBlLsDpOrAcKeyField & _
+                    ", budget_item.cost_cat_id"
+
+    ProjDb.ExecuteSql sSqlStmt
+
+End Sub
+'------------------------------------------------------------------------------
+
+
+'------------------------------------------------------------------------------
+'---- Creates Financial Projection records from Costs or Scheduled Costs: 
+'---- Each record only has a single year cost filled in. The summation 
+'---- function after all of the TEMPCALC records are created will create
+'---- single cost_cat, sPrOrLsKeyField records.
+Sub CreateFinanProjRecordsFromCosts( sCostTable As String, _
+        sPrOrLsKeyField As String, sAddlRest As String, _ 
+        sBudgetNameToCreate As String, sYearCounter As String, _
+        sFromDate As String, sToDate As String )
+
+    Dim sSqlStmt As String
+    Dim sNotNullKey As String
+
+    If sPrOrLsKeyField <> kDpTableKey Then
+        sNotNullKey = sPrOrLsKeyField
+    Else
+        sNotNullKey = "dp_id"
+    End If
+
+    sSqlStmt = "INSERT INTO ccostprjn (" & _
+                sPrOrLsKeyField & ", cost_cat_id, budget_id," & _
+                " year_" & sYearCounter & "_costs, source )" & _
+            " SELECT " & sPrOrLsKeyField & "," & _
+                sCostTable & ".cost_cat_id, '" & sBudgetNameToCreate & _
+                "', (SUM( amount_income ) - SUM( amount_expense ))," & _
+                " 'TEMPCALC'" & _
+            " FROM " & sCostTable & ",cost_cat" & _
+            " WHERE " & sNotNullKey & " IS NOT NULL" & _
+            " AND cost_cat.cost_cat_id = " & sCostTable & ".cost_cat_id" & _
+            " AND " & SqlFunc_SQLIsNull() & "( date_paid, date_due ) >=" & _
+                ProjDb.ISOToNativeDate( sFromDate ) & _
+            " AND " & SqlFunc_SQLIsNull() & "( date_paid, date_due ) <=" & _
+                ProjDb.ISOToNativeDate( sToDate ) & _
+            sAddlRest & _
+            " GROUP BY " & sPrOrLsKeyField & "," & _
+                        sCostTable & ".cost_cat_id"
+
+    ProjDb.ExecuteSql sSqlStmt
+
+End Sub
+'------------------------------------------------------------------------------
+
+
+'------------------------------------------------------------------------------
+'---- Creates a ccostprjn item record from a recurring cost
+Sub CreateProjRecFromRecur( sRecurRecId As String, _
+        sPrOrLsKeyField As String, sBudgetNameToCreate As String, _
+        rYearlyCosts() As Double )
+
+    Dim sSqlStmt As String
+
+    sSqlStmt = "INSERT INTO ccostprjn (" & _
+                sPrOrLsKeyField & ", cost_cat_id, budget_id," & _
+                " year_01_costs, year_02_costs, year_03_costs, " & _
+                " year_04_costs, year_05_costs, year_06_costs, " & _
+                " year_07_costs, year_08_costs, year_09_costs, " & _
+                " year_10_costs, year_11_costs, year_12_costs, " & _
+                " year_13_costs, year_14_costs, year_15_costs, source)" & _
+             " SELECT " & sPrOrLsKeyField & _
+                ", cost_cat_id, '" & sBudgetNameToCreate & "'," & _
+                Sup_ReplaceDecimalSymbolWithDotForDouble( rYearlyCosts( 1 ) ) & "," & _
+                Sup_ReplaceDecimalSymbolWithDotForDouble( rYearlyCosts( 2 ) ) & "," & _
+                Sup_ReplaceDecimalSymbolWithDotForDouble( rYearlyCosts( 3 ) ) & "," & _
+                Sup_ReplaceDecimalSymbolWithDotForDouble( rYearlyCosts( 4 ) ) & "," & _
+                Sup_ReplaceDecimalSymbolWithDotForDouble( rYearlyCosts( 5 ) ) & "," & _
+                Sup_ReplaceDecimalSymbolWithDotForDouble( rYearlyCosts( 6 ) ) & "," & _
+                Sup_ReplaceDecimalSymbolWithDotForDouble( rYearlyCosts( 7 ) ) & "," & _
+                Sup_ReplaceDecimalSymbolWithDotForDouble( rYearlyCosts( 8 ) ) & "," & _
+                Sup_ReplaceDecimalSymbolWithDotForDouble( rYearlyCosts( 9 ) ) & "," & _
+                Sup_ReplaceDecimalSymbolWithDotForDouble( rYearlyCosts( 10 ) ) & "," & _
+                Sup_ReplaceDecimalSymbolWithDotForDouble( rYearlyCosts( 11 ) ) & "," & _
+                Sup_ReplaceDecimalSymbolWithDotForDouble( rYearlyCosts( 12 ) ) & "," & _
+                Sup_ReplaceDecimalSymbolWithDotForDouble( rYearlyCosts( 13 ) ) & "," & _
+                Sup_ReplaceDecimalSymbolWithDotForDouble( rYearlyCosts( 14 ) ) & "," & _
+                Sup_ReplaceDecimalSymbolWithDotForDouble( rYearlyCosts( 15 ) ) & ", 'TEMPCALC'" & _
+             " FROM cost_tran_recur" & _
+             " WHERE cost_tran_recur_id = '" & sRecurRecId & "'"
+
+    ProjDb.ExecuteSql sSqlStmt
+
+End Sub
+'------------------------------------------------------------------------------
+
+
+'------------------------------------------------------------------------------
+'---- Sum up all temp records by enitity_id and cost_cat_id so get only one 
+'---- record per entity_id and cost_cat_id for this budget_id:
+Sub SumTempFinanProjRecordsToCostCat( sPrOrLsKeyField As String, _
+        sBudgetNameToCreate As String )
+
+    Dim sSqlStmt As String
+
+    sSqlStmt = "INSERT INTO ccostprjn (" & sPrOrLsKeyField & _
+                ", cost_cat_id, budget_id," & _
+                " year_01_costs, year_02_costs, year_03_costs, " & _
+                " year_04_costs, year_05_costs, year_06_costs, " & _
+                " year_07_costs, year_08_costs, year_09_costs, " & _
+                " year_10_costs, year_11_costs, year_12_costs, " & _
+                " year_13_costs, year_14_costs, year_15_costs, source)" & _
+            " SELECT " & sPrOrLsKeyField & _
+                ", cost_cat_id, '" & sBudgetNameToCreate & "'," & _
+                " SUM( year_01_costs ), SUM( year_02_costs ), " & _
+                " SUM( year_03_costs ), SUM( year_04_costs ), " & _
+                " SUM( year_05_costs ), SUM( year_06_costs ), " & _
+                " SUM( year_07_costs ), SUM( year_08_costs ), " & _
+                " SUM( year_09_costs ), SUM( year_10_costs ), " & _
+                " SUM( year_11_costs ), SUM( year_12_costs ), " & _
+                " SUM( year_13_costs ), SUM( year_14_costs ), " & _
+                " SUM( year_15_costs ), 'AUTO-GEN'" & _
+            " FROM ccostprjn" & _
+            " WHERE budget_id = '" & sBudgetNameToCreate & "'" & _
+            " AND source = 'TEMPCALC'" & _
+            " GROUP BY " & sPrOrLsKeyField & ", cost_cat_id"
+
+    ProjDb.ExecuteSql sSqlStmt
+
+End Sub
+'------------------------------------------------------------------------------
+
+'------------------------------------------------------------------------------
+'---- Creates Cash Flow records from Costs or Scheduled Costs: 
+'---- Each record only has a single month cost filled in. The summation 
+'---- function after all of the TEMPCALC records are created will create
+'---- single cost_cat, sPrOrLsKeyField records.
+Sub CreateCashFlowCostRecordsFromCosts( sCostTable As String, _
+        sPrOrLsKeyField As String, sAddlRest As String, _ 
+        sMonth As String, sFromDate As String, sToDate As String )
+
+    Dim sSqlStmt As String
+    Dim sOwnerKeyField As String
+    Dim sOwnerRestStmt As String
+
+    If sPrOrLsKeyField <> "" Then 
+        sOwnerKeyField = sPrOrLsKeyField & ", "
+        If sPrOrLsKeyField <> kDpTableKey Then
+            sOwnerRestStmt = " AND " & sPrOrLsKeyField & " IS NOT NULL"
+        Else
+            sOwnerRestStmt = " AND dp_id IS NOT NULL"
+        End If
+    End If
+
+    sSqlStmt = "INSERT INTO ccshflw (" & _
+                sOwnerKeyField & "cost_cat_id," & _
+                " month_" & sMonth & "_costs, source )" & _
+            " SELECT " & sOwnerKeyField & sCostTable & ".cost_cat_id," & _
+                " (SUM( amount_income ) - SUM( amount_expense ))," & _
+                " 'TEMPCALC'" & _
+            " FROM " & sCostTable & ",cost_cat" & _
+            " WHERE cost_cat.cost_cat_id=" & sCostTable & ".cost_cat_id" & _
+            sOwnerRestStmt & _
+            " AND " & SqlFunc_SQLIsNull() & "( date_paid, date_due ) >=" & _
+                ProjDb.ISOToNativeDate( sFromDate ) & _
+            " AND " & SqlFunc_SQLIsNull() & "( date_paid, date_due ) <" & _
+                ProjDb.ISOToNativeDate( sToDate ) & _
+            sAddlRest & _
+            " GROUP BY " & sOwnerKeyField & sCostTable & ".cost_cat_id"
+
+    ProjDb.ExecuteSql sSqlStmt
+
+End Sub
+'------------------------------------------------------------------------------
+
+'------------------------------------------------------------------------------
+'---- Create records in cash flow table for budget items to compare to costs
+Sub CreateBudgetCashFlowRecords( iYear As Integer, sBudgetName As String, _
+        sOwnerKey As String, sKeyFieldRest As String, _
+        sOwnerTableName As String )
+
+    Dim sKeyFieldRestStmt   As String
+    Dim BudItem         As BudgetItemDatesAndCostsStructure
+    Dim sSqlStmt            As String
+    Dim sSqlFromWhereStmt   As String
+    Dim scshflowOwnerStmt   As String
+    Dim rsBudItem           As New RecordSet
+    Dim nBudItemRecords     As Double
+    Dim nBudItemRecCounter  As Double
+    Dim iMonthCounter       As Integer
+    Dim nMonthCosts( 13 )   As Double
+    Dim iNextMonth          As Integer
+    Dim iTestYear           As Integer
+
+    If sKeyFieldRest <> "" Then
+        sKeyFieldRestStmt = " AND " & sKeyFieldRest & " IS NOT NULL"
+    End If
+
+
+    sSqlFromWhereStmt = " FROM budget_item" & _
+                     " WHERE budget_id = '" & sBudgetName & "'" & _
+                       sKeyFieldRestStmt
+
+    rsBudItem.Open "SELECT COUNT(*)" & sSqlFromWhereStmt
+
+    If Not rsBudItem.EOF Then nBudItemRecords = rsBudItem.Fields( 0 ).NumValue
+    rsBudItem.Close
+
+    If nBudItemRecords < 1 Then 
+        MsgBox kNoBudgetItemRecordsForBudMsg & " " & sBudgetName & _
+            " " & kForMsg & " " & _
+            sOwnerTableName, ebInformation, kCreatingBudVarRecordsMsg
+        Exit Sub    '---- Exit the sub-routine
+    End If
+
+    MsgSetThermometer 31
+
+    sSqlStmt = "SELECT month_exp, month_inc," & _
+                sOwnerKey & ", cost_cat_id, date_start, date_end," & _
+                " date_seasonal_start, date_seasonal_end,yearly_factor" & _
+                sSqlFromWhereStmt
+
+    rsBudItem.Open sSqlStmt
+
+    MsgSetThermometer 32
+
+    Do While Not rsBudItem.EOF 
+
+'       ---- set default of no costs yet for this year
+        Erase nMonthCosts
+
+'       ---- store budget_item values; if no dates then set default values
+        BudItem.sDateStart = rsBudItem.Fields( "date_start" ).Value
+        If BudItem.sDateStart = "" Then BudItem.sDateStart=ksDefaultStartDate
+        BudItem.dDateStart = sup_ISOtoBasic( BudItem.sDateStart )
+
+        BudItem.sDateEnd = rsBudItem.Fields( "date_end" ).Value
+        If BudItem.sDateEnd = "" Then BudItem.sDateEnd = ksDefaultEndDate
+        BudItem.dDateEnd = sup_ISOtoBasic( BudItem.sDateEnd )
+
+        BudItem.sDateSeasonStart = _
+                rsBudItem.Fields( "date_seasonal_start" ).Value
+        If BudItem.sDateSeasonStart = "" Then _
+            BudItem.sDateSeasonStart = ksDefaultStartDate
+        BudItem.dDateSeasonStart = sup_ISOtoBasic( BudItem.sDateSeasonStart )
+
+        BudItem.sDateSeasonEnd = rsBudItem.Fields( "date_seasonal_end").Value
+        If BudItem.sDateSeasonEnd = "" Then _
+            BudItem.sDateSeasonEnd = ksDefaultEndDate
+        BudItem.dDateSeasonEnd = sup_ISOtoBasic( BudItem.sDateSeasonEnd )
+        
+        BudItem.nIncomePerMonth = _
+                rsBudItem.Fields( "month_inc" ).NumValue
+        BudItem.nExpensePerMonth = _
+                rsBudItem.Fields( "month_exp" ).NumValue
+
+        BudItem.nYearlyFactor = rsBudItem.Fields( "yearly_factor" ).NumValue
+        If BudItem.nYearlyFactor = 0 Then BudItem.nYearlyFactor = 1
+
+          For iMonthCounter = 1 To 12
+            If iMonthCounter < 12 Then 
+                iNextMonth = iMonthCounter + 1
+                iTestYear = iYear
+            Else
+                iNextMonth = 1
+                iTestYear = iYear + 1
+            End If
+
+'              ---- If no dates all costs are the same
+               If ( BudItem.sDateStart = ksDefaultStartDate ) And _
+                    ( BudItem.sDateEnd = ksDefaultEndDate ) And _
+                         ( BudItem.sDateSeasonStart = ksDefaultStartDate) And _
+                         ( BudItem.sDateSeasonEnd = ksDefaultEndDate ) Then
+                    nMonthCosts( iMonthCounter ) = _
+                    ( BudItem.nIncomePerMonth - BudItem.nExpensePerMonth )
+
+'           ---- Make sure the budget item is valid for this month
+               ElseIf ( ( DateValue( BudItem.sDateStart ) >= _
+                        DateSerial( iTestYear, iNextMonth, 1 ) ) Or _
+                    ( DateValue( BudItem.sDateEnd ) < _
+                        DateSerial( iYear, iMonthCounter, 1 ) ) ) Then 
+                    nMonthCosts( iMonthCounter ) = 0
+            
+               Else     '---- Calc the costs based on dates and yearly factor
+'               ---- Get the first Season cost              
+                    nMonthCosts( iMonthCounter ) = _
+                    CalcProjectedMonthBudgetCost( 1, iYear, _
+                                            iMonthCounter, BudItem )
+'               ---- Get the second Season cost             
+                    nMonthCosts(iMonthCounter) = nMonthCosts(iMonthCounter) + _
+                    CalcProjectedMonthBudgetCost( 2, iYear, _
+                                            iMonthCounter, BudItem )
+               End If
+
+          Next iMonthCounter
+
+        If sOwnerKey <> kDpTableKey Then
+            scshflowOwnerStmt = " '" & _
+                rsBudItem.Fields( sOwnerKey ).Value & "',"
+        Else
+            scshflowOwnerStmt = " '" & _
+                rsBudItem.Fields( "dv_id" ).Value & "', '" & _
+                rsBudItem.Fields( "dp_id" ).Value & "',"
+        End If
+
+'       ---- Create the ccshflw record using the nMonthCosts
+'       ----  array for all of the monthly budget fields for the record.
+        sSqlStmt = "INSERT INTO ccshflw" & _
+                " ( " & sOwnerKey & ", cost_cat_id, source," & _
+                  " month_01_budget, month_02_budget, month_03_budget," & _
+                  " month_04_budget, month_05_budget, month_06_budget," & _
+                  " month_07_budget, month_08_budget, month_09_budget," & _
+                  " month_10_budget, month_11_budget, month_12_budget)" & _
+                " VALUES (" & _
+                    scshflowOwnerStmt & _
+                    "'" & rsBudItem.Fields("cost_cat_id").Value & "'," & _
+                    " 'TEMPCALC'," & _
+                    Sup_ReplaceCommaWithDot(    CStr( nMonthCosts( 1 ) ) ) & "," & _
+                    Sup_ReplaceCommaWithDot( CStr( nMonthCosts( 2 ) ) ) & "," & _
+                    Sup_ReplaceCommaWithDot( CStr( nMonthCosts( 3 ) ) ) & "," & _
+                    Sup_ReplaceCommaWithDot( CStr( nMonthCosts( 4 ) ) ) & "," & _
+                    Sup_ReplaceCommaWithDot( CStr( nMonthCosts( 5 ) ) ) & "," & _
+                    Sup_ReplaceCommaWithDot( CStr( nMonthCosts( 6 ) ) ) & "," & _
+                    Sup_ReplaceCommaWithDot( CStr( nMonthCosts( 7 ) ) ) & "," & _
+                    Sup_ReplaceCommaWithDot( CStr( nMonthCosts( 8 ) ) ) & "," & _
+                    Sup_ReplaceCommaWithDot( CStr( nMonthCosts( 9 ) ) ) & "," & _
+                    Sup_ReplaceCommaWithDot( CStr( nMonthCosts( 10 ) ) ) & "," & _
+                    Sup_ReplaceCommaWithDot( CStr( nMonthCosts( 11 ) ) ) & "," & _
+                    Sup_ReplaceCommaWithDot( CStr( nMonthCosts( 12 ) ) ) & ")"
+        ProjDb.ExecuteSql sSqlStmt
+                    
+          rsBudItem.MoveNext
+
+        nBudItemRecCounter = nBudItemRecCounter + 1
+        MsgSetThermometer (32 +(( 18/ nBudItemRecords) * nBudItemRecCounter))
+
+     Loop      '---- next budget_item record
+
+    rsBudItem.Close
+
+End Sub
+'------------------------------------------------------------------------------
+
+'------------------------------------------------------------------------------
+'---- Creates a ccshflw item record from a recurring cost
+Sub CreateCashFlowRecFromRecur( sRecurRecId As String, _
+        sPrOrLsKeyField As String, rMonthlyCosts() As Double )
+
+    Dim sSqlStmt As String
+    Dim sOwnerKeyField As String
+
+    If sPrOrLsKeyField <> "" Then 
+        sOwnerKeyField = sPrOrLsKeyField & ", "
+    End If
+
+    sSqlStmt = "INSERT INTO ccshflw (" & _
+                sOwnerKeyField & "cost_cat_id," & _
+                " month_01_costs, month_02_costs, month_03_costs, " & _
+                " month_04_costs, month_05_costs, month_06_costs, " & _
+                " month_07_costs, month_08_costs, month_09_costs, " & _
+                " month_10_costs, month_11_costs, month_12_costs, " & _
+                " source )" & _
+             " SELECT " & sOwnerKeyField & "cost_cat_id," & _
+                Sup_ReplaceDecimalSymbolWithDotForDouble( rMonthlyCosts( 1 ) ) & "," & _
+                Sup_ReplaceDecimalSymbolWithDotForDouble( rMonthlyCosts( 2 ) ) & "," & _
+                Sup_ReplaceDecimalSymbolWithDotForDouble( rMonthlyCosts( 3 ) ) & "," & _
+                Sup_ReplaceDecimalSymbolWithDotForDouble( rMonthlyCosts( 4 ) ) & "," & _
+                Sup_ReplaceDecimalSymbolWithDotForDouble( rMonthlyCosts( 5 ) ) & "," & _
+                Sup_ReplaceDecimalSymbolWithDotForDouble( rMonthlyCosts( 6 ) ) & "," & _
+                Sup_ReplaceDecimalSymbolWithDotForDouble( rMonthlyCosts( 7 ) ) & "," & _
+                Sup_ReplaceDecimalSymbolWithDotForDouble( rMonthlyCosts( 8 ) ) & "," & _
+                Sup_ReplaceDecimalSymbolWithDotForDouble( rMonthlyCosts( 9 ) ) & "," & _
+                Sup_ReplaceDecimalSymbolWithDotForDouble( rMonthlyCosts( 10 ) ) & "," & _
+                Sup_ReplaceDecimalSymbolWithDotForDouble( rMonthlyCosts( 11 ) ) & "," & _
+                Sup_ReplaceDecimalSymbolWithDotForDouble( rMonthlyCosts( 12 ) ) & "," & _
+                "'TEMPCALC'" & _
+             " FROM cost_tran_recur" & _
+             " WHERE cost_tran_recur_id = '" & sRecurRecId & "'"
+
+    ProjDb.ExecuteSql sSqlStmt
+
+End Sub
+'------------------------------------------------------------------------------
+
+'------------------------------------------------------------------------------
+'---- Sum up all temp records by enitity_id and cost_cat_id so get only one 
+'---- record per entity_id and cost_cat_id
+Sub SumTempCashFlowRecordsToCostCat( sPrOrLsKeyField As String )
+
+    Dim sSqlStmt As String
+    Dim sOwnerKeyField As String
+
+    If sPrOrLsKeyField <> "" Then sOwnerKeyField = sPrOrLsKeyField & ", "
+
+    sSqlStmt = "INSERT INTO ccshflw (" & sOwnerKeyField & _
+                " cost_cat_id," & _
+                " month_01_costs, month_02_costs, month_03_costs, " & _
+                " month_04_costs, month_05_costs, month_06_costs, " & _
+                " month_07_costs, month_08_costs, month_09_costs, " & _
+                " month_10_costs, month_11_costs, month_12_costs, " & _
+                " month_01_budget, month_02_budget, month_03_budget, " & _
+                " month_04_budget, month_05_budget, month_06_budget, " & _
+                " month_07_budget, month_08_budget, month_09_budget, " & _
+                " month_10_budget, month_11_budget, month_12_budget, " & _
+                " source )" & _
+            " SELECT " & sOwnerKeyField & " cost_cat_id," & _
+                " SUM( month_01_costs ), SUM( month_02_costs ), " & _
+                " SUM( month_03_costs ), SUM( month_04_costs ), " & _
+                " SUM( month_05_costs ), SUM( month_06_costs ), " & _
+                " SUM( month_07_costs ), SUM( month_08_costs ), " & _
+                " SUM( month_09_costs ), SUM( month_10_costs ), " & _
+                " SUM( month_11_costs ), SUM( month_12_costs ), " & _
+                " SUM( month_01_budget ), SUM( month_02_budget ), " & _
+                " SUM( month_03_budget ), SUM( month_04_budget ), " & _
+                " SUM( month_05_budget ), SUM( month_06_budget ), " & _
+                " SUM( month_07_budget ), SUM( month_08_budget ), " & _
+                " SUM( month_09_budget ), SUM( month_10_budget ), " & _
+                " SUM( month_11_budget ), SUM( month_12_budget ), " & _
+                " 'AUTO-GEN'" & _
+            " FROM ccshflw" & _
+            " WHERE source = 'TEMPCALC'" & _
+            " GROUP BY " & sOwnerKeyField & "cost_cat_id"
+
+    ProjDb.ExecuteSql sSqlStmt
+
+End Sub
+'------------------------------------------------------------------------------
+
+'------------------------------------------------------------------------------
+'---- Add up monthly costs to get qtr and year costs and budget for cash flow
+Sub CalcQtrAndYearCashFlowCosts()
+
+    Dim sSqlStmt As String
+
+    sSqlStmt = "UPDATE ccshflw SET" & _
+            " qtr_01_costs =" & _
+                "( month_01_costs + month_02_costs + month_03_costs )," & _
+            " qtr_02_costs =" & _
+                "( month_04_costs + month_05_costs + month_06_costs )," & _
+            " qtr_03_costs =" & _
+                "( month_07_costs + month_08_costs + month_09_costs )," & _
+            " qtr_04_costs =" & _
+                "( month_10_costs + month_11_costs + month_12_costs )," & _
+            " year_costs =" & _
+                "(month_01_costs + month_02_costs + month_03_costs +" & _
+                " month_04_costs + month_05_costs + month_06_costs +" & _
+                " month_07_costs + month_08_costs + month_09_costs +" & _
+                " month_10_costs + month_11_costs + month_12_costs )," & _
+            " qtr_01_budget =" & _
+                "(month_01_budget + month_02_budget +month_03_budget)," & _
+            " qtr_02_budget =" & _
+                "(month_04_budget + month_05_budget +month_06_budget)," & _
+            " qtr_03_budget =" & _
+                "(month_07_budget + month_08_budget +month_09_budget)," & _
+            " qtr_04_budget =" & _
+                "(month_10_budget + month_11_budget +month_12_budget)," & _
+            " year_budget =" & _
+                "(month_01_budget + month_02_budget +month_03_budget +" & _
+                " month_04_budget + month_05_budget +month_06_budget +" & _
+                " month_07_budget + month_08_budget +month_09_budget +" & _
+                " month_10_budget + month_11_budget +month_12_budget )"
+            
+    ProjDb.ExecuteSQL sSqlStmt
+
+End Sub
+'------------------------------------------------------------------------------
+
+'------------------------------------------------------------------------------
+'---- Calculate Budget vs Cost variances
+Sub CalcCashFlowVariances()
+
+    Dim sSqlStmt As String
+
+    sSqlStmt = "UPDATE ccshflw SET" & _
+            " month_01_var = ( month_01_budget - month_01_costs )," & _
+            " month_02_var = ( month_02_budget - month_02_costs )," & _
+            " month_03_var = ( month_03_budget - month_03_costs )," & _
+            " month_04_var = ( month_04_budget - month_04_costs )," & _
+            " month_05_var = ( month_05_budget - month_05_costs )," & _
+            " month_06_var = ( month_06_budget - month_06_costs )," & _
+            " month_07_var = ( month_07_budget - month_07_costs )," & _
+            " month_08_var = ( month_08_budget - month_08_costs )," & _
+            " month_09_var = ( month_09_budget - month_09_costs )," & _
+            " month_10_var = ( month_10_budget - month_10_costs )," & _
+            " month_11_var = ( month_11_budget - month_11_costs )," & _
+            " month_12_var = ( month_12_budget - month_12_costs )," & _
+            " qtr_01_var= ( qtr_01_budget - qtr_01_costs )," & _
+            " qtr_02_var= ( qtr_02_budget - qtr_02_costs )," & _
+            " qtr_03_var= ( qtr_03_budget - qtr_03_costs )," & _
+            " qtr_04_var= ( qtr_04_budget - qtr_04_costs )," & _
+            " year_var = ( year_budget - year_costs )"
+            
+    ProjDb.ExecuteSQL sSqlStmt
+
+End Sub
+'------------------------------------------------------------------------------
+
+'------------------------------------------------------------------------------
+'---- For a particular budget record which has at least one of the 4 date
+'---- fields filled in; and for a particular month and year - calculate 
+'---- the projected budget costs for that month.
+Function CalcProjectedMonthBudgetCost( ByVal iSeason As Integer, _
+        ByVal iYear As Integer, ByVal iMonth As Integer, _
+        ByVal BudItem As BudgetItemDatesAndCostsStructure ) As Double
+
+    Dim dVirtualSeasonStartDate As Date
+    Dim dVirtualSeasonEndDate As Date
+    Dim iDaysInSeason As Integer
+    Dim iYearsFromStart As Integer
+    Dim dNumberOfMonthsInSeason As Double
+    Dim dMonthlyCost As Double
+    DIm dWeightedYearlyFactor As Double
+
+'    ---- Examine the "virtual season".  Convert to a fraction of months.
+'   ---- Find total budgeted month cost for this month.
+
+     GetMonthVirtualSeasonStartAndEndDates iSeason, iYear, iMonth, _
+        BudItem.dDateStart, BudItem.dDateEnd, _
+        BudItem.dDateSeasonStart, BudItem.dDateSeasonEnd, _
+        dVirtualSeasonStartDate, dVirtualSeasonEndDate
+
+    If ( Month( dVirtualSeasonStartDate ) <> iMonth ) Or _
+            ( Month( dVirtualSeasonEndDate ) <> iMonth ) Then
+'       ---- 0 days in the season
+        CalcProjectedMonthBudgetCost = 0 
+    Else
+
+        If dVirtualSeasonStartDate = DateValue( ksDefaultEndDate ) Then
+            iDaysInSeason = 0 
+        Else
+            iDaysInSeason = DateDiff( "d", dVirtualSeasonStartDate, _
+                             dVirtualSeasonEndDate ) + 1
+        End If
+
+        If iDaysInSeason > 0 Then
+            If BudItem.sDateStart <> ksDefaultStartDate Then
+                iYearsFromStart = iYear - Year( BudItem.dDateStart )
+
+                dWeightedYearlyFactor = budproja_GetWeightedYearlyFactor( _
+                    iYear, iYearsFromStart, iDaysInSeason, _
+                    BudItem.nYearlyFactor, BudItem.sDateStart, _
+                    dVirtualSeasonStartDate, dVirtualSeasonEndDate )
+            Else    '---- No start date then don't use yearly factor
+                dWeightedYearlyFactor = 1
+            End If
+
+            dNumberOfMonthsInSeason = iDaysInSeason / _
+                                        knAvgNumberOfDaysPerMonth
+            dMonthlyCost =BudItem.nIncomePerMonth - BudItem.nExpensePerMonth
+
+/* ---- FOLLOWING IS FOR DEBUGGING ONLY !!!
+MsgBox "Years From Start: " & CStr( iYearsFromStart ) & BASIC.EOLN$ & _
+      "Weighted Yearly Factor: " & CStr( dWeightedYearlyFactor ) & _
+      BASIC.EOLN$ & _
+      "Number Of Months In Season: " & CStr( dNumberOfMonthsInSeason ) & _
+      BASIC.EOLN$ & _
+      "Monthly Cost: " & CStr( dMonthlyCost )
+*/
+
+            CalcProjectedMonthBudgetCost = dMonthlyCost * _
+                        dNumberOfMonthsInSeason * dWeightedYearlyFactor
+        Else
+            CalcProjectedMonthBudgetCost = 0 
+        End If
+    End If
+
+
+/* ---- FOLLOWING IS FOR DEBUGGING ONLY !!!
+MsgBox "Budget Start Date: " & BudItem.sDateStart & BASIC.EOLN$ & _
+      "Budget End Date: " & BudItem.sDateEnd & BASIC.EOLN$ & _
+     "Budget Season Start Date: " & BudItem.sDateSeasonStart & BASIC.EOLN$ & _
+      "Budget Season End Date: " & BudItem.sDateSeasonEnd & BASIC.EOLN$ & _
+      "Virtual Season Start Date: " & _
+           Format$( dVirtualSeasonStartDate, "Short Date" ) & BASIC.EOLN$ & _
+      "Virtual Season End Date: " & _
+           Format$( dVirtualSeasonEndDate, "Short Date" ) & BASIC.EOLN$ & _
+      CStr( iDaysInSeason ) & " Days in season " & CStr( iSeason )'
+*/
+
+
+End Function
+'------------------------------------------------------------------------------
+
+'------------------------------------------------------------------------------
+'---- Determine virtual seasons. For each month their could be up to two 
+'---- date ranges where the costs are to be applied depending on the values
+'---- for the four date fields in the budget item record. If no values have
+'---- been entered for dates then the season start will be 
+'---- first day of year; season end will be last day of year.
+'---- This routine should NOT be called if the BudgetStart year is > iYear or
+'---- if BudgetEnd year is < iYear.
+Sub GetMonthVirtualSeasonStartAndEndDates( iSeason As Integer, _
+        iYear As Integer, iMonth As Integer, _
+        dDateBudgetStart As Date, dDateBudgetEnd As Date, _
+        dDateSeasonStart As Date, dDateSeasonEnd As Date, _
+        dDateVirtualSeasonStart As Date, dDateVirtualSeasonEnd As Date )
+
+    Dim dDateMonthStart As Date
+    Dim dDateMonthEnd As Date
+    Dim iNextMonth          As Integer
+    Dim iTestYear           As Integer
+
+    If iMonth < 12 Then 
+        iNextMonth = iMonth + 1
+        iTestYear = iYear
+    Else
+        iNextMonth = 1
+        iTestYear = iYear + 1
+    End If
+
+     dDateMonthStart = DateSerial( iYear, iMonth, 1 )
+     dDateMonthEnd = DateAdd( "d", -1, DateSerial( iTestYear, iNextMonth, 1 ) )
+    dDateSeasonStart = DateSerial( iYear, DatePart( "m", dDateSeasonStart ), _
+                                   DatePart( "d", dDateSeasonStart ) )
+    dDateSeasonEnd = DateSerial( iYear, DatePart( "m", dDateSeasonEnd ), _
+                                   DatePart( "d", dDateSeasonEnd ) )
+
+    If iSeason = 1 Then 
+        If ( dDateSeasonStart < dDateSeasonEnd ) Then   
+            dDateVirtualSeasonStart = dDateSeasonStart
+            dDateVirtualSeasonEnd = dDateSeasonEnd
+        Else
+            dDateVirtualSeasonStart = dDateMonthStart
+            dDateVirtualSeasonEnd = dDateSeasonEnd
+        End If
+    Else    '---- iSeason = 2
+        If ( dDateSeasonStart > dDateSeasonEnd ) Then   
+            dDateVirtualSeasonStart = dDateSeasonStart
+            dDateVirtualSeasonEnd = dDateMonthEnd
+        '---- Else there is no second season
+        Else        
+            dDateVirtualSeasonStart = DateValue( ksDefaultEndDate )
+        End If
+    End If
+
+    If dDateBudgetStart > dDateVirtualSeasonStart Then 
+        dDateVirtualSeasonStart = dDateBudgetStart
+    End If
+    If dDateMonthStart > dDateVirtualSeasonStart Then 
+        dDateVirtualSeasonStart = dDateMonthStart
+    End If
+        
+    If ( dDateBudgetEnd < dDateVirtualSeasonEnd ) Then
+        dDateVirtualSeasonEnd = dDateBudgetEnd
+    End If
+    If ( dDateMonthEnd < dDateVirtualSeasonEnd ) Then
+        dDateVirtualSeasonEnd = dDateMonthEnd
+    End If
+
+End Sub
+'------------------------------------------------------------------------------
+
+
+
+Function LSSUP_GetDaysInMonth(InputDate As Date) As Integer
+    Dim i
+    Dim sDate As Date
+    Dim sDateNow,sDateTest
+    sDate = DateValue(InputDate)
+    sDateNow = sDate
+    sDateTest = sDate 
+
+    For i = 1 to 35
+        If (Month(sDateTest) - Month(sDateNow)) <> 0 Then
+            LSSUP_GetDaysInMonth = Day(sDateTest - 1)
+            Exit For 
+        End If 
+        sDateTest = sDate + i
+    Next i
+
+End Function

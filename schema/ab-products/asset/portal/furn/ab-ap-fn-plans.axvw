@@ -1,0 +1,116 @@
+<view version="2.0">
+	<js file="ab-ap-fn-plans.js"/>
+	<title translatable="true">Furniture Plans</title>
+	
+	<message name="selected_room" translatable="true">Selected Room:</message>
+	
+	<layout type="borderLayout" id="mainLayout">
+		<west autoScroll="true" split="true" initialSize="20%"/>
+        <center autoScroll="true"/>
+    </layout>
+	<layout type="borderLayout" id="centerLayout" containingLayout="mainLayout" region="center">
+        <north split="true" autoScroll="true" initialSize="40%"/>
+        <center autoScroll="true"  initialSize="20%"/>
+		<south autoScroll="true" split="true" initialSize="40%"/>
+    </layout>
+	
+	
+	<dataSource id="ds-ab-fn-plans-tree-bl">
+		<table name="bl" role="main"/>
+		<field table="bl" name="bl_id"/>
+        <restriction type="sql" sql="bl.bl_id ${parameters['blId']} AND EXISTS (SELECT 1 FROM fn WHERE fn.bl_id IS NOT NULL AND fn.bl_id = bl.bl_id)"/>
+        <parameter name="blId" dataType="verbatim" value="IS NOT NULL"/>
+		<sortField table="bl" name="bl_id" ascending="true"/>
+	</dataSource>
+	
+	<dataSource id="ds-ab-fn-plans-tree-fl">
+		<sql dialect="generic">
+            SELECT
+            rm.bl_id ${sql.as} bl_id,
+            rm.fl_id ${sql.as} fl_id,
+            rm.dwgname ${sql.as} dwgname
+            FROM rm 
+            WHERE rm.dwgname IS NOT NULL
+            AND EXISTS (SELECT 1 FROM fn WHERE fn.bl_id IS NOT NULL AND fn.fl_id IS NOT NULL AND fn.bl_id = rm.bl_id AND fn.fl_id=rm.fl_id)
+            GROUP BY rm.bl_id,rm.fl_id,rm.dwgname
+        </sql>
+        <table name="fl" role="main"/>
+        <field name="fl_id"/>
+        <field name="dwgname"/>
+        <sortField table="fl" name="fl_id" ascending="true"/>
+	</dataSource>	
+	
+	<panel type="tree" id="ab-fn-plans-tree-bl" dataSource="ds-ab-fn-plans-tree-bl" layout="mainLayout" region="west">
+        <title translatable="true">Floor List</title>
+	 	<panel type="tree" id="ab-fn-plans-tree-fl" dataSource="ds-ab-fn-plans-tree-fl">
+	 		<event type="onClickNode">
+				<command type="callFunction" functionName="loadDrawingPanel"/>
+			</event>	
+        </panel>
+	</panel>
+	
+	<dataSource id="ds_ab_fn_plans_darwing_highlight" distinct="true">
+     	<table name="rm" role="main"/>
+     	<field name="bl_id" table="rm"/>
+     	<field name="fl_id" table="rm"/>
+		<field name="rm_id" table="rm"/>
+		<field name="dwgname" table="rm"/>
+     	<restriction type="sql" sql="EXISTS (SELECT 1 FROM fn WHERE fn.bl_id = rm.bl_id AND fn.fl_id = rm.fl_id AND fn.rm_id = rm.rm_id) AND dwgname IS NOT NULL"/>
+    </dataSource>
+	
+	<dataSource id="ds_ab_fn_plans_darwing_label">
+		<table name="rm" role="main"/>
+        <field name="bl_id" hidden="true"/>
+        <field name="fl_id" hidden="true"/>
+        <field name="rm_id"/>
+	</dataSource>
+	
+	
+	<panel type="drawing" id="ab-fn-plans_DrawingPanel"  layout="centerLayout" region="north" multiple="false"
+	 selectionMode="0"
+     labelsDataSource="ds_ab_fn_plans_darwing_label">
+     	<instructions translatable="true">Select a room in the drawing to see the furniture list.</instructions>
+    </panel>
+	
+	<panel type="html" id="html_panel" layout="centerLayout" region="center">
+        <html>
+            <div id="selectedRoom"/>
+        </html>
+    </panel>
+	
+	
+	<dataSource id="ds-ab-fn-plans-summary" distinct="true">
+		<table name="fn" role="main"/>
+   		<table name="fnstd" role="standard"/>
+		<field name="fn_std" table="fnstd"/>
+        <field name="description" table="fnstd"/>
+		<field name="total" dataType="number" decimals="0">
+			<title translatable="true">Total Count</title>
+			<sql dialect="generic">(select count(a.fn_id) from fn ${sql.as} a where fn.fn_std = a.fn_std and fn.bl_id = a.bl_id and fn.fl_id = a.fl_id and fn.rm_id = a.rm_id)</sql>
+		</field>
+	</dataSource>
+	
+	<panel type="grid" id="ab-fn-plans-summary" dataSource="ds-ab-fn-plans-summary" showOnLoad="false" layout="centerLayout" region="center">
+		<title translatable="true">Furniture Standard Totals</title>
+		<sortField table="fnstd" name="fn_std" ascending="true"/>
+    </panel>
+	
+	
+	
+	<dataSource id="ds-ab-fn-plans-list">
+		<table name="fn" role="main"/>
+		<field name="fn_id" table="fn" />
+        <field name="fn_std" table="fn" />
+        <field name="dv_id" table="fn" />
+        <field name="dp_id" table="fn" />
+        <field name="bl_id" table="fn" />
+        <field name="fl_id" table="fn" />
+        <field name="rm_id" table="fn" />
+	</dataSource>
+	
+	<panel type="grid" id="ab-fn-plans-list" dataSource="ds-ab-fn-plans-list" showOnLoad="false" layout="centerLayout" region="south">
+		<title translatable="true">Furniture List</title>
+		<sortField table="fn" name="fn_id" ascending="true"/>
+    </panel>
+	
+</view>

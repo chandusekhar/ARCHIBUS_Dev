@@ -1,0 +1,165 @@
+<view version="2.0">
+	<layout type="borderLayout" id="mainLayout">
+        <center initialSize="20%"/>
+        <south initialSize="80%" split="false"/>
+    </layout>
+    <title translatable="true">Project Commissioning Report</title>
+    <js file="brg-comm-project-report.js"/>
+
+	<message name="noStd" translatable="true">Please select Equipment Standard</message>
+
+	<!-- <panel type="view" id="gridsDS" file="brg-comm-project-report-ds.axvw"/> -->
+
+    <dataSource id="consoleDS">
+        <table name="activity_log" role="main"/>
+        <table name="eq" role="standard"/>
+        <field table="eq" name="eq_std"/>
+        <field table="activity_log" name="uc_fim"/>
+        <field table="activity_log" name="project_id"/>
+        <field table="activity_log" name="status"/>
+        <field table="activity_log" name="bl_id"/>
+	</dataSource>
+
+	<panel type="console" id="console" columns="3" dataSource="consoleDS" layout="mainLayout" region="center" multipleSelectionEnabled="true" >
+        <title translatable="true">Filter</title>
+        <action id="show">
+            <title translatable="true">Show</title>
+        </action>
+		<action id="clear">
+            <title translatable="true">Clear</title>
+            <command type="clearPanel" panelId="console"/>
+        </action>	
+        <field table="eq" name="eq_std" required="true"/>
+        <field table="activity_log" name="uc_fim"/>
+        <field table="activity_log" name="project_id">
+	        <action>
+	            <title>...</title>
+	                <tooltip>Custom Select Value</tooltip>
+	                    <command type="selectValue"
+	                    fieldNames="activity_log.project_id"
+	                    selectFieldNames="project.project_id"
+	                    visibleFieldNames="project.project_id"
+	                    restriction="project_type = 'Commissioning'"/>
+	        </action>
+    	</field>
+        <field table="activity_log" name="status"/>
+        <field table="activity_log" name="bl_id"/>
+    </panel>
+
+    <dataSource id="countQDS">
+        <sql dialect="generic">
+
+      (SELECT COALESCE(max(countq),0) AS countq
+      FROM  
+      (SELECT questions.questionnaire_id,count(*) AS countq FROM questions 
+      LEFT JOIN questionnaire_map ON questions.questionnaire_id = questionnaire_map.questionnaire_id 
+      WHERE eq_std = ${parameters['std']}
+      GROUP BY questions.questionnaire_id ) questions
+      )               
+       </sql>
+        <table name="questions"/>
+        <field  name="countq" dataType="number" decimals="0"/>
+        <parameter name="std" dataType="text" value=""/>      
+    </dataSource>
+
+
+    <dataSource id="ds0" >
+        <sql dialect="sqlserver">
+            
+SELECT assessed_by,activity_log.description,activity_log.site_id,activity_log.bl_id,activity_log.status,activity_log.eq_id AS eq_id,eq_description comments,eq.eq_std cost_cat_id,date_assessed,cond_priority,cond_value,rec_action,cost_fim,cost_annual_save,cost_payback,uc_fim,activity_log.activity_log_id,act_quest,activity_log.project_id
+            FROM activity_log LEFT JOIN 
+            (SELECT eq.eq_id, eq.eq_std, eqstd.description AS eq_description 
+            FROM eq LEFT JOIN eqstd ON eq.eq_std = eqstd.eq_std) eq 
+            ON activity_log.eq_id = eq.eq_id
+            LEFT JOIN project ON activity_log.project_id = project.project_id
+            WHERE project_type = 'COMMISSIONING' 
+                    
+        </sql>
+        <table name="activity_log" role="main"/>
+        <field name="act_quest" dataType="text" hidden="false"/>
+        <field name="assessed_by" dataType="text"/>
+        <field name="project_id" dataType="text"/>
+        <field name="description" dataType="text"/>
+        <field name="site_id" dataType="text"/>
+        <field name="bl_id" dataType="text"/>
+        <field name="status" dataType="text"/>
+        <field name="eq_id" dataType="text"/>
+        <field name="comments" dataType="text" >
+             <title >Equipment Description</title>
+        </field>
+        <field dataType="text" name="cost_cat_id">
+             <title >Equipment Standard</title>
+        </field>
+        <field name="date_assessed" dataType="date"/>
+        <field name="cond_priority" dataType="text"/>
+        <field name="cond_value" dataType="text"/>
+        <field name="rec_action" dataType="text"/>
+        <field name="cost_fim" dataType="number" decimals="2" />
+        <field name="cost_annual_save" dataType="number" decimals="2" />
+        <field name="cost_payback" dataType="number" decimals="2" />
+        <field name="uc_fim" dataType="text"/>
+ 
+    </dataSource>
+
+    <panel type="grid" id="grid0" dataSource="ds0" showOnLoad="true" layout="mainLayout" region="south">
+        <title translatable="true">Action Items</title>
+        
+        <action id="xmlGrid2xls">
+            <title>XLS</title>
+        </action>
+        <action id="pagReport">
+            <title>Paginated Report</title>
+        </action>
+<!--        <action id="xmlGrid2xls2">
+            <title>XLS2</title>
+        </action> -->
+
+        <indexField table="activity_log" name="activity_log_id"/>
+    </panel>
+
+
+     <dataSource id="ds1" >
+        <sql dialect="sqlserver">
+            
+        SELECT activity_log.project_id, project.date_start date_completed, project.status ehandle,project.contact_id completed_by,assessed_by,activity_log.description,activity_log.site_id,activity_log.bl_id,activity_log.fl_id,activity_log.rm_id,activity_log.location,activity_log.status,activity_log.eq_id AS eq_id,eq_description comments,eq.eq_std cost_cat_id,date_assessed,cond_priority,cond_value,rec_action,cost_fim,cost_annual_save,cost_payback,uc_fim,activity_log.activity_log_id,act_quest
+        FROM activity_log LEFT JOIN project ON project.project_id = activity_log.project_id
+        LEFT JOIN 
+        (SELECT eq.eq_id, eq.eq_std, eqstd.description AS eq_description 
+        FROM eq LEFT JOIN eqstd ON eq.eq_std = eqstd.eq_std) eq 
+        ON activity_log.eq_id = eq.eq_id 
+                   
+        </sql>
+        <table name="activity_log" role="main"/>
+        <field name="act_quest" dataType="text" hidden="false"/>
+        <field name="activity_log_id" dataType="number" decimals="0"/>
+        <field name="assessed_by" dataType="text"/>
+        <field name="project_id" dataType="text"/>
+        <field name="description" dataType="text"/>
+        <field name="site_id" dataType="text"/>
+        <field name="bl_id" dataType="text"/>
+        <field name="fl_id" dataType="text"/>
+        <field name="rm_id" dataType="text"/>
+        <field name="location" dataType="text"/>
+        <field name="status" dataType="text"/>
+        <field name="eq_id" dataType="text"/>
+        <field name="comments" dataType="text" >
+             <title >Equipment Description</title>
+        </field>
+        <field dataType="text" name="cost_cat_id">
+             <title >Equipment Standard</title>
+        </field>
+        <field name="date_assessed" dataType="date"/>
+        <field name="cond_priority" dataType="number" decimals="0"/>
+        <field name="cond_value" dataType="number" decimals="0"/>
+        <field name="rec_action" dataType="number" decimals="0"/>
+        <field name="cost_fim" dataType="number" decimals="2" />
+        <field name="cost_annual_save" dataType="number" decimals="2" />
+        <field name="cost_payback" dataType="number" decimals="2" />
+        <field name="uc_fim" dataType="text"/>
+        <field name="date_completed" dataType="date"/>
+        <field name="ehandle" dataType="text"/>
+        <field name="completed_by" dataType="text"/>
+ 
+    </dataSource>
+
+</view>

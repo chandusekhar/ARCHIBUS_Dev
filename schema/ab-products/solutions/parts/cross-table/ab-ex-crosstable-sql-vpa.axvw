@@ -1,0 +1,69 @@
+<!-- Cross-table example with custom SQL query and drill-down action -->
+
+<view version="2.0">
+    <title translatable="true">Cross-table example with custom SQL query and custom VPA: Departments by Building</title>
+    
+    <js file="ab-ex-crosstable-sql-vpa.js"/>
+    
+    <dataSource id="exCrosstableSqlVpaDS" type="grouping" applyVpaRestrictions="false">
+        <sql dialect="generic">
+            SELECT
+	            dv.bu_id ${sql.as} bu_id,
+	            rm.dv_id ${sql.as} dv_id,
+	            rm.dp_id ${sql.as} dp_id,
+	            rm.bl_id ${sql.as} bl_id,
+		    rm.fl_id ${sql.as} fl_id,
+	            rm.area  ${sql.as} area,
+	            rm.rm_id ${sql.as} gp_id,
+		    CASE WHEN (rm.dp_id IS NULL)THEN 0 ELSE 1 END ${sql.as}  dp_count,
+		   (SELECT bl.area_rm_dp + bl.area_gp_dp FROM bl WHERE bl.bl_id = rm.bl_id) ${sql.as} area_dp_total
+            FROM rm LEFT OUTER JOIN dv ON rm.dv_id=dv.dv_id WHERE EXISTS (SELECT 1 FROM rmcat WHERE 
+			     rmcat.used_in_calcs IN ('all_totals', 'dp_comn_ocup_totals') AND rmcat.rm_cat = rm.rm_cat)
+            UNION
+            SELECT
+	            dv.bu_id ${sql.as} bu_id,
+	            gp.dv_id ${sql.as} dv_id,
+	            gp.dp_id ${sql.as} dp_id,
+	            gp.bl_id ${sql.as} bl_id,
+				gp.fl_id ${sql.as} fl_id,
+	            gp.area  ${sql.as} area,
+	            gp.gp_num ${sql.as} gp_id,
+		    CASE WHEN (gp.dp_id IS NULL)THEN 0 ELSE 1 END ${sql.as}  dp_count,
+		    (SELECT bl.area_rm_dp + bl.area_gp_dp FROM bl WHERE bl.bl_id = gp.bl_id) ${sql.as} area_dp_total
+            FROM gp LEFT OUTER JOIN dv ON gp.dv_id=dv.dv_id
+            WHERE ${sql.vpaRestriction} 
+            AND gp.bl_id LIKE ${parameters['bl_id']}
+        </sql>
+        <parameter name="bl_id" value="%%" dataType="text"/>
+        
+        <table name="gp" role="main"/>
+        <field name="bu_dv_dp" dataType="text" groupBy="true" baseField="gp.dp_id">
+            <title translatable="true">Business Unit, Division, Department</title>
+            <sql dialect="generic">RTRIM(gp.bu_id)${sql.concat}'-'${sql.concat}RTRIM(gp.dv_id)${sql.concat}'-'${sql.concat}RTRIM(gp.dp_id)</sql>
+        </field>
+         <field name="total_count"  dataType="number" decimals="0">
+            <title translatable="true">Total Count</title>
+			<sql dialect="generic">count(*)</sql>
+        </field>
+        <field name="total_area" formula="sum" baseField="gp.area" dataType="number" decimals="2">
+            <title translatable="true">Total Area</title>
+        </field>
+		<field name="pct_total" baseField="gp.area" dataType="number" decimals="2">
+            <title translatable="true">Pct. of Total Dept.Area</title>
+            <sql dialect="generic">CASE WHEN (AVG(gp.area_dp_total) =0  OR AVG(gp.dp_count)=0  )THEN 0 ELSE 100*SUM(gp.area)/AVG(gp.area_dp_total) END</sql>
+        </field>
+        <sortField table="gp" name="bu_dv_dp" ascending="true"/>
+    </dataSource>
+    
+    <panel type="crossTable" id="exCrosstableSqlVpa" dataSource="exCrosstableSqlVpaDS">
+        <title translatable="true">Department Area Summary</title>
+        
+        <action id="applyParameter">
+            <title>Apply Parameter and Refresh</title>
+        </action>
+        
+        <event type="onClickItem">
+            <command type="openDialog" viewName="ab-ex-crosstable-sql-drilldown-details.axvw"/>
+        </event>
+    </panel>
+</view>

@@ -1,0 +1,309 @@
+<view version="2.0">
+  
+  <js file="ab-mo-edit-review.js"/>
+  <js file="ab-mo-common.js"/>
+  
+  <message name="deptCode" translatable="true">Department Code</message>
+  <message name="selectToRoomMessage" translatable="true">To Room</message>
+  <message name="vacantOnly" translatable="true">Available Only</message>
+  <message name="fromDataJack" translatable="true">From Data Jack</message>
+  <message name="fromVoiceJack" translatable="true">From Voice Jack</message>
+  <message name="toDataJack" translatable="true">To Data Jack</message>
+  <message name="toVoiceJack" translatable="true">To Voice Jack</message>
+  <message name="same_apprv_mgr" translatable="true">Please do not enter the same approving manager more than once.</message>
+  
+  <dataSource id="ds_abMoEditReviewEm">
+    <table name="mo" role="main"/>
+    <table name="dp" role="standard"/>
+	<field name="apprv_mgr1" table="mo" />
+	<field name="apprv_mgr2" table="mo" />
+	<field name="apprv_mgr3" table="mo" />
+    <field name="mo_id" table="mo"/>
+    <field name="mo_type" table="mo"/>
+    <field name="status" table="mo"/>
+    <field name="project_id" table="mo"/>
+    <field name="em_id" table="mo"/>
+    <field name="num_boxes" table="mo"/>
+    <field name="requestor" table="mo"/>
+    <field name="phone" table="mo"/>
+    <field name="dept_contact" table="mo"/>
+    <field name="phone_dept_contact" table="mo"/>
+    <field name="dv_id" table="mo"/>
+    <field name="ac_id" table="mo"/>
+    <field name="dp_id" table="mo"/>
+    <field name="name" table="dp"/>
+    <field name="mo_coord" table="mo"/>
+    <field name="hours_est" table="mo"/>
+    <field name="hours_actual" table="mo"/>
+    <field name="cost_est" table="mo"/>
+    <field name="cost_actual" table="mo"/>
+    <field name="date_to_perform" table="mo"/>
+    <field name="time_to_perform" table="mo"/>
+    <field name="date_start_req" table="mo"/>
+    <field name="date_end_req" table="mo"/>
+    <field name="date_created" table="mo"/>
+    <field name="date_requested" table="mo"/>
+    <field name="time_requested" table="mo"/>
+    <field name="date_issued" table="mo"/>
+    <field name="time_issued" table="mo"/>
+    <field name="date_completed" table="mo"/>
+    <field name="time_completed" table="mo"/>
+    <field name="from_bl_id" table="mo"/>
+    <field name="from_fl_id" table="mo"/>
+    <field name="from_rm_id" table="mo"/>
+    <field name="from_dv_id" table="mo"/>
+    <field name="from_dp_id" table="mo"/>
+    <field name="from_phone" table="mo"/>
+    <field name="from_fax" table="mo"/>
+    <field name="from_mailstop" table="mo"/>
+    <field name="from_jk_id_data" table="mo"/>
+    <field name="from_jk_id_voice" table="mo"/>
+    <field name="from_phone_type" table="mo"/>
+    <field name="from_comp_type" table="mo"/>
+    <field name="to_bl_id" table="mo"/>
+    <field name="to_fl_id" table="mo"/>
+    <field name="to_rm_id" table="mo"/>
+    <field name="to_dv_id" table="mo"/>
+    <field name="to_dp_id" table="mo"/>
+    <field name="to_phone" table="mo"/>
+    <field name="to_fax" table="mo"/>
+    <field name="to_mailstop" table="mo"/>
+    <field name="to_jk_id_data" table="mo"/>
+    <field name="to_jk_id_voice" table="mo"/>
+    <field name="to_phone_type" table="mo"/>
+    <field name="to_comp_type" table="mo"/>
+    <field name="description" table="mo"/>
+    <field name="comments" table="mo"/>
+    <field name="mo_quest" table="mo"/>
+  </dataSource>
+
+  
+  <panel type="form" id="panel_abMoEditReviewEm_moForm" dataSource="ds_abMoEditReviewEm" showOnLoad="false"
+  		afterRefresh="abMoEditReview_afterRefresh" beforeSave="beforeSaveForm" columns="2">
+  	<sortField name="mo_id" table="mo" ascending="true"/>
+    <title translatable="true">Employee Move</title>
+    <action id="saveButton">
+      <title translatable="true">Save</title>
+      <command type="saveForm"/>
+      <command type="callFunction" functionName="synchronizeSpaceTransactionStatus('panel_abMoEditReviewEm_moForm')"/>
+	  <command type="callFunction" functionName="abMoEditReview_afterRefresh(abMoEditReviewController.panel_abMoEditReviewEm_moForm)"/>
+    </action>
+    <action id="autoApproveButton" enabled="${record['mo.status'] == 'Requested'}">
+      <title translatable="true">Auto-Approve</title>
+      <command type="saveForm"/>
+      <command type="callFunction" functionName="onAutoApprove(this)"/>
+    </action>
+	<action id="routeButton" enabled="${record['mo.status'] != 'Requested-Routed'}">
+		<title translatable="true">Route for Approval</title>
+		<command type="saveForm"/>
+		<command type="callFunction" functionName="onRouteIndividualMoveForApproval"/>
+	</action>
+    <action id="issueButton" enabled="${record['mo.status'] == 'Approved'}">
+      <title translatable="true">Issue</title>
+      <command type="saveForm"/>
+      <command type="callFunction" functionName="onIssue(this)"/>
+    </action>
+	<action id="closeButton" enabled="${record['mo.status'] != 'Closed'}">
+		<title translatable="true">Close</title>
+		<command type="saveForm"/>
+		<command type="callFunction" functionName="onClose(this)"/>
+	</action>
+	<action id="report">
+		<title translatable="true">Report</title>
+		<command type="callFunction" functionName="onPaginatedReport('single', this)"/>
+	</action>
+	
+	
+	<field name="apprv_mgr1" table="mo" required="true" hidden="${taskId != RMFA}">
+		<action>
+			<title translatable="true">...</title>
+			<tooltip>Standard Select Value</tooltip>
+    		<command 
+				type="selectValue" 
+				fieldNames=" mo.apprv_mgr1" 
+				selectFieldNames="em.em_id" 
+				visibleFieldNames="em.em_id" 
+				applyFilter="false"
+				restriction="(EXISTS (SELECT 1 FROM afm_userprocs,afm_users WHERE afm_userprocs.activity_id = 'AbMoveManagement' AND afm_userprocs.process_id='Move Coordinator' AND afm_users.email = em.email AND afm_users.user_name = afm_userprocs.user_name)) 
+                    OR (EXISTS (SELECT 1 FROM afm_roleprocs LEFT OUTER JOIN afm_users ON (afm_roleprocs.role_name = afm_users.role_name) WHERE afm_users.email = em.email AND activity_id = 'AbMoveManagement' AND process_id='Move Coordinator'))"
+			/>
+		</action>
+	</field>
+	<field name="apprv_mgr1" table="mo" alias="apprv_mgr1_dummy" showLabel="false" showText="false" hidden="${taskId != RMFA}"/>
+	<field name="apprv_mgr2" table="mo" hidden="${taskId != RMFA}">
+		<action>
+			<title translatable="true">...</title>
+			<tooltip>Standard Select Value</tooltip>
+    		<command 
+				type="selectValue" 
+				fieldNames=" mo.apprv_mgr2" 
+				selectFieldNames="em.em_id" 
+				visibleFieldNames="em.em_id" 
+				applyFilter="false"
+				restriction="(EXISTS (SELECT 1 FROM afm_userprocs,afm_users WHERE afm_userprocs.activity_id = 'AbMoveManagement' AND afm_userprocs.process_id='Move Coordinator' AND afm_users.email = em.email AND afm_users.user_name = afm_userprocs.user_name)) 
+                    OR (EXISTS (SELECT 1 FROM afm_roleprocs LEFT OUTER JOIN afm_users ON (afm_roleprocs.role_name = afm_users.role_name) WHERE afm_users.email = em.email AND activity_id = 'AbMoveManagement' AND process_id='Move Coordinator'))"
+			/>
+		</action>
+	</field>
+	<field name="apprv_mgr2" table="mo" alias="apprv_mgr2_dummy" showLabel="false" showText="false" hidden="${taskId != RMFA}"/>
+	<field name="apprv_mgr3" table="mo" hidden="${taskId != RMFA}">
+		<action>
+			<title translatable="true">...</title>
+			<tooltip>Standard Select Value</tooltip>
+    		<command 
+				type="selectValue" 
+				fieldNames=" mo.apprv_mgr3" 
+				selectFieldNames="em.em_id" 
+				visibleFieldNames="em.em_id" 
+				applyFilter="false"
+				restriction="(EXISTS (SELECT 1 FROM afm_userprocs,afm_users WHERE afm_userprocs.activity_id = 'AbMoveManagement' AND afm_userprocs.process_id='Move Coordinator' AND afm_users.email = em.email AND afm_users.user_name = afm_userprocs.user_name)) 
+                    OR (EXISTS (SELECT 1 FROM afm_roleprocs LEFT OUTER JOIN afm_users ON (afm_roleprocs.role_name = afm_users.role_name) WHERE afm_users.email = em.email AND activity_id = 'AbMoveManagement' AND process_id='Move Coordinator'))"
+			/>
+		</action>
+	</field>
+	<field name="apprv_mgr3" table="mo" alias="apprv_mgr3_dummy" showLabel="false" showText="false" hidden="${taskId != RMFA}"/>
+	
+	
+    <field name="mo_id" table="mo" style="font-weight:bold;" readOnly="true"/>
+    <field name="date_created" table="mo" readOnly="true"/>
+    <field name="em_id" table="mo" style="font-weight:bold;text-decoration:underline;" readOnly="true">
+      <title translatable="true">Employee to Move</title>
+    </field>
+    <field name="mo_type" table="mo" readOnly="true"/>
+	
+    <field name="description" table="mo" colspan="2" style="width:100%;height:70px" readOnly="${procId == DC || procId == VC || taskId == RMFA}"/>
+    
+	<field name="requestor" table="mo" readOnly="true"/>
+    <field name="phone" table="mo" showSelectValueAction="false" readOnly="${procId == DC || procId == VC || taskId == RMFA}"/>
+    <field name="dept_contact" table="mo" readOnly="${procId == DC || procId == VC || taskId == RMFA}"/>
+    <field name="phone_dept_contact" table="mo" showSelectValueAction="false" readOnly="${procId == DC || procId == VC || taskId == RMFA}"/>
+    <field name="dv_id" table="mo" readOnly="${procId == DC || procId == VC || taskId == RMFA}"/>
+    <field name="ac_id" table="mo" readOnly="${procId == DC || procId == VC || taskId == RMFA}"/>
+	<field name="dp_id" table="mo" readOnly="${procId == DC || procId == VC || taskId == RMFA}">
+		<action id="moveSelectDeptId">
+			<title translatable="false">...</title>
+			<tooltip translatable="true">Select Value</tooltip>
+			<command type="callFunction" functionName="selectDeptId(this)"/>
+		</action>	
+	</field>
+    <field name="name" table="dp" required="false"/>
+    <field name="mo_coord" table="mo" readOnly="${procId == DC || procId == VC || taskId == RMFA}"/>
+    <field name="status" table="mo" readOnly="${procId == DC || procId == VC || taskId == RMFA}"/>
+    <field name="date_to_perform" table="mo" readOnly="${procId == DC || procId == VC || taskId == RMFA}">
+      <title translatable="true">Move Date</title>
+    </field>
+    <field name="date_start_req" table="mo" readOnly="${procId == DC || procId == VC || taskId == RMFA}">
+      <title translatable="true">Requested Move Date</title>
+    </field>
+	
+    <field name="hours_est" table="mo" hidden="${taskId == CM}" readOnly="${procId == DC || procId == VC || taskId == RMFA}"/>
+    <field name="cost_est" table="mo" hidden="${taskId == CM}" readOnly="${procId == DC || procId == VC || taskId == RMFA}"/>
+
+	<field name="hours_actual" table="mo" hidden="${taskId != CM}"/>
+	<field name="cost_actual" table="mo" hidden="${taskId != CM}"/>
+
+	
+    <field name="comments" table="mo" colspan="2" style="width:100%;height:30px" readOnly="${taskId == RMFA}"/>
+	
+	<field name="from_bl_id" table="mo" showSelectValueAction="true" readOnly="${procId == DC || procId == VC || taskId == CM || taskId == RMFA}"/>
+	<field name="to_bl_id" table="mo" showSelectValueAction="true" readOnly="${procId == DC || procId == VC || taskId == RMFA}" required="true"
+			onchange="checkVacancyRoomsButton('panel_abMoEditReviewEm_moForm','mo.to_bl_id','mo.to_fl_id','showDrawing');">
+		<action id="moveSelectBuilding">
+			<title translatable="false">...</title>
+			<tooltip translatable="true">Select Value</tooltip>
+    		<command 
+				type="selectValue" 
+				fieldNames="mo.to_bl_id" 
+				selectFieldNames="bl.bl_id" 
+				visibleFieldNames="bl.bl_id,bl.name" 
+				applyFilter="false"
+				actionListener="afterSelectVal">
+				<title>Building</title>
+			</command>
+		</action>	
+	</field>
+    
+	<field name="from_fl_id" table="mo" showSelectValueAction="true" readOnly="${procId == DC || procId == VC || taskId == CM || taskId == RMFA}"/>
+	<field name="to_fl_id" table="mo" showSelectValueAction="true" readOnly="${procId == DC || procId == VC || taskId == RMFA}" required="true"
+			onchange="checkVacancyRoomsButton('panel_abMoEditReviewEm_moForm','mo.to_bl_id','mo.to_fl_id','showDrawing');">
+		<action id="moveSelectFloor">
+			<title translatable="false">...</title>
+			<tooltip translatable="true">Select Value</tooltip>
+    		<command 
+				type="selectValue" 
+				fieldNames="mo.to_bl_id,mo.to_fl_id" 
+				selectFieldNames="fl.bl_id,fl.fl_id" 
+				visibleFieldNames="fl.bl_id,fl.fl_id" 
+				applyFilter="true"
+				actionListener="afterSelectVal">
+				<title>Floor</title>
+			</command>
+		</action>	
+		<action id="showDrawing" hidden="${taskId == RMFA}">
+			<title translatable="true">Show Drawing</title>
+			<command type="callFunction" functionName="openSelectValueDrawing(this);"/>
+		</action>
+	</field>
+    
+	<field name="from_rm_id" table="mo" showSelectValueAction="true" readOnly="${procId == DC || procId == VC || taskId == CM || taskId == RMFA}"/>
+	<field name="to_rm_id" table="mo" showSelectValueAction="true" readOnly="${procId == DC || procId == VC || taskId == RMFA}" required="true">
+		<action id="moveSelectRoom">
+			<title translatable="false">...</title>
+			<tooltip translatable="true">Select Value</tooltip>
+			<command type="callFunction" functionName="selectRoomWithVacantCheck(this);"/>
+		</action>	
+	</field>
+    
+	<field name="from_dv_id" table="mo" showSelectValueAction="true" readOnly="${procId == DC || procId == VC || taskId == CM || taskId == RMFA}"/>
+    <field name="to_dv_id" table="mo" showSelectValueAction="true" readOnly="${procId == DC || procId == VC || taskId == RMFA}"/>
+    
+	<field name="from_dp_id" table="mo" showSelectValueAction="true" readOnly="${procId == DC || procId == VC || taskId == CM || taskId == RMFA}"/>
+    <field name="to_dp_id" table="mo" showSelectValueAction="true" readOnly="${procId == DC || procId == VC || taskId == RMFA}"/>
+    
+    <field name="from_phone" table="mo" showSelectValueAction="false" readOnly="${taskId == RMFA || taskId == CM}"/>
+    <field name="to_phone" table="mo" showSelectValueAction="false" readOnly="${taskId == RMFA}"/>
+    
+    <field name="from_fax" table="mo" showSelectValueAction="false" readOnly="${taskId == RMFA || taskId == CM}"/>
+    <field name="to_fax" table="mo" showSelectValueAction="false" readOnly="${taskId == RMFA}"/>
+    
+	<field name="from_phone_type" table="mo" showSelectValueAction="true" readOnly="${taskId == CM || taskId == RMFA}"/>
+    <field name="to_phone_type" table="mo" showSelectValueAction="true" readOnly="${taskId == RMFA}"/>
+    
+	<field name="from_comp_type" table="mo" readOnly="${taskId == CM || taskId == RMFA}"/>
+    <field name="to_comp_type" table="mo" readOnly="${taskId == RMFA}"/>
+    
+	<field name="from_mailstop" table="mo" readOnly="${procId == DC || procId == VC || taskId == CM || taskId == RMFA}"/>
+    <field name="to_mailstop" table="mo" readOnly="${procId == DC || procId == VC || taskId == RMFA}"/>
+    
+	<field name="from_jk_id_data" table="mo" readOnly="${taskId == CM || taskId == RMFA}">
+	  <action>
+        <title translatable="false">...</title>
+		<command type="callFunction" functionName="selectJack(this,'mo.from_bl_id','mo.from_fl_id','mo.from_rm_id','mo.from_jk_id_data',getMessage('fromDataJack'),'D')"/>
+      </action>
+    </field>
+    <field name="to_jk_id_data" table="mo" readOnly="${taskId == RMFA}">
+      <action>
+        <title translatable="false">...</title>
+		<command type="callFunction" functionName="selectJack(this,'mo.to_bl_id','mo.to_fl_id','mo.to_rm_id','mo.to_jk_id_data',getMessage('toDataJack'),'D')"/>
+      </action>
+    </field>
+    <field name="from_jk_id_voice" table="mo" readOnly="${taskId == CM || taskId == RMFA}">
+      <action>
+        <title translatable="false">...</title>
+		<command type="callFunction" functionName="selectJack(this,'mo.from_bl_id','mo.from_fl_id','mo.from_rm_id','mo.from_jk_id_voice',getMessage('fromVoiceJack'),'V')"/>
+      </action>
+    </field>
+    <field name="to_jk_id_voice" table="mo" readOnly="${taskId == RMFA}">
+      <action>
+        <title translatable="false">...</title>
+		<command type="callFunction" functionName="selectJack(this,'mo.to_bl_id','mo.to_fl_id','mo.to_rm_id','mo.to_jk_id_voice',getMessage('toVoiceJack'),'V')"/>
+      </action>
+    </field>
+    <field name="num_boxes" table="mo" readOnly="${procId == DC || procId == VC || taskId == RMFA}"/>
+    <field name="mo_quest" table="mo" hidden="true"/>
+  </panel>
+  
+  <panel type="view" id="panel_abMoveReview_quest" file="ab-questionnaire.axvw"/>
+
+  <panel id="panel_abMoEditMoAssets" type="view" file="ab-mo-edit-mo-eqta.axvw" useFrame="false"/>
+</view>

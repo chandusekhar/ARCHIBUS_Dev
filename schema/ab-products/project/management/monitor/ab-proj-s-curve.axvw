@@ -1,0 +1,688 @@
+<view version="2.0" showLoadProgress="true">
+    <title>View S-Curve Analysis of Project Progress</title>
+    <js file="ab-proj-s-curve.js"/>
+    <message name="progressMessage">Retrieving data</message>
+    <message name="year">Year</message>
+    <message name="quarter">Quarter</message>
+    <message name="month">Month</message>
+    <message name="week">Week</message>
+    <message name="date">Date</message>
+    <message name="num_records_confirm_message">Data processing may take substantial time.  Press Yes to continue or No to Cancel and re-enter filter to reduce the data being processed. </message>
+    
+    <layout id="main">
+        <north id="console" initialSize="185" split="true" />
+        <center id="data" />
+    </layout>
+    
+    <dataSource id="projSCurveDs0">
+        <table name="activity_log" role="main"/>
+        <table name="project" role="standard"/>
+        <table name="program" role="standard"/>
+        <sql dialect="generic">
+        SELECT activity_log.project_id, activity_log.work_pkg_id, activity_log.bl_id, activity_log.site_id, activity_log.dv_id, activity_log.dp_id,
+        project.program_id, program.program_type, activity_log.date_planned_for, activity_log.date_planned_end
+        FROM activity_log
+        LEFT OUTER JOIN work_pkgs ON activity_log.work_pkg_id = work_pkgs.work_pkg_id
+        LEFT OUTER JOIN project ON activity_log.project_id = project.project_id
+        LEFT OUTER JOIN program ON program.program_id = project.program_id
+        LEFT OUTER JOIN site ON site.site_id = project.site_id 
+        LEFT OUTER JOIN bl ON bl.bl_id = project.bl_id 
+        WHERE ${parameters['activityRestriction']}
+        </sql>
+        <field name="project_id" table="activity_log"/>
+        <field name="work_pkg_id" table="activity_log"/>
+        <field name="bl_id" table="activity_log"/>
+        <field name="site_id" table="activity_log"/>
+        <field name="dv_id" table="activity_log"/>
+        <field name="dp_id" table="activity_log"/>
+        <field name="program_id" table="project"/>
+        <field name="program_type" table="program"/>
+        <field table="activity_log" name="date_planned_for"/>
+        <field table="activity_log" name="date_planned_end"/>
+        <parameter name="activityRestriction" value=" 1=1 " dataType="verbatim"/>
+    </dataSource>
+    
+    <dataSource id="projSCurveDs1">
+        <sql dialect="generic">
+            SELECT ${parameters['dateSql']} ${sql.as} date_field, 0 ${sql.as} prsnhrs_base, 
+               0 ${sql.as} cumprsnhrs_base, 0 ${sql.as} costs_base, 
+               0 ${sql.as} cumcosts_base, 0 ${sql.as} prsnhrs_design, 
+               0 ${sql.as} cumprsnhrs_design, 0 ${sql.as} costs_design, 
+               0 ${sql.as} cumcosts_design, 0 ${sql.as} prsnhrs_act, 
+               0 ${sql.as} cumprsnhrs_act, 0 ${sql.as} costs_act, 
+               0 ${sql.as} cumcosts_act FROM afm_cal_dates 
+            WHERE (afm_cal_dates.cal_date &gt;= ${parameters['fromDate']} 
+               AND afm_cal_dates.cal_date &lt;= ${parameters['toDate']})
+            GROUP BY date_field 
+            ORDER BY date_field
+        </sql>
+        <table name="afm_cal_dates"/>
+        <field name="date_field" dataType="text" >
+            <title>${View.groupBy}</title>
+        </field>
+        <field name="prsnhrs_base" dataType="number" decimals="2" size="18" >
+            <title>Baseline Person-Hours</title>
+        </field>
+        <field name="cumprsnhrs_base" dataType="number" decimals="2" size="18" >
+            <title>Cumulative Baseline Person-Hours</title>
+        </field>
+        <field name="prsnhrs_design" dataType="number" decimals="2" size="18" >
+            <title>Design Person-Hours</title>
+        </field>
+        <field name="cumprsnhrs_design" dataType="number" decimals="2" size="18" >
+            <title>Cumulative Design Person-Hours</title>
+        </field>
+        <field name="prsnhrs_act" dataType="number" decimals="2" size="18" >
+            <title>Actual Person-Hours</title>
+        </field>
+        <field name="cumprsnhrs_act" dataType="number" decimals="2" size="18" >
+            <title>Cumulative Actual Person-Hours</title>
+        </field>
+        <field name="costs_base" dataType="number" decimals="2" size="18" >
+            <title>Baseline Costs</title>
+        </field>
+        <field name="cumcosts_base" dataType="number" decimals="2" size="18" >
+            <title>Cumulative Baseline Costs</title>
+        </field>
+        <field name="costs_design" dataType="number" decimals="2" size="18" >
+            <title>Design Costs</title>
+        </field>
+        <field name="cumcosts_design" dataType="number" decimals="2" size="18" >
+            <title>Cumulative Design Costs</title>
+        </field>
+        <field name="costs_act" dataType="number" decimals="2" size="18" >
+            <title>Actual Costs</title>
+        </field>
+        <field name="cumcosts_act" dataType="number" decimals="2" size="18" >
+            <title>Cumulative Actual Costs</title>
+        </field>
+        <parameter name="activityRestriction" dataType="verbatim" value=" 1=1 "/>
+        <parameter name="fromDate" dataType="date" value="2010-01-01"/>
+        <parameter name="toDate" dataType="date" value="2020-12-31"/>
+        <parameter name="minDate" dataType="date" value="2010-01-01"/>
+        <parameter name="groupBy" dataType="text" value="date"/>
+        <parameter name="dateSql" dataType="verbatim" value="afm_cal_dates.cal_date"/>
+        <sortField name="date_field"/>
+    </dataSource>
+    
+    <dataSource id="projSCurveDs2" applyVpaRestrictions="false">
+        <table name="activity_log"/>
+        <sql dialect="generic">
+            SELECT  MIN(activity_log.date_planned_for) ${sql.as} min_date_base, 
+                    MIN(activity_log.date_scheduled) ${sql.as} min_date_design, 
+                    MIN(activity_log.date_started) ${sql.as} min_date_act,
+                    MAX(activity_log.date_planned_end) ${sql.as} max_date_base, 
+                    MAX(activity_log.date_scheduled_end) ${sql.as} max_date_design, 
+                    MAX(activity_log.date_completed) ${sql.as} max_date_act
+            FROM activity_log 
+            LEFT OUTER JOIN project ON activity_log.project_id = project.project_id
+		        LEFT OUTER JOIN program ON program.program_id = project.program_id
+		        LEFT OUTER JOIN site ON site.site_id = project.site_id 
+		        LEFT OUTER JOIN bl ON bl.bl_id = project.bl_id 
+            WHERE ${parameters['activityRestriction']}
+            </sql>
+        <field name="max_date_base" dataType="date"/>
+        <field name="min_date_base" dataType="date"/>
+        <field name="max_date_design" dataType="date"/>
+        <field name="min_date_design" dataType="date"/>
+        <field name="max_date_act" dataType="date"/>
+        <field name="min_date_act" dataType="date"/>
+        <parameter name="activityRestriction" dataType="verbatim" value=" 1=1 "/>
+        <sortField name="min_date_base"/>
+    </dataSource>
+        
+    <panel type="console" id="projSCurveConsole" dataSource="projSCurveDs0" columns="3" layoutRegion="console">
+        <title>Filter</title>
+        <action id="show">
+            <title>Show</title>
+        </action>
+        <action id="clear">
+            <title>Clear</title>
+        </action>
+        <field>
+            <title>Analyze</title>
+               <html>
+                  <select class="inputField_box" id="analyze" name="analyze">
+                      <option value="costs" selected="1"><span translatable="true">Costs</span></option>
+                      <option value="work"><span translatable="true">Work</span></option>
+                  </select>
+               </html>
+        </field>
+        <field name="project_id"  table="activity_log">
+            <action id="selValProjectId">
+                <title>...</title>
+                <command type="selectValue"
+                    showIndex="true"
+                    fieldNames="activity_log.project_id"
+                    selectFieldNames="project.project_id"
+                    visibleFieldNames="project.project_id, project.project_name, project.project_type, project.site_id, project.bl_id, project.date_start, project.date_end, project.proj_mgr, project.summary"
+                    selectValueType="multiple"
+                    actionListener="afterSelectProjectId">   
+                    <title>Project Code</title>
+                </command>         
+            </action>
+        </field>
+        <field name="work_pkg_id" table="activity_log">
+            <action id="selValWorkPkgId">
+                <title>...</title>
+                <command type="selectValue"
+                    showIndex="true"
+                    fieldNames="activity_log.work_pkg_id, activity_log.project_id"
+                    selectFieldNames="work_pkgs.work_pkg_id, work_pkgs.project_id"
+                    visibleFieldNames="work_pkgs.project_id, work_pkgs.work_pkg_id, work_pkgs.summary, work_pkgs.date_est_start, work_pkgs.date_est_end ">   
+                    <title>Work Package Name</title>
+                </command>         
+            </action>
+        </field>
+        <field>
+            <title>View Type</title>
+               <html>
+                  <select class="inputField_box" id="viewType" name="viewType" onchange="viewTypeListener()">
+                      <option value="columnLineChart" selected="1"><span translatable="true">Line and Bar Chart</span></option>
+                      <option value="lineChart"><span translatable="true">Line Chart</span></option>
+                      <option value="barChart"><span translatable="true">Bar Chart</span></option>
+                      <option value="grid"><span translatable="true">Report</span></option>
+                  </select>
+               </html>
+        </field>
+        <field name="site_id" table="activity_log"/>
+        <field name="bl_id" table="activity_log">
+            <action id="selValBlId">
+                <title>...</title>
+                <command type="selectValue"
+                    showIndex="true"
+                    fieldNames="activity_log.bl_id, activity_log.site_id"
+                    selectFieldNames="bl.bl_id, bl.site_id"
+                    visibleFieldNames="bl.site_id, bl.bl_id, bl.name">   
+                    <title>Building Code</title>
+                </command>         
+            </action>
+        </field>
+        <field>
+            <title>Display</title>
+               <html>
+                  <select class="inputField_box" id="display" name="display">
+                      <option value="baseline" selected="1"><span translatable="true">Baseline</span></option>
+                      <option value="design"><span translatable="true">Design</span></option>
+                      <option value="actual"><span translatable="true">Actual</span></option>
+                      <option value="baselineDesign"><span translatable="true">Baseline vs Design</span></option>
+                      <option value="baselineActual"><span translatable="true">Baseline vs Actual</span></option>
+                      <option value="designActual"><span translatable="true">Design vs Actual</span></option>
+                      <option value="baselineDesignActual"><span translatable="true">Baseline vs Design vs Actual</span></option>
+                  </select>
+               </html>
+        </field>        
+        <field name="dv_id" table="activity_log"/>
+        <field name="dp_id" table="activity_log"/>
+        <field>
+            <title>Group By</title>
+               <html>
+                  <select class="inputField_box" id="groupBy" name="groupBy">
+                      <option value="date" selected="1"><span translatable="true">Date</span></option>
+                      <option value="week"><span translatable="true">Week</span></option>
+                      <option value="month"><span translatable="true">Month</span></option>
+                      <option value="quarter"><span translatable="true">Quarter</span></option>
+                      <option value="year"><span translatable="true">Year</span></option>
+                  </select>
+               </html>
+        </field>
+        <field name="program_type" table="program"/>
+        <field name="program_id" table="project">
+        		<title>Program Name</title>
+            <action id="selValProgramId">
+                <title>...</title>
+                <command type="selectValue"
+                    showIndex="true"
+                    fieldNames="project.program_id, program.program_type"
+                    selectFieldNames="program.program_id, program.program_type"
+                    visibleFieldNames="program.program_type, program.program_id, program.summary ">   
+                    <title>Program Name</title>
+                </command>         
+            </action>
+        </field>
+        <field/>
+        <field table="activity_log" name="date_planned_for">
+            <title>From Date</title>
+        </field>
+        <field table="activity_log" name="date_planned_end">
+            <title>To Date</title>
+        </field>
+
+    </panel>
+    
+    <!-- Panel Type 'Grid' -->
+    
+    <panel id="projSCurveGridWrk" type="grid" controlType="reportGrid" dataSource="projSCurveDs1" showOnLoad="false" layoutRegion="data">
+        <title>Report Cumulative Person-Hours by ${View.groupBy}</title>
+        <field name="date_field" dataType="text" >
+            <title>${View.groupBy}</title>
+        </field>
+        <field name="prsnhrs_base" dataType="number" decimals="2" size="18" >
+            <title>Baseline Person-Hours</title>
+        </field>
+        <field name="cumprsnhrs_base" dataType="number" decimals="2" size="18" >
+            <title>Cumulative Baseline Person-Hours</title>
+        </field>
+        <field name="prsnhrs_design" dataType="number" decimals="2" size="18" >
+            <title>Design Person-Hours</title>
+        </field>
+        <field name="cumprsnhrs_design" dataType="number" decimals="2" size="18" >
+            <title>Cumulative Design Person-Hours</title>
+        </field>
+        <field name="prsnhrs_act" dataType="number" decimals="2" size="18" >
+            <title>Actual Person-Hours</title>
+        </field>
+        <field name="cumprsnhrs_act" dataType="number" decimals="2" size="18" >
+            <title>Cumulative Actual Person-Hours</title>
+        </field>
+    </panel>
+    
+    <panel id="projSCurveGridCosts" type="grid" controlType="reportGrid" dataSource="projSCurveDs1" showOnLoad="false" layoutRegion="data">
+        <title>Report Cumulative Costs by ${View.groupBy}</title>
+        <field name="date_field" dataType="text" >
+            <title>${View.groupBy}</title>
+        </field>
+        <field name="costs_base" dataType="number" decimals="2" size="18" >
+            <title>Baseline Costs</title>
+        </field>
+        <field name="cumcosts_base" dataType="number" decimals="2" size="18" >
+            <title>Cumulative Baseline Costs</title>
+        </field>
+        <field name="costs_design" dataType="number" decimals="2" size="18" >
+            <title>Design Costs</title>
+        </field>
+        <field name="cumcosts_design" dataType="number" decimals="2" size="18" >
+            <title>Cumulative Design Costs</title>
+        </field>
+        <field name="costs_act" dataType="number" decimals="2" size="18" >
+            <title>Actual Costs</title>
+        </field>
+        <field name="cumcosts_act" dataType="number" decimals="2" size="18" >
+            <title>Cumulative Actual Costs</title>
+        </field>
+    </panel>
+    
+    <!-- Panel Type 'Column Line Chart' -->
+    
+    <panel id="projSCurveColumnLineWrkBase" type="chart" controlType="columnLineChart" layoutRegion="data" 
+        dataSource="projSCurveDs1" showLegendAsPopUp="false" showOnLoad="false"
+         refreshWorkflowRuleId="AbProjectManagement-SCurveHandlers-getChartData">
+        <title>S-Curve Analysis of Cumulative Baseline Person-Hours by ${View.groupBy}</title>
+        <groupingAxis table="afm_cal_dates" field="date_field" showLabel="true" labelRotation="45">
+            <title>${View.groupBy}</title> 
+        </groupingAxis>
+        <dataAxis table="afm_cal_dates" field="prsnhrs_base" displayAxis="true">
+            <title>Baseline Person-Hours</title>
+        </dataAxis>
+        <dataAxis table="afm_cal_dates" field="cumprsnhrs_base" type="line" displayAxis="true">
+           <title>Cumulative Baseline Person-Hours</title>
+        </dataAxis>
+    </panel>
+    
+    <panel id="projSCurveColumnLineWrkDesign" type="chart" controlType="columnLineChart" layoutRegion="data" 
+        dataSource="projSCurveDs1" showLegendAsPopUp="false" showOnLoad="false"
+         refreshWorkflowRuleId="AbProjectManagement-SCurveHandlers-getChartData">
+        <title>S-Curve Analysis of Cumulative Design Person-Hours by ${View.groupBy}</title>
+        <groupingAxis table="afm_cal_dates" field="date_field" showLabel="true" labelRotation="45">
+            <title>${View.groupBy}</title> 
+        </groupingAxis>
+        <dataAxis table="afm_cal_dates" field="prsnhrs_design" displayAxis="true">
+            <title>Design Person-Hours</title>
+        </dataAxis>
+        <dataAxis table="afm_cal_dates" field="cumprsnhrs_design" type="line" displayAxis="true">
+           <title>Cumulative Design Person-Hours</title>
+        </dataAxis>
+    </panel>
+    
+    <panel id="projSCurveColumnLineWrkAct" type="chart" controlType="columnLineChart" layoutRegion="data" 
+        dataSource="projSCurveDs1" showLegendAsPopUp="false" showOnLoad="false"
+         refreshWorkflowRuleId="AbProjectManagement-SCurveHandlers-getChartData">
+        <title>S-Curve Analysis of Cumulative Actual Person-Hours by ${View.groupBy}</title>
+        <groupingAxis table="afm_cal_dates" field="date_field" showLabel="true" labelRotation="45">
+            <title>${View.groupBy}</title> 
+        </groupingAxis>
+        <dataAxis table="afm_cal_dates" field="prsnhrs_act" displayAxis="true">
+            <title>Actual Person-Hours</title>
+        </dataAxis>
+        <dataAxis table="afm_cal_dates" field="cumprsnhrs_act" type="line" displayAxis="true">
+           <title>Cumulative Actual Person-Hours</title>
+        </dataAxis>
+    </panel>
+    
+    <panel id="projSCurveColumnLineCostsBase" type="chart" controlType="columnLineChart" layoutRegion="data" 
+        dataSource="projSCurveDs1" showLegendAsPopUp="false" showOnLoad="false"
+         refreshWorkflowRuleId="AbProjectManagement-SCurveHandlers-getChartData">
+        <title>S-Curve Analysis of Cumulative Baseline Costs by ${View.groupBy}</title>
+        <groupingAxis table="afm_cal_dates" field="date_field" showLabel="true" labelRotation="45">
+            <title>${View.groupBy}</title> 
+        </groupingAxis>
+        <dataAxis table="afm_cal_dates" field="costs_base" displayAxis="true">
+            <title>Baseline Costs</title>
+        </dataAxis>
+        <dataAxis table="afm_cal_dates" field="cumcosts_base" type="line" displayAxis="true">
+           <title>Cumulative Baseline Costs</title>
+        </dataAxis>
+    </panel>
+    
+    <panel id="projSCurveColumnLineCostsDesign" type="chart" controlType="columnLineChart" layoutRegion="data" 
+        dataSource="projSCurveDs1" showLegendAsPopUp="false" showOnLoad="false"
+         refreshWorkflowRuleId="AbProjectManagement-SCurveHandlers-getChartData">
+        <title>S-Curve Analysis of Cumulative Design Costs by ${View.groupBy}</title>
+        <groupingAxis table="afm_cal_dates" field="date_field" showLabel="true" labelRotation="45">
+            <title>${View.groupBy}</title> 
+        </groupingAxis>
+        <dataAxis table="afm_cal_dates" field="costs_design" displayAxis="true">
+            <title>Design Costs</title>
+        </dataAxis>
+        <dataAxis table="afm_cal_dates" field="cumcosts_design" type="line" displayAxis="true">
+           <title>Cumulative Design Costs</title>
+        </dataAxis>
+    </panel>
+    
+    <panel id="projSCurveColumnLineCostsAct" type="chart" controlType="columnLineChart" layoutRegion="data" 
+        dataSource="projSCurveDs1" showLegendAsPopUp="false" showOnLoad="false"
+         refreshWorkflowRuleId="AbProjectManagement-SCurveHandlers-getChartData">
+        <title>S-Curve Analysis of Cumulative Actual Costs by ${View.groupBy}</title>
+        <groupingAxis table="afm_cal_dates" field="date_field" showLabel="true" labelRotation="45">
+            <title>${View.groupBy}</title> 
+        </groupingAxis>
+        <dataAxis table="afm_cal_dates" field="costs_act" displayAxis="true">
+            <title>Actual Costs</title>
+        </dataAxis>
+        <dataAxis table="afm_cal_dates" field="cumcosts_act" type="line" displayAxis="true">
+           <title>Cumulative Actual Costs</title>
+        </dataAxis>
+    </panel>
+    
+    <!-- Panel Type 'Line Chart' -->
+    
+    <panel id="projSCurveLineWrkBase" type="chart" controlType="lineChart" layoutRegion="data"
+        dataSource="projSCurveDs1" showLegendAsPopUp="false" showOnLoad="false"
+         refreshWorkflowRuleId="AbProjectManagement-SCurveHandlers-getChartData">
+        <title>S-Curve Analysis of Cumulative Baseline Person-Hours by ${View.groupBy}</title>
+        <groupingAxis table="afm_cal_dates" field="date_field" showLabel="true" labelRotation="45">
+            <title>${View.groupBy}</title>
+        </groupingAxis>
+        <dataAxis table="afm_cal_dates" field="cumprsnhrs_base" displayAxis="true">
+           <title>Cumulative Baseline Person-Hours</title>
+        </dataAxis>
+    </panel>
+    
+    <panel id="projSCurveLineWrkDesign" type="chart" controlType="lineChart" layoutRegion="data"
+        dataSource="projSCurveDs1" showLegendAsPopUp="false" showOnLoad="false"
+         refreshWorkflowRuleId="AbProjectManagement-SCurveHandlers-getChartData">
+        <title>S-Curve Analysis of Cumulative Design Person-Hours by ${View.groupBy}</title>
+        <groupingAxis table="afm_cal_dates" field="date_field" showLabel="true" labelRotation="45">
+            <title>${View.groupBy}</title>
+        </groupingAxis>
+        <dataAxis table="afm_cal_dates" field="cumprsnhrs_design" displayAxis="true">
+           <title>Cumulative Design Person-Hours</title>
+        </dataAxis>
+    </panel>
+    
+    <panel id="projSCurveLineWrkAct" type="chart" controlType="lineChart" layoutRegion="data"
+        dataSource="projSCurveDs1" showLegendAsPopUp="false" showOnLoad="false"
+         refreshWorkflowRuleId="AbProjectManagement-SCurveHandlers-getChartData">
+        <title>S-Curve Analysis of Cumulative Actual Person-Hours by ${View.groupBy}</title>
+        <groupingAxis table="afm_cal_dates" field="date_field" showLabel="true" labelRotation="45">
+            <title>${View.groupBy}</title>
+        </groupingAxis>
+        <dataAxis table="afm_cal_dates" field="cumprsnhrs_act" displayAxis="true">
+           <title>Cumulative Actual Person-Hours</title>
+        </dataAxis>
+    </panel>
+    
+    <panel id="projSCurveLineWrkBaseDesign" type="chart" controlType="lineChart" layoutRegion="data"
+        dataSource="projSCurveDs1" showLegendAsPopUp="false" showOnLoad="false"
+         refreshWorkflowRuleId="AbProjectManagement-SCurveHandlers-getChartData">
+        <title>S-Curve Analysis of Cumulative Baseline vs Design Person-Hours by ${View.groupBy}</title>
+        <groupingAxis table="afm_cal_dates" field="date_field" showLabel="true" labelRotation="45">
+            <title>${View.groupBy}</title> 
+        </groupingAxis>
+        <dataAxis table="afm_cal_dates" field="cumprsnhrs_base" displayAxis="false">
+           <title>Cumulative Baseline Person-Hours</title>
+        </dataAxis>
+        <dataAxis table="afm_cal_dates" field="cumprsnhrs_design" displayAxis="false">
+           <title>Cumulative Design Person-Hours</title>
+        </dataAxis>
+    </panel>
+    
+    <panel id="projSCurveLineWrkBaseAct" type="chart" controlType="lineChart" layoutRegion="data"
+        dataSource="projSCurveDs1" showLegendAsPopUp="false" showOnLoad="false"
+         refreshWorkflowRuleId="AbProjectManagement-SCurveHandlers-getChartData">
+        <title>S-Curve Analysis of Cumulative Baseline vs Actual Person-Hours by ${View.groupBy}</title>
+        <groupingAxis table="afm_cal_dates" field="date_field" showLabel="true" labelRotation="45">
+            <title>${View.groupBy}</title> 
+        </groupingAxis>
+        <dataAxis table="afm_cal_dates" field="cumprsnhrs_base" displayAxis="false">
+           <title>Cumulative Baseline Person-Hours</title>
+        </dataAxis>
+        <dataAxis table="afm_cal_dates" field="cumprsnhrs_act" displayAxis="false">
+           <title>Cumulative Actual Person-Hours</title>
+        </dataAxis>
+    </panel>
+    
+    <panel id="projSCurveLineWrkDesignAct" type="chart" controlType="lineChart" layoutRegion="data"
+        dataSource="projSCurveDs1" showLegendAsPopUp="false" showOnLoad="false"
+         refreshWorkflowRuleId="AbProjectManagement-SCurveHandlers-getChartData">
+        <title>S-Curve Analysis of Cumulative Design vs Actual Person-Hours by ${View.groupBy}</title>
+        <groupingAxis table="afm_cal_dates" field="date_field" showLabel="true" labelRotation="45">
+            <title>${View.groupBy}</title> 
+        </groupingAxis>
+        <dataAxis table="afm_cal_dates" field="cumprsnhrs_design" displayAxis="false">
+           <title>Cumulative Design Person-Hours</title>
+        </dataAxis>
+        <dataAxis table="afm_cal_dates" field="cumprsnhrs_act" displayAxis="false">
+           <title>Cumulative Actual Person-Hours</title>
+        </dataAxis>
+    </panel>
+    
+    <panel id="projSCurveLineWrkBaseDesignAct" type="chart" controlType="lineChart" layoutRegion="data"
+        dataSource="projSCurveDs1" showLegendAsPopUp="false" showOnLoad="false"
+         refreshWorkflowRuleId="AbProjectManagement-SCurveHandlers-getChartData">
+        <title>S-Curve Analysis of Cumulative Baseline vs Design vs Actual Person-Hours by ${View.groupBy}</title>
+        <groupingAxis table="afm_cal_dates" field="date_field" showLabel="true" labelRotation="45">
+            <title>${View.groupBy}</title> 
+        </groupingAxis>
+        <dataAxis table="afm_cal_dates" field="cumprsnhrs_base" displayAxis="false">
+           <title>Cumulative Baseline Person-Hours</title>
+        </dataAxis>
+        <dataAxis table="afm_cal_dates" field="cumprsnhrs_design" displayAxis="false">
+           <title>Cumulative Design Person-Hours</title>
+        </dataAxis>
+        <dataAxis table="afm_cal_dates" field="cumprsnhrs_act" displayAxis="false">
+           <title>Cumulative Actual Person-Hours</title>
+        </dataAxis>
+    </panel>
+    
+    <panel id="projSCurveLineCostsBase" type="chart" controlType="lineChart" layoutRegion="data"
+        dataSource="projSCurveDs1" showLegendAsPopUp="false" showOnLoad="false"
+         refreshWorkflowRuleId="AbProjectManagement-SCurveHandlers-getChartData">
+        <title>S-Curve Analysis of Cumulative Baseline Costs by ${View.groupBy}</title>
+        <groupingAxis table="afm_cal_dates" field="date_field" showLabel="true" labelRotation="45">
+            <title>${View.groupBy}</title>
+        </groupingAxis>
+        <dataAxis table="afm_cal_dates" field="cumcosts_base" displayAxis="true">
+           <title>Cumulative Baseline Costs</title>
+        </dataAxis>
+    </panel>
+    
+    <panel id="projSCurveLineCostsDesign" type="chart" controlType="lineChart" layoutRegion="data"
+        dataSource="projSCurveDs1" showLegendAsPopUp="false" showOnLoad="false"
+         refreshWorkflowRuleId="AbProjectManagement-SCurveHandlers-getChartData">
+        <title>S-Curve Analysis of Cumulative Design Costs by ${View.groupBy}</title>
+        <groupingAxis table="afm_cal_dates" field="date_field" showLabel="true" labelRotation="45">
+            <title>${View.groupBy}</title>
+        </groupingAxis>
+        <dataAxis table="afm_cal_dates" field="cumcosts_design" displayAxis="true">
+           <title>Cumulative Design Costs</title>
+        </dataAxis>
+    </panel>
+    
+    <panel id="projSCurveLineCostsAct" type="chart" controlType="lineChart" layoutRegion="data"
+        dataSource="projSCurveDs1" showLegendAsPopUp="false" showOnLoad="false"
+         refreshWorkflowRuleId="AbProjectManagement-SCurveHandlers-getChartData">
+        <title>S-Curve Analysis of Cumulative Actual Costs by ${View.groupBy}</title>
+        <groupingAxis table="afm_cal_dates" field="date_field" showLabel="true" labelRotation="45">
+            <title>${View.groupBy}</title>
+        </groupingAxis>
+        <dataAxis table="afm_cal_dates" field="cumcosts_act" displayAxis="true">
+           <title>Cumulative Actual Costs</title>
+        </dataAxis>
+    </panel>
+    
+    <panel id="projSCurveLineCostsBaseDesign" type="chart" controlType="lineChart" layoutRegion="data"
+        dataSource="projSCurveDs1" showLegendAsPopUp="false" showOnLoad="false"
+         refreshWorkflowRuleId="AbProjectManagement-SCurveHandlers-getChartData">
+        <title>S-Curve Analysis of Cumulative Baseline vs Design Costs by ${View.groupBy}</title>
+        <groupingAxis table="afm_cal_dates" field="date_field" showLabel="true" labelRotation="45">
+            <title>${View.groupBy}</title> 
+        </groupingAxis>
+        <dataAxis table="afm_cal_dates" field="cumcosts_base" displayAxis="false">
+           <title>Cumulative Baseline Costs</title>
+        </dataAxis>
+        <dataAxis table="afm_cal_dates" field="cumcosts_design" displayAxis="false">
+           <title>Cumulative Design Costs</title>
+        </dataAxis>
+    </panel>
+    
+    <panel id="projSCurveLineCostsBaseAct" type="chart" controlType="lineChart" layoutRegion="data"
+        dataSource="projSCurveDs1" showLegendAsPopUp="false" showOnLoad="false"
+         refreshWorkflowRuleId="AbProjectManagement-SCurveHandlers-getChartData">
+        <title>S-Curve Analysis of Cumulative Baseline vs Actual Costs by ${View.groupBy}</title>
+        <groupingAxis table="afm_cal_dates" field="date_field" showLabel="true" labelRotation="45">
+            <title>${View.groupBy}</title> 
+        </groupingAxis>
+        <dataAxis table="afm_cal_dates" field="cumcosts_base" displayAxis="false">
+           <title>Cumulative Baseline Costs</title>
+        </dataAxis>
+        <dataAxis table="afm_cal_dates" field="cumcosts_act" displayAxis="false">
+           <title>Cumulative Actual Costs</title>
+        </dataAxis>
+    </panel>
+    
+    <panel id="projSCurveLineCostsDesignAct" type="chart" controlType="lineChart" layoutRegion="data"
+        dataSource="projSCurveDs1" showLegendAsPopUp="false" showOnLoad="false"
+         refreshWorkflowRuleId="AbProjectManagement-SCurveHandlers-getChartData">
+        <title>S-Curve Analysis of Cumulative Design vs Actual Costs by ${View.groupBy}</title>
+        <groupingAxis table="afm_cal_dates" field="date_field" showLabel="true" labelRotation="45">
+            <title>${View.groupBy}</title> 
+        </groupingAxis>
+        <dataAxis table="afm_cal_dates" field="cumcosts_design" displayAxis="false">
+           <title>Cumulative Design Costs</title>
+        </dataAxis>
+        <dataAxis table="afm_cal_dates" field="cumcosts_act" displayAxis="false">
+           <title>Cumulative Actual Costs</title>
+        </dataAxis>
+    </panel>
+    
+    <panel id="projSCurveLineCostsBaseDesignAct" type="chart" controlType="lineChart" layoutRegion="data"
+        dataSource="projSCurveDs1" showLegendAsPopUp="false" showOnLoad="false"
+         refreshWorkflowRuleId="AbProjectManagement-SCurveHandlers-getChartData">
+        <title>S-Curve Analysis of Cumulative Baseline vs Design vs Actual Costs by ${View.groupBy}</title>
+        <groupingAxis table="afm_cal_dates" field="date_field" showLabel="true" labelRotation="45">
+            <title>${View.groupBy}</title> 
+        </groupingAxis>
+        <dataAxis table="afm_cal_dates" field="cumcosts_base" displayAxis="false">
+           <title>Cumulative Baseline Costs</title>
+        </dataAxis>
+        <dataAxis table="afm_cal_dates" field="cumcosts_design" displayAxis="false">
+           <title>Cumulative Design Costs</title>
+        </dataAxis>
+        <dataAxis table="afm_cal_dates" field="cumcosts_act" displayAxis="false">
+           <title>Cumulative Actual Costs</title>
+        </dataAxis>
+    </panel>
+    
+    <!-- Panel Type 'Column Chart' -->
+    
+    <panel id="projSCurveColumnWrkBaseDesign" type="chart" controlType="columnChart" layoutRegion="data"
+        dataSource="projSCurveDs1" showLegendAsPopUp="false" showOnLoad="false"
+         refreshWorkflowRuleId="AbProjectManagement-SCurveHandlers-getChartData">
+        <title>Baseline vs Design Person-Hours by ${View.groupBy}</title>
+        <groupingAxis table="afm_cal_dates" field="date_field" showLabel="true" labelRotation="45">
+            <title>${View.groupBy}</title> 
+        </groupingAxis>
+        <dataAxis table="afm_cal_dates" field="prsnhrs_base" displayAxis="false">
+           <title>Baseline Person-Hours</title>
+        </dataAxis>
+        <dataAxis table="afm_cal_dates" field="prsnhrs_design" displayAxis="false">
+           <title>Design Person-Hours</title>
+        </dataAxis>
+    </panel>
+    
+    <panel id="projSCurveColumnWrkBaseAct" type="chart" controlType="columnChart" layoutRegion="data"
+        dataSource="projSCurveDs1" showLegendAsPopUp="false" showOnLoad="false"
+         refreshWorkflowRuleId="AbProjectManagement-SCurveHandlers-getChartData">
+        <title>Baseline vs Actual Person-Hours by ${View.groupBy}</title>
+        <groupingAxis table="afm_cal_dates" field="date_field" showLabel="true" labelRotation="45">
+            <title>${View.groupBy}</title> 
+        </groupingAxis>
+        <dataAxis table="afm_cal_dates" field="prsnhrs_base" displayAxis="false">
+           <title>Baseline Person-Hours</title>
+        </dataAxis>
+        <dataAxis table="afm_cal_dates" field="prsnhrs_act" displayAxis="false">
+           <title>Actual Person-Hours</title>
+        </dataAxis>
+    </panel>
+    
+    <panel id="projSCurveColumnWrkDesignAct" type="chart" controlType="columnChart" layoutRegion="data"
+        dataSource="projSCurveDs1" showLegendAsPopUp="false" showOnLoad="false"
+         refreshWorkflowRuleId="AbProjectManagement-SCurveHandlers-getChartData">
+        <title>Design vs Actual Person-Hours by ${View.groupBy}</title>
+        <groupingAxis table="afm_cal_dates" field="date_field" showLabel="true" labelRotation="45">
+            <title>${View.groupBy}</title> 
+        </groupingAxis>
+        <dataAxis table="afm_cal_dates" field="prsnhrs_design" displayAxis="false">
+           <title>Design Person-Hours</title>
+        </dataAxis>
+        <dataAxis table="afm_cal_dates" field="prsnhrs_act" displayAxis="false">
+           <title>Actual Person-Hours</title>
+        </dataAxis>
+    </panel>
+    
+    <panel id="projSCurveColumnCostsBaseDesign" type="chart" controlType="columnChart" layoutRegion="data"
+        dataSource="projSCurveDs1" showLegendAsPopUp="false" showOnLoad="false"
+         refreshWorkflowRuleId="AbProjectManagement-SCurveHandlers-getChartData">
+        <title>Baseline vs Design Costs by ${View.groupBy}</title>
+        <groupingAxis table="afm_cal_dates" field="date_field" showLabel="true" labelRotation="45">
+            <title>${View.groupBy}</title> 
+        </groupingAxis>
+        <dataAxis table="afm_cal_dates" field="costs_base" displayAxis="false">
+           <title>Baseline Costs</title>
+        </dataAxis>
+        <dataAxis table="afm_cal_dates" field="costs_design" displayAxis="false">
+           <title>Design Costs</title>
+        </dataAxis>
+    </panel>
+    
+    <panel id="projSCurveColumnCostsBaseAct" type="chart" controlType="columnChart" layoutRegion="data"
+        dataSource="projSCurveDs1" showLegendAsPopUp="false" showOnLoad="false"
+         refreshWorkflowRuleId="AbProjectManagement-SCurveHandlers-getChartData">
+        <title>Baseline vs Actual Costs by ${View.groupBy}</title>
+        <groupingAxis table="afm_cal_dates" field="date_field" showLabel="true" labelRotation="45">
+            <title>${View.groupBy}</title> 
+        </groupingAxis>
+        <dataAxis table="afm_cal_dates" field="costs_base" displayAxis="false">
+           <title>Baseline Costs</title>
+        </dataAxis>
+        <dataAxis table="afm_cal_dates" field="costs_act" displayAxis="false">
+           <title>Actual Costs</title>
+        </dataAxis>
+    </panel>
+    
+    <panel id="projSCurveColumnCostsDesignAct" type="chart" controlType="columnChart" layoutRegion="data"
+        dataSource="projSCurveDs1" showLegendAsPopUp="false" showOnLoad="false"
+         refreshWorkflowRuleId="AbProjectManagement-SCurveHandlers-getChartData">
+        <title>Design vs Actual Costs by ${View.groupBy}</title>
+        <groupingAxis table="afm_cal_dates" field="date_field" showLabel="true" labelRotation="45">
+            <title>${View.groupBy}</title> 
+        </groupingAxis>
+        <dataAxis table="afm_cal_dates" field="costs_design" displayAxis="false">
+           <title>Design Costs</title>
+        </dataAxis>
+        <dataAxis table="afm_cal_dates" field="costs_act" displayAxis="false">
+           <title>Actual Costs</title>
+        </dataAxis>
+    </panel>
+</view>

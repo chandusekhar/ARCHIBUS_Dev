@@ -1,0 +1,103 @@
+<view version="2.0">
+    <title>Edit and Approve Invoices</title>
+  	<js file="ab-proj-fcpm-invs.js"/> 	 
+    
+    <dataSource id="projFcpmInvsDs1" applyVpaRestrictions="false">
+        <table name="invoice" role="main" />
+        <table name="project" role="standard" />
+        <field name="project_id" table="invoice"/>
+        <field name="project_name" table="project"/>
+        <field name="vn_invoice_num" table="invoice" />
+        <field name="work_pkg_id" table="invoice"/>
+        <field name="invoice_id" table="invoice" />        
+        <field name="status" table="invoice" />
+        <field name="date_expected_rec" table="invoice" />
+        <field name="vn_id" table="invoice" /> 
+        <field name="date_sent" table="invoice" />
+        <field name="contact_id_send_to" table="invoice" />
+        <field name="contact_id_remit_to" table="invoice" />
+        <field name="terms" table="invoice" />        
+        <field name="qty_invoiced" table="invoice" />
+        <field name="qty_received" table="invoice" />
+        <field name="qty_accepted" table="invoice" />
+        <field name="ac_id" table="invoice" />
+        <field name="bl_id" table="invoice" />
+        <field name="amount_billed_total" table="invoice" />
+        <field name="amount_tot_invoice" table="invoice" showTotals="true" decimals="0"/>
+        <field name="amount_closed" table="invoice" showTotals="true" />
+        <field name="doc" table="invoice" />
+        <field name="description" table="invoice" /> 
+        <restriction type="sql" sql="${sql.getVpaRestrictionForTable('project')}"/>
+        <restriction type="sql" sql="(project.proj_mgr = '${user.employee.id}' OR project.apprv_mgr1 = '${user.employee.id}') AND project.status NOT LIKE 'Requested%' AND project.status NOT IN ('Created')"/>
+        <restriction type="sql" sql="invoice.project_id IS NOT NULL AND invoice.work_pkg_id IS NOT NULL"/>       
+    </dataSource>
+    
+    <panel type="console" id="projFcpmInvs_console" dataSource="projFcpmInvsDs1" columns="2">
+    		<title>Filter</title>
+    		<action mainAction="true">
+    				<title>Show</title>
+    				<command type="showPanel" panelId="projFcpmInvs_invs"/>
+    	  </action>
+    	  <action>
+    				<title>Clear</title>
+    				<command type="clearPanel" />
+    	  </action>
+    	  <field name="project_id" table="invoice">
+    	  		<action id="projFcpmInvs_selValProj">
+								<title>...</title>
+								<command type="selectValue"
+										fieldNames="invoice.project_id"
+						        selectFieldNames="project.project_id"
+						        visibleFieldNames="project.project_id, project.project_name, project.status, project.summary, project.proj_mgr"
+						        restriction="(project.proj_mgr = '${user.employee.id}' OR project.apprv_mgr1 = '${user.employee.id}') AND project.is_template=0 AND project.status NOT LIKE 'Requested%' AND project.status NOT IN ('Created')">
+						        <title>Projects Assigned to User</title>  
+						    </command>         
+				    </action>
+				 </field>
+        <field name="work_pkg_id" table="invoice">
+		        <action id="projFcpmInvs_selValPkg">
+								<title>...</title>
+								<command type="selectValue"
+										fieldNames="invoice.project_id,invoice.work_pkg_id, invoice.vn_id"
+										selectFieldNames="work_pkg_bids.project_id, work_pkg_bids.work_pkg_id, work_pkg_bids.vn_id"
+						 				visibleFieldNames="work_pkg_bids.project_id, work_pkg_bids.work_pkg_id, work_pkg_bids.vn_id"
+						 				restriction="work_pkg_bids.status IN ('Contract Signed','In Process','In Process-On Hold','Completed','Completed and Verified','Paid In Full') AND EXISTS (SELECT 1 FROM project WHERE project.project_id = work_pkg_bids.project_id AND (project.proj_mgr = '${user.employee.id}' OR project.apprv_mgr1 = '${user.employee.id}') AND project.is_template=0 AND project.status NOT LIKE 'Requested%' AND project.status NOT IN ('Created') AND ${sql.getVpaRestrictionForTable('project')})">
+						        <title>Work Packages</title>  
+						    </command>         
+						 </action>
+				 </field>
+         <field name="vn_id" table="invoice">
+         		<action id="projFcpmInvs_selValVn">
+											<title>...</title>
+											<command type="selectValue"
+													fieldNames="invoice.project_id,invoice.work_pkg_id, invoice.vn_id"
+													selectFieldNames="work_pkg_bids.project_id, work_pkg_bids.work_pkg_id, work_pkg_bids.vn_id"
+									 				visibleFieldNames=" work_pkg_bids.vn_id, work_pkg_bids.project_id, work_pkg_bids.work_pkg_id"
+									 				restriction="work_pkg_bids.status IN ('Contract Signed','In Process','In Process-On Hold','Completed','Completed and Verified','Paid In Full') AND EXISTS (SELECT 1 FROM project WHERE project.project_id = work_pkg_bids.project_id AND (project.proj_mgr = '${user.employee.id}' OR project.apprv_mgr1 = '${user.employee.id}') AND project.is_template=0 AND project.status NOT LIKE 'Requested%' AND project.status NOT IN ('Created') AND ${sql.getVpaRestrictionForTable('project')})">
+									        <title>Vendor Work Packages</title>  
+									    </command>         
+									 </action>
+				  </field>
+    </panel>
+    
+		<panel type="grid" id="projFcpmInvs_invs" dataSource="projFcpmInvsDs1" showOnLoad="true" columns="2">
+				<title>Select Invoice</title>
+				<sortField name="invoice_id" table="invoice" ascending="false"/>
+				<sortField name="project_id" table="invoice" />
+				<sortField name="work_pkg_id" table="invoice" />
+				<sortField name="vn_id" table="invoice" />
+				<sortField name="vn_invoice_num" table="invoice" ascending="false"/>
+				<sortField name="date_sent" table="invoice" ascending="false"/>
+				<action id="addNew">
+						<title>Add Invoice</title>
+				</action>
+				<field name="invoice_id" table="invoice" controlType="link" onclick="selectInvoice"/>
+				<field name="project_id" table="invoice" controlType="link" onclick="selectInvoice" />
+				<field name="work_pkg_id" table="invoice" controlType="link" onclick="selectInvoice"/>
+				<field name="vn_id" table="invoice" controlType="link" onclick="selectInvoice"/>
+				<field name="vn_invoice_num" table="invoice" controlType="link" onclick="selectInvoice"/>
+				<field name="status" table="invoice" controlType="link" onclick="selectInvoice"/>
+				<field name="date_sent" table="invoice" controlType="link" onclick="selectInvoice"/>
+				<field name="amount_tot_invoice" table="invoice" controlType="link" onclick="selectInvoice" showTotals="true" decimals="0"/>
+		</panel>
+</view>

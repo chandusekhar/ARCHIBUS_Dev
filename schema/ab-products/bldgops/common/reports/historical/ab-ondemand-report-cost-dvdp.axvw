@@ -1,0 +1,119 @@
+<view version="2.0">
+	<layout type="borderLayout" id="mainLayout">
+		<north autoScroll="true" split="true" initialSize="102"/>
+		<center autoScroll="true"/>
+	</layout>
+
+	<js file="ab-ondemand-common.js" />
+	<js file="ab-bldgops-report-common.js" />
+	<js file="ab-ondemand-report-cost-dvdp.js" />
+	<js file="ab-ondemand-report-cost-common.js" />
+	
+	<dataSource id="afmScmprefDS">
+		<table name="afm_scmpref" />
+		<field name="fiscalyear_startmonth" />
+		<field name="fiscalyear_startday" />
+	</dataSource>
+	
+	<dataSource type="grouping" id="dsYears">
+		<table name="afm_cal_dates" />
+		<field name="year" groupBy="true" dataType="text" formula="year" baseField="afm_cal_dates.cal_date"/>
+		<sortField name="year" ascending="false" />
+	</dataSource>
+
+ 	<dataSource id="consoleDS">
+		<table name="wr" role="main" />
+		<field table="wr" name="dv_id" />
+		<field table="wr" name="dp_id" />
+	</dataSource>
+
+	<dataSource id="crossTableDS" type="grouping" applyVpaRestrictions="false">
+		 <sql dialect="generic">
+           select * from (
+		    SELECT 
+            wrhwr.*,
+			RTRIM(wrhwr.dv_id) ${sql.concat} '-' ${sql.concat}
+				RTRIM(wrhwr.dp_id) ${sql.as} dvdp,
+			${sql.yearMonthOf('wrhwr.date_completed')} ${sql.as} month,
+			wrhwr.cost_total - wrhwr.cost_est_total ${sql.as} cost_var 
+		    FROM wrhwr
+		    WHERE   wrhwr.status IN ('Com','Clo')) wr where 1=1 AND (${sql.vpaRestriction})
+		</sql>  
+		<table name="wr" role="main" />
+		<sortField name="dvdp" ascending="true" />
+		<sortField name="month" ascending="true" />
+
+		<field name="dvdp" groupBy="true" dataType="text">
+			<title translatable="true">Division - Department</title>
+		</field>
+
+		<field name="month" table="wr" groupBy="true">
+			<title translatable="true">Month</title>
+		</field>
+
+		<field name="Actual_Cost" formula="sum" dataType="number"
+			baseField="wr.cost_total" size="6" decimals="2">
+			<title translatable="true">Actual Cost</title>
+		</field>
+		<field name="Estimated_Cost" formula="sum" dataType="number"
+			baseField="wr.cost_est_total" size="6" decimals="2">
+			<title translatable="true">Estimated Cost</title>
+		</field>
+		<field name="Cost_Variance" formula="sum" dataType="number"
+			baseField="wr.cost_var" size="6" decimals="2">
+			<title translatable="true">Cost Variance</title>
+		</field>
+	</dataSource>
+
+	<panel type="console" columns="2" id="requestConsole"
+		dataSource="consoleDS" region="north">
+		<title translatable="true">Filter</title>
+		<action id="filter">
+			<title translatable="true">Show</title>
+		</action>
+		<action id="clear">
+			<title translatable="true">Clear</title>
+		</action>
+		<field  rowspan="2">
+			<title translatable="true">Select Year</title>
+			<html>
+				<table border="0" rules="none" frame="void" cellpadding="1">
+					<tr>
+						<td>
+							<input type="radio" name="cal_year" value="0" checked="true">
+								<span id="hol.cal_year" translatable="true">Calendar Year</span>
+							</input>
+						</td>
+						<td>
+							<select  name="selectYear" id="selectYear">
+							</select>
+						</td>
+					</tr>
+					<tr>
+						<td>
+							<input type="radio" name="cal_year" value="1" >
+								<span id="hol.fiscal_year" translatable="true">Fiscal Year</span>
+							</input>
+						</td>
+					</tr>
+				</table>
+			</html>
+		</field>
+		<field table="wr" name="dv_id" selectValueType="multiple"/>
+		<field table="wr" name="dp_id" selectValueType="multiple"/>
+	</panel>
+
+	<panel id="reportPanel" type="crossTable" dataSource="crossTableDS"
+		region="center" showOnLoad="false">
+		<title translatable="true">
+			Costs of Completed Work Requests by Division/Department
+		</title>
+		<action id="showLine">
+			<title translatable="true">Line Chart</title>
+			<command type="callFunction" functionName="showLine"/>
+		</action>
+		<event type="onClickItem">
+		    <command type="callFunction" functionName="onDvDpCostCrossTableClick"/>
+		</event>
+	</panel>
+</view>

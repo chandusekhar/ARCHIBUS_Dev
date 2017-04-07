@@ -1,0 +1,65 @@
+<view version="2.0">
+		<js file="ab-proj-fcpm-wip-bar.js"/>
+    <dataSource id="projFcpmWipBarDs0">
+        <table name="afm_cal_dates" role="main"/>
+        <sql dialect="generic">
+        SELECT ${sql.yearMonthOf('afm_cal_dates.cal_date')} ${sql.as} date_field,
+        SUM(cost_forecast) ${sql.as} costs_design,
+        SUM(amount_tot_invoice) ${sql.as} costs_spend
+        FROM afm_cal_dates
+        LEFT OUTER JOIN 
+        (SELECT proj_forecast_item.cost_forecast, proj_forecast_item.date_forecast FROM proj_forecast_item 
+            WHERE proj_forecast_item.proj_forecast_id LIKE ${parameters['projForecastId']} 
+            AND proj_forecast_item.project_id LIKE ${parameters['projectId']} 
+            AND proj_forecast_item.work_pkg_id LIKE ${parameters['workPkgId']}
+            AND proj_forecast_item.date_forecast &lt;= ${parameters['toDate']}) ${sql.as} items
+        ON (${sql.yearMonthDayOf('items.date_forecast')} = ${sql.yearMonthDayOf('afm_cal_dates.cal_date')})
+        LEFT OUTER JOIN
+        (SELECT invoice.amount_tot_invoice, invoice.date_sent FROM invoice 
+            WHERE invoice.status IN ('ISSUED','SENT','CLOSED') AND 
+            invoice.project_id LIKE ${parameters['projectId']} AND invoice.work_pkg_id LIKE ${parameters['workPkgId']}
+            AND invoice.date_sent &lt;= ${parameters['toDate']}) ${sql.as} invoices
+        ON (${sql.yearMonthDayOf('invoices.date_sent')} = ${sql.yearMonthDayOf('afm_cal_dates.cal_date')})
+        WHERE afm_cal_dates.cal_date &gt;= ${parameters['fromDate']} AND afm_cal_dates.cal_date &lt;= ${parameters['toDate']}
+        GROUP BY ${sql.yearMonthOf('afm_cal_dates.cal_date')}
+        </sql>
+        <field name="date_field" dataType="text" table="afm_cal_dates"  >
+            <title>Year - Month</title>
+        </field>
+        <field name="costs_design" dataType="number" decimals="0" size="18" >
+            <title>Projection</title>
+        </field>
+        <field name="costs_spend" dataType="number" decimals="0" size="18" >
+            <title>Spend</title>
+        </field>
+        <parameter name="projectId" dataType="text" value="%"/>
+        <parameter name="workPkgId" dataType="text" value="%"/>
+        <parameter name="projForecastId" dataType="text" value="%"/>
+        <parameter name="fromDate" dataType="date" value="2013-01-01"/>
+        <parameter name="toDate" dataType="date" value="2013-12-31"/>
+        <sortField name="date_field" ascending="true"/>
+    </dataSource> 
+    
+    <panel id="projFcpmWipBarChart" type="chart" controlType="columnChart" 
+        dataSource="projFcpmWipBarDs0" showLegendAsPopUp="false" showOnLoad="true">
+        <title>Budget vs Spend</title>
+        <action type="menu" id="projFcpmWipBarChart_toolsMenu" imageName="/schema/ab-core/graphics/icons/view/export.png">
+            <action id="exportDOCX">
+				      <title>Export to DOCX</title>
+				      <command type="exportPanel" outputType="docx" panelId="projFcpmWipBarChart"/>
+				    </action> 
+        </action>
+        <event type="onClickItem">                 
+            <command type="callFunction" functionName="openBarChartDetails"/>
+        </event>
+        <groupingAxis table="afm_cal_dates" field="date_field" showLabel="true" labelRotation="45">
+            <title></title> 
+        </groupingAxis>
+        <dataAxis table="afm_cal_dates" field="costs_design" displayAxis="false">
+           <title>Projection</title>
+        </dataAxis>
+        <dataAxis table="afm_cal_dates" field="costs_spend" displayAxis="false">
+           <title>Spend</title>
+        </dataAxis>
+    </panel>
+</view>

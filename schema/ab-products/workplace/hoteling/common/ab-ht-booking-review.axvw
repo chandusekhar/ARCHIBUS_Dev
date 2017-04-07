@@ -1,0 +1,262 @@
+<view version="2.0">
+    <message name="status" translatable="true">Requested</message>
+	<message name="emailNotificationError" translatable="true">An error occurred while sending a notification e-mail.</message>
+	<message name="recordCancelled" translatable="true">The selected bookings have been cancelled.</message>
+	<message name="recordNotCancelled1" translatable="true">Booking</message>
+	<message name="recordNotCancelled" translatable="true">cannot be cancelled.</message>
+	<message name="recordcancelledCheck" translatable="true">No bookings are selected.</message>
+	<message name="single" translatable="true">Single</message>
+	<message name="recurring" translatable="true">Recurring</message>
+	<message name="requested" translatable="true">REQUESTED</message>
+	<message name="approved" translatable="true">APPROVED</message>
+    <layout type="borderLayout" id="mainLayout">
+        <north id='main_west' split="true" initialSize="220"/>
+        <center/>
+    </layout>
+    
+    <title translatable="true">Review Bookings</title>
+    
+    <dataSource id="searchBookingConsole_formDS">
+        <table name="rmpct" role="main"/>
+        <table name="rm" role="standard"/>
+        <field table="rmpct" name="pct_id"/>
+        <field table="rmpct" name="date_start"/>
+        <field table="rmpct" name="date_end"/>
+        <field table="rmpct" name="bl_id"/>
+        <field table="rmpct" name="fl_id"/>
+        <field table="rmpct" name="rm_id"/>
+        <field table="rm" name="rm_std"/>
+        <field table="rm" name="rm_cat"/>
+        <field table="rm" name="rm_type"/>
+        <field table="rmpct" name="em_id"/>
+        <field table="rmpct" name="dv_id"/>
+        <field table="rmpct" name="dp_id"/>
+        <field table="rmpct" name="status"/>
+    </dataSource>
+    
+    <dataSource id="afmFieldsCheckingDs">
+        <table name="afm_flds" role="main"/>
+        <field table="afm_flds" name="table_name"/>
+        <field table="afm_flds" name="field_name"/>
+        <field table="afm_flds" name="dflt_val"/>
+        <field table="afm_flds" name="ml_heading"/>
+    </dataSource>
+    
+    <dataSource id="selectBookingGrid_gridDS" distinct="true">
+        <sql dialect="generic">
+            SELECT
+            activity_log.activity_log_id,
+            activity_log.activity_type,
+            activity_log.date_requested,
+            activity_log.time_requested,
+            (CASE WHEN activity_log.status='REQUESTED' THEN  ${parameters['requested']} WHEN activity_log.status='APPROVED' THEN ${parameters['approved']} ELSE activity_log.status END) ${sql.as}   al_status,
+            activity_log.requestor,
+            rmpct.parent_pct_id,
+            rmpct.pct_id,
+            rmpct.date_start,
+            ( select max(date_end) from rmpct  a where a.parent_pct_id = rmpct.pct_id)  ${sql.as} date_end,
+            rmpct.bl_id,
+            rmpct.fl_id,
+            rmpct.rm_id,
+            rmpct.day_part,
+            rmpct.rm_cat,
+            rmpct.rm_type,
+            rm.rm_std  ${sql.as} rm_std,
+            rm.dwgname  ${sql.as} dwgname,
+            rmpct.em_id,
+            rmpct.dv_id,
+            rmpct.dp_id,
+            ${parameters['confirmedField']} ${sql.as} confirmed,
+ 	    (select name_last${sql.concat}' '${sql.concat}name_first  from visitors  where visitors.visitor_id = rmpct.visitor_id ) ${sql.as} visitor_name,
+            rmpct.visitor_id,
+            rmpct.resources,
+            rmpct.ac_id,
+            CASE WHEN activity_log.recurring_rule IS NULL  THEN  ${parameters['single']} ELSE ${parameters['recurring']} END ${sql.as}   booking_type
+            FROM activity_log, rmpct,rm WHERE  (activity_log.status='REQUESTED' or activity_log.status='APPROVED') and  activity_log.activity_log_id=rmpct.activity_log_id and rmpct.rm_id=rm.rm_id and rmpct.fl_id = rm.fl_id AND rmpct.bl_id = rm.bl_id and (rmpct.parent_pct_id is NULL OR rmpct.pct_id=rmpct.parent_pct_id)
+        </sql>	
+        <parameter name="single" dataType="text" value=""/>
+        <parameter name="recurring" dataType="text" value=""/>
+        <parameter name="requested" dataType="text" value=""/>
+        <parameter name="approved" dataType="text" value=""/>
+        <parameter name="confirmedField" dataType="verbatim" value="''"/>
+        
+        <table name="rmpct" role="main"/>
+        <field name="activity_type" dataType="verbatim"/>
+        <field name="date_requested" dataType="date"/>
+        <field name="time_requested" dataType="time"/>
+        <field name="requestor" dataType="verbatim"/>
+        <field name="activity_log_id" dataType="verbatim"/>
+        <field name="parent_pct_id" dataType="verbatim"/>
+        <field name="pct_id" dataType="verbatim"/>
+        <field name="date_start" dataType="date"/>
+        <field name="date_end" dataType="date"/>
+        <field name="bl_id" dataType="verbatim"/>
+        <field name="fl_id" dataType="verbatim"/>
+        <field name="rm_id" dataType="verbatim"/>
+        <field name="day_part" dataType="verbatim"/>
+        <field name="rm_cat" dataType="verbatim"/>
+        <field name="rm_type" dataType="verbatim"/>
+		<field name="rm_std" dataType="text"/>
+        <field name="dwgname" dataType="verbatim"/>
+        <field name="em_id" dataType="verbatim"/>
+        <field name="confirmed" table="rmpct" hidden="true">
+            <title>Confirmed?</title>
+        </field>
+        
+        <field name="dv_id" dataType="verbatim"/>
+        <field name="dp_id" dataType="verbatim"/>
+		<field name="visitor_name" dataType="text"/>
+        <field name="visitor_id" dataType="verbatim"/>
+        <field name="resources" dataType="verbatim"/>
+        <field name="ac_id" dataType="verbatim"/>
+        <field name="booking_type" dataType="text"/>
+        <field name="al_status"  dataType="text"/>
+        <parameter name="pctIdRes" dataType="verbatim" value="IS NOT NULL"/>
+		<parameter name="dateStart" dataType="text" value="1900-12-15"/>
+        <parameter name="dateEnd" dataType="text" value="2200-12-15"/>
+        <restriction type="sql" sql="EXISTS (SELECT 1 FROM rmpct ${sql.as} rp 
+										WHERE  (rp.parent_pct_id= rmpct.pct_id or rp.pct_id=rmpct.pct_id)  and rp.pct_id ${parameters['pctIdRes']} 
+										and ${sql.yearMonthDayOf('rp.date_start')} &lt;=  ${parameters['dateEnd']} 
+										and  ${sql.yearMonthDayOf('rp.date_end')} &gt;= ${parameters['dateStart']}
+								)"/>
+    </dataSource>
+    
+    <panel type="console" labelsPosition="top" id="searchBookingConsole" columns="3" dataSource="searchBookingConsole_formDS" layout="mainLayout" region="north">
+        <title translatable="true">Filter</title>
+        <action id="search">
+            <title translatable="true">Show</title>
+        </action>
+        <action id="clear">
+            <title translatable="true">Clear</title>
+        </action>
+        <field table="rmpct" name="pct_id"/>
+        <field table="rmpct" name="date_start">
+            <title translatable="true">Start Date</title>
+        </field>
+        <field table="rmpct" name="date_end"/>
+        <field table="rmpct" name="bl_id"/>
+        <field table="rmpct" name="fl_id"/>
+        <field table="rmpct" name="rm_id"/>
+        <field table="rm" name="rm_cat"/>
+        <field table="rm" name="rm_type"/>
+        <field table="rm" name="rm_std"/>
+        <field table="rmpct" name="em_id" readOnly="${!(user.isMemberOfGroup('HOTELING ADMINISTRATION'))}"/>
+        <field table="rmpct" name="dv_id" readOnly="${!(user.isMemberOfGroup('HOTELING ADMINISTRATION')||user.isMemberOfGroup('HOTEL BOOKINGS ALL DEPARTMENTS'))}"/>
+        <field table="rmpct" name="dp_id" readOnly="${!(user.isMemberOfGroup('HOTELING ADMINISTRATION')||user.isMemberOfGroup('HOTEL BOOKINGS ALL DEPARTMENTS'))}"/>
+    </panel>
+    
+    <panel type="grid" id="selectBookingGrid" showOnLoad="false" multipleSelectionEnabled="true" dataSource="selectBookingGrid_gridDS" layout="mainLayout" region="center">
+        <title translatable="true">Hoteling Space Bookings </title>
+        <sortField name="date_start" ascending="true"/>
+        <action id="cancel">
+            <title translatable="true">Cancel Selected</title>
+        </action>
+        
+        <field id="details" controlType="button">
+            <title translatable="true">Details</title>
+        </field>
+        <field id="locateImage" controlType="button">
+            <title translatable="true">Show Floor Plan</title>
+        </field>
+        <field name="parent_pct_id" hidden="true"/>
+        <field name="pct_id" hidden="true"/>
+        <field name="activity_log_id"/>
+        <field name="date_start"/>
+        <field name="date_end"/>
+        <field name="bl_id"/>
+        <field name="fl_id"/>
+        <field name="rm_id"/>
+        <field name="day_part"/>
+		<field name="booking_type">
+            <title translatable="true">Booking Type</title>
+        </field>
+        <field name="al_status" dataType="text">
+        	  <title translatable="true">Status</title>
+        </field>
+        <field name="rm_cat"/>
+        <field name="rm_type"/>
+		<field name="rm_std">
+            <title translatable="true">Room Standard</title>
+        </field>
+        <field name="dwgname" hidden="true">
+        </field>
+        <field name="em_id"/>
+        
+        <field name="dv_id"/>
+        <field name="dp_id"/>
+		<field name="visitor_name" dataType="text">
+			<title translatable="true">Visitor Name</title>
+		</field>
+        <field name="visitor_id" hidden="true" />
+        <field name="resources"/>
+        <field name="confirmed" table="rmpct" hidden="true"/>
+        <field name="ac_id"/>
+    </panel>
+    
+    <dataSource id="selectBookingGrid_gridDetailDS">
+        <table name="rmpct" role="main"/>
+        <table name="rm" role="standard"/>
+        <field table="rmpct" name="parent_pct_id"/>
+		<field table="rmpct" name="activity_log_id" />
+        <field table="rmpct" name="pct_id"/>
+        <field table="rmpct" name="date_start"/>
+        <field table="rmpct" name="date_end"/>
+        <field table="rmpct" name="bl_id"/>
+        <field table="rmpct" name="fl_id"/>
+        <field table="rmpct" name="rm_id"/>
+        <field table="rmpct" name="day_part"/>
+        <field table="rmpct" name="rm_cat"/>
+        <field table="rmpct" name="rm_type"/>
+        <field table="rm" name="rm_std"/>
+        <field table="rmpct" name="em_id"/>
+        <field table="rmpct" name="dv_id"/>
+        <field table="rmpct" name="dp_id"/>
+        <field table="rmpct" name="visitor_id"  hidden="true"/>
+		<field table="rmpct" name="visitor_name" dataType="text">
+			<title translatable="true">Visitor Name</title>
+			 <sql dialect="generic">(select name_last ${sql.concat}' '${sql.concat}name_first  from visitors  where visitors.visitor_id = rmpct.visitor_id)  </sql>
+		</field>
+        <field table="rmpct" name="resources"/>
+        <field table="rmpct" name="ac_id"/>
+        <field table="rmpct" name="status"/>
+		<parameter name="dateStart" dataType="text" value="1900-12-15"/>
+        <parameter name="dateEnd" dataType="text" value="2200-12-15"/>
+		  <restriction type="sql" sql="${sql.yearMonthDayOf('rmpct.date_start')} &lt;=  ${parameters['dateEnd']} and  ${sql.yearMonthDayOf('rmpct.date_end')} &gt;= ${parameters['dateStart']}"/>
+    </dataSource>
+    
+    <panel type="grid" id="bookingDetailsGrid" showOnLoad="false" multipleSelectionEnabled="true" dataSource="selectBookingGrid_gridDetailDS">
+        <title translatable="true">Hoteling Space Bookings Details </title>
+		<sortField name="date_start" ascending="true"/>
+        <action id="cancel">
+            <title translatable="true">Cancel Selected</title>
+        </action>
+		<action id="closeDialog">
+            <title translatable="true">Close </title>
+			 <command type="closeDialog"/>
+        </action>
+		<field table="rmpct" name="pct_id" />
+        <field table="rmpct" name="date_start"/>
+        <field table="rmpct" name="date_end"/>
+        <field table="rmpct" name="bl_id"/>
+        <field table="rmpct" name="fl_id"/>
+        <field table="rmpct" name="rm_id"/>
+        <field table="rmpct" name="day_part"/>
+        <field table="rmpct" name="rm_cat"/>
+        <field table="rmpct" name="rm_type"/>
+        <field table="rm" name="rm_std"/>
+        <field table="rmpct" name="em_id"/>
+        <field table="rmpct" name="dv_id"/>
+        <field table="rmpct" name="dp_id"/>
+		<field table="rmpct" name="visitor_name" dataType="text">
+			<title translatable="true">Visitor Name</title>
+		</field>
+        <field table="rmpct" name="resources"/>
+        <field table="rmpct" name="ac_id"/>
+        <field table="rmpct" name="status"/>
+		<field table="rmpct" name="activity_log_id" hidden="true"/>
+    </panel>
+    
+    <js file="ab-ht-booking-review.js"/>
+</view>
+
+

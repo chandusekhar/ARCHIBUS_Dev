@@ -1,0 +1,134 @@
+<view version="2.0">
+    <title translatable="true">Drawing Changes by Building Location</title>
+    <js file="ab-dwg-changes-by-bl.js"/>
+    <js file="ab-dwg-changes-by-common.js"/>
+    
+    <message name="confirm_delete_graphics" translatable="true">This action will remove *all* enterprise graphics.  Do you wish to proceed?</message>
+    <message name="confirm_delete_unused_graphics" translatable="true">This action will remove all unused enterprise graphics.  Do you wish to proceed?</message>
+    <message name="status_deleting_graphics_files" translatable="true">Delete All Enterprise Graphics</message>
+    <message name="status_deleting_graphics_unused_files" translatable="true">Delete Unused Enterprise Graphics</message>
+    
+    <layout type="borderLayout" id="mainLayout">
+        <north id="consolePos" initialSize="60" split="true"/>
+        <west id="treePos" initialSize="300" split="true"/>
+        <center id="reportPos" autoScroll="true"/>
+    </layout>
+    
+    <!--  Filter console -->
+    <dataSource id="abDwgChangesByBlFilter_ds">
+        <table name="bl" role="main"/>
+        <field table="bl" name="site_id"/>
+        <field table="bl" name="bl_id"/>
+    </dataSource>
+    <panel type="console" id="abDwgChangesByBlFilter" columns="2" dataSource="abDwgChangesByBlFilter_ds" layoutRegion="consolePos">
+        <title translatable="true">Filter</title>
+        <action id="show">
+            <title translatable="true">Show</title>
+        </action>
+        <action id="clear">
+            <title translatable="true">Clear</title>
+            <command type="clearPanel" panelId="abDwgChangesByBlFilter"/>
+        </action>
+        <field table="bl" name="site_id"/>
+        <field table="bl" name="bl_id"/>
+    </panel>
+    
+    <!-- Tree control -->
+    <dataSource id="abDwgChangesByBlTreeSite_ds">
+        <table name="site" role="main"/>
+        <field table="site" name="site_id"/>
+        <field table="site" name="name"/>
+        <restriction type="sql" sql="EXISTS(SELECT 1 FROM bl WHERE bl.site_id = site.site_id AND ${parameters['blId']}) AND ${parameters['siteId']}"/>
+        <parameter name="siteId" dataType="verbatim" value="1 = 1"/>
+        <parameter name="blId" dataType="verbatim" value="1 = 1"/>
+    </dataSource>
+    
+    <dataSource id="abDwgChangesByBlTreeBl_ds">
+        <table name="bl" role="main"/>
+        <field table="bl" name="bl_id"/>
+        <field table="bl" name="name"/>
+        <restriction type="sql" sql="${parameters['blId']}"/>
+        <parameter name="blId" dataType="verbatim" value="1 = 1"/>
+    </dataSource>
+    
+    <dataSource id="abDwgChangesByBlTreeFl_ds">
+        <table name="fl" role="main"/>
+        <field table="fl" name="fl_id"/>
+        <field table="fl" name="name"/>
+    </dataSource>
+    
+    <panel type="tree" id="abDwgChangesByBlTreeSite" dataSource="abDwgChangesByBlTreeSite_ds" layoutRegion="treePos">
+        <title translatable="true">Select Sites, Buildings, or Floors</title>
+        <panel type="tree" id="abDwgChangesByBlTreeBl" dataSource="abDwgChangesByBlTreeBl_ds">
+            <event type="onClickNode">
+                <command type="callFunction" functionName="onClickTreeNode"/>
+            </event>
+            <field table="bl" name="bl_id"/>
+            <field table="bl" name="name"/>
+        </panel>
+        <panel type="tree" id="abDwgChangesByBlTreeFl" dataSource="abDwgChangesByBlTreeFl_ds">
+            <event type="onClickNode">
+                <command type="callFunction" functionName="onClickTreeNode"/>
+            </event>
+            <field table="fl" name="fl_id"/>
+            <field table="fl" name="name"/>
+         </panel>
+        <field table="site" name="site_id"/>
+        <field table="site" name="name"/>
+    </panel>
+    
+    <!--  Report Details -->
+    <dataSource id="abDwgChangesByBlDwg_ds">
+        <table name="afm_dwgs" role="main"/>
+        <field table="afm_dwgs" name="dwg_name"/>
+        <field table="afm_dwgs" name="title"/>
+        <field table="afm_dwgs" name="locked_by"/>
+        <field table="afm_dwgs" name="space_hier_field_values"/>
+    </dataSource>
+    <panel type="grid" id="abDwgChangesByBlDwg" dataSource="abDwgChangesByBlDwg_ds" showOnLoad="false" layoutRegion="reportPos">
+        <sortField table="afm_dwgs" name="dwg_name" ascending="true"/>
+        <title translatable="true">Drawings</title>
+        <action id="deleteAllGraphics">
+            <title translatable="true">Delete All Enterprise Graphics</title>
+            <command type="callFunction" functionName="deleteAllGraphics"/>
+        </action>
+        <action id="deleteUnusedGraphics">
+            <title translatable="true">Delete Unused Enterprise Graphics</title>
+            <command type="callFunction" functionName="deleteUnusedGraphics"/>
+        </action>
+        <field table="afm_dwgs" name="dwg_name" controlType="link">
+            <command type="showPanel" panelId="abDwgChangesByBlVersions"/>
+        </field>
+        <field table="afm_dwgs" name="title" controlType="link">
+            <command type="showPanel" panelId="abDwgChangesByBlVersions"/>
+        </field>
+        <field table="afm_dwgs" name="locked_by" controlType="link">
+            <command type="showPanel" panelId="abDwgChangesByBlVersions"/>
+        </field>
+    </panel>
+    
+    <dataSource id="abDwgChangesByBlVersions_ds">
+        <table name="afm_dwgvers" role="main"/>
+        <field table="afm_dwgvers" name="auto_number"/>
+        <field table="afm_dwgvers" name="dwg_name"/>
+        <field table="afm_dwgvers" name="action"/>
+        <field table="afm_dwgvers" name="performed_by"/>
+        <field table="afm_dwgvers" name="date_occurred"/>
+        <field table="afm_dwgvers" name="time_occurred"/>
+        <field table="afm_dwgvers" name="comments"/>
+        <restriction type="parsed">
+            <clause table="afm_dwgvers" name="action" op="=" value="In"/>
+        </restriction>
+    </dataSource>
+    <panel type="grid" id="abDwgChangesByBlVersions" dataSource="abDwgChangesByBlVersions_ds" showOnLoad="false" layoutRegion="reportPos">
+        <sortField table="afm_dwgvers" name="auto_number" ascending="true"/>
+        <title translatable="true">Versions</title>
+        <field table="afm_dwgvers" name="auto_number"/>
+        <field table="afm_dwgvers" name="dwg_name"/>
+        <field table="afm_dwgvers" name="action"/>
+        <field table="afm_dwgvers" name="performed_by"/>
+        <field table="afm_dwgvers" name="date_occurred"/>
+        <field table="afm_dwgvers" name="time_occurred"/>
+        <field table="afm_dwgvers" name="comments"/>
+    </panel>
+</view>

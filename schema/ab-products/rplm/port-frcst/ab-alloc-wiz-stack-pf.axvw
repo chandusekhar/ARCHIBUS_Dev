@@ -1,0 +1,497 @@
+<view version="2.0">
+  	<layout id="mainLayout">
+        <west initialSize="340" split="true" id="stackTree"/>
+        <center id="stackChart"/>
+  	</layout>
+  	<message name="refreshingChart">Retrieving data</message>
+  	<message name="allocFrom">My Allocations from</message>
+  	<message name="stackChartTitle">Stack Chart</message>
+  	<message name="allocEvt">Allocation Event</message>
+  	<message name="sites">Sites</message>
+  	<message name="buildings">Buildings</message>
+  	<message name="floors">Floors</message>
+  	<message name="moveInstructions">Select a group to change its floor allocation.</message>
+  	<message name="selectFloor">Change initiated for {0}.  Click the floor you wish the group to be allocated to.</message>
+  	<message name="available">AVAILABLE</message>
+  	<message name="start">Start</message>
+  	<message name="end">End</message>
+  	<message name="unitTitleImperial">ft&#178;</message>
+  	<message name="unitTitleMetric">m&#178;</message>
+		<js file="ab-alloc-wiz-stack-pf.js"/>
+		
+		<dataSource id="allocWizStack_ds1">
+				<table name="gp" role="main"/>
+				<table name="bl" role="standard"/>
+				<field table="bl" name="site_id"/>
+				<field table="gp" name="site_id" dataType="text">
+						<title>SITE</title>
+						<sql dialect="generic">bl.site_id</sql>
+				</field>
+				<field table="gp" name="bl_id" />
+				<field table="gp" name="fl_id" />
+				<field table="gp" name="date_start" />
+				<field table="gp" name="date_end" />
+				<field table="gp" name="description"/>
+				<field table="gp" name="name"/>
+				<field table="gp" name="portfolio_scenario_id"/>
+				<field table="gp" name="ls_id"/>
+				<field table="gp" name="is_available"/>
+				<sortField name="date_start"/>
+				<sortField name="name"/>
+		</dataSource>
+		
+		<dataSource id="allocWizStack_ds2">
+				<table name="bl" role="main"/>
+				<field name="bl_id"/>
+				<field name="site_id"/>
+		</dataSource>
+
+		<dataSource id="allocWizStack_ds3" type="grouping">
+			<table name="gp" role="main"/>
+			<field table="gp" name="date_start" baseField="gp.date_start" formula="min" dataType="date"/>
+			<field table="gp" name="portfolio_scenario_id" groupBy="true"/>
+			<restriction type="sql" sql="EXISTS (SELECT 1 FROM bl WHERE gp.bl_id = bl.bl_id AND ${parameters['siteRestriction']})"/>
+			<parameter name="siteRestriction" dataType="verbatim" value="1=1"/>
+		</dataSource>
+		
+    <dataSource id="allocWizStack_yearTreeDs" applyVpaRestrictions="false">
+    		<sql dialect="oracle">
+    			SELECT DISTINCT ${sql.yearOf('gp.date_start')} ${sql.as} dv_id
+    			FROM gp
+    			LEFT OUTER JOIN bl ON gp.bl_id = bl.bl_id
+    			WHERE gp.portfolio_scenario_id LIKE ${parameters['scn_id']}
+    			AND gp.date_start IS NOT NULL
+    			AND ${parameters['consoleRestriction']} AND ${sql.vpaRestriction}
+    			
+    			UNION (SELECT DISTINCT ${sql.yearOf('gp.date_end + 1')} ${sql.as} dv_id
+	    			FROM gp
+	    			LEFT OUTER JOIN bl ON gp.bl_id = bl.bl_id
+	    			WHERE gp.date_end IS NOT NULL
+	    			AND gp.portfolio_scenario_id LIKE ${parameters['scn_id']}
+	    			AND ${parameters['consoleRestriction']} AND ${sql.vpaRestriction})
+    			</sql>
+    		<sql dialect="generic">
+    			SELECT DISTINCT ${sql.yearOf('gp.date_start')} ${sql.as} dv_id
+    			FROM gp
+    			LEFT OUTER JOIN bl ON gp.bl_id = bl.bl_id
+    			WHERE gp.portfolio_scenario_id LIKE ${parameters['scn_id']}
+    			AND gp.date_start IS NOT NULL
+    			AND ${parameters['consoleRestriction']} AND ${sql.vpaRestriction}
+    			
+    			UNION (SELECT DISTINCT ${sql.yearOf('dateadd(dd, 1, gp.date_end)')} ${sql.as} dv_id
+	    			FROM gp
+	    			LEFT OUTER JOIN bl ON gp.bl_id = bl.bl_id
+	    			WHERE gp.date_end IS NOT NULL
+	    			AND gp.portfolio_scenario_id LIKE ${parameters['scn_id']}
+	    			AND ${parameters['consoleRestriction']} AND ${sql.vpaRestriction})
+    			</sql>
+        <table name="gp"/>
+        <field table="gp" name="dv_id" />
+        <sortField table="gp" name="dv_id" ascending="true"/>
+    		<parameter name="scn_id" dataType="text" value="%"/>
+    		<parameter name="consoleRestriction" dataType="verbatim" value="1=1"/>
+    </dataSource>
+		
+		<dataSource id="allocWizStack_dateTreeDs" distinct="true" applyVpaRestrictions="false">
+				<sql dialect="oracle">
+	    			SELECT DISTINCT gp.date_start ${sql.as} date_start,
+	    			${sql.yearOf('gp.date_start')} ${sql.as} dv_id
+	    			FROM gp
+	    			LEFT OUTER JOIN bl ON gp.bl_id = bl.bl_id
+	    			WHERE gp.date_start IS NOT NULL
+	    			AND gp.portfolio_scenario_id LIKE ${parameters['scn_id']}
+	    			AND ${parameters['consoleRestriction']} AND ${sql.vpaRestriction}
+	    			
+	    			UNION (SELECT DISTINCT ${sql.dateAdd('day', 1, 'gp.date_end')} ${sql.as} date_start,
+	    			${sql.yearOf('gp.date_end + 1')} ${sql.as} dv_id
+	    			FROM gp
+	    			LEFT OUTER JOIN bl ON gp.bl_id = bl.bl_id
+	    			WHERE gp.date_end IS NOT NULL
+	    			AND gp.portfolio_scenario_id LIKE ${parameters['scn_id']}
+	    			AND ${parameters['consoleRestriction']} AND ${sql.vpaRestriction})
+	    	</sql>
+				<sql dialect="generic">
+	    			SELECT DISTINCT gp.date_start ${sql.as} date_start,
+	    			${sql.yearOf('gp.date_start')} ${sql.as} dv_id
+	    			FROM gp
+	    			LEFT OUTER JOIN bl ON gp.bl_id = bl.bl_id
+	    			WHERE gp.date_start IS NOT NULL
+	    			AND gp.portfolio_scenario_id LIKE ${parameters['scn_id']}
+	    			AND ${parameters['consoleRestriction']} AND ${sql.vpaRestriction}
+	    			
+	    			UNION (SELECT DISTINCT ${sql.dateAdd('day', 1, 'gp.date_end')} ${sql.as} date_start,
+	    			${sql.yearOf('dateadd(dd, 1, gp.date_end)')} ${sql.as} dv_id
+	    			FROM gp
+	    			LEFT OUTER JOIN bl ON gp.bl_id = bl.bl_id
+	    			WHERE gp.date_end IS NOT NULL
+	    			AND gp.portfolio_scenario_id LIKE ${parameters['scn_id']}
+	    			AND ${parameters['consoleRestriction']} AND ${sql.vpaRestriction})
+	    	</sql>
+				<table name="gp"/>
+				<field table="gp" name="date_start" />
+				<field table="gp" name="dv_id" hidden="true"/>
+				<parameter name="scn_id" dataType="text" value="%"/>
+				<parameter name="consoleRestriction" dataType="verbatim" value="1=1"/>
+				<sortField table="gp" name="date_start" ascending="true"/>
+		</dataSource>
+		
+		<dataSource id="allocWizStack_groupTreeDs" distinct="true" applyVpaRestrictions="false">
+				<sql dialect="oracle">
+	    			SELECT DISTINCT gp.name ${sql.as} name, is_available,
+	    			CASE WHEN ls_id IS NOT NULL THEN '1' ELSE '0' END ${sql.as} option2, 
+	    			gp.date_start ${sql.as} date_start,
+	    			${sql.yearOf('gp.date_start')} ${sql.as} dv_id
+	    			FROM gp
+	    			LEFT OUTER JOIN bl ON gp.bl_id = bl.bl_id
+	    			WHERE gp.date_start IS NOT NULL
+	    			AND gp.portfolio_scenario_id LIKE ${parameters['scn_id']}
+	    			AND ${parameters['consoleRestriction']} AND ${sql.vpaRestriction}
+	    			
+	    			UNION (SELECT DISTINCT gp.name ${sql.as} name, is_available,
+	    			CASE WHEN ls_id IS NOT NULL THEN '1' ELSE '0' END ${sql.as} option2,
+	    			${sql.dateAdd('day', 1, 'gp.date_end')} ${sql.as} date_start,
+	    			${sql.yearOf('gp.date_end + 1')} ${sql.as} dv_id
+	    			FROM gp
+	    			LEFT OUTER JOIN bl ON gp.bl_id = bl.bl_id
+	    			WHERE gp.date_end IS NOT NULL
+	    			AND gp.portfolio_scenario_id LIKE ${parameters['scn_id']}
+	    			AND ${parameters['consoleRestriction']} AND ${sql.vpaRestriction})
+	    	</sql>
+				<sql dialect="generic">
+	    			SELECT DISTINCT gp.name ${sql.as} name, is_available,
+	    			CASE WHEN ls_id IS NOT NULL THEN '1' ELSE '0' END ${sql.as} option2, 
+	    			gp.date_start ${sql.as} date_start,
+	    			${sql.yearOf('gp.date_start')} ${sql.as} dv_id
+	    			FROM gp
+	    			LEFT OUTER JOIN bl ON gp.bl_id = bl.bl_id
+	    			WHERE gp.date_start IS NOT NULL
+	    			AND gp.portfolio_scenario_id LIKE ${parameters['scn_id']}
+	    			AND ${parameters['consoleRestriction']} AND ${sql.vpaRestriction}
+	    			
+	    			UNION (SELECT DISTINCT gp.name ${sql.as} name, is_available,
+	    			CASE WHEN ls_id IS NOT NULL THEN '1' ELSE '0' END ${sql.as} option2,
+	    			${sql.dateAdd('day', 1, 'gp.date_end')} ${sql.as} date_start,
+	    			${sql.yearOf('dateadd(dd, 1, gp.date_end)')} ${sql.as} dv_id
+	    			FROM gp
+	    			LEFT OUTER JOIN bl ON gp.bl_id = bl.bl_id
+	    			WHERE gp.date_end IS NOT NULL
+	    			AND gp.portfolio_scenario_id LIKE ${parameters['scn_id']}
+	    			AND ${parameters['consoleRestriction']} AND ${sql.vpaRestriction})
+	    	</sql>
+				<table name="gp"/>
+				<field table="gp" name="name" />
+				<field table="gp" name="date_start" />
+				<field table="gp" name="dv_id" hidden="true"/>
+				<sortField table="gp" name="option2" ascending="true"/>	
+				<sortField table="gp" name="is_available" ascending="false"/>
+				<sortField table="gp" name="name" ascending="true"/>
+				<parameter name="scn_id" dataType="text" value="%"/>
+				<parameter name="consoleRestriction" dataType="verbatim" value="1=1"/>
+		</dataSource>
+		
+		<dataSource id="allocWizStack_eventTreeDs" applyVpaRestrictions="false">
+				<sql dialect="oracle">
+	    			SELECT gp.gp_id, '1' ${sql.as} option1,
+	    			${parameters['start']} ${sql.concat} ': ' ${sql.concat} gp.bl_id ${sql.concat} ' ' ${sql.concat} gp.fl_id 
+	    					${sql.concat} ' (' ${sql.concat} TO_CHAR(CASE WHEN gp.ls_id IS NULL THEN FLOOR(CASE WHEN gp.area = 0 THEN gp.area_manual ELSE gp.area END) 
+	    					ELSE FLOOR(CASE WHEN su_area IS NULL THEN 0 ELSE su_area END) END)
+	    					${sql.concat} ' ' ${sql.concat} ${parameters['unitTitle']} ${sql.concat}  ')'  
+	    					${sql.concat} (CASE WHEN gp.description IS NOT NULL THEN ' - ' ELSE '' END) 
+	    					${sql.concat} gp.description ${sql.as} description,
+	    			gp.name ${sql.as} name,
+	    			gp.date_start ${sql.as} date_start,
+	    			${sql.yearOf('gp.date_start')} ${sql.as} dv_id
+	    			FROM gp
+	    			LEFT OUTER JOIN bl ON gp.bl_id = bl.bl_id
+	    			LEFT OUTER JOIN (SELECT su.bl_id, su.fl_id, su.ls_id, SUM(CASE WHEN su.area_usable=0 THEN su.area_manual ELSE su.area_usable END) ${sql.as} su_area 
+								FROM su WHERE EXISTS(SELECT 1 FROM ls WHERE ls.ls_id = su.ls_id AND ls.use_as_template = 0)
+								GROUP BY su.bl_id, su.fl_id, su.ls_id
+						) ${sql.as} suite ON (gp.bl_id = suite.bl_id AND gp.fl_id = suite.fl_id AND gp.ls_id = suite.ls_id)
+	    			WHERE gp.date_start IS NOT NULL
+	    			AND gp.portfolio_scenario_id LIKE ${parameters['scn_id']}
+	    			AND ${parameters['consoleRestriction']} AND ${sql.vpaRestriction}
+	    			
+	    			UNION (SELECT gp.gp_id, '0' ${sql.as} option1,
+	    			${parameters['end']} ${sql.concat} ': ' ${sql.concat} gp.bl_id ${sql.concat} ' ' ${sql.concat} gp.fl_id 
+	    					${sql.concat} ' (' ${sql.concat} TO_CHAR(CASE WHEN gp.ls_id IS NULL THEN FLOOR(CASE WHEN gp.area = 0 THEN gp.area_manual ELSE gp.area END)
+	    					ELSE FLOOR(CASE WHEN su_area IS NULL THEN 0 ELSE su_area END) END)
+	    					${sql.concat} ' '  ${sql.concat} ${parameters['unitTitle']} ${sql.concat} ')' 	    					 
+	    					${sql.concat} CASE WHEN gp.description IS NOT NULL AND (gp.ls_id IS NOT NULL OR gp.is_available = 0) 
+	    					THEN (' - ' ${sql.concat} gp.description) ELSE '' END ${sql.as} description,
+	    			gp.name ${sql.as} name,
+	    			${sql.dateAdd('day', 1, 'gp.date_end')} ${sql.as} date_start,
+	    			${sql.yearOf('gp.date_end + 1')} ${sql.as} dv_id
+	    			FROM gp
+	    			LEFT OUTER JOIN bl ON gp.bl_id = bl.bl_id
+	    			LEFT OUTER JOIN (SELECT su.bl_id, su.fl_id, su.ls_id, SUM(CASE WHEN su.area_usable=0 THEN su.area_manual ELSE su.area_usable END) ${sql.as} su_area 
+								FROM su WHERE EXISTS(SELECT 1 FROM ls WHERE ls.ls_id = su.ls_id AND ls.use_as_template = 0)
+								GROUP BY su.bl_id, su.fl_id, su.ls_id
+						) ${sql.as} suite ON (gp.bl_id = suite.bl_id AND gp.fl_id = suite.fl_id AND gp.ls_id = suite.ls_id)
+	    			WHERE gp.date_end IS NOT NULL
+	    			AND gp.portfolio_scenario_id LIKE ${parameters['scn_id']}
+	    			AND ${parameters['consoleRestriction']} AND ${sql.vpaRestriction})
+	    	</sql>
+				<sql dialect="generic">
+	    			SELECT gp.gp_id, '1' ${sql.as} option1,
+	    			${parameters['start']} ${sql.concat} ': ' ${sql.concat} gp.bl_id ${sql.concat} ' ' ${sql.concat} gp.fl_id 
+	    					${sql.concat} ' (' ${sql.concat} CAST(CASE WHEN gp.ls_id IS NULL THEN FLOOR(CASE WHEN gp.area = 0 THEN gp.area_manual ELSE gp.area END) 
+	    					ELSE FLOOR(CASE WHEN su_area IS NULL THEN 0 ELSE su_area END) END ${sql.as} VARCHAR)
+	    					${sql.concat} ' ' ${sql.concat} ${parameters['unitTitle']} ${sql.concat}  ')'  
+	    					${sql.concat} (CASE WHEN gp.description IS NOT NULL THEN ' - ' ELSE '' END) 
+	    					${sql.concat} gp.description ${sql.as} description,
+	    			gp.name ${sql.as} name,
+	    			gp.date_start ${sql.as} date_start,
+	    			${sql.yearOf('gp.date_start')} ${sql.as} dv_id
+	    			FROM gp
+	    			LEFT OUTER JOIN bl ON gp.bl_id = bl.bl_id
+	    			LEFT OUTER JOIN (SELECT su.bl_id, su.fl_id, su.ls_id, SUM(CASE WHEN su.area_usable=0 THEN su.area_manual ELSE su.area_usable END) ${sql.as} su_area 
+								FROM su WHERE EXISTS(SELECT 1 FROM ls WHERE ls.ls_id = su.ls_id AND ls.use_as_template = 0)
+								GROUP BY su.bl_id, su.fl_id, su.ls_id
+						) ${sql.as} suite ON (gp.bl_id = suite.bl_id AND gp.fl_id = suite.fl_id AND gp.ls_id = suite.ls_id)
+	    			WHERE gp.date_start IS NOT NULL
+	    			AND gp.portfolio_scenario_id LIKE ${parameters['scn_id']}
+	    			AND ${parameters['consoleRestriction']} AND ${sql.vpaRestriction}
+	    			
+	    			UNION (SELECT gp.gp_id, '0' ${sql.as} option1,
+	    			${parameters['end']} ${sql.concat} ': ' ${sql.concat} gp.bl_id ${sql.concat} ' ' ${sql.concat} gp.fl_id 
+	    					${sql.concat} ' (' ${sql.concat} CAST(CASE WHEN gp.ls_id IS NULL THEN FLOOR(CASE WHEN gp.area = 0 THEN gp.area_manual ELSE gp.area END)
+	    					ELSE FLOOR(CASE WHEN su_area IS NULL THEN 0 ELSE su_area END) END ${sql.as} VARCHAR)
+	    					${sql.concat} ' '  ${sql.concat} ${parameters['unitTitle']} ${sql.concat} ')' 	    					 
+	    					${sql.concat} CASE WHEN gp.description IS NOT NULL AND (gp.ls_id IS NOT NULL OR gp.is_available = 0) 
+	    					THEN (' - ' ${sql.concat} gp.description) ELSE '' END ${sql.as} description,
+	    			gp.name ${sql.as} name,
+	    			${sql.dateAdd('day', 1, 'gp.date_end')} ${sql.as} date_start,
+	    			${sql.yearOf('dateadd(dd, 1, gp.date_end)')} ${sql.as} dv_id
+	    			FROM gp
+	    			LEFT OUTER JOIN bl ON gp.bl_id = bl.bl_id
+	    			LEFT OUTER JOIN (SELECT su.bl_id, su.fl_id, su.ls_id, SUM(CASE WHEN su.area_usable=0 THEN su.area_manual ELSE su.area_usable END) ${sql.as} su_area 
+								FROM su WHERE EXISTS(SELECT 1 FROM ls WHERE ls.ls_id = su.ls_id AND ls.use_as_template = 0)
+								GROUP BY su.bl_id, su.fl_id, su.ls_id
+						) ${sql.as} suite ON (gp.bl_id = suite.bl_id AND gp.fl_id = suite.fl_id AND gp.ls_id = suite.ls_id)
+	    			WHERE gp.date_end IS NOT NULL
+	    			AND gp.portfolio_scenario_id LIKE ${parameters['scn_id']}
+	    			AND ${parameters['consoleRestriction']} AND ${sql.vpaRestriction})
+	    	</sql>
+				<table name="gp"/>
+				<field table="gp" name="description" />
+				<field table="gp" name="gp_id" />
+				<field table="gp" name="name" hidden="true"/>
+				<field table="gp" name="date_start" hidden="true" />
+				<field table="gp" name="dv_id" hidden="true"/>
+				<field table="gp" name="option1" hidden="true" />
+				<sortField table="gp" name="option1" ascending="true"/>
+				<sortField table="gp" name="description" ascending="true"/>
+				<parameter name="scn_id" dataType="text" value="%"/>
+				<parameter name="start" dataType="text" value="Start"/>
+				<parameter name="end" dataType="text" value="End"/>
+				<parameter name="unitTitle" dataType="text" value=""/>
+				<parameter name="consoleRestriction" dataType="verbatim" value="1=1"/>
+		</dataSource>
+
+    <panel type="tree" id="allocWizStack_yearTree" dataSource="allocWizStack_yearTreeDs" showOnLoad="false" layoutRegion="stackTree">
+				<title>Events by Date</title>
+				<panel type="tree" id="allocWizStack_dateTree" dataSource="allocWizStack_dateTreeDs">
+			      <event type="onClickNode">
+			          <command type="callFunction" functionName="onClickTreeNode"/>
+			      </event>
+			      <field table="gp" name="date_start" />
+				</panel>
+				<panel type="tree" id="allocWizStack_groupTree" dataSource="allocWizStack_groupTreeDs">
+						<field table="gp" name="name" />
+						<field table="gp" name="date_start" hidden="true" />
+				</panel>
+				<panel type="tree" id="allocWizStack_eventTree" dataSource="allocWizStack_eventTreeDs">
+						<event type="onClickNode">
+			          <command type="callFunction" functionName="onClickTreeNode"/>
+			      </event>
+			      <field table="gp" name="description" />
+						<field table="gp" name="gp_id" hidden="true"/>
+				</panel>
+				<field table="gp" name="dv_id" />
+		</panel>
+		
+		<panel id="allocWizStack_console" bodyCssClass="panel-light" columns="2" layoutRegion="stackChart" dataSource="allocWizStack_ds2" type="console">
+				<title>Stack Chart</title>
+				<action id="toggleFilter" imageName="/schema/ab-system/graphics/ab-filter.gif">
+					<title>Show/Hide Filter</title>
+				</action>
+				<action id="addBuilding" imageName="/schema/ab-core/graphics/add.gif">
+						<title>Add Building</title>
+				</action>
+				<action id="addEventMenu" type="menu" imageName="/schema/ab-core/graphics/add.gif">
+						<title>Add</title>
+	            <action id="event">
+	                <title>Add Allocation Event</title>
+	                <command type="callFunction" functionName="onAddNewEvent"/>
+	            </action>	
+	            <action id="addUnavail">
+	                <title>Add Unavailable Space</title>
+	                <command type="callFunction" functionName="onAddUnavail"/>
+	            </action>	            
+				</action>
+				<action type="menu" id="allocWizStack_toolsMenu" imageName="/schema/ab-core/graphics/icons/view/export.png">
+	            <tooltip>Tools</tooltip>
+	            <action id="exportDOCX">
+	                <title>Export to DOCX</title>
+	                <command type="exportPanel" outputType="docx" orientation="landscape" panelId="allocWizStack_chartPanel"/>
+	            </action>
+	            <action id="exportPDF">
+	                <title>Export to PDF</title>
+	                <command type="exportPanel" outputType="pdf" orientation="landscape" panelId="allocWizStack_chartPanel"/>
+	            </action>
+	      </action>
+				<fieldset layout="fluid">
+						<field table="bl" name="site_id" cssClass="shortField" showLabel="false">
+				    		<action id="allocWizStack_selValSite">
+				    				<title>...</title>
+				    		</action>
+				    </field>
+				    <field table="bl" name="bl_id" cssClass="shortField" showLabel="false">
+				    		<action id="allocWizStack_selValBl">
+				    				<title>...</title>
+				    		</action>
+				    </field>
+				    <action id="clear">
+		            <title>Clear</title>
+		            <command type="clearPanel" panelId="allocWizStack_console"/>
+		        </action>
+		        <action id="filter" mainAction="true">
+		            <title>Filter</title>
+		        </action>
+		    </fieldset>
+		</panel>
+		
+		<dataSource id="ds_chartGroupingAxis" type="grouping" applyVpaRestrictions="false">
+				<table name="gp"/>
+				<sql dialect="generic">
+						SELECT RTRIM(fl.bl_id) ${sql.concat} '-' ${sql.concat} RTRIM(fl.fl_id) ${sql.as} bl_fl, bl.bl_id ${sql.as} bl_id, bl.site_id ${sql.as} site_id
+						FROM fl LEFT OUTER JOIN bl ON fl.bl_id = bl.bl_id
+						LEFT OUTER JOIN (SELECT su.bl_id, su.fl_id, SUM(CASE WHEN su.area_usable=0 THEN su.area_manual ELSE su.area_usable END) ${sql.as} su_area 
+								FROM su WHERE EXISTS(SELECT 1 FROM ls WHERE ls.ls_id = su.ls_id AND ls.use_as_template = 0 AND 
+								((CASE WHEN ls.date_move IS NULL THEN ls.date_start ELSE ls.date_move END) &lt;= ${parameters['dateReview']} OR (CASE WHEN ls.date_move IS NULL THEN ls.date_start ELSE ls.date_move END) IS NULL) AND 
+								(ls.date_end &gt;= ${parameters['dateReview']} OR ls.date_end IS NULL)) 
+								GROUP BY su.bl_id, su.fl_id) ${sql.as} suite
+								ON (fl.bl_id = suite.bl_id AND fl.fl_id = suite.fl_id)
+						LEFT OUTER JOIN (SELECT SUM(CASE WHEN gp.area = 0 THEN gp.area_manual ELSE gp.area END) ${sql.as} gp_area, gp.bl_id, gp.fl_id
+								FROM gp WHERE gp.portfolio_scenario_id = ${parameters['portfolioScenario']} AND gp.date_start &lt;= ${parameters['dateReview']} 
+								AND (gp.date_end IS NULL OR gp.date_end &gt;= ${parameters['dateReview']})
+								GROUP BY gp.bl_id, gp.fl_id) ${sql.as} grp
+								ON (grp.bl_id = fl.bl_id AND grp.fl_id = fl.fl_id)
+						WHERE EXISTS (SELECT 1 FROM gp WHERE gp.bl_id = fl.bl_id AND gp.date_start &lt;= ${parameters['dateReview']} AND gp.is_available = 1 AND gp.portfolio_scenario_id = ${parameters['portfolioScenario']})
+            AND 
+						(EXISTS (SELECT 1 FROM gp WHERE gp.bl_id = fl.bl_id AND gp.fl_id = fl.fl_id AND gp.is_available = 1 AND gp.ls_id IS NULL
+								AND gp.portfolio_scenario_id = ${parameters['portfolioScenario']} AND gp.date_start &lt;= ${parameters['dateReview']} AND (gp.date_end IS NULL OR gp.date_end &gt;= ${parameters['dateReview']}))
+            OR 
+						(CASE WHEN NOT EXISTS(SELECT 1 FROM su WHERE su.bl_id = fl.bl_id AND su.fl_id = fl.fl_id AND EXISTS(SELECT 1 FROM ls WHERE ls.ls_id = su.ls_id AND ls.use_as_template = 0)) 
+                THEN (CASE WHEN fl.area_usable = 0 THEN fl.area_manual ELSE fl.area_usable END) ELSE (CASE WHEN suite.su_area IS NULL THEN 0 ELSE suite.su_area END) END) 
+                - (CASE WHEN grp.gp_area IS NULL THEN 0 ELSE grp.gp_area END) &gt; 0
+            ) AND ${sql.getVpaRestrictionForTable('fl')}
+				</sql>
+    		<field table="gp" name="bl_fl" dataType="text" groupBy="true">
+         		<title translatable="true">Building and Floor</title>
+        		<sortField name="bl_fl" ascending="true"/>
+    		</field>
+    		<field table="gp" name="site_id" dataType="text" baseField="gp.site_id" formula="min"/>
+    		<parameter name="portfolioScenario" dataType="text" value=""/>
+    		<parameter name="dateReview" dataType="date" value="2009-08-16"/>
+		</dataSource>
+		
+		<!-- 	Show group allocations where is_available=1 and ls_id IS NULL
+					Show Available floor/suite space as "AVAILABLE".  Available space is the floor leased suite area minus any group allocations.  
+					Show AVAILABLE space for all floors of all buildings in the scenario, starting from the first date of any existing group allocation in that building.
+					Union with a zero area record for all potential groups in the scenario to keep the legend always the same, to keep legend colors consistent -->
+					
+		<dataSource id="ds_chartDataAxis" type="grouping" applyVpaRestrictions="false">	
+				<table name="gp" role="main"/>
+				<sql dialect="generic">
+						SELECT gp.name ${sql.as} name, MAX(bl.bl_id) ${sql.as} bl_id, MAX(bl.site_id) ${sql.as} site_id,  
+						'0' ${sql.concat} gp.name ${sql.as} option1,
+						SUM( CASE WHEN gp.area = 0 THEN gp.area_manual ELSE gp.area END ) ${sql.as} area
+						FROM gp LEFT OUTER JOIN bl ON gp.bl_id = bl.bl_id
+							WHERE RTRIM(gp.bl_id) ${sql.concat} '-' ${sql.concat} RTRIM(gp.fl_id) = ${parameters['summaryValueForThisGroup']}
+							AND gp.is_available = 1 AND gp.ls_id IS NULL
+							AND gp.portfolio_scenario_id = ${parameters['portfolioScenario']} 
+							AND gp.date_start &lt;= ${parameters['dateReview']} AND (gp.date_end IS NULL OR gp.date_end &gt;= ${parameters['dateReview']})
+							AND ${sql.vpaRestriction}
+							GROUP BY gp.name
+
+						UNION ( SELECT ${parameters['available']} ${sql.as} name, bl.bl_id ${sql.as} bl_id, bl.site_id ${sql.as} site_id, '1' ${sql.as} option1,
+								(CASE WHEN NOT EXISTS(SELECT 1 FROM su WHERE su.bl_id = fl.bl_id AND su.fl_id = fl.fl_id AND EXISTS(SELECT 1 FROM ls WHERE ls.ls_id = su.ls_id AND ls.use_as_template = 0)) 
+                THEN (CASE WHEN fl.area_usable = 0 THEN fl.area_manual ELSE fl.area_usable END) ELSE (CASE WHEN suite.su_area IS NULL THEN 0 ELSE suite.su_area END) END) 
+                - (CASE WHEN grp.gp_area IS NULL THEN 0 ELSE grp.gp_area END) ${sql.as} area
+							FROM fl LEFT OUTER JOIN bl ON fl.bl_id = bl.bl_id
+							LEFT OUTER JOIN (SELECT su.bl_id, su.fl_id, SUM(CASE WHEN su.area_usable=0 THEN su.area_manual ELSE su.area_usable END) ${sql.as} su_area 
+								FROM su WHERE EXISTS(SELECT 1 FROM ls WHERE ls.ls_id = su.ls_id AND ls.use_as_template = 0 AND 
+								((CASE WHEN ls.date_move IS NULL THEN ls.date_start ELSE ls.date_move END) &lt;= ${parameters['dateReview']} OR (CASE WHEN ls.date_move IS NULL THEN ls.date_start ELSE ls.date_move END) IS NULL) AND 
+								(ls.date_end &gt;= ${parameters['dateReview']} OR ls.date_end IS NULL)) 
+								GROUP BY su.bl_id, su.fl_id) ${sql.as} suite
+								ON (fl.bl_id = suite.bl_id AND fl.fl_id = suite.fl_id)
+							LEFT OUTER JOIN (SELECT SUM(CASE WHEN gp.area = 0 THEN gp.area_manual ELSE gp.area END) ${sql.as} gp_area, gp.bl_id, gp.fl_id
+								FROM gp WHERE gp.portfolio_scenario_id = ${parameters['portfolioScenario']} AND gp.date_start &lt;= ${parameters['dateReview']} 
+								AND (gp.date_end IS NULL OR gp.date_end &gt;= ${parameters['dateReview']})
+								GROUP BY gp.bl_id, gp.fl_id) ${sql.as} grp
+								ON (grp.bl_id = fl.bl_id AND grp.fl_id = fl.fl_id)
+							WHERE RTRIM(fl.bl_id) ${sql.concat} '-' ${sql.concat} RTRIM(fl.fl_id) = ${parameters['summaryValueForThisGroup']}
+							AND EXISTS (SELECT 1 FROM gp WHERE gp.bl_id = fl.bl_id AND gp.date_start &lt;= ${parameters['dateReview']} AND gp.is_available = 1 AND gp.portfolio_scenario_id = ${parameters['portfolioScenario']})
+							AND (CASE WHEN grp.gp_area IS NULL THEN 0 ELSE grp.gp_area END) 
+									&lt; (CASE WHEN NOT EXISTS(SELECT 1 FROM su WHERE su.bl_id = fl.bl_id AND su.fl_id = fl.fl_id AND EXISTS(SELECT 1 FROM ls WHERE ls.ls_id = su.ls_id AND ls.use_as_template = 0)) 
+                THEN (CASE WHEN fl.area_usable = 0 THEN fl.area_manual ELSE fl.area_usable END) ELSE (CASE WHEN suite.su_area IS NULL THEN 0 ELSE suite.su_area END) END)
+							AND ${sql.getVpaRestrictionForTable('fl')}
+						)
+						
+						UNION ( SELECT gp.name ${sql.as} name, MAX(bl.bl_id) ${sql.as} bl_id, MAX(bl.site_id) ${sql.as} site_id, 
+							'0' ${sql.concat} gp.name ${sql.as} option1,
+							0 ${sql.as} area
+							FROM gp LEFT OUTER JOIN bl ON gp.bl_id = bl.bl_id
+							WHERE gp.portfolio_scenario_id = ${parameters['portfolioScenario']}
+							AND gp.is_available = 1 AND gp.ls_id IS NULL
+							AND ${parameters['consoleRestriction']} AND ${sql.vpaRestriction}
+							GROUP BY gp.name
+						)
+				</sql>
+				<field table="gp" name="name" dataType="text" groupBy="true"> 
+         		<title translatable="true">Group Name</title>
+    		</field>
+				<field table="gp" name="area" dataType="number" baseField="gp.area" formula="sum" size="6" decimals="0" numericFormat="area"> 
+         		<title translatable="true">Total Area</title>
+    		</field>
+    		<field table="gp" name="site_id" dataType="text" baseField="gp.site_id" formula="min"/>
+    		<field table="gp" name="option1" dataType="text" baseField="gp.option1" formula="min" /> 
+    		<sortField name="option1" ascending="true"/> 
+	 			<parameter name="summaryValueForThisGroup" dataType="text" value=""/>
+				<parameter name="dateReview" dataType="date" value="2009-08-16"/>
+				<parameter name="portfolioScenario" dataType="text" value="%"/>
+				<parameter name="available" dataType="text" value=""/>
+				<parameter name="consoleRestriction" dataType="verbatim" value=" 1=1 "/>
+    </dataSource>   
+
+		<panel 	id="allocWizStack_chartPanel" 
+				layoutRegion="stackChart"
+    		type="chart"
+				showOnLoad="false"
+    		controlType="stackedBarChart"
+    		dataSource="ds_chartDataAxis"
+    		showLegendOnLoad="false"
+    		showLegendAsPopUp="false"
+    		legendLocation="right"
+    		showDataTips="true"
+    		backgroundColor="0xc6e2ff"
+				percentTransparency = "1.0">
+        <instructions>Select a group to change its floor allocation.</instructions>
+        <event type="onClickItem">                 
+						<command type="callFunction" functionName="getClickedItemData"/>
+        </event>
+
+        <groupingAxis dataSource="ds_chartGroupingAxis" table="gp" field="bl_fl">
+            <title translatable="true">Building and Floor</title>
+        </groupingAxis>
+
+        <secondaryGroupingAxis table="gp" field="name">
+            <title>Group Name</title> 
+        </secondaryGroupingAxis>
+        
+        <dataAxis  table="gp" field="area">
+             <title translatable="true">Total Area</title>
+        </dataAxis>
+    </panel>
+</view>

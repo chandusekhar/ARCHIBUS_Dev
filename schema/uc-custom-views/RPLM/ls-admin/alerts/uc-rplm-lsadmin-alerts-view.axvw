@@ -1,0 +1,165 @@
+
+<view version="2.0">
+	<!--title>Alerts for Leases and Options</title-->
+	<message name="lease_due_date" translatable="true">Lease Due Date</message>
+	<message name="options_due_date" translatable="true">Option Due Date</message>
+	<dataSource id="ds_01">
+
+		<sql dialect="generic">
+			SELECT (case when ls_alert_definition.alert_type = 'Lease Due Date' then '${parameters['lease_due_date']}' else '${parameters['options_due_date']}' end) as alert, ls_id,uclass, null AS op_id, date_start, date_end, color, notification_days, tn_name, tn_contact, ld_name, ld_contact,
+			CASE WHEN color = 'Red' THEN '1'
+				WHEN color = 'Yellow' THEN '2'
+				WHEN color = 'Green' THEN '3' END AS color_order
+			FROM ls, ls_alert_definition
+			WHERE alert_type = 'Lease Due Date'
+  			AND role_name = '${user.role}'
+  			AND issue_alert = 1
+  			AND ls.date_end-${sql.currentDate} &lt;=  notification_days
+  			AND ${sql.currentDate}-ls.date_end &lt;= removal_days
+			AND ls.use_as_template = 0
+        AND notification_days =
+          ( SELECT MIN(notification_days)
+          FROM ls ls_inner, ls_alert_definition
+          WHERE alert_type = 'Lease Due Date'
+            AND role_name = '${user.role}'
+            AND issue_alert = 1
+            AND ls.date_end-${sql.currentDate} &lt;= notification_days
+            AND ${sql.currentDate}-ls.date_end &lt;= removal_days
+            AND ls_inner.ls_id = ls.ls_id )
+			UNION
+			SELECT (case when ls_alert_definition.alert_type = 'Lease Due Date' then '${parameters['lease_due_date']}' else '${parameters['options_due_date']}' end) as alert, op.ls_id,ls.uclass, op.op_id, op.date_start, op.date_option AS date_end, color, notification_days, tn_name, tn_contact, ld_name, ld_contact,
+			CASE WHEN color = 'Red' THEN '1'
+				WHEN color = 'Yellow' THEN '2'
+				WHEN color = 'Green' THEN '3' END AS color_order
+			FROM op, ls_alert_definition, ls
+			WHERE op.date_exercised IS NULL and op.ls_id = ls.ls_id
+			AND op.ls_id in (select ls_id from ls where ls.use_as_template = 0)
+  			AND alert_type = 'Option Due Date'
+  			AND role_name = '${user.role}'
+  			AND issue_alert = 1
+  			AND op.date_option-${sql.currentDate} &lt;=  notification_days
+  			AND ${sql.currentDate}-op.date_option &lt;= removal_days
+        AND notification_days =
+          ( SELECT MIN(notification_days)
+          FROM op op_inner, ls_alert_definition
+          WHERE alert_type = 'Option Due Date'
+            AND role_name = '${user.role}'
+            AND issue_alert = 1
+            AND op.date_option-${sql.currentDate} &lt;= notification_days
+            AND ${sql.currentDate}-op.date_option &lt;= removal_days
+            AND op_inner.ls_id = op.ls_id AND op_inner.op_id = op.op_id )
+        </sql>
+		<table name="ls" role="main" />
+		<table name="ls_alert_definition" role="standard" />
+		<field table="ls_alert_definition" name="alert_type"/>
+		<field table="ls" name="alert" dataType="text">
+			<title translatable="true">Alert Type</title>
+		</field>
+		<field table="ls" name="ls_id" />
+		<field table="ls" name="uclass" />
+		<field table="ls" name="op_id" dataType="text" />
+		<field table="ls" name="date_start" />
+		<field table="ls" name="date_end" />
+		<field table="ls" name="tn_name" />
+		<field table="ls" name="tn_contact" />
+		<field table="ls" name="ld_name" />
+		<field table="ls" name="ld_contact"/>
+		<field table="ls_alert_definition" name="color" />
+		<field table="ls_alert_definition" name="notification_days" />
+		<field table="ls" name="color_order" dataType="text" />
+		<parameter name="lease_due_date" dataType="verbatim" value=""/>
+		<parameter name="options_due_date" dataType="verbatim" value=""/>
+	</dataSource>
+
+	<dataSource id="ds_1">
+		<table name="ls" />
+		<field name="ls_id" hidden="true" />
+		<field name="uclass" />
+		<field name="ls_parent_id" />
+		<field name="floors" />
+		<field name="lease_sublease" />
+		<field name="area_negotiated" />
+		<field name="doc" />
+		<field name="signed" />
+		<field name="date_start" />
+		<field name="date_move" />
+		<field name="date_end" />
+		<field name="landlord_tenant" />
+		<field name="tn_name" />
+		<field name="tn_contact" />
+		<field name="ld_name" />
+		<field name="ld_contact" />
+		<field name="lease_type" />
+		<field name="owned" />
+		<field name="space_use" />
+		<field name="bl_id" />
+		<field name="pr_id" />
+		<field name="template_name" />
+		<field name="description" />
+		<field name="comments" />
+	</dataSource>
+
+	<dataSource id="ds_2">
+		<table name="op" role="main"/>
+		<table name="ls" role="standard"/>
+		<field table="ls" name="uclass" />
+		<field table="op" name="ls_id" hidden="true" />
+		<field table="op" name="op_id" />
+		<field table="op" name="op_type" />
+		<field table="op"  name="cost_est" />
+		<field table="op"  name="area" />
+		<field table="op"  name="date_option_introduced" />
+		<field table="op"  name="date_review" />
+		<field table="op"  name="date_option" />
+		<field table="op"  name="date_start" />
+		<field table="op"  name="date_exercised" />
+		<field table="op"  name="date_exercising_applicable" />
+		<field table="op"  name="dates_match_lease" />
+		<field table="op"  name="who_can_exercise" />
+		<field table="op"  name="exercised_by" />
+		<field table="op"  name="doc" />
+		<field table="op"  name="description" />
+		<field table="op"  name="comments" />
+	</dataSource>
+
+	<panel type="grid" id="lsAlertsGrid" dataSource="ds_01" showOnLoad="false">
+	<action id="exportPDF">
+		<title>PDF</title>
+		<command type="exportPanel" outputType="pdf" panelId="lsAlertsGrid" viewName="ab-rplm-lsadmin-alerts-view.axvw"/>
+
+	</action>
+	<action id="exportXLS">
+		<title>XLS</title>
+		<command type="exportPanel" outputType="xls" panelId="lsAlertsGrid" viewName="ab-rplm-lsadmin-alerts-view.axvw"/>
+
+	</action>
+		<title translatable="true">Alerts for Leases and Options</title>
+		<sortField name="color_order" table="ls" ascending="true"/>
+		<sortField name="date_end" table="ls" ascending="true"/>
+		<field table="ls" name="alert" dataType="text" controlType="link">
+			<title translatable="true">Alert Type</title>
+		</field>
+		<field table="ls" name="ls_id" controlType="link"  />
+		<field table="ls" name="uclass" controlType="link" id="selectLsId" hidden="true"/>
+		<field table="ls" name="tn_name" />
+		<field table="ls" name="tn_contact" />
+		<field table="ls" name="ld_name" />
+		<field table="ls" name="ld_contact"/>
+		<field table="ls" name="op_id" dataType="text" size="16">
+			<title translatable="true">Option Code</title>
+		</field>
+		<field table="ls" name="date_start" />
+		<field table="ls" name="date_end" />
+		<field table="ls_alert_definition" name="color" hidden="true" />
+	</panel>
+
+	<panel type="columnReport" id="lsDetailsReport" dataSource="ds_1" showOnLoad="false" hidden="true">
+		<title translatable="true">Lease Details</title>
+	</panel>
+
+	<panel type="columnReport" id="opDetailsReport" dataSource="ds_2" showOnLoad="false" hidden="true">
+		<title translatable="true">Lease Option Details</title>
+	</panel>
+
+	<js file="uc-rplm-lsadmin-alerts-view.js" />
+</view>

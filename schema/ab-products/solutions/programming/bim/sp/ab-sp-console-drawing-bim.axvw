@@ -1,0 +1,165 @@
+<!-- Space Express Console example -->
+
+<view version="2.0">
+    <js file="ab-sp-console-drawing-bim.js"/>
+    <js file="ab-sp-console-drawing-export.js"/>
+    <message name="countOver" translatable="true">The room will exceed capacity with this assignment.  Continue?</message>
+    <message name="noHighlight" translatable="true">Please select a highlight option before exporting to PDF.</message>
+    <message name="noHighlightDOCX" translatable="true">Please select a highlight option before exporting to DOCX.</message>
+    <message name="noHighlightOnRoomStandard" translatable="true">You cannot print a PDF report using Room Standards highlight.</message>
+    <message name="noHighlightOnRoomStandardDOCX" translatable="true">You cannot print a DOCX report using Room Standards highlight.</message>
+    <message name="roomOverCapacityStart" translatable="true">The rooms </message>
+    <message name="roomOverCapacityEnd" translatable="true">are over capacity or defined as non-occupiable and the assignments won't be saved. </message>
+    <message name="dropEmPromptVPA" translatable="true">You can't update an employee's location to be current room due to VPA restriction.</message>
+    <message name="assignedRoomIsNonOccupiable" translatable="true">You are assigning an employee to a room defined as not occupiable. Do you wish to continue?</message>
+	<message name="notSupportedExportingFormat" translatable="true">The exporting format is not supported.</message>
+    
+    <dataSource id="selectedRoomsDS" type="grouping">
+        <table name="rm"/>
+        <field name="total_rooms" formula="count" baseField="rm.rm_id" dataType="integer"/>
+        <field name="total_area" formula="sum" baseField="rm.area" dataType="number"/>
+        <field name="total_headcount" formula="sum" baseField="rm.count_em" dataType="number"/>
+    </dataSource>
+    
+    <dataSource id="userRoomsDS">
+        <table name="rm"/>
+        <field name="bl_id"  table="rm"/>
+        <field name="fl_id"  table="rm"/>
+        <field name="rm_id"  table="rm"/>
+        <restriction type="sql" sql="
+          rm.bl_id = ${parameters['bl_id']} and rm.fl_id = ${parameters['fl_id']} and rm.rm_id = ${parameters['rm_id']} 
+          AND ${sql.vpaRestriction}"/>
+        <parameter name="bl_id" dataType="text" value=""/>
+        <parameter name="fl_id" dataType="text" value=""/>
+        <parameter name="rm_id" dataType="text" value=""/>
+        <parameter name="em_id" dataType="text" value=""/>
+    </dataSource>
+    
+    <dataSource id="employeesWaitingDS">
+        <table name="em"/>
+        <field name="em_id"/>
+        <field name="bl_id" hidden="true"/>
+        <field name="fl_id" hidden="true"/>
+        <field name="rm_id" hidden="true"/>
+        <field name="location" dataType="text">
+            <title>Current Location</title>
+            <sql dialect="generic">bl_id${sql.concat}'-'${sql.concat}fl_id${sql.concat}'-'${sql.concat}rm_id</sql>
+            <sql dialect="sqlserver">
+             case when ISNULL((bl_id+fl_id+rm_id),'')='' then '--'
+             else bl_id${sql.concat}'-'${sql.concat}fl_id${sql.concat}'-'${sql.concat}rm_id 
+             end
+            </sql>
+        </field>
+    </dataSource>
+
+    <panel type="drawing"
+           id="drawingPanel"
+           layoutRegion="drawing"
+           assignMode="2"
+           multipleSelectionEnabled="true"
+           highlightDataSource="highlightDivisionsDs"
+           labelsDataSource="labelDivisionsDs"
+           bordersHighlightSelector="true"
+           legendPanel="legendGrid"
+           borderHighlightLegendPanel="borderLegendGrid"
+           showLegendOverlay="true">
+        <title></title>
+        
+        <action type="menu" id="exportDrawingPanelMenu" imageName="/schema/ab-core/graphics/icons/view/export.png">
+            <title></title>
+            <action id="exportLoadedDrawingToDOCX">
+                <title>Export What You See to DOCX</title>
+                <command type="exportPanel" outputType="docx" panelId="drawingPanel"/>
+            </action>
+            <action id="exportDrawingToPDF">
+                <title>Generate PDF of Floors in Location List</title>
+                <command type="callFunction" functionName="spaceExpressConsoleDrawing.onExportDrawing('pdf')"/>
+            </action>
+            <action id="exportDrawingToDOCX">
+                <title>Generate DOCX of Floors in Location List</title>
+                <command type="callFunction" functionName="spaceExpressConsoleDrawing.onExportDrawing('docx')"/>
+            </action>
+        </action>
+
+        <actionbar>
+            <action id="commitPendingAssignments" enabled="false" mainAction="true">
+                <title>Commit</title>
+            </action>
+            <action id="cancelPendingAssignments" enabled="false">
+                <title>Cancel</title>
+            </action>
+            <action id="viewPendingAssignments" enabled="false">
+                <title>View Pending Assignments</title>
+            </action>
+            <action id="viewDetails" enabled="false">
+                <title>View/Edit Selected Rooms</title>
+            </action>
+            <action id="cancelSelectedRooms" enabled="false">
+                <title>Clear</title>
+            </action>
+        </actionbar>
+    </panel>
+
+    <dataSource id="legendDS" distinct="true">
+        <table name="rm" role="main"/>
+    </dataSource>
+
+    <panel type="grid" controlType="reportGrid" id="legendGrid" dataSource="legendDS" showOnLoad="false" hidden="true" buttonsPosition="footer">
+        <action id="hideRoomHighlights">
+            <title>Close</title>
+            <command type="closeDialog"/>
+        </action>
+
+        <field table="legend" name="color" controlType="color">
+            <title> </title>
+        </field>
+        <field table="legend" name="value" width="80%">
+            <title> </title>
+        </field>
+    </panel>
+
+    <panel type="grid" controlType="reportGrid" id="borderLegendGrid" dataSource="legendDS" showOnLoad="false" hidden="true" buttonsPosition="footer">
+        <action id="hideBorderHighlights">
+            <title>Close</title>
+            <command type="closeDialog"/>
+        </action>
+
+        <field table="legend" name="color" controlType="color">
+            <title> </title>
+        </field>
+        <field table="legend" name="value" width="80%">
+            <title> </title>
+        </field>
+    </panel>
+    
+    <!-- dataSource for get room occupancy or rm cap. -->
+    <dataSource id="roomOccupancyDS">
+        <table name="rm" role="main"/>
+        <field table="rm" name="bl_id"/>
+        <field table="rm" name="fl_id"/>
+        <field table="rm" name="rm_id"/>
+        <field table="rm" name="caculated_count_em" dataType="integer">
+            <sql dialect="generic">
+               (SELECT COUNT(DISTINCT(em.em_id)) 
+                FROM em  
+                WHERE 
+                em.bl_id = rm.bl_id AND em.fl_id = rm.fl_id AND em.rm_id = rm.rm_id) 
+            </sql>
+        </field>
+        <field table="rm" name="cap_em"/>
+    </dataSource>
+    
+    <dataSource id="roomOccupiableDs">
+        <table name="rm" role="main"/>
+        <table name="rmcat" role="standard"/>
+        <field table="rm" name="bl_id"/>
+        <field table="rm" name="fl_id"/>
+        <field table="rm" name="rm_id"/>
+        <field table="rmcat" name="occupiable"/>
+    </dataSource>
+    
+    <!-- Include data sources for highlights and labels. -->
+    <panel type="view" id="highlightStylesView" file="ab-sp-console-ds-highlights.axvw"/>
+    <panel type="view" id="labelStylesView" file="ab-sp-console-ds-labels.axvw"/>
+
+</view>

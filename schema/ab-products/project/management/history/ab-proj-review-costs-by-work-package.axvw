@@ -1,0 +1,129 @@
+<view version="2.0">
+    <layout file="ab-proj-console-west-details.axvw"/>
+    <title>Review Costs by Work Package</title>    
+    <js file="ab-proj-review-costs-by-work-package.js"/> 
+
+    <panel type="view" id="projReviewCostsWorkPkgConsole" file="ab-proj-restriction-console.axvw" layout="mainLayout" region="north"/>
+      
+  	<dataSource id="projReviewCostsWorkPkgDs0">
+        <table name="project" role="main"/>
+        <field table="project" name="project_id"/>
+        <field table="project" name="project_name"/>
+        <field table="project" name="status"/>
+        <restriction type="sql" sql="project.is_template = 0"/>
+    </dataSource>
+
+    <panel type="grid" id="selectProjectReport" dataSource="projReviewCostsWorkPkgDs0" layout="nestedLayout_1" region="west">
+        <title>Projects</title> 
+        <sortField name="project_id" table="project" ascending="true"/>   
+        <field id="selectProjectId" name="project_id" table="project" controlType="link">
+            <command type="showPanel" panelId="projReviewCostsWorkPkgCrossTable"/>
+        </field>
+        <field table="project" name="project_name"/>
+        <field name="status" table="project">
+            <title>Project Status</title>
+        </field>                     
+    </panel>
+    
+    <dataSource id="projReviewCostsWorkPkgDs1" type="grouping" applyVpaRestrictions="false">
+        <table name="activity_log" role="main"/>
+        <field name="work_pkg_id" table="activity_log" groupBy="true"/>
+        <field name="baseline_costs" dataType="number" decimals="2">
+            <title>Baseline Costs</title>
+            <sql dialect="generic">SUM(baseline_costs)</sql>
+        </field>
+        <field name="design_estimated_costs" dataType="number" decimals="2">
+            <title>Design Estimated Costs</title>
+            <sql dialect="generic">SUM(design_estimated_costs)</sql>
+        </field>
+        <field name="contracted_cost" dataType="number" decimals="2" showTotals="false">
+            <title>Contracted Cost</title>
+            <sql dialect="generic">MAX(contracted_cost)</sql>
+        </field>
+        <field name="actual_costs" dataType="number" decimals="2">
+            <title>Actual Costs</title>
+            <sql dialect="generic">SUM(actual_costs)</sql>
+        </field>
+        <field name="owner_count" dataType="number" decimals="0" showTotals="false">
+            <title>Count of Change Orders by Owner</title>
+            <sql dialect="generic">MAX(owner_count)</sql>
+        </field>
+        <field name="vendor_count" dataType="number" decimals="0" showTotals="false">
+            <title>Count of Change Orders by Vendor</title>
+            <sql dialect="generic">MAX(vendor_count)</sql>
+        </field>
+        <field name="variance_design_baseline" dataType="number" decimals="2" showTotals="false">
+            <title>Variance: Design to Baseline:</title>
+            <sql dialect="generic">SUM(variance_design_baseline)</sql>
+        </field>
+        <field name="cost_invoice" dataType="number" decimals="2" showTotals="false">
+            <title>Costs Invoices to Date</title>
+            <sql dialect="generic">MAX(cost_invoice)</sql>
+        </field>
+        <field name="variance_actual_design" dataType="number" decimals="2" showTotals="false">
+            <title>Variance: Actual to Design</title>
+            <sql dialect="generic">SUM(variance_actual_design)</sql>
+        </field>
+        <sql dialect="generic">
+          SELECT activity_log.work_pkg_id, activity_log.project_id,
+          (cost_est_cap + cost_estimated) ${sql.as} baseline_costs, 
+          (cost_est_design_cap + cost_est_design_exp) ${sql.as} design_estimated_costs, 
+          (cost_act_cap + cost_actual) ${sql.as} actual_costs, 
+          (cost_est_design_cap + cost_est_design_exp - cost_est_cap - cost_estimated) ${sql.as} variance_design_baseline, 
+          (cost_act_cap + cost_actual - cost_est_design_cap - cost_est_design_exp) ${sql.as} variance_actual_design, 
+          (SELECT SUM(amount_tot_invoice) FROM invoice WHERE invoice.status IN ('ISSUED','SENT','CLOSED') AND invoice.project_id = activity_log.project_id AND invoice.work_pkg_id = activity_log.work_pkg_id) ${sql.as} cost_invoice, 
+          (SELECT SUM(cost_contract) FROM work_pkg_bids WHERE work_pkg_bids.project_id = activity_log.project_id AND work_pkg_bids.work_pkg_id = activity_log.work_pkg_id AND work_pkg_bids.status IN ('Approved', 'Contract Signed','In Process','In   Process-On Hold', 'Completed','Completed and Verified' , 'Paid in Full')) ${sql.as} contracted_cost, 
+          (SELECT COUNT(*) from activity_log ${sql.as} actlog_inner WHERE actlog_inner.activity_type = 'PROJECT - CHANGE ORDER' AND actlog_inner.requestor_type = 'Owner' AND actlog_inner.project_id = activity_log.project_id AND actlog_inner.work_pkg_id = activity_log.work_pkg_id) ${sql.as} owner_count, 
+          (SELECT COUNT(*) from activity_log ${sql.as} actlog_inner WHERE actlog_inner.activity_type = 'PROJECT - CHANGE ORDER' AND actlog_inner.requestor_type = 'Vendor' AND actlog_inner.project_id = activity_log.project_id AND actlog_inner.work_pkg_id = activity_log.work_pkg_id) ${sql.as} vendor_count 
+          FROM activity_log WHERE ${sql.vpaRestriction}
+        </sql>
+        <sortField name="work_pkg_id" table="activity_log" ascending="true"/> 
+    </dataSource>
+    
+    <panel type="crossTable" id="projReviewCostsWorkPkgCrossTable" dataSource="projReviewCostsWorkPkgDs1" showOnLoad="false" layout="nestedLayout_1" region="center">
+        <title>Review Costs by Work Package</title>
+        <action id="exportXLS">
+            <title>XLS</title>
+            <command type="exportPanel" outputType="xls" panelId="projReviewCostsWorkPkgCrossTable"/>
+        </action> 
+        <event type="onClickItem"> 
+            <command type="openDialog" panelId="projReviewCostsWorkPkgActionDetails"/>
+        </event>
+    </panel> 
+    
+    <dataSource id="projReviewCostsWorkPkgDs2">
+        <table name="activity_log" role="main" />
+        <field name="action_title" table="activity_log"/>
+        <field name="activity_log_id" table="activity_log" />
+        <field name="activity_type" table="activity_log"/>
+        <field name="status" table="activity_log">
+            <title>Action Item Status</title>
+        </field>
+        <field name="cost_est_cap" table="activity_log"/>
+        <field name="cost_estimated" table="activity_log"/>
+        <field name="cost_est_design_cap" table="activity_log"/>
+        <field name="cost_est_design_exp" table="activity_log"/>
+        <field name="cost_act_cap" table="activity_log"/>
+        <field name="cost_actual" table="activity_log"/>
+        <field name="work_pkg_id" table="activity_log"/>
+        <field name="project_id" table="activity_log"/>
+    </dataSource>
+    
+    <panel type="grid" id="projReviewCostsWorkPkgActionDetails" dataSource="projReviewCostsWorkPkgDs2" showOnLoad="false">
+        <title>Action Items</title>
+        <action id="exportDOCX">
+            <title>DOC</title>
+            <command type="exportPanel" outputType="docx" panelId="projReviewCostsWorkPkgActionDetails"/>
+         </action>
+        <action id="exportXLS">
+            <title>XLS</title>
+            <command type="exportPanel" outputType="xls" panelId="projReviewCostsWorkPkgActionDetails"/>
+        </action>
+        <sortField name="action_title" table="activity_log" ascending="true"/>
+    </panel>
+</view>
+    
+ 
+ 
+ 
+ 

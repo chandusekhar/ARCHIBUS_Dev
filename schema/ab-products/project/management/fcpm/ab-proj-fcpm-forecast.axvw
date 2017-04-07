@@ -1,0 +1,63 @@
+<view version="2.0">
+		<message name="retrievingPjn">Retrieving Projection</message>
+    <js file="ab-proj-fcpm-forecast.js"/>
+    
+    <dataSource id="projFcpmForecastDs1">
+    		<table name="proj_forecast_item" role="main"/>
+    		<field name="proj_forecast_item_id" table="proj_forecast_item" />
+    		<field name="proj_forecast_id" table="proj_forecast_item" />
+    		<field name="project_id" table="proj_forecast_item" />
+    		<field name="work_pkg_id" table="proj_forecast_item" />
+    		<field name="date_forecast" table="proj_forecast_item" />
+    		<field name="cost_forecast" table="proj_forecast_item" />
+    		<field name="created_by" table="proj_forecast_item"/>
+    </dataSource>
+    
+    <dataSource id="projFcpmForecastDs2" >
+    		<table name="work_pkgs" role="main"/>
+    		<sql dialect="generic">
+    				SELECT work_pkgs.project_id, work_pkgs.work_pkg_id, contract_amount.vn_id, project.bl_id, project.site_id, project.dv_id, project.dp_id, work_pkgs.proj_phase,
+    				${sql.isNull('contract_amount.date_contract_start','work_pkgs.date_est_start')} ${sql.as} date_start, 
+    				CASE WHEN contract_amount.date_contract_end IS NULL THEN
+    				(CASE WHEN work_pkgs.date_est_end &lt; ${sql.isNull('contract_amount.date_contract_start','work_pkgs.date_est_start')}
+    				THEN ${sql.isNull('contract_amount.date_contract_start','work_pkgs.date_est_start')}
+    				ELSE work_pkgs.date_est_end END)
+    				ELSE contract_amount.date_contract_end END ${sql.as} date_end,
+    				(${sql.isNull('cost_contract',0)}+${sql.isNull('apprv_cost_change_orders',0)}) ${sql.as} revised_cost
+    				FROM work_pkgs
+    				LEFT OUTER JOIN 
+		            (SELECT work_pkg_bids.work_pkg_id, work_pkg_bids.project_id, work_pkg_bids.vn_id, work_pkg_bids.cost_contract, work_pkg_bids.date_contract_start, work_pkg_bids.date_contract_end
+		            FROM work_pkg_bids 
+		            WHERE work_pkg_bids.status IN ( 'Contract Signed', 'In Process', 'In Process-On Hold', 'Completed', 'Completed and Verified', 'Paid in Full')) 
+		            ${sql.as} contract_amount
+		        ON (work_pkgs.project_id = contract_amount.project_id AND work_pkgs.work_pkg_id = contract_amount.work_pkg_id ) 
+    				LEFT OUTER JOIN
+		            (SELECT activity_log.work_pkg_id, activity_log.project_id, SUM(cost_est_design_cap + cost_est_design_exp) ${sql.as} apprv_cost_change_orders 
+		            FROM activity_log 
+		            WHERE activity_log.activity_type LIKE 'PROJECT - CHANGE ORDER' AND activity_log.status NOT IN('CREATED','REQUESTED','REJECTED','CANCELLED') GROUP BY activity_log.project_id, activity_log.work_pkg_id ) ${sql.as} apprv_change_orders 
+		        ON (work_pkgs.project_id = apprv_change_orders.project_id AND work_pkgs.work_pkg_id = apprv_change_orders.work_pkg_id)
+		        LEFT OUTER JOIN project ON work_pkgs.project_id = project.project_id
+    				
+    		</sql>
+    		<field name="work_pkg_id" table="work_pkgs" dataType="text"/>
+    		<field name="project_id" table="work_pkgs" dataType="text"/>
+        <field name="revised_cost" table="work_pkgs" dataType="number" size="20" decimals="0" showTotals="true">
+        		<title>Revised Contract</title>
+        </field>        
+        <field name="date_start" table="work_pkgs" dataType="date"  >
+        		<title>Date Start</title>
+        </field>
+        <field name="date_end" table="work_pkgs"  dataType="date"  >
+        		<title>Date End</title>
+        </field>
+    		<sortField name="work_pkg_id" table="work_pkgs"/>
+    </dataSource>    
+        
+    <dataSource id="projFcpmForecastDs3">
+    		<table name="proj_forecast" role="main"/>
+    		<field name="proj_forecast_id" table="proj_forecast"/>
+    		<field name="project_id" table="proj_forecast"/>
+    		<field name="date_created" table="proj_forecast"/>
+    		<field name="description" table="proj_forecast"/>
+    </dataSource>
+</view>

@@ -1,0 +1,558 @@
+<view version="2.0">
+	<message name="accode" translatable="true">Account</message>
+	<message name="blcode" translatable="true">Building</message>
+	<message name="dpcode" translatable="true">Department</message>
+	<message name="chartTitle1" translatable="true">Actual Work and Budgeted Costs</message>
+	<message name="activeWorkCosts" translatable="true">Actual Work Costs</message>
+	<message name="budgetedCosts" translatable="true">Budgeted Costs</message>
+	<message name="variance" translatable="true">Variance</message>
+	
+	<dataSource id="abBldgopsReportComplWrBudgetAndCostChartGroupDS" applyVpaRestrictions="false">
+		<sql dialect="generic">
+			(select distinct ${parameters['groupOptionPlan']}  ${sql.as} groupValue from wrhwr  left outer  join bl on wrhwr.bl_id=bl.bl_id where   ${parameters['groupOptionPlan']}  is not null  AND ${parameters['groupOptionPlan']}!='-'	AND ${parameters['planConsolePara']} and ${sql.getVpaRestrictionForTable('bl')})
+			union
+			(select distinct ${parameters['groupOptionBudget']}  ${sql.as} groupValue from budget_item left outer  join bl on budget_item.bl_id=bl.bl_id where 
+			${parameters['groupOptionBudget']}  is not null AND ${parameters['groupOptionBudget']}!='-'	AND  EXISTS (select 1 from wrhwr where ${parameters['planConsolePara']} and ${parameters['whereBudget']}  ) and ${parameters['budgetConsolePara']} and ${sql.getVpaRestrictionForTable('bl')})
+		</sql>
+
+		<table name="ac" role="main"/>
+        <table name="bl" role="standard"/>
+		<field table="ac" name="groupValue"  dataType="text" value=""/>
+		<parameter name="groupOptionPlan" dataType="verbatim" value="wrhwr.bl_id"/>
+		<parameter name="groupOptionBudget" dataType="verbatim" value="budget_item.bl_id"/>
+		<parameter name="planConsolePara" dataType="verbatim" value="1=1"/>
+		<parameter name="budgetConsolePara" dataType="verbatim" value="1=1"/>
+		<parameter name="whereBudget" dataType="verbatim" value="budget_item.bl_id=wrhwr.bl_id"/>
+	</dataSource>
+    
+	<dataSource id="abBldgopsReportComplWrBudgetAndCostChartDataDS" applyVpaRestrictions="false">
+		<sql dialect="sybase">
+			
+			(
+		  		select ${parameters['activeWorkCosts']} ${sql.as} plan_budget,
+					sum(wrhwr.cost_total)  ${sql.as} cost_value
+				from wrhwr left outer join bl on wrhwr.bl_id=bl.bl_id  
+				where  ${parameters['planConsolePara']} and ${parameters['groupOptionPlan'] } = ${parameters['summaryValueForThisGroup'] }	  and ${sql.getVpaRestrictionForTable('bl')}
+			)
+		 union all
+		 	(	
+				select ${parameters['budgetedCosts']} ${sql.as} plan_budget,
+					Sum(budget_item.month_exp
+						*
+						( CASE 
+							WHEN budget_item.date_start IS NULL OR budget_item.date_end IS NULL 
+							THEN (
+								  CASE 
+									WHEN budget_item.date_start is NULL AND  budget_item.date_end is NULL 
+										   OR budget_item.date_start is NULL AND  ${sql.yearMonthOf("budget_item.date_end")} &gt;='${parameters['dateEnd']}' 
+										   OR budget_item.date_end is NULL AND  ${sql.yearMonthOf("budget_item.date_start")} &lt;='${parameters['dateStart']}' 
+									THEN datediff(MM,  '${parameters['dateStart']}', '${parameters['dateEnd']}' ) +1 
+
+									WHEN  budget_item.date_end is NULL  AND  ${sql.yearMonthOf("budget_item.date_start")} &lt;='${parameters['dateEnd']}' 
+									THEN datediff(MM,  budget_item.date_start, '${parameters['dateEnd']}' ) +1 
+
+									WHEN budget_item.date_start is NULL AND  ${sql.yearMonthOf("budget_item.date_end")} &gt;='${parameters['dateStart']}' 
+									THEN datediff(MM,  '${parameters['dateStart']}', budget_item.date_end ) +1
+									 ELSE 0
+								 END
+							)
+							WHEN ${sql.yearMonthOf("budget_item.date_start")} &lt;='${parameters['dateStart']}' AND ${sql.yearMonthOf("budget_item.date_end")} &gt;='${parameters['dateEnd']}'
+							 THEN datediff(MM,  '${parameters['dateStart']}', '${parameters['dateEnd']}' ) +1 
+							WHEN ${sql.yearMonthOf("budget_item.date_start")} &gt;='${parameters['dateStart']}' AND ${sql.yearMonthOf("budget_item.date_end")} &gt;='${parameters['dateEnd']}'
+							 THEN datediff(MM,  budget_item.date_start, '${parameters['dateEnd']}' ) +1 
+							WHEN ${sql.yearMonthOf("budget_item.date_start")} &gt;='${parameters['dateStart']}' AND ${sql.yearMonthOf("budget_item.date_end")} &lt;='${parameters['dateEnd']}'
+							 THEN datediff(MM,  budget_item.date_start, budget_item.date_end ) +1 
+							WHEN ${sql.yearMonthOf("budget_item.date_end")} &lt;='${parameters['dateEnd']}' 
+							 THEN datediff(MM,  '${parameters['dateStart']}', budget_item.date_end ) +1 
+							 ELSE 0
+						END
+						)
+					)   ${sql.as} cost_value
+				from budget_item left outer  join bl on budget_item.bl_id=bl.bl_id 
+				where ${parameters['budgetConsolePara']} and EXISTS (select 1 from wrhwr where ${parameters['planConsolePara']} and ${parameters['whereBudget']}  )  and ${parameters['groupOptionBudget'] } = ${parameters['summaryValueForThisGroup'] } 	  and ${sql.getVpaRestrictionForTable('bl')} 
+			)
+		</sql>
+		<sql dialect="sqlserver">
+			
+			(
+		  		select ${parameters['activeWorkCosts']} ${sql.as} plan_budget,
+					sum(wrhwr.cost_total)  ${sql.as} cost_value
+				from wrhwr left outer join bl on wrhwr.bl_id=bl.bl_id  
+				where  ${parameters['planConsolePara']} and ${parameters['groupOptionPlan'] } = ${parameters['summaryValueForThisGroup'] }	  and ${sql.getVpaRestrictionForTable('bl')}
+			)
+		 union all
+		 	(	
+				select ${parameters['budgetedCosts']} ${sql.as} plan_budget,
+					Sum(budget_item.month_exp
+						*
+						( CASE 
+							WHEN budget_item.date_start IS NULL OR budget_item.date_end IS NULL 
+							THEN (
+								  CASE 
+									WHEN budget_item.date_start is NULL AND  budget_item.date_end is NULL 
+										   OR budget_item.date_start is NULL AND  ${sql.yearMonthOf("budget_item.date_end")} &gt;='${parameters['dateEnd']}' 
+										   OR budget_item.date_end is NULL AND  ${sql.yearMonthOf("budget_item.date_start")} &lt;='${parameters['dateStart']}' 
+									THEN datediff(month,  '${parameters['dateStart']}', '${parameters['dateEnd']}' ) +1 
+
+									WHEN  budget_item.date_end is NULL  AND  ${sql.yearMonthOf("budget_item.date_start")} &lt;='${parameters['dateEnd']}' 
+									THEN datediff(month,  budget_item.date_start, '${parameters['dateEnd']}' ) +1 
+
+									WHEN budget_item.date_start is NULL AND  ${sql.yearMonthOf("budget_item.date_end")} &gt;='${parameters['dateStart']}' 
+									THEN datediff(month,  '${parameters['dateStart']}', budget_item.date_end ) +1
+									 ELSE 0
+								 END
+							)
+							WHEN ${sql.yearMonthOf("budget_item.date_start")} &lt;='${parameters['dateStart']}' AND ${sql.yearMonthOf("budget_item.date_end")} &gt;='${parameters['dateEnd']}'
+							 THEN datediff(month,  '${parameters['dateStart']}', '${parameters['dateEnd']}' ) +1 
+							WHEN ${sql.yearMonthOf("budget_item.date_start")} &gt;='${parameters['dateStart']}' AND ${sql.yearMonthOf("budget_item.date_end")} &gt;='${parameters['dateEnd']}'
+							 THEN datediff(month,  budget_item.date_start, '${parameters['dateEnd']}' ) +1 
+							WHEN ${sql.yearMonthOf("budget_item.date_start")} &gt;='${parameters['dateStart']}' AND ${sql.yearMonthOf("budget_item.date_end")} &lt;='${parameters['dateEnd']}'
+							 THEN datediff(month,  budget_item.date_start, budget_item.date_end ) +1 
+							WHEN ${sql.yearMonthOf("budget_item.date_end")} &lt;='${parameters['dateEnd']}' 
+							 THEN datediff(month,  '${parameters['dateStart']}', budget_item.date_end ) +1 
+							 ELSE 0
+						END
+						)
+					)   ${sql.as} cost_value
+				from budget_item left outer   join bl on budget_item.bl_id=bl.bl_id 
+				where ${parameters['budgetConsolePara']} and EXISTS (select 1 from wrhwr where ${parameters['planConsolePara']} and ${parameters['whereBudget']}  )  and ${parameters['groupOptionBudget'] } = ${parameters['summaryValueForThisGroup'] }  and ${sql.getVpaRestrictionForTable('bl')} 
+			)
+		</sql>
+		<sql dialect="oracle">
+			
+			(
+		  		select ${parameters['activeWorkCosts']} ${sql.as} plan_budget,
+					sum(wrhwr.cost_total)  ${sql.as} cost_value
+				from wrhwr left outer join bl on wrhwr.bl_id=bl.bl_id  
+				where  ${parameters['planConsolePara']} and ${parameters['groupOptionPlan'] } = ${parameters['summaryValueForThisGroup'] }	  and ${sql.getVpaRestrictionForTable('bl')}
+			)
+		 union all
+		 	(	
+				select ${parameters['budgetedCosts']} ${sql.as} plan_budget,
+					Sum(budget_item.month_exp
+						*
+						( CASE 
+							WHEN budget_item.date_start IS NULL OR budget_item.date_end IS NULL 
+							THEN (
+								  CASE 
+									WHEN budget_item.date_start is NULL AND  budget_item.date_end is NULL 
+										   OR budget_item.date_start is NULL AND  ${sql.yearMonthOf("budget_item.date_end")} &gt;='${parameters['dateEnd']}' 
+										   OR budget_item.date_end is NULL AND  ${sql.yearMonthOf("budget_item.date_start")} &lt;='${parameters['dateStart']}' 
+									THEN ceil( months_between( to_date('${parameters['dateEnd']}','YYYY-MM-DD' ) , to_date( '${parameters['dateStart']}', 'YYYY-MM-DD') ) )
+
+									WHEN  budget_item.date_end is NULL  AND  ${sql.yearMonthOf("budget_item.date_start")} &lt;='${parameters['dateEnd']}' 
+									THEN ceil( months_between( to_date('${parameters['dateEnd']}', 'YYYY-MM-DD') , budget_item.date_start ) )
+
+									WHEN budget_item.date_start is NULL AND  ${sql.yearMonthOf("budget_item.date_end")} &gt;='${parameters['dateStart']}' 
+									THEN ceil( months_between( budget_item.date_end ,  to_date( '${parameters['dateStart']}', 'YYYY-MM-DD') ) )
+									 ELSE 0
+								 END
+							)
+							WHEN ${sql.yearMonthOf("budget_item.date_start")} &lt;='${parameters['dateStart']}' AND ${sql.yearMonthOf("budget_item.date_end")} &gt;='${parameters['dateEnd']}'
+							 THEN   ceil( months_between( to_date('${parameters['dateEnd']}','YYYY-MM-DD' ) , to_date( '${parameters['dateStart']}', 'YYYY-MM-DD') ) )
+
+							WHEN ${sql.yearMonthOf("budget_item.date_start")} &gt;='${parameters['dateStart']}' AND ${sql.yearMonthOf("budget_item.date_end")} &gt;='${parameters['dateEnd']}'
+							 THEN  ceil( months_between( to_date('${parameters['dateEnd']}', 'YYYY-MM-DD') , budget_item.date_start ) )
+
+							WHEN ${sql.yearMonthOf("budget_item.date_start")} &gt;='${parameters['dateStart']}' AND ${sql.yearMonthOf("budget_item.date_end")} &lt;='${parameters['dateEnd']}'
+							 THEN ceil( months_between( budget_item.date_end, budget_item.date_start ) )
+
+							WHEN ${sql.yearMonthOf("budget_item.date_end")} &lt;='${parameters['dateEnd']}' 
+							 THEN ceil( months_between( budget_item.date_end , to_date( '${parameters['dateStart']}', 'YYYY-MM-DD') ) )
+							 ELSE 0
+						END
+						)
+					)   ${sql.as} cost_value
+				from budget_item left outer  join bl on budget_item.bl_id=bl.bl_id 
+				where ${parameters['budgetConsolePara']} and EXISTS (select 1 from wrhwr where ${parameters['planConsolePara']} and ${parameters['whereBudget']}  )  and ${parameters['groupOptionBudget'] } = ${parameters['summaryValueForThisGroup'] } and ${sql.getVpaRestrictionForTable('bl')}  
+			)
+		</sql>
+		<table name="wrhwr" role="main"/>
+		<field name="plan_budget" dataType="verbatim" >
+		</field>
+		<field  name="cost_value" dataType="number" decimals="2" >
+			<title translatable="true">Cost</title>
+		</field>
+		<parameter name="summaryValueForThisGroup" dataType="text" value=""/>
+		<parameter name="groupOptionPlan" dataType="verbatim" value="wrhwr.bl_id"/>
+		<parameter name="groupOptionBudget" dataType="verbatim" value="budget_item.bl_id"/>
+		<parameter name="planConsolePara" dataType="verbatim" value="1=1"/>
+		<parameter name="budgetConsolePara" dataType="verbatim" value="1=1"/>
+		<parameter name="whereBudget" dataType="verbatim" value="budget_item.bl_id=wrhwr.bl_id"/>
+		<parameter name="dateStart" dataType="verbatim" value="2010-01-01"/>
+		<parameter name="dateEnd" dataType="verbatim" value="2010-12-31"/>
+		
+		<parameter name="activeWorkCosts" dataType="text" value=""/>
+		<parameter name="budgetedCosts" dataType="text" value=""/>
+		<sortField name="plan_budget" table="wrhwr" ascending="false"/>
+	</dataSource>
+	
+	<panel id="abBldgopsReportComplWrBudgetAndCostChart"
+		dataSource="abBldgopsReportComplWrBudgetAndCostChartDataDS"
+		showOnLoad="false"
+		type="chart"
+		controlType="columnChart"
+		showLegendOnLoad="false"
+		showLegendAsPopUp="false"
+		legendLocation="right"
+		showDataTips="true"
+		fillType="linearGradient"
+		percentGradientChange="0.5"
+		percentTransparency="1.0">
+
+		<action id="report"  imageName="/schema/ab-system/graphics/ab-icon-report.gif">
+			<tooltip  translatable="true">Report</tooltip>
+		</action>
+		<action id="exportDOCX">
+			<title translatable="true">DOC</title>
+			<command type="exportPanel" outputType="docx" panelId="abBldgopsReportComplWrBudgetAndCostChart"/>
+		</action> 
+		<event type="onClickItem">                 
+			<command type="callFunction" functionName="onComplBarChartClick"/>
+		</event>
+		<groupingAxis dataSource="abBldgopsReportComplWrBudgetAndCostChartGroupDS" table="ac" field="groupValue">
+		</groupingAxis>
+		<secondaryGroupingAxis table="wrhwr" field="plan_budget" dataSource="abBldgopsReportComplWrBudgetAndCostChartDataDS" />
+		<dataAxis dataSource="abBldgopsReportComplWrBudgetAndCostChartDataDS" table="wrhwr" field="cost_value">
+			<title translatable="true">Cost</title>
+		</dataAxis>
+	</panel>
+	
+	<dataSource id="abBldgopsReportComplWrBudgetAndCostCrossTableDS" type="grouping"  applyVpaRestrictions="false">
+		<sql dialect="sybase">
+			(
+		  		select ${parameters['activeWorkCosts']} ${sql.as} plan_budget,
+						${parameters['groupOptionPlan']}  ${sql.as} groupValue,
+						sum(wrhwr.cost_total)  ${sql.as} cost_total
+				from wrhwr 
+				where ${parameters['groupOptionPlan']} IS NOT NULL AND ${parameters['groupOptionPlan']}!='-' AND ${parameters['planConsolePara']} and ${sql.getVpaRestrictionForTable('wrhwr')}    
+				group by ${parameters['groupOptionPlan']}
+			)
+		 union all
+		 	(	
+				select ${parameters['budgetedCosts']} ${sql.as} plan_budget,
+						${parameters['groupOptionBudget']}   ${sql.as} groupValue,
+						Sum(budget_item.month_exp
+									*
+						( CASE 
+							WHEN budget_item.date_start IS NULL OR budget_item.date_end IS NULL 
+							THEN (
+								  CASE 
+									WHEN budget_item.date_start is NULL AND  budget_item.date_end is NULL 
+										   OR budget_item.date_start is NULL AND  ${sql.yearMonthOf("budget_item.date_end")} &gt;='${parameters['dateEnd']}' 
+										   OR budget_item.date_end is NULL AND  ${sql.yearMonthOf("budget_item.date_start")} &lt;='${parameters['dateStart']}' 
+									THEN datediff(MM,  '${parameters['dateStart']}', '${parameters['dateEnd']}' ) +1 
+
+									WHEN  budget_item.date_end is NULL  AND  ${sql.yearMonthOf("budget_item.date_start")} &lt;='${parameters['dateEnd']}' 
+									THEN datediff(MM,  budget_item.date_start, '${parameters['dateEnd']}' ) +1 
+
+									WHEN budget_item.date_start is NULL AND  ${sql.yearMonthOf("budget_item.date_end")} &gt;='${parameters['dateStart']}' 
+									THEN datediff(MM,  '${parameters['dateStart']}', budget_item.date_end ) +1
+									 ELSE 0
+								 END
+							)
+							WHEN ${sql.yearMonthOf("budget_item.date_start")} &lt;='${parameters['dateStart']}' AND ${sql.yearMonthOf("budget_item.date_end")} &gt;='${parameters['dateEnd']}'
+							 THEN datediff(MM,  '${parameters['dateStart']}', '${parameters['dateEnd']}' ) +1 
+							WHEN ${sql.yearMonthOf("budget_item.date_start")} &gt;='${parameters['dateStart']}' AND ${sql.yearMonthOf("budget_item.date_end")} &gt;='${parameters['dateEnd']}'
+							 THEN datediff(MM,  budget_item.date_start, '${parameters['dateEnd']}' ) +1 
+							WHEN ${sql.yearMonthOf("budget_item.date_start")} &gt;='${parameters['dateStart']}' AND ${sql.yearMonthOf("budget_item.date_end")} &lt;='${parameters['dateEnd']}'
+							 THEN datediff(MM,  budget_item.date_start, budget_item.date_end ) +1 
+							WHEN ${sql.yearMonthOf("budget_item.date_end")} &lt;='${parameters['dateEnd']}' 
+							 THEN datediff(MM,  '${parameters['dateStart']}', budget_item.date_end ) +1 
+							 ELSE 0
+						END	)
+						)   ${sql.as} cost_value 
+				from budget_item  left outer  join bl on budget_item.bl_id=bl.bl_id 
+				where  ${parameters['groupOptionBudget']} IS NOT NULL AND ${parameters['groupOptionBudget']}!='-' AND  ${parameters['budgetConsolePara']} and EXISTS (select 1 from wrhwr where  ${parameters['planConsolePara']}  and ${parameters['whereBudget']} )	   and ${sql.getVpaRestrictionForTable('bl')}
+				group by ${parameters['groupOptionBudget']} 
+			)	
+		union all
+		 	(	
+			select 	${parameters['variance']} ${sql.as} plan_budget,
+					${parameters['groupOptionVariance']}   ${sql.as} groupValue, 
+					( ( select  Sum(budget_item.month_exp
+									*
+							( CASE 
+								WHEN budget_item.date_start IS NULL OR budget_item.date_end IS NULL 
+								THEN (
+									  CASE 
+										WHEN budget_item.date_start is NULL AND  budget_item.date_end is NULL 
+											   OR budget_item.date_start is NULL AND  ${sql.yearMonthOf("budget_item.date_end")} &gt;='${parameters['dateEnd']}' 
+											   OR budget_item.date_end is NULL AND  ${sql.yearMonthOf("budget_item.date_start")} &lt;='${parameters['dateStart']}' 
+										THEN datediff(MM,  '${parameters['dateStart']}', '${parameters['dateEnd']}' ) +1 
+
+										WHEN  budget_item.date_end is NULL  AND  ${sql.yearMonthOf("budget_item.date_start")} &lt;='${parameters['dateEnd']}' 
+										THEN datediff(MM,  budget_item.date_start, '${parameters['dateEnd']}' ) +1 
+
+										WHEN budget_item.date_start is NULL AND  ${sql.yearMonthOf("budget_item.date_end")} &gt;='${parameters['dateStart']}' 
+										THEN datediff(MM,  '${parameters['dateStart']}', budget_item.date_end ) +1
+										 ELSE 0
+									 END
+								)
+								WHEN ${sql.yearMonthOf("budget_item.date_start")} &lt;='${parameters['dateStart']}' AND ${sql.yearMonthOf("budget_item.date_end")} &gt;='${parameters['dateEnd']}'
+								 THEN datediff(MM,  '${parameters['dateStart']}', '${parameters['dateEnd']}' ) +1 
+								WHEN ${sql.yearMonthOf("budget_item.date_start")} &gt;='${parameters['dateStart']}' AND ${sql.yearMonthOf("budget_item.date_end")} &gt;='${parameters['dateEnd']}'
+								 THEN datediff(MM,  budget_item.date_start, '${parameters['dateEnd']}' ) +1 
+								WHEN ${sql.yearMonthOf("budget_item.date_start")} &gt;='${parameters['dateStart']}' AND ${sql.yearMonthOf("budget_item.date_end")} &lt;='${parameters['dateEnd']}'
+								 THEN datediff(MM,  budget_item.date_start, budget_item.date_end ) +1 
+								WHEN ${sql.yearMonthOf("budget_item.date_end")} &lt;='${parameters['dateEnd']}' 
+								 THEN datediff(MM,  '${parameters['dateStart']}', budget_item.date_end ) +1 
+								 ELSE 0
+							END )
+							)  
+						from budget_item  left outer  join bl  on budget_item.bl_id=bl.bl_id 
+						where  ${parameters['groupOptionBudget']} IS NOT NULL AND ${parameters['groupOptionBudget']}!='-' AND  ${parameters['budgetConsolePara']} and EXISTS (select 1 from wrhwr where  ${parameters['planConsolePara']}  and ${parameters['whereBudget']} )	 and ${sql.getVpaRestrictionForTable('bl')} 
+						and  ${parameters['whereBudgetOptionForVariance']}
+					     )
+						-
+					(
+						select sum(wrhwr.cost_total)
+						from wrhwr 
+						where   ${parameters['groupOptionPlan']} IS NOT NULL AND ${parameters['groupOptionPlan']}!='-' AND  ${parameters['planConsolePara']} and ${parameters['wherePlanOptionForVariance']} and ${sql.getVpaRestrictionForTable('wrhwr')}  
+					)
+					)${sql.as} cost_total			
+			from  ${parameters['tablePram']}  
+			where   EXISTS(select 1 from wrhwr where ${parameters['planConsolePara']} and ${parameters['wherePlanOptionForVariance']})
+			)
+		</sql>
+		<sql dialect="sqlserver">
+			(
+		  		select ${parameters['activeWorkCosts']} ${sql.as} plan_budget,
+						${parameters['groupOptionPlan']}  ${sql.as} groupValue,
+						sum(wrhwr.cost_total)  ${sql.as} cost_total
+				from wrhwr 
+				where  ${parameters['groupOptionPlan']} IS NOT NULL AND ${parameters['groupOptionPlan']}!='-' AND ${parameters['planConsolePara']} 	and ${sql.getVpaRestrictionForTable('wrhwr')}  
+				group by ${parameters['groupOptionPlan']}
+			)
+		 union all
+		 	(	
+				select ${parameters['budgetedCosts']} ${sql.as} plan_budget,
+						${parameters['groupOptionBudget']}   ${sql.as} groupValue,
+						Sum(budget_item.month_exp
+									*
+						( CASE 
+							WHEN budget_item.date_start IS NULL OR budget_item.date_end IS NULL 
+							THEN (
+								  CASE 
+									WHEN budget_item.date_start is NULL AND  budget_item.date_end is NULL 
+										   OR budget_item.date_start is NULL AND  ${sql.yearMonthOf("budget_item.date_end")} &gt;='${parameters['dateEnd']}' 
+										   OR budget_item.date_end is NULL AND  ${sql.yearMonthOf("budget_item.date_start")} &lt;='${parameters['dateStart']}' 
+									THEN datediff(month,  '${parameters['dateStart']}', '${parameters['dateEnd']}' ) +1 
+
+									WHEN  budget_item.date_end is NULL  AND  ${sql.yearMonthOf("budget_item.date_start")} &lt;='${parameters['dateEnd']}' 
+									THEN datediff(month,  budget_item.date_start, '${parameters['dateEnd']}' ) +1 
+
+									WHEN budget_item.date_start is NULL AND  ${sql.yearMonthOf("budget_item.date_end")} &gt;='${parameters['dateStart']}' 
+									THEN datediff(month,  '${parameters['dateStart']}', budget_item.date_end ) +1
+									 ELSE 0
+								 END
+							)
+							WHEN ${sql.yearMonthOf("budget_item.date_start")} &lt;='${parameters['dateStart']}' AND ${sql.yearMonthOf("budget_item.date_end")} &gt;='${parameters['dateEnd']}'
+							 THEN datediff(month,  '${parameters['dateStart']}', '${parameters['dateEnd']}' ) +1 
+							WHEN ${sql.yearMonthOf("budget_item.date_start")} &gt;='${parameters['dateStart']}' AND ${sql.yearMonthOf("budget_item.date_end")} &gt;='${parameters['dateEnd']}'
+							 THEN datediff(month,  budget_item.date_start, '${parameters['dateEnd']}' ) +1 
+							WHEN ${sql.yearMonthOf("budget_item.date_start")} &gt;='${parameters['dateStart']}' AND ${sql.yearMonthOf("budget_item.date_end")} &lt;='${parameters['dateEnd']}'
+							 THEN datediff(month,  budget_item.date_start, budget_item.date_end ) +1 
+							WHEN ${sql.yearMonthOf("budget_item.date_end")} &lt;='${parameters['dateEnd']}' 
+							 THEN datediff(month,  '${parameters['dateStart']}', budget_item.date_end ) +1 
+							 ELSE 0
+						END	)
+						)   ${sql.as} cost_value 
+				from budget_item  left outer  join bl on budget_item.bl_id=bl.bl_id 
+				where   ${parameters['groupOptionBudget']} IS NOT NULL AND ${parameters['groupOptionBudget']}!='-' AND  ${parameters['budgetConsolePara']} and EXISTS (select 1 from wrhwr where  ${parameters['planConsolePara']}  and ${parameters['whereBudget']} )	and ${sql.getVpaRestrictionForTable('bl')}  
+				group by ${parameters['groupOptionBudget']} 
+			)
+		union all
+		 	(	
+			select 	${parameters['variance']} ${sql.as} plan_budget,
+					${parameters['groupOptionVariance']}   ${sql.as} groupValue, 
+					( ( select  Sum(budget_item.month_exp
+									*
+							( CASE 
+								WHEN budget_item.date_start IS NULL OR budget_item.date_end IS NULL 
+								THEN (
+									  CASE 
+										WHEN budget_item.date_start is NULL AND  budget_item.date_end is NULL 
+											   OR budget_item.date_start is NULL AND  ${sql.yearMonthOf("budget_item.date_end")} &gt;='${parameters['dateEnd']}' 
+											   OR budget_item.date_end is NULL AND  ${sql.yearMonthOf("budget_item.date_start")} &lt;='${parameters['dateStart']}' 
+										THEN datediff(month,  '${parameters['dateStart']}', '${parameters['dateEnd']}' ) +1 
+
+										WHEN  budget_item.date_end is NULL  AND  ${sql.yearMonthOf("budget_item.date_start")} &lt;='${parameters['dateEnd']}' 
+										THEN datediff(month,  budget_item.date_start, '${parameters['dateEnd']}' ) +1 
+
+										WHEN budget_item.date_start is NULL AND  ${sql.yearMonthOf("budget_item.date_end")} &gt;='${parameters['dateStart']}' 
+										THEN datediff(month,  '${parameters['dateStart']}', budget_item.date_end ) +1
+										 ELSE 0
+									 END
+								)
+								WHEN ${sql.yearMonthOf("budget_item.date_start")} &lt;='${parameters['dateStart']}' AND ${sql.yearMonthOf("budget_item.date_end")} &gt;='${parameters['dateEnd']}'
+								 THEN datediff(month,  '${parameters['dateStart']}', '${parameters['dateEnd']}' ) +1 
+								WHEN ${sql.yearMonthOf("budget_item.date_start")} &gt;='${parameters['dateStart']}' AND ${sql.yearMonthOf("budget_item.date_end")} &gt;='${parameters['dateEnd']}'
+								 THEN datediff(month,  budget_item.date_start, '${parameters['dateEnd']}' ) +1 
+								WHEN ${sql.yearMonthOf("budget_item.date_start")} &gt;='${parameters['dateStart']}' AND ${sql.yearMonthOf("budget_item.date_end")} &lt;='${parameters['dateEnd']}'
+								 THEN datediff(month,  budget_item.date_start, budget_item.date_end ) +1 
+								WHEN ${sql.yearMonthOf("budget_item.date_end")} &lt;='${parameters['dateEnd']}' 
+								 THEN datediff(month,  '${parameters['dateStart']}', budget_item.date_end ) +1 
+								 ELSE 0
+							END )
+							)  
+						from budget_item  left outer  join bl  on budget_item.bl_id=bl.bl_id 
+						where   ${parameters['groupOptionBudget']} IS NOT NULL AND ${parameters['groupOptionBudget']}!='-' AND  ${parameters['budgetConsolePara']} and EXISTS (select 1 from wrhwr where  ${parameters['planConsolePara']}  and ${parameters['whereBudget']} )
+						and  ${parameters['whereBudgetOptionForVariance']}	and ${sql.getVpaRestrictionForTable('bl')}  
+					     )
+						-
+					(
+						select sum(wrhwr.cost_total)
+						from wrhwr 
+						where  ${parameters['groupOptionPlan']} IS NOT NULL AND ${parameters['groupOptionPlan']}!='-' AND  ${parameters['planConsolePara']} and ${parameters['wherePlanOptionForVariance']} and ${sql.getVpaRestrictionForTable('wrhwr')}   
+					)
+					)${sql.as} cost_total			
+			from  ${parameters['tablePram']}  
+			where   EXISTS(select 1 from wrhwr where ${parameters['planConsolePara']} and ${parameters['wherePlanOptionForVariance']})
+			group by ${parameters['groupOptionVariance']}  
+			)
+		</sql>
+		<sql dialect="oracle">
+			(
+		  		select ${parameters['activeWorkCosts']} ${sql.as} plan_budget,
+						${parameters['groupOptionPlan']}  ${sql.as} groupValue,
+						sum(wrhwr.cost_total)  ${sql.as} cost_total
+				from wrhwr 
+				where  ${parameters['groupOptionPlan']} IS NOT NULL AND ${parameters['groupOptionPlan']}!='-' AND  ${parameters['planConsolePara']} 	 and ${sql.getVpaRestrictionForTable('wrhwr')}   
+				group by ${parameters['groupOptionPlan']}
+			)
+		 union all
+		 	(	
+				select ${parameters['budgetedCosts']} ${sql.as} plan_budget,
+						${parameters['groupOptionBudget']}   ${sql.as} groupValue,
+						Sum(budget_item.month_exp
+									*
+						( CASE 
+							WHEN budget_item.date_start IS NULL OR budget_item.date_end IS NULL 
+							THEN (
+								  CASE 
+									WHEN budget_item.date_start is NULL AND  budget_item.date_end is NULL 
+										   OR budget_item.date_start is NULL AND  ${sql.yearMonthOf("budget_item.date_end")} &gt;='${parameters['dateEnd']}' 
+										   OR budget_item.date_end is NULL AND  ${sql.yearMonthOf("budget_item.date_start")} &lt;='${parameters['dateStart']}' 
+									THEN ceil( months_between ( to_date('${parameters['dateEnd']}','YYYY-MM-DD' ) , to_date( '${parameters['dateStart']}', 'YYYY-MM-DD') ) )
+
+									WHEN  budget_item.date_end is NULL  AND  ${sql.yearMonthOf("budget_item.date_start")} &lt;='${parameters['dateEnd']}' 
+									THEN ceil( months_between ( to_date('${parameters['dateEnd']}', 'YYYY-MM-DD')  , budget_item.date_start ) )
+
+									WHEN budget_item.date_start is NULL AND  ${sql.yearMonthOf("budget_item.date_end")} &gt;='${parameters['dateStart']}' 
+									THEN ceil( months_between( budget_item.date_end ,  to_date( '${parameters['dateStart']}', 'YYYY-MM-DD') ) )
+									 ELSE 0
+								 END
+							)
+							WHEN ${sql.yearMonthOf("budget_item.date_start")} &lt;='${parameters['dateStart']}' AND ${sql.yearMonthOf("budget_item.date_end")} &gt;='${parameters['dateEnd']}'
+							 THEN   ceil( months_between( to_date('${parameters['dateEnd']}','YYYY-MM-DD' ) , to_date( '${parameters['dateStart']}', 'YYYY-MM-DD') ) )
+
+							WHEN ${sql.yearMonthOf("budget_item.date_start")} &gt;='${parameters['dateStart']}' AND ${sql.yearMonthOf("budget_item.date_end")} &gt;='${parameters['dateEnd']}'
+							 THEN  ceil( months_between( to_date('${parameters['dateEnd']}', 'YYYY-MM-DD')  , budget_item.date_start ) )
+
+							WHEN ${sql.yearMonthOf("budget_item.date_start")} &gt;='${parameters['dateStart']}' AND ${sql.yearMonthOf("budget_item.date_end")} &lt;='${parameters['dateEnd']}'
+							 THEN ceil( months_between( budget_item.date_end , budget_item.date_start ) )
+
+							WHEN ${sql.yearMonthOf("budget_item.date_end")} &lt;='${parameters['dateEnd']}' 
+							 THEN ceil( months_between( budget_item.date_end ,  to_date( '${parameters['dateStart']}', 'YYYY-MM-DD') ) )
+							 ELSE 0
+						END	)
+						)   ${sql.as} cost_value 
+				from budget_item  left outer  join bl on budget_item.bl_id=bl.bl_id 
+				where   ${parameters['groupOptionBudget']} IS NOT NULL AND ${parameters['groupOptionBudget']}!='-' AND ${parameters['budgetConsolePara']} and EXISTS (select 1 from wrhwr where  ${parameters['planConsolePara']}  and ${parameters['whereBudget']} )	  and ${sql.getVpaRestrictionForTable('bl')}  
+				group by ${parameters['groupOptionBudget']} 
+			)
+		union all
+		 	(	
+			select 	${parameters['variance']} ${sql.as} plan_budget,
+					${parameters['groupOptionVariance']}   ${sql.as} groupValue, 
+					( ( select  Sum(budget_item.month_exp
+									*
+							( CASE 
+								WHEN budget_item.date_start IS NULL OR budget_item.date_end IS NULL 
+								THEN (
+									  CASE 
+										WHEN budget_item.date_start is NULL AND  budget_item.date_end is NULL 
+											   OR budget_item.date_start is NULL AND  ${sql.yearMonthOf("budget_item.date_end")} &gt;='${parameters['dateEnd']}' 
+											   OR budget_item.date_end is NULL AND  ${sql.yearMonthOf("budget_item.date_start")} &lt;='${parameters['dateStart']}' 
+										THEN ceil( months_between( to_date('${parameters['dateEnd']}','YYYY-MM-DD' ) , to_date( '${parameters['dateStart']}', 'YYYY-MM-DD') ) )
+
+										WHEN  budget_item.date_end is NULL  AND  ${sql.yearMonthOf("budget_item.date_start")} &lt;='${parameters['dateEnd']}' 
+										THEN ceil( months_between( to_date('${parameters['dateEnd']}', 'YYYY-MM-DD')  , budget_item.date_start ) )
+
+										WHEN budget_item.date_start is NULL AND  ${sql.yearMonthOf("budget_item.date_end")} &gt;='${parameters['dateStart']}' 
+										THEN ceil( months_between( budget_item.date_end ,  to_date( '${parameters['dateStart']}', 'YYYY-MM-DD') ) )
+										 ELSE 0
+									 END
+								)
+								WHEN ${sql.yearMonthOf("budget_item.date_start")} &lt;='${parameters['dateStart']}' AND ${sql.yearMonthOf("budget_item.date_end")} &gt;='${parameters['dateEnd']}'
+								 THEN  ceil( months_between ( to_date('${parameters['dateEnd']}','YYYY-MM-DD' ) , to_date( '${parameters['dateStart']}', 'YYYY-MM-DD') ) )
+
+								WHEN ${sql.yearMonthOf("budget_item.date_start")} &gt;='${parameters['dateStart']}' AND ${sql.yearMonthOf("budget_item.date_end")} &gt;='${parameters['dateEnd']}'
+								 THEN  ceil( months_between ( to_date('${parameters['dateEnd']}', 'YYYY-MM-DD')  , budget_item.date_start ) )
+
+								WHEN ${sql.yearMonthOf("budget_item.date_start")} &gt;='${parameters['dateStart']}' AND ${sql.yearMonthOf("budget_item.date_end")} &lt;='${parameters['dateEnd']}'
+								 THEN ceil( months_between( budget_item.date_end , budget_item.date_start ) )
+
+								WHEN ${sql.yearMonthOf("budget_item.date_end")} &lt;='${parameters['dateEnd']}' 
+								 THEN ceil( months_between( budget_item.date_end ,  to_date( '${parameters['dateStart']}', 'YYYY-MM-DD') ) )
+								 ELSE 0
+							END	)
+							)  
+						from budget_item  left outer  join bl on budget_item.bl_id=bl.bl_id 
+						where   ${parameters['groupOptionBudget']} IS NOT NULL AND ${parameters['groupOptionBudget']}!='-' AND ${parameters['budgetConsolePara']} and EXISTS (select 1 from wrhwr where  ${parameters['planConsolePara']}  and ${parameters['whereBudget']} )
+						and  ${parameters['whereBudgetOptionForVariance']} and ${sql.getVpaRestrictionForTable('bl')}  
+					     )
+						-
+					(
+						select sum(wrhwr.cost_total)
+						from wrhwr 
+						where  ${parameters['groupOptionPlan']} IS NOT NULL AND ${parameters['groupOptionPlan']}!='-' AND ${parameters['planConsolePara']} and ${parameters['wherePlanOptionForVariance']}  and ${sql.getVpaRestrictionForTable('wrhwr')}  
+					)
+					)${sql.as} cost_total			
+			from  ${parameters['tablePram']}  
+			where   EXISTS(select 1 from wrhwr where ${parameters['planConsolePara']} and ${parameters['wherePlanOptionForVariance']})
+			group by ${parameters['groupOptionVariance']}  
+			)
+		</sql>
+		<table name="wrhwr" role="main"/>
+		<field name="groupValue" dataType="verbatim" groupBy="true" showTotals="false">
+		</field>
+		<field name="plan_budget" dataType="verbatim" groupBy="true" showTotals="false">
+			<title translatable="true">Cost Type</title>
+		</field>
+		<field  name="cost_value" dataType="number" formula="sum" baseField="wrhwr.cost_total" decimals="2" showTotals="false">
+		</field>
+		<parameter name="planConsolePara" dataType="verbatim" value="1=1"/>
+		<parameter name="budgetConsolePara" dataType="verbatim" value="1=1"/>
+
+		<parameter name="groupOptionPlan" dataType="verbatim" value="wrhwr.bl_id"/>
+		<parameter name="groupOptionBudget" dataType="verbatim" value="budget_item.bl_id"/>
+
+		<parameter name="groupOptionVariance" dataType="verbatim" value="bl_id"/>
+
+		<parameter name="wherePlanOptionForVariance" dataType="verbatim" value="wrhwr.bl_id=bl.bl_id"/>
+		<parameter name="whereBudgetOptionForVariance" dataType="verbatim" value="budget_item.bl_id=bl.bl_id"/>
+		<parameter name="whereBudget" dataType="verbatim" value="budget_item.bl_id=wrhwr.bl_id"/>
+
+		<parameter name="tablePram" dataType="verbatim" value="bl"/>
+
+		<parameter name="dateStart" dataType="verbatim" value="2010-01-01"/>
+		<parameter name="dateEnd" dataType="verbatim" value="2010-12-31"/>
+		<parameter name="activeWorkCosts" dataType="text" value=""/>
+		<parameter name="budgetedCosts" dataType="text" value=""/>
+		<parameter name="variance" dataType="text" value=""/>
+		<sortField name="plan_budget" table="wrhwr" ascending="false"/>
+	</dataSource>
+
+	<panel type="crossTable" id="abBldgopsReportComplWrBudgetAndCostCrossTable"
+		dataSource="abBldgopsReportComplWrBudgetAndCostCrossTableDS"
+		showOnLoad="false">
+		<title translatable="true">Actual Work and Budgeted Costs</title>
+	</panel>
+	
+	
+	<js file="ab-bldgops-report-compl-wr-budget-and-cost-chart.js"/>
+	<js file="ab-bldgops-report-common.js"/>
+
+</view>

@@ -1,0 +1,110 @@
+<view version="2.0">
+	<title translatable="true">Properties by Property Status</title>
+
+	<report orientation="portrait"/>
+	
+	<dataSource id="abRepmPfadminPropByPropStatusPgrp_ds_parent" applyVpaRestrictions="false">
+		<sql dialect="generic">
+			SELECT DISTINCT
+			(CASE 
+				WHEN EXISTS(SELECT 1 FROM ot WHERE ot.pr_id = property.pr_id AND ot.status = 'Owned') THEN ${parameters['status_owned']}
+				WHEN EXISTS(SELECT 1 FROM ls WHERE ls.use_as_template = 0 AND ls.pr_id = property.pr_id AND ls.signed = 1 AND ls.date_end &gt; ${sql.currentDate} AND ls.date_start &lt; ${sql.currentDate}) THEN ${parameters['status_leased']} 
+				WHEN EXISTS(SELECT 1 FROM ot WHERE ot.pr_id = property.pr_id AND ot.status = 'Disposed' AND ot.date_sold IS NOT NULL) THEN ${parameters['status_sold']} 
+				ELSE ${parameters['status_neither']}
+			END) ${sql.as} pr_status
+			FROM property
+			WHERE ${sql.vpaRestriction} AND ${parameters['consoleRestriction']}
+		</sql>
+		<table name="property" role="main"/>
+		<field name="pr_status" dataType="text"/>
+		
+		<parameter name="status_owned" dataType="text" value="Owned"/>
+		<parameter name="status_leased" dataType="text" value="Leased"/>
+		<parameter name="status_sold" dataType="text" value="Sold"/>
+		<parameter name="status_neither" dataType="text" value="Neither"/>
+		<parameter name="consoleRestriction" dataType="verbatim" value=""/>
+	</dataSource>
+	
+	<panel id="abRepmPfadminPropByPropStatusPgrp_panel_parent" type="paginatedReport" role="parent" dataSource="abRepmPfadminPropByPropStatusPgrp_ds_parent"
+			format="column" columns="2" pageBreakBefore="true">
+		<field name="pr_status" restrictionParameterName="prStatus">
+			<title translatable="true">Property Status</title>
+		</field>
+	</panel>
+
+	<dataSource id="abRepmPfadminPropByPropStatusPgrp_ds_data">
+		<table name="property" role="main"/>
+		<field table="property" name="pr_id"/>
+		<field table="property" name="date_purchase"/>
+
+		<field table="property" name="name"/>
+		<field name="pr_date_sold" dataType="date">
+			<title translatable="true">Date Sold</title>
+			<sql dialect="generic">
+				(SELECT ot.date_sold FROM ot
+				WHERE ot.ot_id =
+					(SELECT MAX(ot_int.ot_id) FROM ot ${sql.as} ot_int
+					WHERE ot_int.pr_id = property.pr_id AND ot_int.status = 'Disposed' AND ot_int.date_sold IS NOT NULL))
+			</sql>
+		</field>
+
+		<field table="property" name="property_type"/>
+		<field table="property" name="zoning"/>
+
+		<field table="property" name="ctry_id"/>
+		<field table="property" name="use1"/>
+
+		<field table="property" name="regn_id"/>
+		<field table="property" name="vicinity"/>
+
+		<field table="property" name="state_id"/>
+		<field table="property" name="air_dist"/>
+
+		<field table="property" name="city_id"/>
+		<field table="property" name="air_name"/>
+
+		<field table="property" name="zip"/>
+		<field table="property" name="fronts"/>
+
+		<field name="address" dataType="text">
+			<title translatable="true">Address</title>
+			<sql dialect="generic">
+                ((CASE WHEN property.address1 IS NULL THEN '' ELSE property.address1 END)
+                    ${sql.concat}(CASE WHEN property.address1 IS NULL OR property.address2 IS NULL THEN '' ELSE ', ' END)
+                    ${sql.concat}(CASE WHEN property.address2 IS NULL THEN '' ELSE property.address2 END))
+            </sql>
+		</field>
+		<field table="property" name="qty_no_bldgs"/>
+
+
+		<field table="property" name="contact1"/>
+		<field table="property" name="qty_no_bldgs_calc"/>
+
+		<field table="property" name="contact2"/>
+		<field table="property" name="ac_id"/>
+
+		<field table="property" name="services"/>
+		<field table="property" name="area_bl_rentable"/>
+		<field table="property" name="description"/>
+		<field table="property" name="area_bl_usable"/>
+		<field table="property" name="comments"/>
+		
+		<parameter name="status_owned" dataType="text" value="Owned"/>
+		<parameter name="status_leased" dataType="text" value="Leased"/>
+		<parameter name="status_sold" dataType="text" value="Sold"/>
+		<parameter name="status_neither" dataType="text" value="Neither"/>
+		<parameter name="prStatus" dataType="text" value="Owned"/>
+		<restriction type="sql"
+			sql="(CASE 
+					WHEN EXISTS(SELECT 1 FROM ot WHERE ot.pr_id = property.pr_id AND ot.status = 'Owned') THEN ${parameters['status_owned']}
+					WHEN EXISTS(SELECT 1 FROM ls WHERE ls.use_as_template = 0 AND ls.pr_id = property.pr_id AND ls.signed = 1 AND ls.date_end &gt; ${sql.currentDate} AND ls.date_start &lt; ${sql.currentDate}) THEN ${parameters['status_leased']}
+					WHEN EXISTS(SELECT 1 FROM ot WHERE ot.pr_id = property.pr_id AND ot.status = 'Disposed' AND ot.date_sold IS NOT NULL) THEN ${parameters['status_sold']}
+					ELSE ${parameters['status_neither']}
+				END) = ${parameters['prStatus']}"/>
+		<sortField table="property" name="pr_id" ascending="true"/>
+	</dataSource>
+
+	<panel id="abRepmPfadminPropByPropStatusPgrp_panel_data" type="paginatedReport" role="data" dataSource="abRepmPfadminPropByPropStatusPgrp_ds_data"
+			format="column" columns="2">
+	</panel>
+</view>

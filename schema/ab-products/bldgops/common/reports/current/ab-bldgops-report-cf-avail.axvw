@@ -1,0 +1,122 @@
+<view version="2.0">
+
+	<js file="ab-bldgops-report-cf-avail.js" />
+	<js file="ab-bldgops-report-common.js" />
+	<js file="ab-pm-common.js" />
+	<layout type="borderLayout" id="mainLayout">
+		<north autoScroll="true" split="true" initialSize="162"/>
+		<center autoScroll="true"/>
+	</layout>
+
+	<title translatable="true">Craftsperson Availability</title>
+
+	<dataSource id="abBldgopsReportCfAvailConsoleDS">
+		<table name="wr" role="main" />
+		<table name="wrcf" role="standard" />
+		<field table="wr" name="supervisor" />
+		<field table="wr" name="work_team_id" />
+		<field table="wrcf" name="date_assigned" />
+		<field table="wr" name="tr_id" />
+	</dataSource>
+
+
+	<panel type="console" columns="3" id="abBldgopsReportCfAvailConsole" dataSource="abBldgopsReportCfAvailConsoleDS" region="north">
+		<title translatable="true">Filter</title>
+		<instructions translatable="true">Use Work Team Code to filter the Work Requests used in the calculations, and the list of Craftspersons shown in the report.</instructions>  
+		<action id="filter">
+			<title translatable="true">Show</title>
+		</action>
+		<action id="clear">
+			<title translatable="true">Clear</title>
+		</action>
+		<field table="wr" name="supervisor" selectValueType="multiple"/>
+		<field table="wr" name="work_team_id" selectValueType="multiple"/>
+		<field table="wr" name="tr_id" selectValueType="multiple"/>
+		<field table="wrcf" name="date_assigned" alias="wrcf.date_assigned.from">
+        	<title translatable="true">Date Assigned From</title>
+		</field>
+		<field table="wrcf" name="date_assigned"  alias="wrcf.date_assigned.to">
+			 <title translatable="true">Date Assigned To</title>
+		</field>
+	</panel>
+
+	<dataSource id="abBldgopsReportCfAvailReportDS" type="grouping">
+		 <sql dialect="generic">
+			SELECT 
+				cf.cf_id,
+				afm_cal_dates.cal_date ${sql.as} date_assigned,
+				isnull((select sum(wrcf.hours_est) from wrcf join wr on wr.wr_id=wrcf.wr_id  where wrcf.cf_id=cf.cf_id and wrcf.date_assigned=afm_cal_dates.cal_date  AND  ${parameters['otherRes']} ),0)  ${sql.as} hours_committed,
+				cf.std_hours_avail  ${sql.as} hours_avail,
+				(cf.std_hours_avail - isnull( (select sum(wrcf.hours_est) from wrcf join wr  on wr.wr_id=wrcf.wr_id  where wrcf.cf_id=cf.cf_id and wrcf.date_assigned=afm_cal_dates.cal_date AND  ${parameters['otherRes']} ),0) ) ${sql.as} hours_remaining
+			 FROM cf, afm_cal_dates
+			 WHERE  ${parameters['dateRes']} and ${parameters['cfRes']}
+	        </sql>  
+		 <sql dialect="oracle">
+			SELECT 
+				cf.cf_id,
+				afm_cal_dates.cal_date ${sql.as} date_assigned,
+				nvl((select sum(wrcf.hours_est) from wrcf join wr on wr.wr_id=wrcf.wr_id  where wrcf.cf_id=cf.cf_id and wrcf.date_assigned=afm_cal_dates.cal_date  AND  ${parameters['otherRes']} ),0)  ${sql.as} hours_committed,
+				cf.std_hours_avail  ${sql.as} hours_avail,
+				(cf.std_hours_avail - nvl( (select sum(wrcf.hours_est) from wrcf join wr  on wr.wr_id=wrcf.wr_id  where wrcf.cf_id=cf.cf_id and wrcf.date_assigned=afm_cal_dates.cal_date AND  ${parameters['otherRes']} ),0) ) ${sql.as} hours_remaining
+			 FROM cf, afm_cal_dates
+			 WHERE  ${parameters['dateRes']} and ${parameters['cfRes']} 
+	        </sql>  
+		<table name="wrcf" role="main" />
+		<sortField name="cf_id" ascending="true" />
+		<sortField name="date_assigned" ascending="true" />
+		<field name="cf_id" baseField="wrcf.cf_id" groupBy="true">
+		</field>
+		<field name="date_assigned" baseField="wrcf.date_assigned" groupBy="true">
+			<title translatable="true">Date Assigned</title>
+		</field>
+		<field name="total_hours_available" formula="sum" dataType="number"
+			 baseField="wrcf.hours_avail" decimals="2">
+			<title translatable="true">Total Hours Available</title>
+		</field>
+		<field name="total_hours_commited" formula="sum" dataType="number"
+			 baseField="wrcf.hours_committed" decimals="2">
+			<title translatable="true">Total Hours Committed</title>
+		</field>
+		<field name="total_hours_remaining" formula="sum" dataType="number"
+			 baseField="wrcf.hours_remaining" decimals="2">
+			<title translatable="true">Total Hours Remaining</title>
+		</field>
+		<parameter name="otherRes" dataType="verbatim" value=""/>
+		<parameter name="dateRes" dataType="verbatim" value=""/>
+		<parameter name="cfRes" dataType="verbatim" value=""/>
+	</dataSource>
+
+	<panel type="crossTable" id="abBldgopsReportCfAvailReport" dataSource="abBldgopsReportCfAvailReportDS" region="center" showOnLoad="false">
+		<title translatable="true">Craftsperson Availability Summary Report</title>
+		<event type="onClickItem">
+		    <command type="callFunction" functionName="onReportClick"/>
+		</event>
+		<action id="exportDOCX">
+			<title translatable="true">XLS</title>
+			<tooltip translatable="true">Export to XLS</tooltip>
+			<command type="exportPanel" outputType="xls" panelId="abBldgopsReportCfAvailReport"/>
+		</action>
+	</panel>
+
+	<dataSource id="abBldgopsReportCfAvailGridDS">
+		<table name="wr" role="standard" />
+		<table name="cf" role="standard" />
+		<table name="wrcf" role="main" />
+		<field table="wrcf" name="wr_id" />
+		<field table="cf" name="tr_id" hidden="true"/>
+		<field table="wrcf" name="cf_id" />
+		<field table="wrcf" name="hours_est" />
+		<field table="wr" name="status" />
+		<field table="wr" name="prob_type" />
+		<field table="wr" name="bl_id" />
+		<field table="wr" name="fl_id" />
+		<field table="wr" name="rm_id" />
+		<field table="wr" name="dv_id" />
+		<field table="wr" name="dp_id" />
+	</dataSource>
+
+	<panel type="grid" id="abBldgopsReportCfAvailGrid" dataSource="abBldgopsReportCfAvailGridDS" showOnLoad="false">
+		<title translatable="true">Work Requests Details</title>
+	</panel>
+
+</view>

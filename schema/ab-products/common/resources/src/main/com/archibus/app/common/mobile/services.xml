@@ -1,0 +1,268 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<beans
+    xmlns="http://www.springframework.org/schema/beans"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xmlns:context="http://www.springframework.org/schema/context"
+    xmlns:p="http://www.springframework.org/schema/p"
+    xmlns:sec="http://www.springframework.org/schema/security"
+    xmlns:archibus="http://www.archibus.com/schema/archibus"
+    xmlns:jaxws="http://cxf.apache.org/jaxws"
+    xmlns:soap="http://cxf.apache.org/bindings/soap"
+    xsi:schemaLocation="http://www.archibus.com/schema/archibus http://www.archibus.com/schema/archibus/webcentral-namespace.xsd
+    http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans.xsd
+    http://www.springframework.org/schema/context http://www.springframework.org/schema/context/spring-context.xsd
+    http://www.springframework.org/schema/security http://www.springframework.org/schema/security/spring-security.xsd
+    http://cxf.apache.org/jaxws http://cxf.apache.org/schemas/jaxws.xsd
+    http://cxf.apache.org/bindings/soap http://cxf.apache.org/schemas/configuration/soap.xsd">
+
+    <!-- Services for Mobile clients. -->
+
+    <!-- Dummy springSecurityFilterChainRemoting bean. -->
+    <bean
+        id="springSecurityFilterChainRemoting"
+        class="org.springframework.security.web.FilterChainProxy">
+        <sec:filter-chain-map request-matcher="ant">
+            <sec:filter-chain
+                pattern="NOMATCHPATTERN"
+                filters="httpSessionContextIntegrationFilter"/>
+        </sec:filter-chain-map>
+    </bean>
+
+    <!-- Mobile Sync Service. Required for Mobile client. -->
+    <bean
+        id="mobileSyncService-remote"
+        class="org.springframework.aop.framework.ProxyFactoryBean"
+        p:proxyInterfaces="com.archibus.app.common.mobile.sync.service.IMobileSyncService"
+        scope="prototype">
+        <property name="target">
+            <ref bean="mobileSyncService"/>
+        </property>
+        <property name="interceptorNames">
+            <list>
+                <value>securityInterceptor</value>
+                <value>contextInterceptor</value>
+                <value>exceptionHandlingInterceptor</value>
+                <value>transactionInterceptor.data</value>
+                <value>eventHandlerContextInterceptor</value>
+            </list>
+        </property>
+    </bean>
+    <bean
+        id="mobileSyncService"
+        class="com.archibus.app.common.mobile.sync.service.impl.MobileSyncService"
+        p:project-ref="project"
+        p:mobileAppConfigDao-ref="mobileAppConfigDao"
+        p:syncDao-ref="syncDao"
+        p:syncHistoryDao-ref="syncHistoryDao"
+        p:tableTransactionDao-ref="tableTransactionDao"
+        p:userAccount-ref="userAccount"
+        scope="prototype">
+    </bean>
+
+    <!-- mobileAppConfigDao. -->
+    <bean
+        id="mobileAppConfig"
+        class="com.archibus.app.common.mobile.sync.domain.MobileAppConfig"
+        scope="prototype">
+    </bean>
+    <bean
+        id="mobileAppConfigDao"
+        class="com.archibus.app.common.mobile.sync.dao.datasource.MobileAppConfigDataSource"
+        p:project-ref="project"
+        scope="prototype">
+    </bean>
+
+    <!-- syncDao. -->
+    <bean
+        id="syncDao"
+        class="com.archibus.app.common.mobile.sync.dao.datasource.SyncDataSource"
+        p:documentFieldsDao-ref="documentFieldsDao"
+        scope="prototype">
+    </bean>
+    <bean
+        id="documentFieldsDao"
+        class="com.archibus.app.common.mobile.sync.dao.datasource.DocumentFieldsDataSource"
+        p:documentService-ref="documentService"
+        scope="prototype">
+    </bean>
+    
+    <!--  syncHistoryDao -->
+    <bean
+       id="syncHistoryDao"
+       class="com.archibus.app.common.mobile.sync.dao.datasource.SyncHistoryDataSource"
+       scope="prototype">
+    </bean>
+    
+    <bean
+       id="syncHistory"
+       class="com.archibus.app.common.mobile.sync.domain.SyncHistory"
+       scope="prototype">
+    </bean>
+    
+    <!--  tableTransactionDao -->
+    <bean
+        id="tableTransaction"
+        class="com.archibus.app.common.mobile.sync.domain.TableTransaction"
+        scope="prototype">
+    </bean>
+    
+    <bean
+        id="tableTransactionDao"
+        class="com.archibus.app.common.mobile.sync.dao.datasource.TableTransactionDataSource"
+        p:project-ref="project"
+        scope="prototype">
+    </bean>
+
+    <!-- Mobile Security Service. Required for Mobile client. -->
+    <bean
+        id="mobileSecurityService-remote"
+        class="org.springframework.aop.framework.ProxyFactoryBean"
+        p:proxyInterfaces="com.archibus.app.common.mobile.security.service.IMobileSecurityService">
+        <property name="target">
+            <bean
+                class="com.archibus.app.common.mobile.security.service.impl.MobileSecurityService"
+                p:sqlitePassphrase="$HasEncryptedPasswords{mobileServices.sqlitePassphrase}"
+                p:mobileLicenseManager-ref="mobileLicenseManager"
+                p:authenticationManager-ref="authenticationManager"
+                p:securityService-ref="securityService"
+                p:userAccountDao-ref="userAccountDaoDirect"
+                p:encryptor-ref="passwordEncoderForMobileSecurityService"
+                p:securityConfiguration="${security.configurationFile}"
+                p:registrationLogDao-ref="registrationLogDao">
+            </bean>
+        </property>
+        <property name="interceptorNames">
+            <list>
+                <value>securityInterceptor</value>
+                <value>contextInterceptor</value>
+                <value>projectPopulatingContextInterceptor</value>
+                <value>coreUserSessionPopulatingContextInterceptor</value>
+                <value>exceptionHandlingInterceptor</value>
+                <value>transactionInterceptor.security</value>
+                <value>eventHandlerContextInterceptor</value>
+            </list>
+        </property>
+    </bean>
+
+    <bean id="passwordEncoderForMobileSecurityService"
+        class="com.archibus.security.PasswordEncoderVersion2Impl"
+        p:useEncoding="true">
+    </bean>
+
+    <!-- passwordEncoder used to verify that password is valid. Required in afm_config configuration. Not used in SSO configurations. -->
+    <!-- TODO Duplicates passwordEncoder bean in afm_config configuration. -->
+    <bean
+        id="passwordEncoder"
+        class="com.archibus.security.PasswordEncoderVersion2Impl"
+        p:useEncoding="false">
+    </bean>
+
+    <!-- ProjectPopulatingContextInterceptor populates Context with specified Project. Context must already exist. The * specified projectId must exist in the ConfigManager. -->
+    <bean
+        id="projectPopulatingContextInterceptor"
+        class="com.archibus.app.common.mobile.security.service.impl.ProjectPopulatingContextInterceptor"
+        p:configManager-ref="configManager"
+        p:projectId="$Applications{mobileServices.projectId}">
+    </bean>
+
+    <!-- CoreUserSessionPopulatingContextInterceptor populates Context with the Core user session. Context must already exist. -->
+    <bean
+        id="coreUserSessionPopulatingContextInterceptor"
+        class="com.archibus.app.common.mobile.security.service.impl.CoreUserSessionPopulatingContextInterceptor"
+        p:configManager-ref="configManager">
+    </bean>
+
+    <!-- userAccountDaoDirect. -->
+    <bean
+        id="userAccountDaoDirect"
+        class="com.archibus.app.common.mobile.security.dao.datasource.UserAccountDataSource"
+        p:userDetailsService-ref="userAccountDao">
+    </bean>
+    
+    <bean
+        id="registrationLog"
+        class="com.archibus.app.common.mobile.security.domain.RegistrationLog"
+        scope="prototype">
+    </bean>
+    
+    <!--  registrationLogDao - requires "data" database role. -->
+    <bean
+        id="registrationLogDao"
+        class="org.springframework.aop.framework.ProxyFactoryBean"
+        p:proxyInterfaces="com.archibus.app.common.mobile.security.dao.IRegistrationLogDao">
+        <property name="target">
+    <bean
+        class="com.archibus.app.common.mobile.security.dao.datasource.RegistrationLogDataSource"
+        scope="prototype">
+    </bean>   
+        </property>
+        <property name="interceptorNames">
+            <list>
+                <value>transactionInterceptor.data</value>
+                       <value>eventHandlerContextInterceptor</value>
+            </list>
+        </property>
+    </bean>
+
+    <!-- SmartClientConfig Service. Required for Mobile client. -->
+    <bean
+        id="smartClientConfigService-remote"
+        class="org.springframework.aop.framework.ProxyFactoryBean"
+        p:proxyInterfaces="com.archibus.service.remoting.SmartClientConfigService">
+        <property name="target">
+            <bean
+                class="com.archibus.service.remoting.SmartClientConfigServiceImpl"
+                p:ssoMode="${security.configurationFile}">
+                <property name="smartClientConfig">
+                    <bean
+                        class="com.archibus.model.config.SmartClientConfig"
+                        p:fileServerLocation="${smartClient.fileServerLocation}"
+                        p:reinstall="${smartClient.reinstall}"
+                        p:reinstallVersion="${smartClient.reinstall.version}"
+                        p:referer="${smartClient.referer}">
+                    </bean>
+                </property>
+            </bean>
+        </property>
+        <property name="interceptorNames">
+            <list>
+                <value>exceptionHandlingInterceptor</value>
+            </list>
+        </property>
+    </bean>
+
+    <!-- SmartClientSsoConfig Service. Required for Mobile client. -->
+    <bean
+        id="smartClientSsoConfigService-remote"
+        class="org.springframework.aop.framework.ProxyFactoryBean"
+        p:proxyInterfaces="com.archibus.service.remoting.SmartClientSsoConfigService">
+        <property name="target">
+            <bean class="com.archibus.service.remoting.SmartClientSsoConfigServiceImpl">
+                <property name="smartClientSsoConfig">
+                    <bean
+                        class="com.archibus.model.config.SmartClientSsoConfig"
+                        p:projectIdKey="$ProjectidSource{projectidSource.projectIdKey}"
+                        p:usernameKey="$UsernameSource{usernameKey}">
+                    </bean>
+                </property>
+            </bean>
+        </property>
+        <property name="interceptorNames">
+            <list>
+                <value>exceptionHandlingInterceptor</value>
+            </list>
+        </property>
+    </bean>
+    
+    <!-- Configured as a WFR of DataEvent type. The security group of this WFR is always ignored. The WFR container loads "AbAssetEAM-DataChangeEventListener" bean. Listener which will be notified by the core when there is a DataEvent. Records any asset data changes to asset transaction table. -->
+    
+    <bean
+        id="AbCommonResources-MobileDataChangeEvent"
+        class="com.archibus.app.common.mobile.sync.datachangeevent.DataChangeEventListener"
+        p:tableTransactionDao-ref="tableTransactionDao"
+        p:project-ref="project"
+        scope="prototype">
+    </bean>
+    
+    
+</beans>

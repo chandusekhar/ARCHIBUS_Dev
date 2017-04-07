@@ -1,0 +1,108 @@
+<view version="2.0">
+	<title translatable="true">Buildings by Building Status</title>
+
+	<report orientation="portrait"/>
+	
+	<dataSource id="abRepmPfadminBlByBlStatusPgrp_ds_parent" applyVpaRestrictions="false">
+		<sql dialect="generic">
+			SELECT DISTINCT
+			(CASE 
+				WHEN EXISTS(SELECT 1 FROM ot WHERE ot.bl_id = bl.bl_id AND ot.status = 'Owned') THEN ${parameters['status_owned']}
+				WHEN EXISTS(SELECT 1 FROM ls WHERE ls.bl_id = bl.bl_id AND ls.signed = 1 AND ( ls.date_end &gt; ${sql.currentDate} OR ls.date_end IS NULL ) AND ls.date_start &lt; ${sql.currentDate} AND ls.landlord_tenant = 'TENANT') THEN ${parameters['status_leased']} 
+				WHEN EXISTS(SELECT 1 FROM ot WHERE ot.bl_id = bl.bl_id AND ot.status = 'Disposed' AND ot.date_sold IS NOT NULL) THEN ${parameters['status_sold']} 
+				ELSE ${parameters['status_neither']}
+			END) ${sql.as} bl_status
+			FROM bl
+			WHERE ${sql.vpaRestriction} AND ${parameters['consoleRestriction']}
+		</sql>
+		<table name="bl" role="main"/>
+		<field name="bl_status" dataType="text"/>
+		
+		<parameter name="status_owned" dataType="text" value="Owned"/>
+		<parameter name="status_leased" dataType="text" value="Leased"/>
+		<parameter name="status_sold" dataType="text" value="Sold"/>
+		<parameter name="status_neither" dataType="text" value="Neither"/>
+		<parameter name="consoleRestriction" dataType="verbatim" value=""/>
+	</dataSource>
+	
+	<panel id="abRepmPfadminBlByBlStatusPgrp_panel_parent" type="paginatedReport" role="parent" dataSource="abRepmPfadminBlByBlStatusPgrp_ds_parent"
+			format="column" columns="2" pageBreakBefore="true">
+		<field name="bl_status" restrictionParameterName="blStatus">
+			<title translatable="true">Building Status</title>
+		</field>
+	</panel>
+
+	<dataSource id="abRepmPfadminBlByBlStatusPgrp_ds_data">
+		<table name="bl" role="main"/>
+		<field table="bl" name="bl_id"/>
+		<field table="bl" name="date_bl"/>
+
+		<field table="bl" name="name"/>
+		<field name="bl_date_sold" dataType="date">
+			<title translatable="true">Date Sold</title>
+			<sql dialect="generic">
+				(SELECT ot.date_sold FROM ot
+				WHERE ot.ot_id =
+					(SELECT MAX(ot_int.ot_id) FROM ot ${sql.as} ot_int
+					WHERE ot_int.bl_id = bl.bl_id AND ot_int.status = 'Disposed' AND ot_int.date_sold IS NOT NULL))
+			</sql>
+		</field>
+
+		<field table="bl" name="site_id"/>
+		<field table="bl" name="construction_type"/>
+		
+		<field table="bl" name="ctry_id"/>
+		<field table="bl" name="use1"/>
+
+		<field table="bl" name="regn_id"/>
+		<field table="bl" name="count_fl"/>
+
+		<field table="bl" name="state_id"/>
+		<field table="bl" name="count_max_occup"/>
+
+		<field table="bl" name="city_id"/>
+		<field table="bl" name="count_occup"/>
+
+		<field table="bl" name="zip"/>
+		<field table="bl" name="ac_id"/>
+		
+
+		<field name="address" dataType="text">
+			<title translatable="true">Address</title>
+			<sql dialect="generic">
+                ((CASE WHEN bl.address1 IS NULL THEN '' ELSE bl.address1 END)
+                    ${sql.concat}(CASE WHEN bl.address1 IS NULL OR bl.address2 IS NULL THEN '' ELSE ', ' END)
+                    ${sql.concat}(CASE WHEN bl.address2 IS NULL THEN '' ELSE bl.address2 END))
+            </sql>
+		</field>
+		
+		<field table="bl" name="area_rentable"/>
+		<field table="bl" name="pr_id"/>
+		<field table="bl" name="area_usable"/>
+		<field table="bl" name="contact_name"/>
+		<field table="bl" name="area_gross_int"/>
+		<field table="bl" name="contact_phone"/>
+		
+		
+
+		<field table="bl" name="comments"/>
+		
+		<parameter name="status_owned" dataType="text" value="Owned"/>
+		<parameter name="status_leased" dataType="text" value="Leased"/>
+		<parameter name="status_sold" dataType="text" value="Sold"/>
+		<parameter name="status_neither" dataType="text" value="Neither"/>
+		<parameter name="blStatus" dataType="text" value="Owned"/>
+		<restriction type="sql"
+			sql="(CASE 
+					WHEN EXISTS(SELECT 1 FROM ot WHERE ot.bl_id = bl.bl_id AND ot.status = 'Owned') THEN ${parameters['status_owned']}
+					WHEN EXISTS(SELECT 1 FROM ls WHERE ls.bl_id = bl.bl_id AND ls.signed = 1 AND ls.date_end &gt; ${sql.currentDate} AND ls.date_start &lt; ${sql.currentDate}) THEN ${parameters['status_leased']}
+					WHEN EXISTS(SELECT 1 FROM ot WHERE ot.bl_id = bl.bl_id AND ot.status = 'Disposed' AND ot.date_sold IS NOT NULL) THEN ${parameters['status_sold']}
+					ELSE ${parameters['status_neither']}
+				END) = ${parameters['blStatus']}"/>
+		<sortField table="bl" name="bl_id" ascending="true"/>
+	</dataSource>
+
+	<panel id="abRepmPfadminBlByBlStatusPgrp_panel_data" type="paginatedReport" role="data" dataSource="abRepmPfadminBlByBlStatusPgrp_ds_data"
+			format="column" columns="2">
+	</panel>
+</view>

@@ -1,0 +1,309 @@
+<view version="2.0">
+    <message name="customProjectIdSelvalTitle" translatable="true">Commissioning Projects</message>
+    <title>Commissioning Project Close-out</title>
+    <message translatable="true" name="projectCode">Project Code</message> 
+    <message translatable="true" name="package">Work Package</message>  
+    <message translatable="true" name="type">Action Type</message> 
+    <js file="ab-comm-project-close-out.js"/>
+    
+    <dataSource id="commProjectCloseOut_dsConsole">
+        <table name="work_pkgs" role="main"/>
+        <field table="work_pkgs" name="project_id"/>
+        <field table="work_pkgs" name="work_pkg_id" />
+    </dataSource>
+    
+    <panel type="console" id="commProjectCloseOut_console" dataSource="commProjectCloseOut_dsConsole" columns="2">
+        <title translatable="true">Filter</title>
+        <action id="filter">
+            <title translatable="true">Show</title>
+        </action>
+        <action id="clear">
+            <title translatable="true">Clear</title>
+        </action>
+        <field table="work_pkgs" name="project_id" >
+            <action id="commProjectCloseOut_selValProjectId">
+                <title>...</title>
+                    <command type="selectValue"
+                        selectValueType="grid"
+                        fieldNames="work_pkgs.project_id"
+                        selectFieldNames="project.project_id, project.project_name, project.project_type, project.requestor, project.summary"
+                        visibleFieldNames="project.project_id, project.project_name, project.project_type, project.requestor, project.summary"
+                        restriction="project.project_type LIKE 'COMMISSIONING%' AND project.is_template = 0">
+                        <title>Select Commissioning Project</title>  
+                    </command>         
+            </action>
+        </field>
+        <field table="work_pkgs" name="work_pkg_id"/>
+    </panel>
+
+    <dataSource id="commProjectCloseOut_dsPackageGrid" type="grouping">
+        <table name="activity_log" role="main"/>
+        <table name="work_pkgs" role="standard"/>
+        <table name="project" role="standard"/>
+        <field name="work_pkg_id" table="activity_log" groupBy="true"/>
+        <field name="project_id" table="activity_log" groupBy="true"/>
+        <field name="project_name" table="project" baseField="project.project_name" formula="max" dataType="text"/>
+        <field name="count_total" baseField="activity_log.activity_log_id" formula="count" dataType="number" size="6" decimals="0">
+            <title translatable="true">Total Count Action Items</title>
+        </field>
+        <field name="pct_complete" table="work_pkgs" baseField="work_pkgs.pct_complete" formula="max" dataType="number" size="3" decimals="0"/>
+        <field name="pct_complete_cx_docs" table="work_pkgs" baseField="work_pkgs.pct_complete_cx_docs" formula="max" dataType="number" size="3" decimals="0"/>
+        <field name="cx_docs_provided_by" table="work_pkgs" baseField="work_pkgs.cx_docs_provided_by" formula="max" dataType="text"/>
+        <field name="date_cx_docs_provided" table="work_pkgs" baseField="work_pkgs.date_cx_docs_provided" formula="max" dataType="text"/>
+        <field name="cx_docs_verified_by" table="work_pkgs" baseField="work_pkgs.cx_docs_verified_by" formula="max" dataType="text"/>
+        <field name="date_cx_docs_verified" table="work_pkgs" baseField="work_pkgs.date_cx_docs_verified" formula="max" dataType="text"/>
+        <field name="cx_docs_approved_by" table="work_pkgs" baseField="work_pkgs.cx_docs_approved_by" formula="max" dataType="text"/>
+        <field name="date_cx_docs_approved" table="work_pkgs" baseField="work_pkgs.date_cx_docs_approved" formula="max" dataType="text"/>
+        <restriction type="sql" sql="activity_log.work_pkg_id IS NOT NULL"/>
+        <restriction type="sql" sql="project.project_type LIKE 'COMMISSIONING%'"/>
+        <restriction type="sql" sql="project.is_template = 0"/>
+    </dataSource>
+    
+    <dataSource id="commProjectCloseOut_dsPackageEdit">
+        <table name="work_pkgs" role="main"/> 
+        <field name="project_id" table="work_pkgs"/>      
+        <field name="work_pkg_id" table="work_pkgs"/>
+        <field name="pct_complete" table="work_pkgs"/>
+        <field name="pct_complete_cx_docs" table="work_pkgs"/>
+        <field name="cx_docs_provided_by" table="work_pkgs"/>
+        <field name="date_cx_docs_provided" table="work_pkgs"/>
+        <field name="cx_docs_verified_by" table="work_pkgs"/>
+        <field name="date_cx_docs_verified" table="work_pkgs"/>
+        <field name="cx_docs_approved_by" table="work_pkgs"/>
+        <field name="date_cx_docs_approved" table="work_pkgs"/>
+    </dataSource>
+        
+    <dataSource id="commProjectCloseOut_dsTypes" applyVpaRestrictions="false">
+        <table name="activity_log" role="main"/>
+        <sql dialect="generic">
+            select activity_log.project_id, activity_log.work_pkg_id, activity_log.activity_type, 
+            activity_log.count_total ${sql.as} count_total, 
+            ${sql.isNull('actions_completed.count_completed',0)} ${sql.as} count_completed, 
+            (100*${sql.isNull('actions_completed.count_completed',0)}/activity_log.count_total) ${sql.as} percent_complete
+            FROM 
+            (select activity_type, project_id, work_pkg_id, count(*) ${sql.as} count_total
+            from activity_log
+            GROUP BY activity_type, project_id, work_pkg_id) ${sql.as} activity_log
+            LEFT OUTER JOIN 
+            (select activity_type, project_id, work_pkg_id, count(*) ${sql.as} count_completed
+            from activity_log
+            WHERE (activity_log.status LIKE 'COMPL%' OR activity_log.status LIKE 'CLOSED%')
+            GROUP BY activity_type, project_id, work_pkg_id) ${sql.as} actions_completed
+            ON (actions_completed.project_id = activity_log.project_id 
+            AND actions_completed.work_pkg_id = activity_log.work_pkg_id
+            AND actions_completed.activity_type = activity_log.activity_type)
+        </sql>
+        <field name="project_id" table="activity_log"/>
+        <field name="work_pkg_id" table="activity_log"/>
+        <field name="activity_type" table="activity_log"/>
+        <field name="count_total" dataType="number" size="6" decimals="0">
+            <title translatable="true">Total Count Action Items</title>
+        </field>
+        <field name="count_completed" dataType="number" size="6" decimals="0">
+            <title translatable="true">Count Actions Completed</title>
+        </field>
+        <field name="percent_complete" dataType="number" size="3" decimals="0">
+            <title translatable="true">Submission Percent Complete</title>
+        </field>
+        <restriction type="sql" sql="activity_log.activity_type IN ('CX - ISSUES LOG','CX - CONSTRUCTION CHECKLISTS','CX - OPERATION AND MAINTENANCE REVIEW','CX - TRAINING DOCUMENTATION','CX - WARRANTY REVIEW','CX - TESTING DATA RECORDS','CX - SUMMARY REPORT','CX - RECOMMISSIONING MANAGEMENT MANUAL')"/>
+    </dataSource>
+        
+    <dataSource id="commProjectCloseOut_dsItems">
+        <table name="activity_log" role="main"/>
+        <table name="project" role="standard"/>
+        <field name="project_id" table="project"/>
+        <field name="activity_log_id" table="activity_log" />
+        <field name="action_title" table="activity_log" />
+        <field name="status" table="activity_log" />              
+        <field name="activity_type" table="activity_log" />                
+        <field name="project_id" table="activity_log" />               
+        <field name="proj_phase" table="activity_log" />             
+        <field name="work_pkg_id" table="activity_log" />
+        <field table="project" name="proj_mgr"/> 
+        <field table="project" name="site_id"/>              
+        <field name="site_id" table="activity_log" />
+        <field name="bl_id" table="activity_log" />
+        <field name="fl_id" table="activity_log" />
+        <field name="rm_id" table="activity_log" />
+        <field name="location" table="activity_log" />
+        <field name="prob_type" table="activity_log" />
+        <field name="tr_id" table="activity_log" />
+        <field name="wbs_id" table="activity_log" />
+        <field name="eq_id" table="activity_log" />
+        <field name="date_requested" table="activity_log" />
+        <field name="date_required" table="activity_log" />
+        <field name="date_scheduled" table="activity_log" />             
+        <field name="duration" table="activity_log" />
+        <field name="hours_est_design" table="activity_log" />
+        <field name="cost_est_design_cap" table="activity_log" />
+        <field name="cost_est_design_exp" table="activity_log" />
+        <field name="approved_by" table="activity_log"  />
+        <field name="created_by" table="activity_log" />
+        <field name="doc" table="activity_log" />
+        <field name="description" table="activity_log" />
+        <field name="vn_id" table="activity_log" />
+        <field name="date_issued" table="activity_log" />
+        <field name="verified_by" table="activity_log" />
+        <field name="date_verified" table="activity_log" />
+        <field name="approved_by" table="activity_log" />
+        <field name="date_approved" table="activity_log" />
+        <restriction type="sql" sql="activity_log.project_id IS NOT NULL"/>
+        <restriction type="sql" sql="project.project_type LIKE 'COMMISSIONING%'"/>
+        <restriction type="sql" sql="project.is_template = 0"/>
+    </dataSource>
+    
+    <tabs workflow="enforced" id="commProjectCloseOutTabs">
+        <tab name="commProjectCloseOut_page1" selected="true">
+            <title>Work Packages</title>
+            <panel type="grid" id="commProjectCloseOut_gridPackages" showOnLoad="true" dataSource="commProjectCloseOut_dsPackageGrid">
+                <title>Commissioning Project Status by Work Package</title>
+                <field controlType="button" id="editPackage">
+                    <title translatable="true">Edit</title>
+                </field>
+                <field name="work_pkg_id" table="activity_log" id="selectPackage" controlType="link"/>
+                <field name="project_id" table="activity_log"/>
+                <field name="count_total" table="activity_log" dataType="number" size="6" decimals="0">
+                    <title translatable="true">Total Count Action Items</title>
+                </field>
+                <field name="pct_complete" table="work_pkgs"/>
+                <field name="pct_complete_cx_docs" table="work_pkgs"/>
+                <field name="cx_docs_provided_by" table="work_pkgs"/>
+                <field name="date_cx_docs_provided" table="work_pkgs"/>
+                <field name="cx_docs_verified_by" table="work_pkgs"/>
+                <field name="date_cx_docs_verified" table="work_pkgs"/>
+                <field name="cx_docs_approved_by" table="work_pkgs"/>
+                <field name="date_cx_docs_approved" table="work_pkgs"/>
+            </panel>
+        </tab>
+        <tab name="commProjectCloseOut_page2">
+            <title>Action Types</title>    
+            <panel type="grid" id="commProjectCloseOut_gridTypes" dataSource="commProjectCloseOut_dsTypes">
+                <title>Review Progress Status by Action Type</title>
+                <action>
+                    <title translatable="true">Previous</title>
+                    <command type="selectTabPage" tabPageName="commProjectCloseOut_page1" applyParentRestriction="false"/>
+                </action>
+                <field name="activity_type" table="activity_log" groupBy="true" id="selectType" controlType="link"/>
+                <field name="count_total" table="activity_log" dataType="number" size="6" decimals="0">
+                    <title translatable="true">Total Count Action Items</title>
+                </field>
+                <field name="count_completed" table="activity_log" dataType="number" size="6" decimals="0">
+                    <title translatable="true">Count Actions Completed</title>
+                </field>
+                <field name="percent_complete" table="activity_log" dataType="number" size="3" decimals="0">
+                    <title translatable="true">Submission Percent Complete</title>
+                </field>
+            </panel>
+        </tab>
+        <tab name="commProjectCloseOut_page3">
+            <title>Actions</title>    
+            <panel type="grid" id="commProjectCloseOut_gridItems" dataSource="commProjectCloseOut_dsItems">
+                <title>Review Progress Status by Action Items</title>
+                <action>
+                    <title translatable="true">Previous</title>
+                    <command type="selectTabPage" tabPageName="commProjectCloseOut_page2" applyParentRestriction="false"/>
+                </action>
+                <field controlType="button">
+                    <title translatable="true">Edit</title>
+                    <command type="openDialog" panelId="commProjectCloseOut_formItem"/>
+                </field>
+                <field name="doc" table="activity_log" controlType="link"/>
+                <field name="action_title" table="activity_log"/>
+                <field name="wbs_id" table="activity_log" />
+                <field name="activity_log_id" table="activity_log" />              
+                <field name="activity_type" table="activity_log" /> 
+                <field name="vn_id" table="activity_log" />
+                <field name="date_issued" table="activity_log" />
+                <field name="verified_by" table="activity_log" />
+                <field name="date_verified" table="activity_log" />
+                <field name="approved_by" table="activity_log" />
+                <field name="date_approved" table="activity_log" />
+            </panel>
+        </tab>
+    </tabs>
+    
+    <panel id="commProjectCloseOut_formPackage" type="form" showOnLoad="false" dataSource="commProjectCloseOut_dsPackageEdit">
+        <title>Edit Work Package Project Status</title>
+        <action id="save">
+            <title>Save</title>
+            <command type="saveForm"/>
+            <command type="showPanel" panelId="commProjectCloseOut_gridPackages" applyParentRestriction="false"/>
+            <command type="closeDialog"/>
+        </action>
+        <action id="cancel">
+            <title>Cancel</title>
+            <command type="closeDialog"/>
+        </action>
+        <field name="project_id" table="work_pkgs" readOnly="true"/>
+        <field name="work_pkg_id" table="work_pkgs" readOnly="true"/>
+        <field name="pct_complete" table="work_pkgs"/>
+        <field name="pct_complete_cx_docs" table="work_pkgs"/>
+        <field name="cx_docs_provided_by" table="work_pkgs"/>
+        <field name="date_cx_docs_provided" table="work_pkgs"/>
+        <field name="cx_docs_verified_by" table="work_pkgs"/>
+        <field name="date_cx_docs_verified" table="work_pkgs"/>
+        <field name="cx_docs_approved_by" table="work_pkgs"/>
+        <field name="date_cx_docs_approved" table="work_pkgs"/>
+    </panel>
+    
+    <panel id="commProjectCloseOut_formItem" type="form" showOnLoad="false" dataSource="commProjectCloseOut_dsItems">
+        <title>Edit Action Item</title>
+        <action id="save">
+            <title>Save</title>
+            <command type="saveForm"/>
+            <command type="showPanel" panelId="commProjectCloseOut_gridItems" applyParentRestriction="false"/>
+            <command type="closeDialog"/>
+        </action>            
+        <action id="cancel">
+            <title>Cancel</title>
+            <command type="closeDialog"/>
+        </action> 
+        <field name="doc" table="activity_log" /> 
+        <field/> 
+        <field name="action_title" table="activity_log" required="true"/>
+        <field name="wbs_id" table="activity_log" />
+        <field name="activity_type" table="activity_log" required="true"/>
+        <field name="activity_log_id" table="activity_log" readOnly="true"/>      
+        <field name="work_pkg_id" table="activity_log"/>
+        <field name="proj_phase" table="activity_log"/> 
+        <field name="status" table="activity_log" >
+            <title translatable="true">Action Item Status</title>
+        </field>
+        <field name="project_id" table="activity_log" readOnly="true"/>            
+        <field name="site_id" table="activity_log" />         
+        <field name="bl_id" table="activity_log" >
+            <action id="selValEditFormBlId">
+                <title>...</title>
+                <command type="selectValue"
+                    showIndex="true"
+                    fieldNames="activity_log.site_id, activity_log.bl_id"
+                    selectFieldNames="bl.site_id, bl.bl_id"
+                    visibleFieldNames="bl.site_id, bl.bl_id, bl.name">   
+                    <title>Building Code</title>
+                </command>         
+            </action>
+        </field>
+        <field name="fl_id" table="activity_log" />
+        <field name="rm_id" table="activity_log" />
+        <field name="location" table="activity_log" /> 
+        <field/>     
+        <field name="prob_type" table="activity_log" />
+        <field name="eq_id" table="activity_log" />       
+        <field name="tr_id" table="activity_log" />
+        <field name="date_requested" table="activity_log" readOnly="true"/>
+        <field name="date_required" table="activity_log" />
+        <field name="date_scheduled" table="activity_log" />              
+        <field name="duration" table="activity_log" required="true"/>
+        <field name="hours_est_design" table="activity_log" required="true"/>
+        <field name="cost_est_design_cap" table="activity_log" required="true"/>
+        <field name="cost_est_design_exp" table="activity_log" required="true"/>
+        <field name="approved_by" table="activity_log" />
+        <field name="created_by" table="activity_log" />
+        <field name="description" table="activity_log" colspan="2"/>
+    </panel>
+</view>
+    
+ 
+ 
+ 
+ 

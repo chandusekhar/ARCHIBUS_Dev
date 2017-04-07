@@ -1,0 +1,126 @@
+<view version="2.0">
+    <title>Work In Place (WIP) Projections</title>
+    <message name="enterDateRange">Please enter a Date range.</message>
+    <js file="ab-proj-fcpm-wip.js"/>
+
+    <layout id="main">
+        <north id="console" initialSize="65" split="true" />
+        <center  id="data"/>
+    </layout>
+    
+    <dataSource id="projFcpmWipDs0"> 
+    		<table name="work_pkgs" role="main" />      
+        <table name="project" role="standard"/>
+        <field name="project_id" table="work_pkgs"/>
+        <field name="project_name" table="project"/>
+        <field name="work_pkg_id" table="work_pkgs"/>
+        <field name="date_start" table="project"/>
+        <field name="date_end" table="project"/>
+    </dataSource>
+    
+    <panel id="projFcpmWipConsole" layoutRegion="console" type="console" columns="3"
+        dataSource="projFcpmWipDs0">
+        <title>Filter</title>
+        <action id="show" mainAction="true">
+            <title>Show</title>
+        </action>
+        <action id="clear">
+            <title>Clear</title>
+        </action>
+        <field name="project_id" table="work_pkgs" selectValueType="grid" required="true">
+            <action id="projectEdit_selValProj">
+                <title>...</title>
+                <command type="selectValue"
+                    fieldNames="work_pkgs.project_id, project.project_name"
+                    selectFieldNames="project.project_id, project.project_name"
+                    visibleFieldNames="project.project_id, project.project_name, project.status, project.summary, project.proj_mgr"
+                    restriction="(project.proj_mgr = '${user.employee.id}' OR project.apprv_mgr1 = '${user.employee.id}') AND project.is_template = 0 AND project.status NOT IN ('Created') AND project.status NOT LIKE ('Requested%')">
+                    <title>Projects Assigned to User</title>  
+                </command>         
+            </action>
+        </field>
+        <field name="work_pkg_id" table="work_pkgs" hidden="false" />
+        <field id="projFcpmWipFilter_whatToShow" colspan="1" hidden="false">
+		                <title>Date Range</title>
+		                <html>
+		                    <select id="projFcpmWipFilter_show" class="inputField_box" onchange="timeframeListener()">
+		                    		<option value="0" selected="1"  >
+		                            <span translatable="true">From Project Start</span>
+		                        </option>
+		                    		<option value="1"  >
+		                            <span translatable="true">From current date</span>
+		                        </option>
+		                        <option value="2" >
+		                            <span translatable="true">Specify range...</span>
+		                        </option>
+		                     </select>
+		                 </html>
+		     </field>
+		    <field id="calendar_year">
+            <title translatable="true">Year</title>
+            <html>
+                <select class="inputField_box" id="year" name="year" onchange="yearListener()">
+                    <option value="None" selected="1"><span translatable="false"></span></option>
+                </select>
+            </html>
+        </field>         
+        <field name="date_start" table="project"  onchange="dateListener()">
+				    		<title>From</title>
+				</field>
+        <field name="date_end" table="project"  onchange="dateListener()">
+		        		<title>To</title>
+		    </field>
+		    
+    </panel>
+    
+    <tabs id="projFcpmWipTabs" layoutRegion="data" workflow="free" >
+        <tab name="projFcpmWipPjn" file="ab-proj-fcpm-wip-pjn.axvw" useFrame="false" selected="true">
+            <title>WIP Projection</title>
+        </tab>
+        <tab name="projFcpmWipGantt" file="ab-proj-fcpm-wip-gantt.axvw" useFrame="false">
+            <title>Timeline</title>
+        </tab>
+        <tab name="projFcpmWipBar" file="ab-proj-fcpm-wip-bar.axvw" useFrame="false" >
+            <title>Budget vs Spend</title>
+        </tab>
+        <tab name="projFcpmWipLine" file="ab-proj-fcpm-wip-line.axvw" useFrame="false" >
+            <title>Cumulatives</title>
+        </tab>
+     </tabs> 
+     
+     <dataSource id="projFcpmWipDsMinMax" applyVpaRestrictions="false">
+        <table name="invoice"/>
+        <sql dialect="generic">
+            SELECT MIN(min_date) ${sql.as} min_date, MAX(max_date) ${sql.as} max_date FROM
+						((SELECT MIN(invoice.date_sent) ${sql.as} min_date,
+						            MAX(invoice.date_sent) ${sql.as} max_date 
+						            FROM invoice
+						            WHERE invoice.status IN ('ISSUED','SENT','CLOSED') 
+												AND invoice.project_id LIKE ${parameters['projectId']} AND invoice.work_pkg_id LIKE ${parameters['workPkgId']} )
+						UNION (
+						SELECT MIN(proj_forecast_item.date_forecast) ${sql.as} min_date,
+						            MAX(proj_forecast_item.date_forecast) ${sql.as} max_date
+						            FROM proj_forecast_item
+						            WHERE proj_forecast_item.proj_forecast_id LIKE ${parameters['projForecastId']} AND proj_forecast_item.project_id LIKE ${parameters['projectId']} AND proj_forecast_item.work_pkg_id LIKE ${parameters['workPkgId']}
+						)) ${sql.as} invoice
+				</sql>
+        <field name="min_date" dataType="date"/>
+        <field name="max_date" dataType="date"/>
+        <parameter name="projForecastId" dataType="text" value="%"/>
+        <parameter name="projectId" dataType="text" value="%"/>
+        <parameter name="workPkgId" dataType="text" value="%"/>
+    </dataSource>    
+         
+    <dataSource id="projFcpmWipDs1">
+    		<table name="proj_forecast_item" role="main"/>
+    		<field name="proj_forecast_item_id" table="proj_forecast_item" />
+    		<field name="proj_forecast_id" table="proj_forecast_item" />
+    		<field name="project_id" table="proj_forecast_item" />
+    		<field name="work_pkg_id" table="proj_forecast_item" />
+    		<field name="date_forecast" table="proj_forecast_item" />
+    		<field name="cost_forecast" table="proj_forecast_item" />
+    		<field name="created_by" table="proj_forecast_item"/>
+    </dataSource>
+    
+    <panel type="view" id="projFcpmForecastPanel" file="ab-proj-fcpm-forecast.axvw"/>
+</view>

@@ -1,0 +1,131 @@
+<view version="2.0">
+    <title translatable="true">Pending Training</title>
+    <!-- 
+    <layout type="borderLayout" id="mainLayout">
+        <north initialSize="150" split="true"/>
+        <center autoScroll="true"/>
+    </layout> -->
+    
+    <js file="ab-ehs-rpt-pending-training.js"/>
+    <js file="ab-ehs-rpt-common.js"/>
+    
+    <message translatable="true" name="redInstrunction">Training not performed and deadline exceeded.</message>
+    <message translatable="true" name="yellowInstrunction">Training not performed. Days until deadline less than: {0}.</message>
+    
+    <dataSource id="abEhsRptPendingTraining_consoleDs">
+        <table name="ehs_training_results" role="main"/>
+        <table name="ehs_training" role="standard"/>
+        <field table="ehs_training_results" name="training_id"/>
+        <field table="ehs_training" name="training_name"/>
+        <field table="ehs_training" name="training_category_id"/>
+        <field table="ehs_training" name="training_type_id"/>
+        <field table="ehs_training_results" name="em_id"/>
+        <field table="ehs_training" name="ppe_type_id"/>
+        <field table="ehs_training" name="eq_std"/>
+        <field table="ehs_training_results" name="incident_id"/>
+    </dataSource>
+    
+    <panel type="console" id="abEhsRptPendingTraining_console" dataSource="abEhsRptPendingTraining_consoleDs" collapsed="true" columns="2">
+       
+        <title translatable="true">Filter</title>
+        <action id="filter">
+            <title translatable="true">Show</title>
+        </action>
+        <action id="clear">
+            <title translatable="true">Clear</title>
+            <command type="clearForm"/>
+        </action>
+        <field table="ehs_training_results" name="training_id"/>
+        <field table="ehs_training" name="training_name"/>
+        <field table="ehs_training" name="training_category_id"/>
+        <field table="ehs_training" name="training_type_id"/>
+        <field table="ehs_training_results" name="em_id"/>
+        <field table="ehs_training" name="ppe_type_id">
+            <action>
+                <title translatable="false">...</title>
+                <tooltip translatable="true">Select Value</tooltip>
+                <command type="selectValue"
+                    fieldNames="ehs_training.ppe_type_id"
+                    selectFieldNames="ehs_ppe_types.ppe_type_id"
+                    visibleFieldNames="ehs_ppe_types.ppe_type_id, ehs_ppe_types.description, ehs_ppe_types.needs_renewal, ehs_ppe_types.eq_std"/>
+            </action>
+        </field>
+        <field table="ehs_training" name="eq_std"/>
+        <field table="ehs_training_results" name="incident_id">
+            <action>
+                <title translatable="false">...</title>
+                <tooltip translatable="true">Select Value</tooltip>
+                <command type="selectValue"
+                    fieldNames="ehs_training_results.incident_id"
+                    selectFieldNames="ehs_incidents.incident_id"
+                    visibleFieldNames="ehs_incidents.incident_id, ehs_incidents.incident_type, ehs_incidents.date_incident, ehs_incidents.em_id_affected, ehs_incidents.description"/>
+            </action>
+        </field>
+    </panel>
+   
+    <dataSource id="abEhsRptPendingTraining_trainingDs">
+        <table name="ehs_training_results" role="main"/>
+        <table name="ehs_training" role="standard"/>
+        <field table="ehs_training_results" name="training_id"/>
+        <field table="ehs_training" name="training_name"/>
+        <field table="ehs_training_results" name="em_id"/>
+        <field table="ehs_training_results" name="date_actual"/>
+        <field table="ehs_training" name="training_type_id"/>
+        <field table="ehs_training_results" name="description"/>
+        <field table="ehs_training_results" name="incident_id"/>
+        <field table="ehs_training_results" name="status"/>
+        <field table="ehs_training" name="training_category_id"/>
+        <field name="vf_color_order" dataType="text">
+            <sql dialect="generic">
+                (CASE WHEN ehs_training_results.date_actual &lt;= ${sql.currentDate} THEN 0 
+                      WHEN ((${sql.daysBeforeCurrentDate('ehs_training_results.date_actual')} &lt; 0)  AND (${sql.daysBeforeCurrentDate('ehs_training_results.date_actual')} &gt; -${parameters['TrainingDaysDeadline']})) THEN 1
+                      ELSE 2 
+                 END)
+            </sql>
+        </field>
+        <field name="vf_incident_type" dataType="text">
+            <sql dialect="generic">
+                (SELECT incident_type FROM ehs_incidents WHERE incident_id = ehs_training_results.incident_id)
+            </sql>
+        </field>
+        <field table="ehs_training" name="ppe_type_id"/>
+        <field table="ehs_training" name="eq_std"/>
+        <field table="ehs_training_results" name="doc" hidden="true"/>
+        
+        <restriction type="sql" sql="ehs_training_results.status = 'Pending'"/>
+        
+        <parameter name="TrainingDaysDeadline" dataType="verbatim" value=""/>
+    </dataSource>
+    
+    <panel type="grid" id="abEhsRptPendingTraining_training" dataSource="abEhsRptPendingTraining_trainingDs" showOnLoad="true" collapsed="false">
+        <title translatable="true">Pending Training</title>
+        <instructions translatable="false">&amp;nbsp;</instructions>
+        <sortField name="vf_color_order" ascending="true"/>
+        <sortField table="ehs_training_results" name="date_actual" ascending="true"/>
+        <sortField table="ehs_training_results" name="training_id" ascending="true"/>
+        <action id="exportDOCX">
+            <title translatable="true">DOCX</title>
+            <command type="exportPanel" outputType="docx" panelId="abEhsRptPendingTraining_training" printRestriction="true"/>
+        </action>
+        <action id="exportXLS">
+            <title translatable="true">XLS</title>
+            <command type="exportPanel" outputType="xls" panelId="abEhsRptPendingTraining_training"/>
+        </action>
+        <field id="view" controlType="image" imageName="/schema/ab-core/graphics/icons/view/ab-icon-edit-file-show.png" onclick="showEmployeeTrainingDoc">
+            <tooltip translatable="true">View Document</tooltip>
+        </field>
+        <field table="ehs_training_results" name="em_id"/>
+        <field table="ehs_training_results" name="training_id"/>
+        <field table="ehs_training" name="training_name"/>
+        <field table="ehs_training_results" name="date_actual"/>
+        <field table="ehs_training" name="training_category_id"/>
+        <field table="ehs_training" name="training_type_id"/>
+        <field table="ehs_training_results" name="description"/>
+        <field table="ehs_training_results" name="incident_id"/>
+        <field name="vf_incident_type">
+            <title translatable="true">Incident Type</title>
+        </field>
+        <indexField table="ehs_training_results" name="training_id"/>
+    </panel>
+    
+</view>

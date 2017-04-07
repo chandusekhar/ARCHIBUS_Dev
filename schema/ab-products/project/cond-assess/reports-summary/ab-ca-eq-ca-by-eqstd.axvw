@@ -1,0 +1,355 @@
+<view version="2.0">
+	<title translatable="true">View Deficiencies by Equipment Standard</title>
+	<js file="ab-ca-eq-ca-by-eqstd.js"/>
+	<js file="ab-ca-common.js"/>
+
+	<message name="noProjectSelected" translatable="true">You must select at least one project before pressing the 'Show' action button</message>
+	<message name="noProjectSelectedForDetails" translatable="true">You must select at least one project before pressing the 'Details' button</message>
+	<message name="noProjectSelectedForReport" translatable="true">You must select at least one project before pressing the 'Paginated Report' button</message>
+	<message name="noProjectSelectedForXLS" translatable="true">You must select at least one project before pressing the 'XLS' button</message>
+	<message name="selectedProjects" translatable="true">Selected Projects</message>
+	<message name="siteId" translatable="true">Site Code</message>
+	<message name="blId" translatable="true">Building Code</message>
+	<message name="flId" translatable="true">Floor Code</message>
+	<message name="csiId" translatable="true">Classification Code</message>
+	
+    
+    <layout type="borderLayout" id="mainLayout">
+        <west autoScroll="true" split="true" initialSize="20%"/>
+        <center autoScroll="true"/>
+    </layout>
+    <layout type="borderLayout" id="centerLayout" containingLayout="mainLayout" region="center">
+        <north split="true" initialSize="100"/>
+        <center autoScroll="true"/>
+    </layout>
+    <layout type="borderLayout" id="reportLayout" containingLayout="centerLayout" region="center">
+        <west split="true" initialSize="20%"/>
+        <center autoScroll="true"/>
+    </layout>
+
+    <dataSource id="dsProjects">
+        <table name="project"/>
+        <field name="project_id"/>
+		<restriction type="parsed">
+		    <clause table="project" name="project_type" op="=" value="ASSESSMENT"/>
+		</restriction>
+		<restriction type="sql" sql="EXISTS(SELECT activity_log.project_id FROM activity_log WHERE activity_log.project_id = project.project_id AND activity_log.cond_priority &lt;&gt; 0)"/>
+    </dataSource>  
+	
+	<panel type="grid" id="listProjects" dataSource="dsProjects" multipleSelectionEnabled="true" layout="mainLayout" region="west">
+		<title translatable="true">Project</title>
+        <action id="projDetails">
+            <title translatable="true">Details</title>
+        </action>
+		<sortField name="project_id" ascending="true"/>
+		<field name="project_id"/>
+	</panel>
+
+	<dataSource id="dsCAFilter">
+		<table name="activity_log" role="main"/>
+		<field table="activity_log" name="site_id"/>
+		<field table="activity_log" name="bl_id"/>
+		<field table="activity_log" name="fl_id"/>
+		<field table="activity_log" name="csi_id"/>
+	</dataSource>
+	
+	<panel type="console" id="caFilterPanel" dataSource="dsCAFilter" columns="3" layout="centerLayout" region="north">
+		<title translatable="true">Filter</title>
+        <action id="paginatedReport">
+            <title translatable="true">Paginated Report</title>
+        </action>
+        <action id="exportXLS">
+            <title>XLS</title>
+			<command type="callFunction" functionName="setRestrictionToXLS"/>
+			<command type="exportPanel" outputType="xls" panelId="repCAEqCAByEqstdDetails"/>
+        </action>
+        <action id="show">
+            <title translatable="true">Show</title>
+        </action>
+        <action id="clear">
+            <title translatable="true">Clear</title>
+            <command type="clearPanel" panelId="caFilterPanel"/>
+        </action>
+		<field table="activity_log" name="site_id" style="width: 100px;"/>
+		<field table="activity_log" name="bl_id" style="width: 100px;"/>
+		<field table="activity_log" name="fl_id" style="width: 100px;"/>
+		<field table="activity_log" name="csi_id" style="width: 100px;"/>
+	</panel>
+
+	<dataSource id="dsCAEqCAByEqstdEqs" distinct="true">
+		<table name="eq" role="main"/>
+		<field table="eq" name="eq_std"/>
+        <restriction type="sql" sql="EXISTS (SELECT 1 FROM activity_log WHERE activity_log.eq_id = eq.eq_id AND activity_log.eq_id IS NOT NULL)"/>
+	</dataSource>
+	<panel type="grid" id="listCAEqCAByEqstdEqs" dataSource="dsCAEqCAByEqstdEqs" showOnLoad="false"  layout="reportLayout" region="west">
+		<sortField table="eq" name="eq_std" ascending="true"/>
+		<title translatable="true">Equipment Standard</title>
+		<field table="eq" name="eq_std" controlType="link" onclick="showSummary"/>
+	</panel> 
+
+	<dataSource id="dsCAEqCAByEqstdRep" type="grouping">
+		<sql dialect="generic">
+			SELECT 
+				activity_log.activity_log_id ${sql.as} activity_log_id,
+			    activity_log.bl_id ${sql.as} bl_id,
+			    csi.csi_id ${sql.as} csi_id,
+                csi.description ${sql.as} csi_description,
+			    activity_log.cond_value ${sql.as} cond_value,
+				activity_log.cond_priority ${sql.as} cond_priority,
+			    activity_log.cost_estimated ${sql.as} cost_estimated,
+				activity_log.cost_est_cap ${sql.as} cost_est_cap,
+				activity_log.cost_to_replace ${sql.as} cost_to_replace,
+				activity_log.project_id ${sql.as} project_id,
+				activity_log.site_id ${sql.as} site_id,
+				activity_log.fl_id ${sql.as} fl_id,
+				activity_log.activity_type ${sql.as} activity_type,
+				(select(${sql.getFormulaForTable('AbCapitalPlanningCA-FacilityConditionIndex', 'activity_log', 'act_inner')}) from activity_log ${sql.as} act_inner where  act_inner.cost_to_replace > 0 and act_inner.activity_log_id = activity_log.activity_log_id) ${sql.as} facility_type,
+				(eq.qty_life_expct - CAST((${sql.currentDate} - eq.date_in_service) AS INTEGER) / 365.25) ${sql.as} useful_life_remaining
+			FROM activity_log
+				LEFT OUTER JOIN csi ON csi.csi_id = activity_log.csi_id
+                LEFT OUTER JOIN eq ON eq.eq_id = activity_log.eq_id
+			WHERE activity_log.csi_id IS NOT NULL AND 
+			${parameters['consoleRestriction']}
+		</sql>
+		
+		
+		<sql dialect="sybase">
+			SELECT 
+				activity_log.activity_log_id ${sql.as} activity_log_id,
+			    activity_log.bl_id ${sql.as} bl_id,
+			    csi.csi_id ${sql.as} csi_id,
+				csi.description ${sql.as} csi_description,
+			    activity_log.cond_value ${sql.as} cond_value,
+				activity_log.cond_priority ${sql.as} cond_priority,
+			    activity_log.cost_estimated ${sql.as} cost_estimated,
+				activity_log.cost_est_cap ${sql.as} cost_est_cap,
+				activity_log.cost_to_replace ${sql.as} cost_to_replace,
+				activity_log.project_id ${sql.as} project_id,
+				activity_log.site_id ${sql.as} site_id,
+				activity_log.fl_id ${sql.as} fl_id,
+				activity_log.activity_type ${sql.as} activity_type,
+				(select(${sql.getFormulaForTable('AbCapitalPlanningCA-FacilityConditionIndex', 'activity_log', 'act_inner')}) from activity_log ${sql.as} act_inner where  act_inner.cost_to_replace > 0 and act_inner.activity_log_id = activity_log.activity_log_id) ${sql.as} facility_type,
+				(eq.qty_life_expct - CAST((${sql.currentTimestamp} - eq.date_in_service) AS INTEGER) / 365.25) ${sql.as} useful_life_remaining
+			FROM activity_log
+				LEFT OUTER JOIN csi ON csi.csi_id = activity_log.csi_id
+                LEFT OUTER JOIN eq ON eq.eq_id = activity_log.eq_id
+			WHERE activity_log.csi_id IS NOT NULL AND 
+			${parameters['consoleRestriction']}
+		</sql>
+		<table name="activity_log" role="main"/>
+		<field name="csi_code_desc" dataType="text" groupBy="true">
+			<title translatable="true">Classification</title>
+			<sql dialect="generic">
+				(activity_log.csi_id${sql.concat}'-'${sql.concat}activity_log.csi_description)
+			</sql>
+		</field>
+		<field name="vf_num_itm" dataType="number"  size="12" decimals="0">
+            <title translatable="true">Count</title>
+			<sql dialect="generic">
+				COUNT(activity_log.csi_id)
+			</sql>
+        </field>
+		<field name="avg_cond_rating" dataType="number"  size="12" decimals="1">
+			<title translatable="true">Condition Rating - Avg</title>
+			<sql dialect="generic">AVG(activity_log.cond_value * activity_log.cond_priority)</sql>
+		</field>
+		<field table="activity_log" name="avg_facility_index" dataType="number" size="12" decimals="1">
+            <title translatable="true">Facility Index - Avg</title>
+			<sql dialect="generic">AVG(facility_type)</sql>
+        </field>
+		<field name="sum_cost_estimated" table="activity_log" dataType="number" size="12" decimals="2">
+            <title translatable="true">Cost - Est. Baseline (Exp.)</title>
+			<sql dialect="generic">SUM(activity_log.cost_estimated)</sql>
+        </field>
+		<field name="sum_cost_est_cap" table="activity_log" dataType="number" size="12" decimals="2">
+            <title translatable="true">Cost - Est. Baseline (Cap.)</title>
+			<sql dialect="generic">SUM(activity_log.cost_est_cap)</sql>
+        </field>
+		<field name="sum_cost_est_total" table="activity_log" dataType="number" size="12" decimals="2">
+            <title translatable="true">Cost - Estimated Total</title>
+			<sql dialect="generic">SUM(activity_log.cost_estimated + activity_log.cost_est_cap)</sql>
+        </field>
+		<field name="sum_cost_to_replace" table="activity_log" dataType="number" size="12" decimals="2">
+            <title translatable="true">Cost To Replace</title>
+			<sql dialect="generic">SUM(activity_log.cost_to_replace)</sql>
+        </field>
+		<field name="useful_life_remaining" table="activity_log" dataType="number" size="12" decimals="0">
+			<title translatable="true">Useful Life Remaining(Years)</title>
+			<sql dialect="generic">AVG(activity_log.useful_life_remaining)</sql>
+		</field>
+		<parameter name="consoleRestriction" dataType="verbatim" value=""/>
+		<restriction type="sql" sql="activity_log.csi_id IS NOT NULL"/>
+		<sortField table="activity_log" name="csi_code_desc" ascending="true"/>
+	</dataSource>
+
+	<panel type="crossTable" id="repCAEqCAByEqstd" dataSource="dsCAEqCAByEqstdRep" showOnLoad="false" multipleSelectionEnabled="false" layout="reportLayout" region="center">
+		<title translatable="true">Equipment Assessments by Equipment Standard</title>
+        <event type="onClickItem">
+            <command type="openDialog" panelId="repCAEqCAByEqstdDetails" width="800" height="600"/>
+        </event>
+	</panel>
+
+    <dataSource id="dsCAEqCAByEqstdDetails">
+		<sql dialect="generic">
+			SELECT 
+				activity_log.eq_id ${sql.as} eq_id,
+				eq.eq_std ${sql.as} eq_std,
+				eq.qty_life_expct ${sql.as} qty_life_expct,
+				eq.date_in_service ${sql.as} date_in_service,
+			    activity_log.bl_id ${sql.as} bl_id,
+				activity_log.csi_id ${sql.as} csi_id,
+				csi.description ${sql.as} csi_description,
+				(csi.csi_id${sql.concat}'-'${sql.concat}csi.description) ${sql.as} csi_code_desc,
+			    activity_log.cond_value ${sql.as} cond_value,
+				activity_log.cond_priority ${sql.as} cond_priority,
+			    activity_log.cost_estimated ${sql.as} cost_estimated,
+				activity_log.cost_est_cap ${sql.as} cost_est_cap,
+				activity_log.cost_actual ${sql.as} cost_actual,
+				activity_log.cost_act_cap ${sql.as} cost_act_cap,
+				activity_log.cost_to_replace ${sql.as} cost_to_replace,
+				activity_log.project_id ${sql.as} project_id,
+				activity_log.description ${sql.as} description,
+				activity_log.location ${sql.as} location,
+				activity_log.activity_log_id ${sql.as} activity_log_id,
+				activity_log.date_assessed ${sql.as} date_assessed,
+				activity_log.status ${sql.as} status,
+				(${sql.getFormula('AbCapitalPlanningCA-FacilityConditionIndex')}) ${sql.as} facility_index,
+				(activity_log.site_id
+						${sql.concat}(CASE WHEN activity_log.bl_id IS NOT NULL THEN '-' ELSE '' END)${sql.concat}activity_log.bl_id
+						${sql.concat}(CASE WHEN activity_log.fl_id IS NOT NULL THEN '-' ELSE '' END)${sql.concat}activity_log.fl_id
+						${sql.concat}(CASE WHEN activity_log.rm_id IS NOT NULL THEN '-' ELSE '' END)${sql.concat}activity_log.rm_id
+						${sql.concat}(CASE WHEN activity_log.location IS NOT NULL THEN '-' ELSE '' END)${sql.concat}activity_log.location
+				) ${sql.as} pbLocation,
+				activity_log.rec_action ${sql.as} rec_action,
+				activity_log.activity_type ${sql.as} activity_type,
+				activity_log.site_id ${sql.as} site_id,
+				activity_log.fl_id ${sql.as} fl_id,
+				activity_log.rm_id ${sql.as} rm_id,
+				(eq.qty_life_expct - CAST((${sql.currentDate} - eq.date_in_service) AS INTEGER) / 365.25) ${sql.as} useful_life_remaining
+			FROM activity_log
+				LEFT OUTER JOIN csi ON csi.csi_id = activity_log.csi_id
+				LEFT OUTER JOIN eq on eq.eq_id = activity_log.eq_id	 
+			WHERE activity_log.csi_id IS NOT NULL AND csi.csi_id IS NOT NULL AND activity_log.eq_id IS NOT NULL AND
+			${parameters['consoleRestriction']}
+			${parameters['eqStd']}
+		</sql>
+		<sql dialect="sybase">
+			SELECT 
+				activity_log.eq_id ${sql.as} eq_id,
+				eq.eq_std ${sql.as} eq_std,
+				eq.qty_life_expct ${sql.as} qty_life_expct,
+				eq.date_in_service ${sql.as} date_in_service,
+			    activity_log.bl_id ${sql.as} bl_id,
+				activity_log.csi_id ${sql.as} csi_id,
+				csi.description ${sql.as} csi_description,
+				(csi.csi_id${sql.concat}'-'${sql.concat}csi.description) ${sql.as} csi_code_desc,
+			    activity_log.cond_value ${sql.as} cond_value,
+				activity_log.cond_priority ${sql.as} cond_priority,
+			    activity_log.cost_estimated ${sql.as} cost_estimated,
+				activity_log.cost_est_cap ${sql.as} cost_est_cap,
+				activity_log.cost_actual ${sql.as} cost_actual,
+				activity_log.cost_act_cap ${sql.as} cost_act_cap,
+				activity_log.cost_to_replace ${sql.as} cost_to_replace,
+				activity_log.project_id ${sql.as} project_id,
+				activity_log.description ${sql.as} description,
+				activity_log.location ${sql.as} location,
+				activity_log.activity_log_id ${sql.as} activity_log_id,
+				activity_log.date_assessed ${sql.as} date_assessed,
+				activity_log.status ${sql.as} status,
+				(${sql.getFormula('AbCapitalPlanningCA-FacilityConditionIndex')}) ${sql.as} facility_index,
+				(activity_log.site_id
+						${sql.concat}(CASE WHEN activity_log.bl_id IS NOT NULL THEN '-' ELSE '' END)${sql.concat}activity_log.bl_id
+						${sql.concat}(CASE WHEN activity_log.fl_id IS NOT NULL THEN '-' ELSE '' END)${sql.concat}activity_log.fl_id
+						${sql.concat}(CASE WHEN activity_log.rm_id IS NOT NULL THEN '-' ELSE '' END)${sql.concat}activity_log.rm_id
+						${sql.concat}(CASE WHEN activity_log.location IS NOT NULL THEN '-' ELSE '' END)${sql.concat}activity_log.location
+				) ${sql.as} pbLocation,
+				activity_log.rec_action ${sql.as} rec_action,
+				activity_log.activity_type ${sql.as} activity_type,
+				activity_log.site_id ${sql.as} site_id,
+				activity_log.fl_id ${sql.as} fl_id,
+				activity_log.rm_id ${sql.as} rm_id,
+				(eq.qty_life_expct - CAST((${sql.currentTimestamp} - eq.date_in_service) AS INTEGER) / 365.25) ${sql.as} useful_life_remaining
+			FROM activity_log
+				LEFT OUTER JOIN csi ON csi.csi_id = activity_log.csi_id
+				LEFT OUTER JOIN eq on eq.eq_id = activity_log.eq_id	 
+			WHERE activity_log.csi_id IS NOT NULL AND csi.csi_id IS NOT NULL AND activity_log.eq_id IS NOT NULL AND
+			${parameters['consoleRestriction']}
+			${parameters['eqStd']}
+		</sql>
+        <table name="activity_log" role="main"/>
+		<field name="csi_code_desc" dataType="text">
+			<title translatable="true">Classification Level 2</title>
+		</field>
+		<field table="activity_log" name="project_id"/>
+		<field table="activity_log" name="activity_log_id"/>
+		<field table="activity_log" name="eq_id"/>
+		<field name="eq_std" dataType="text">
+			<title translatable="true">Equipment Standard</title>
+		</field>
+		<field name="date_in_service" dataType="date">
+			<title translatable="true">In Service Date</title>
+		</field>
+		<field table="activity_log" name="csi_id"/>
+		<field table="activity_log" name="csi_description" dataType="text">
+			<title translatable="true">Classification Description</title>
+		</field>
+		<field table="activity_log" name="status"/>
+		<field table="activity_log" name="rec_action"/>
+		<field table="activity_log" name="pbLocation" dataType="text">
+			<title translatable="true">Problem Location</title>
+		</field>
+		<field table="activity_log" name="cond_priority"/>
+		<field table="activity_log" name="cond_value"/>
+		<field table="activity_log" name="cost_estimated"/>
+		<field table="activity_log" name="cost_est_cap"/>
+		<field table="activity_log" name="cost_actual"/>
+		<field table="activity_log" name="cost_act_cap"/>
+		<field table="activity_log" name="cost_to_replace"/>
+		<field table="activity_log" name="facility_index" dataType="number" size="12" decimals="0">
+			<title translatable="true">Facility Index</title>
+		</field>
+		<field table="activity_log" name="description"/>
+		<field name="useful_life_remaining" dataType="number" size="12" decimals="0">
+			<title translatable="true">Useful Life Remaining</title>
+		</field>
+		<parameter name="consoleRestriction" dataType="verbatim" value=" 1 = 1"/>
+		<parameter name="eqStd" dataType="verbatim" value=""/>
+    </dataSource>
+    
+    <panel type="grid" id="repCAEqCAByEqstdDetails" dataSource="dsCAEqCAByEqstdDetails" hidden="true" showOnLoad="false">
+    	<title translatable="true">Equipment Assessments by Equipment Standard</title>
+		<field table="activity_log" name="project_id"/>
+		<field table="activity_log" name="activity_log_id"/>
+		<field table="activity_log" name="eq_id"/>
+		<field name="eq_std" dataType="text">
+			<title translatable="true">Equipment Standard</title>
+		</field>
+		<field name="date_in_service" dataType="date">
+			<title translatable="true">In Service Date</title>
+		</field>
+		<field table="activity_log" name="csi_id"/>
+		<field table="activity_log" name="csi_description" dataType="text">
+			<title translatable="true">Classification Description</title>
+		</field>
+		<field table="activity_log" name="status"/>
+		<field table="activity_log" name="rec_action"/>
+		<field table="activity_log" name="pbLocation">
+			<title translatable="true">Problem Location</title>
+		</field>
+		<field table="activity_log" name="cond_priority"/>
+		<field table="activity_log" name="cond_value"/>
+		<field table="activity_log" name="cost_estimated"/>
+		<field table="activity_log" name="cost_est_cap"/>
+		<field table="activity_log" name="cost_actual"/>
+		<field table="activity_log" name="cost_act_cap"/>
+		<field table="activity_log" name="cost_to_replace"/>
+		<field table="activity_log" name="facility_index">
+			<title translatable="true">Facility Index</title>
+		</field>
+		<field table="activity_log" name="description"/>
+		<field name="useful_life_remaining" dataType="number" size="12" decimals="0">
+			<title translatable="true">Useful Life Remaining(Years)</title>
+		</field>
+	</panel>
+
+</view>

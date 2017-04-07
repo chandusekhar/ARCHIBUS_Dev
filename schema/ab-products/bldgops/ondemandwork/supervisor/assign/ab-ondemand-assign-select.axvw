@@ -1,0 +1,99 @@
+<view version="2.0">
+   
+ 
+    <message name="error_date_range" translatable="true">Given dates are invalid.</message>
+    <message name="noRecords" translatable="true">No requests selected.</message>
+    <message name="substituteLegend" translatable="true">Work Requests assigned to you as substitute</message>
+  
+    <js file="ab-ondemand-assign-select.js"/>
+    <js file="ab-helpdesk-common-v2.js"/>
+    <js file="ab-ondemand-common.js"/>
+    <js file="ab-helpdesk-request-shared-para.js" />
+  
+    <dataSource id="request_console_datasourse">
+        <table name="wr" role="main"/>
+        <field table="wr" name="date_requested"/>
+        <field table="wr" name="prob_type"/>
+    </dataSource>
+			 <dataSource  id="wr_report_datasourse" applyVpaRestrictions="false">
+    				<table name="wr" role="main"/> 
+    				<table name="activity_log" role="standard"/> 
+
+    				<field name="wr_id" table="wr"/> 
+    				<field name="activity_log_id" table="wr"/>
+    				<field name="prob_type" table="wr"/>
+    				<field name="bl_id" table="wr"/>
+					<field table="wr" name="fl_id"/>
+                    <field table="wr" name="rm_id"/>  
+					<field table="wr" name="description"/>  
+					<field table="wr" name="eq_id"/>  
+    				<field name="status" table="wr"/>
+    				<field name="date_requested" table="wr"/>
+                    <field name="supervisor" table="wr"/>
+        <field name="site_id" table="wr"/>
+        
+        <parameter name="emWorkflowSubstitutes" dataType="verbatim" value="''"/>
+
+        	       <restriction type="sql" sql="status = 'A' 
+        	       AND (step_status IS NULL OR step_status = 'none')
+        	       AND wo_id IS NULL AND 
+    				( (supervisor IS NULL AND work_team_id IS NULL) OR 
+    				  (supervisor =${sql.literal(user.employee.id)} OR 
+    				  (supervisor IS NULL AND NOT work_team_id IS NULL
+						 AND (work_team_id IN (SELECT work_team_id FROM cf WHERE email = ${sql.literal(user.email)} AND is_supervisor = 1)
+                         OR work_team_id IN (SELECT work_team_id FROM cf WHERE email IN (SELECT email FROM em WHERE em_id ${sql.concat} 'supervisor' IN
+                  (${parameters['emWorkflowSubstitutes']})))
+					 	))
+                        OR supervisor ${sql.concat} 'supervisor' IN (${parameters['emWorkflowSubstitutes']})  
+					 ) 
+					) AND (${sql.vpaRestriction}) "/>
+              
+               	</dataSource>
+		 
+            <panel type="console" columns="3" id="requestConsole"  dataSource="request_console_datasourse"  >
+	
+		    <title translatable="true">Filter</title>
+				  <action id="filter">
+                  <title translatable="true">Show</title>
+                  </action>
+                <action id="clear">
+                    <title translatable="true">Clear</title>
+                </action>
+        <field table="wr" name="prob_type"/>
+		
+			  		<field  table="wr" name="date_requested" required="false" alias="wr.date_requested.from">
+                        <title translatable="true">Date Requested From</title>
+                     </field>
+			  		 <field table="wr" name="date_requested" required="false" alias="wr.date_requested.to">
+                        <title translatable="true">Date Requested To</title>                     	 
+                     </field>                     		
+              </panel>
+
+              <panel type="grid" id="requestReportGrid" showCounts="true" multipleSelectionEnabled="true" useParentRestriction="false" dataSource="wr_report_datasourse" >
+                  <title translatable="true">Work Requests</title>
+                  <indexField table="wr" name="wr_id"/> 
+				  <sortField table="wr" name="wr_id" ascending="false"/>  
+                  <action type="javascript" onclick="createWorkOrder()">
+                      <title translatable="true">Create Work Order</title>
+                  </action>
+                  <action type="javascript" onclick="attachToWorkOrder()">
+                      <title translatable="true">Assign to Work Order</title>
+                  </action>
+                  
+                  <field controlType="button">
+                      <title translatable="true">Select</title>
+                      <command type="selectTabPage" tabPageName="Details"/>
+                  </field>
+                  
+                  
+                  <field name="wr_id" table="wr"/>
+                  <field name="activity_log_id" table="wr">
+                      <title translatable="true">Service Request ID</title>
+                  </field>
+                  <field name="prob_type" table="wr"/>
+                  <field name="bl_id" table="wr"/>
+                  <field table="wr" name="fl_id"/>
+                  <field table="wr" name="rm_id"/>
+                  <field name="date_requested" table="wr"/>
+              </panel>
+</view>

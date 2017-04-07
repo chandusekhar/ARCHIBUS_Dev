@@ -1,0 +1,157 @@
+<view version="2.0">
+
+	<js file="uc-vehicle-my-reservations.js"/>
+	<js file="ab-helpdesk-common-v2.js" />
+	<js file="brg-common.js"/>
+	<js file="brg-common-ui.js"/>
+	
+	<dataSource id="req_ds4" >
+		<table name="wrhwr" role="main"/>
+		<field table="wrhwr" name="wr_id"/>
+		<field table="wrhwr" name="requestor"/>
+		<field table="wrhwr" name="driver"/>
+		<field table="wrhwr" name="dv_id"/>
+		<field table="wrhwr" name="dp_id"/>
+		<field table="wrhwr" name="prob_type"/>
+		<field table="wrhwr" name="description"/>
+		<field table="wrhwr" name="date_requested"/>
+		<field table="wrhwr" name="vehicle_type_req"/>
+		<field table="wrhwr" name="destination"/>
+		<field table="wrhwr" name="destination_type"/>
+		<field table="wrhwr" name="distance_est"/>
+		<field table="wrhwr" name="passenger_count"/>
+		<field table="wrhwr" name="date_pickup"/>
+		<field table="wrhwr" name="time_pickup"/>
+		<field table="wrhwr" name="date_dropoff"/>
+		<field table="wrhwr" name="time_dropoff"/>
+		<field table="wrhwr" name="budget_owner"/>
+		<table name="hwr" role="standard"/>
+		<field name="option1" table="hwr" dataType="text" size="36">
+			<sql dialect="generic">
+				(select left(rtrim(wrhwr.date_pickup),12) + e.edesc  from afm.brg_enum('wr','time_pickup') e where e.eid=wrhwr.time_pickup)
+			</sql>
+		</field>
+		<!--field name="distance_act" table="hwr" >
+	
+		</field-->
+		<field name="option2" table="hwr" dataType="text" size="36">
+			<sql dialect="generic">
+				(select left(rtrim(wrhwr.date_dropoff),12) + e.edesc  from afm.brg_enum('wr','time_dropoff') e where e.eid=wrhwr.time_dropoff)
+			</sql>
+		</field>
+		
+		<field name="location" table="hwr" dataType="text" size="36">
+			<sql dialect="generic">
+				(left(rtrim(wrhwr.date_assigned),12) +  replace(replace(substring(convert(varchar,wrhwr.time_assigned,0), 12,8),'AM',' AM'),'PM', ' PM'))
+			</sql>
+		</field>
+		<field name="phone" table="hwr" dataType="text" size="36">
+			<sql dialect="generic">
+				(left(rtrim(wrhwr.date_completed),12) +  replace(replace(substring(convert(varchar,wrhwr.time_completed,0), 12,8),'AM',' AM'),'PM', ' PM'))
+			</sql>
+		</field>
+		<field name="distance_est" table="hwr" dataType="text" size="36">
+			<sql dialect="generic">
+				case when isnull(wrhwr.curr_meter_val,0)=0 or isnull(wrhwr.meter_start,0)=0 then 0 else  wrhwr.curr_meter_val-wrhwr.meter_start end
+			</sql>
+		</field>
+		<field name="cost_est_total" table="hwr" dataType="number" decimals="2">
+			<sql dialect="generic">
+				(isnull((select sum(cost_estimated) from wrotherhwrother o where wrhwr.wr_id=o.wr_id and not other_rs_type='VEHICLE-WORK'),0))
+			</sql>
+		</field>
+		<field name="cost_total" table="hwr" dataType="number" decimals="2">
+			<sql dialect="generic">
+				(isnull((select sum(cost_total) from wrotherhwrother o where wrhwr.wr_id=o.wr_id and not other_rs_type ='VEHICLE-WORK'),0))
+			</sql>
+		</field>
+		<field name="cost_est_other" table="hwr" dataType="number" decimals="2">
+			<sql dialect="generic">
+				(
+					isnull((select sum(cost_estimated) from wrotherhwrother o where wrhwr.wr_id=o.wr_id and other_rs_type='VEHICLE-WORK'),0)
+					+
+					isnull((select sum(cost_est_total) from wrhwr s where s.wo_id=wrhwr.wo_id and not s.wr_id=wrhwr.wr_id),0)
+				)
+			</sql>
+		</field>
+		<field name="cost_other" table="hwr" dataType="number" decimals="2">
+			<sql dialect="generic">
+				(
+					isnull((select sum(cost_total) from wrotherhwrother o where wrhwr.wr_id=o.wr_id and other_rs_type='VEHICLE-WORK'),0)
+					+
+					isnull((select sum(cost_total) from wrhwr s where s.wo_id=wrhwr.wo_id and not s.wr_id=wrhwr.wr_id),0)
+				)
+			</sql>
+		</field>
+		
+		<field name="stat"  dataType="text" size="36">
+			<sql dialect="generic">
+				case wrhwr.status when 'A' then 'Requested' when 'Rev' then 'Pending Approval' when 'AA' then 'Approved' when 'I' then 'Picked Up' when 'Rej' then 'Rejected' when 'Can' then 'Cancelled' when 'Com' then 'Completed' else wrhwr.status end
+			</sql>
+		</field>
+		
+		
+		
+	</dataSource>
+	
+	
+
+	<panel type="form" id="res_report" dataSource="req_ds4" showOnLoad="false" columns="2"  >
+		
+		<field table="wrhwr" name="wr_id" readOnly="true"><title><b>Work Request #</b></title></field>
+		<field table="wrhwr" name="date_requested" readOnly="true"/>
+		
+		<field table="wrhwr" name="driver" readOnly="true"/>
+		<field table="wrhwr" name="budget_owner"/>
+		
+		<field name="stat" readOnly="true"><title>Status</title></field>
+		<field table="wrhwr" name="destination_type" readOnly="true"/>
+		
+		<field table="wrhwr" name="vehicle_type_req" readOnly="true"/>
+		<field table="wrhwr" name="destination" readOnly="true"/>
+		
+		<field name="location" table="hwr"  required="false" readOnly="true"><title>Picked Up</title></field>
+		<field name="option1" table="hwr"   required="false" readOnly="true"><title>Requested Pickup</title></field>
+		
+		<field name="phone" table="hwr" required="false"><title>Date Dropped Off</title></field>
+		<field name="option2" table="hwr"  required="false" readOnly="true"><title>Requested Dropoff</title></field>
+
+		<field table="hwr" name="distance_est" readOnly="true"/>
+		<field table="wrhwr" name="distance_est" readOnly="true"/>
+		
+		<field name="gas_start" table="wrhwr"/>
+		<field table="wrhwr" name="passenger_count" readOnly="true"/>
+		
+		<field name="gas_end" table="wrhwr"/>
+		<field></field>
+		
+		<field name="ac_id" table="wrhwr"/>
+		<field></field>
+		
+		<field name="cost_total" table="hwr"><title>Total Cost</title></field>
+		<field name="cost_est_total" table="hwr"><title>Estimated Cost</title></field>
+		
+		<field name="cost_other" table="hwr"><title>Sub Work Total Cost</title></field>
+		<field name="cost_est_other" table="hwr"><title>Est. Sub Work Cost</title></field>
+		
+		
+		<field table="wrhwr" name="description" colspan="2" rowspan="3" readOnly="true"><title>Comments</title></field>
+		<!--field table="wrhwr" name="dv_id"  readOnly="true"/>
+		
+		<field table="wrhwr" name="dp_id"  readOnly="true"/>
+		<field table="wrhwr" name="requestor" readOnly="true"/>
+		<field table="hwr" name="date_pickup" readOnly="true"/>
+		<field table="wrhwr" name="time_pickup" readOnly="true"/>
+		<field table="wrhwr" name="date_dropoff" readOnly="true"/>
+		<field table="wrhwr" name="time_dropoff" readOnly="true"/-->
+		
+		
+		
+		
+		
+		
+		
+
+	</panel>
+
+</view>

@@ -1,0 +1,57 @@
+<view version="2.0">
+	<title translatable="true">Seat Savings by Department</title>
+
+	<dataSource id="ab-ht-rpt-savings-by-dp_chart_seat_ds" type="grouping">
+		<sql dialect="generic">
+			SELECT 
+				bl_id, 
+				RTRIM(dv_id)${sql.concat}'-'${sql.concat}RTRIM(dp_id) ${sql.as} dv_dp,
+				COUNT (DISTINCT ( SELECT em.em_id FROM em WHERE rmpct.em_id = em.em_id ) ) ${sql.as} total,
+				( SELECT SUM(rm.cap_em - rm.count_em) FROM rm WHERE rm.dv_id=rmpct.dv_id AND rm.dp_id=rmpct.dp_id  AND rm.hotelable = 1 )		     ${sql.as}  available, 
+				COUNT (DISTINCT ( SELECT em.em_id FROM em WHERE rmpct.em_id = em.em_id ) ) - 
+				( SELECT SUM(rm.cap_em - rm.count_em) FROM rm WHERE rm.dv_id=rmpct.dv_id AND rm.dp_id=rmpct.dp_id AND rm.hotelable = 1 )		     ${sql.as}  savings
+				 FROM rmpct 
+				 WHERE 
+					rmpct.dv_id ${parameters['dvId']} AND rmpct.dp_id ${parameters['dpId']} 
+					AND rmpct.visitor_id IS NULL
+				GROUP BY bl_id, dv_id, dp_id
+		</sql>
+		<table name="rmpct" role="main"/>
+		<field table="rmpct" name="dv_dp" dataType="text" groupBy="true">
+		</field>
+		<field table="rmpct" name="total" formula="sum" baseField="rmpct.total" dataType="number" decimals="0">
+		</field>
+		<field table="rmpct" name="available" formula="sum" baseField="rmpct.available"  dataType="number" decimals="0">
+		</field>
+		<field table="rmpct" name="savings" formula="sum" baseField="rmpct.savings"  dataType="number" decimals="0">
+		</field>
+		<parameter name="dvId" dataType="verbatim" value=""/>
+		<parameter name="dpId" dataType="verbatim" value=""/>
+	</dataSource>
+	<panel id="htSavingSeatByDpChart"
+		type="chart"
+		controlType="stackedBarChart"
+		dataSource="ab-ht-rpt-savings-by-dp_chart_seat_ds"
+		showLegendOnLoad="true"
+		showLegendAsPopUp="false"
+		legendLocation="right"
+		showDataTips="true"
+		backgroundColor="0xc6e2ff"
+		fillType="linearGradient"
+		percentGradientChange="0.5"
+		percentTransparency="1.0"
+		showOnLoad="false">
+		<title translatable="true">Departmental Stack Plan</title>
+		<groupingAxis dataSource="ab-ht-rpt-savings-by-dp_chart_seat_ds" table="rmpct" field="dv_dp">
+		    <title translatable="true">Department</title>
+		</groupingAxis>
+		<dataAxis dataSource="ab-ht-rpt-savings-by-dp_chart_seat_ds" table="rmpct" field="available" displayAxis="false" labelPosition="inside">
+		    <title translatable="true">Available Seats</title>
+		</dataAxis>
+		<dataAxis dataSource="ab-ht-rpt-savings-by-dp_chart_seat_ds" table="rmpct" field="savings" displayAxis="false" labelPosition="inside">
+		    <title translatable="true">Seat Savings</title>
+		</dataAxis>
+	</panel>
+
+	<js file="ab-ht-rpt-savings-by-dp-dash.js"/>
+</view>

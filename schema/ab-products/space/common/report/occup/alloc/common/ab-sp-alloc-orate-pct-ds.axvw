@@ -1,0 +1,50 @@
+<view version="2.0">	 
+	<message name="vacantText" translatable="true">Vacant Rate</message>
+	<message name="occuText" translatable="true">Occupancy Rate</message>
+
+	<dataSource id="abSpAllocOratePctChartDataDS" type="grouping"  applyVpaRestrictions="false">
+		<sql dialect="generic">
+		  		select 
+					rm.cap_em, 
+					rm.count_em ${sql.as} transactionCount, 
+					${parameters['occuText']}  ${sql.as} rateType  
+				from rm  left outer join bl on bl.bl_id=rm.bl_id 
+								left outer join rmcat on rmcat.rm_cat=rm.rm_cat 
+								left outer join dp on rm.dp_id=dp.dp_id and rm.dv_id=dp.dv_id 
+							where ${parameters['consoleRes']}  and ${parameters['yAxisOption']}=${parameters['summaryValueForThisGroup']} 	 AND ${sql.vpaRestriction} 
+				union all 
+		  		select 
+					rm.cap_em, 
+					rm.cap_em -  rm.count_em ${sql.as} transactionCount, 
+					${parameters['vacantText']}  ${sql.as} rateType  
+				from rm  left outer join bl on bl.bl_id=rm.bl_id 
+								left outer join rmcat on rmcat.rm_cat=rm.rm_cat 
+								left outer join dp on rm.dp_id=dp.dp_id and rm.dv_id=dp.dv_id 
+							where ${parameters['consoleRes']}  and ${parameters['yAxisOption']}=${parameters['summaryValueForThisGroup']}    and ( rmcat.used_in_calcs !='no_totals' OR rm.rm_cat IS NULL )   AND ${sql.vpaRestriction} 
+		</sql>
+		<table name="rm" role="main"/>
+		<field name="rateType"  dataType="text" groupBy="true"/>
+		<field  name="occupancyRate"   dataType="number" decimals="2">
+			<title translatable="true">Value</title>
+			<sql dialect="generic">
+					case when  sum(rm.cap_em)=0 then 0
+					else 100.0*sum(rm.transactionCount) / sum(rm.cap_em)
+					end 
+			</sql>
+		</field>
+		<field  name="bench_line"   dataType="number" decimals="2" >
+			<sql dialect="generic">
+				( select afm_activity_params.param_value from afm_activity_params where afm_activity_params.activity_id='AbSpaceRoomInventoryBAR' and afm_activity_params.param_id='OccupancyRate') 
+			</sql>
+		</field>
+ 		<parameter name="vacantText" dataType="text" value="Vacant Rate"/>       
+ 		<parameter name="occuText" dataType="text" value="Occupancy Rate"/>       
+		<parameter name="yAxisOption" dataType="verbatim" value="rm.bl_id"/>  
+		<parameter name="consoleRes" dataType="verbatim" value=" 1=1 "/>  
+        <parameter name="summaryValueForThisGroup" dataType="text" value=""/>   
+		<parameter name="consoleRes" dataType="verbatim" value=" 1=1 "/>
+ 		<parameter name="excludeVacant" dataType="text" value="None"/>       
+		<restriction type="sql" sql=" rateType!=${parameters['excludeVacant']} " />
+       </dataSource>
+
+</view>

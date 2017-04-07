@@ -1,0 +1,197 @@
+<view version="2.0">
+    
+  	<dataSource id="projProjectsScorecardDrilldownDs0" applyVpaRestrictions="false">
+        <table name="project" role="main"/>
+        <field name="cost_perf_index" dataType="number" decimals="2">
+            <title>Cost Performance Index</title>
+        </field>
+        <field name="sched_perf_index" dataType="number" decimals="2">
+            <title>Schedule Performance Index</title>
+        </field>    
+        <field name="cost_index" dataType="text">
+            <title>Cost Index</title>
+        </field>
+        <field name="sched_index" dataType="text">
+            <title>Schedule Index</title>
+        </field>   
+        <field name="project_id" table="project" />
+        <field name="project_name" table="project" />
+        <sql dialect="generic">
+            SELECT project_id, MAX(project_name) ${sql.as} project_name,
+            MIN(sched_perf_index_value) ${sql.as} sched_perf_index, 
+            MIN(cost_perf_index_value) ${sql.as} cost_perf_index,
+            (CASE  
+                      WHEN MIN(sched_perf_index_value) >= 1.5 THEN '0'
+                      WHEN MIN(sched_perf_index_value) >= 1.25 THEN '1'
+                      WHEN MIN(sched_perf_index_value) >= 1.1 THEN '2'
+                      WHEN MIN(sched_perf_index_value) >= 1.0 THEN '3'
+                      WHEN MIN(sched_perf_index_value) >= 0.9 THEN '4'
+                      WHEN MIN(sched_perf_index_value) >= 0.75 THEN '5'
+                      WHEN MIN(sched_perf_index_value) >= 0.5 THEN '6'
+                      WHEN MIN(sched_perf_index_value) >= 0 THEN '7'
+            END) ${sql.as} sched_index,
+            (CASE  
+                      WHEN MIN(cost_perf_index_value) >= 1.5 THEN '0'
+                      WHEN MIN(cost_perf_index_value) >= 1.25 THEN '1'
+                      WHEN MIN(cost_perf_index_value) >= 1.1 THEN '2'
+                      WHEN MIN(cost_perf_index_value) >= 1.0 THEN '3'
+                      WHEN MIN(cost_perf_index_value) >= 0.9 THEN '4'
+                      WHEN MIN(cost_perf_index_value) >= 0.75 THEN '5'
+                      WHEN MIN(cost_perf_index_value) >= 0.5 THEN '6'
+                      WHEN MIN(cost_perf_index_value) >= 0 THEN '7'
+            END) ${sql.as} cost_index
+            FROM (SELECT work_pkgs.project_id, work_pkgs.work_pkg_id, project.project_name,
+                    bl.city_id, bl.state_id, project.site_id, project.bl_id, project.dv_id, project.dp_id,
+                    program.program_type, program.program_id, project.project_type, project.is_template,
+                    project.proj_mgr, project.status, 
+                    Cost_performance_index.budgeted_cost_of_work_performed,
+                    Cost_performance_index.actual_cost_of_work_performed,
+                    (CASE
+                      WHEN (Cost_performance_index.budgeted_cost_of_work_performed/Cost_performance_index.actual_cost_of_work_performed) &gt; 2 THEN 2  
+                      WHEN (Cost_performance_index.budgeted_cost_of_work_performed/Cost_performance_index.actual_cost_of_work_performed) IS NULL THEN 1  
+                      ELSE (Cost_performance_index.budgeted_cost_of_work_performed/Cost_performance_index.actual_cost_of_work_performed)
+                    END) ${sql.as} cost_perf_index_value,
+                    (CASE
+                      WHEN (Cost_performance_index.budgeted_cost_of_work_performed/Scheduled_performance_index.budgeted_cost_for_work_scheduled) &gt; 2 THEN 2  
+                      WHEN (Cost_performance_index.budgeted_cost_of_work_performed/Scheduled_performance_index.budgeted_cost_for_work_scheduled) IS NULL THEN 1 
+                      ELSE (Cost_performance_index.budgeted_cost_of_work_performed/Scheduled_performance_index.budgeted_cost_for_work_scheduled) 
+                    END ) ${sql.as} sched_perf_index_value
+            FROM work_pkgs
+            JOIN project ON work_pkgs.project_id = project.project_id AND project.status != 'Closed' AND project.is_template = 0 AND ${sql.vpaRestriction}
+            LEFT OUTER JOIN
+              (SELECT project_id, work_pkg_id,
+                      ( CASE WHEN SUM(cost_est_design_cap + cost_est_design_exp) = 0 THEN 1 
+                        ELSE SUM(cost_est_design_cap + cost_est_design_exp) END ) ${sql.as} budgeted_cost_of_work_performed, 
+                      ( CASE WHEN SUM(cost_act_cap + cost_actual) = 0 THEN 1 
+                        ELSE SUM(cost_act_cap + cost_actual) END ) ${sql.as} actual_cost_of_work_performed
+              FROM activity_log 
+              WHERE work_pkg_id IS NOT NULL
+                  AND activity_log.status IN ('COMPLETED', 'COMPLETED-V', 'CLOSED')
+              GROUP BY project_id, work_pkg_id
+              ) ${sql.as} Cost_performance_index 
+            ON Cost_performance_index.project_id = work_pkgs.project_id
+                AND Cost_performance_index.work_pkg_id = work_pkgs.work_pkg_id    
+            LEFT OUTER JOIN
+              (SELECT project_id, work_pkg_id,
+                ( CASE WHEN SUM(cost_est_design_cap + cost_est_design_exp) = 0 THEN 1
+                    ELSE SUM(cost_est_design_cap + cost_est_design_exp) END )  ${sql.as} budgeted_cost_for_work_scheduled
+              FROM activity_log 
+              WHERE work_pkg_id IS NOT NULL
+                    AND activity_log.status IN ('PLANNED','SCHEDULED','IN PROGRESS')
+                    AND activity_log.date_scheduled_end &lt;= GETDATE()
+              GROUP BY project_id, work_pkg_id
+              ) ${sql.as} Scheduled_performance_index 
+            ON work_pkgs.project_id = Scheduled_performance_index.project_id 
+        AND work_pkgs.work_pkg_id = Scheduled_performance_index.work_pkg_id
+        LEFT OUTER JOIN program ON program.program_id = project.program_id
+        LEFT OUTER JOIN bl ON project.bl_id = bl.bl_id) ${sql.as} work_pkg_index
+        GROUP BY project_id
+            </sql>
+            <!-- Oracle -->
+            <sql dialect="oracle">
+              SELECT project_id, MAX(project_name) ${sql.as} project_name,
+            MIN(sched_perf_index_value) ${sql.as} sched_perf_index, 
+            MIN(cost_perf_index_value) ${sql.as} cost_perf_index,
+            (CASE  
+                      WHEN MIN(sched_perf_index_value) >= 1.5 THEN '0'
+                      WHEN MIN(sched_perf_index_value) >= 1.25 THEN '1'
+                      WHEN MIN(sched_perf_index_value) >= 1.1 THEN '2'
+                      WHEN MIN(sched_perf_index_value) >= 1.0 THEN '3'
+                      WHEN MIN(sched_perf_index_value) >= 0.9 THEN '4'
+                      WHEN MIN(sched_perf_index_value) >= 0.75 THEN '5'
+                      WHEN MIN(sched_perf_index_value) >= 0.5 THEN '6'
+                      WHEN MIN(sched_perf_index_value) >= 0 THEN '7'
+            END) ${sql.as} sched_index,
+            (CASE  
+                      WHEN MIN(cost_perf_index_value) >= 1.5 THEN '0'
+                      WHEN MIN(cost_perf_index_value) >= 1.25 THEN '1'
+                      WHEN MIN(cost_perf_index_value) >= 1.1 THEN '2'
+                      WHEN MIN(cost_perf_index_value) >= 1.0 THEN '3'
+                      WHEN MIN(cost_perf_index_value) >= 0.9 THEN '4'
+                      WHEN MIN(cost_perf_index_value) >= 0.75 THEN '5'
+                      WHEN MIN(cost_perf_index_value) >= 0.5 THEN '6'
+                      WHEN MIN(cost_perf_index_value) >= 0 THEN '7'
+            END) ${sql.as} cost_index
+            FROM (SELECT work_pkgs.project_id, bl.city_id, bl.state_id, project.site_id, project.bl_id, project.project_name,
+                project.dv_id, project.dp_id, work_pkgs.work_pkg_id, 
+                program.program_type, program.program_id, project.project_type, project.is_template,
+                project.proj_mgr, project.status, 
+                cost_perf_index.budg_cost_of_work_perf,
+                cost_perf_index.act_cost_of_work_perf,
+                (CASE
+                  WHEN (cost_perf_index.budg_cost_of_work_perf/cost_perf_index.act_cost_of_work_perf) &gt; 2 THEN 2
+                  WHEN (cost_perf_index.budg_cost_of_work_perf/cost_perf_index.act_cost_of_work_perf) IS NULL THEN 1 
+                  ELSE (cost_perf_index.budg_cost_of_work_perf/cost_perf_index.act_cost_of_work_perf)
+                END) ${sql.as} cost_perf_index_value,
+                (CASE
+                  WHEN (cost_perf_index.budg_cost_of_work_perf/sched_perf_index.budg_cost_for_work_sched) &gt; 2 THEN 2
+                  WHEN (cost_perf_index.budg_cost_of_work_perf/sched_perf_index.budg_cost_for_work_sched) IS NULL THEN 1 
+                  ELSE (cost_perf_index.budg_cost_of_work_perf/sched_perf_index.budg_cost_for_work_sched)
+                END ) ${sql.as} sched_perf_index_value
+              FROM project, work_pkgs, 
+                (SELECT project_id, work_pkg_id,
+                  ( CASE WHEN SUM(cost_est_design_cap + cost_est_design_exp) = 0 THEN 1 
+                    ELSE SUM(cost_est_design_cap + cost_est_design_exp) END ) ${sql.as} budg_cost_of_work_perf, 
+                  ( CASE WHEN SUM(cost_act_cap + cost_actual) = 0 THEN 1
+                    ELSE SUM(cost_act_cap + cost_actual) END ) ${sql.as} act_cost_of_work_perf
+                    FROM activity_log 
+                    WHERE project_id IS NOT NULL
+                  AND activity_log.status IN ('COMPLETED', 'COMPLETED-V', 'CLOSED')
+                  GROUP BY project_id, work_pkg_id
+                  ) cost_perf_index,
+                (SELECT project_id, work_pkg_id,
+                  (CASE WHEN SUM(cost_est_design_cap + cost_est_design_exp) = 0 THEN 1
+                  ELSE SUM(cost_est_design_cap + cost_est_design_exp) END ) ${sql.as} budg_cost_for_work_sched
+                  FROM activity_log 
+                  WHERE project_id IS NOT NULL
+                  AND activity_log.status IN ('PLANNED','SCHEDULED','IN PROGRESS')
+                  AND activity_log.date_scheduled_end &lt;= SYSDATE
+                  GROUP BY project_id, work_pkg_id
+                  ) sched_perf_index, program, bl
+              WHERE project.status != 'Closed' AND project.is_template = 0 AND work_pkgs.project_id = project.project_id
+              	AND ${sql.vpaRestriction}
+                AND work_pkgs.project_id = cost_perf_index.project_id(+)
+                AND work_pkgs.work_pkg_id = cost_perf_index.work_pkg_id(+)
+                AND work_pkgs.project_id = sched_perf_index.project_id(+)
+                AND work_pkgs.work_pkg_id = sched_perf_index.work_pkg_id(+)
+                AND project.program_id = program.program_id(+)
+                AND project.bl_id = bl.bl_id(+)) ${sql.as} work_pkg_index
+          GROUP BY project_id
+            </sql>
+    </dataSource>
+    
+    <panel type="grid" id="projProjectsScorecardDrilldownGrid" dataSource="projProjectsScorecardDrilldownDs0">
+    	<title>Projects Scorecard - Drilldown</title>
+    	<instructions>[li][b]Cost Performance Index[/b] = Budgeted Cost of Work Performed / Actual Cost of Work Performed [br/](&gt; 1 means budget exceeded costs; &lt; 1 means costs exceeded budget)[/li][li][b]Schedule Performance Index[/b] = Budgeted Cost of Work Performed / Budgeted Cost for Work Scheduled [br/](&gt; 1 means ahead of schedule; &lt; 1 means behind schedule)[/li]</instructions>
+        <action id="exportDOCX">
+            <title>DOC</title>
+            <command type="exportPanel" outputType="docx" panelId="projProjectsScorecardDrilldownGrid"/>
+        </action>
+        <action id="exportXLS">
+            <title>XLS</title>
+            <command type="exportPanel" outputType="xls" panelId="projProjectsScorecardDrilldownGrid"/>
+        </action>
+        <action id="refresh">
+            <title>Refresh</title>
+            <command type="showPanel" panelId="projProjectsScorecardDrilldownGrid"/>
+        </action> 
+        <sortField name="project_id" table="project" ascending="true"/>       
+        <field controlType="button">
+            <title>Details</title>
+            <command type="openDialog" viewName="ab-proj-projects-scorecard-details.axvw"/>
+        </field>          
+        <field name="project_id" table="project" /> 
+        <field name="project_name" table="project" />
+        <field name="cost_perf_index" dataType="number" decimals="2">
+            <title>Cost Performance Index</title>
+        </field>
+        <field name="sched_perf_index" dataType="number" decimals="2">
+            <title>Schedule Performance Index</title>
+        </field>
+    </panel>
+</view>
+    
+ 
+ 
+ 
+ 

@@ -1,0 +1,58 @@
+<view version="2.0">
+    <designInfo type="paginated" pattern="ab-viewdef-paginated-parent-child" isAlterable="true"/>
+    <title translatable="true">Tagged Furniture Inventory Counts by Standard by Department</title>
+    <report orientation="portrait"/>
+	
+	<!-- DEPARTMENT -->
+	<dataSource id="ds_abApTaByDpCnt_parent">
+		<table name="dp" role="main"/>
+		<field table="dp" name="dv_id"/>
+		<field table="dp" name="dp_id"/>
+		<field table="dp" name="name"/>
+		<restriction type="sql" sql="EXISTS(SELECT ta.ta_id FROM ta WHERE ta.dv_id = dp.dv_id AND ta.dp_id = dp.dp_id)"/>
+		<sortField table="dp" name="dv_id" ascending="true"/>
+		<sortField table="dp" name="dp_id" ascending="true"/>
+	</dataSource>
+
+	<panel id="list_abApTaByDpCnt_parent" dataSource="ds_abApTaByDpCnt_parent" type="paginatedReport" format="column" columns="2" role="parent">
+		<field table="dp" name="dv_id" restrictionParameterName="dvId"/>
+		<field table="dp" name="dp_id" restrictionParameterName="dpId"/>
+		<field table="dp" name="name"/>
+    </panel>
+	
+	<!-- FURNITURE STANDARD -->
+	<dataSource id="ds_abApTaByDpCnt_child" type="grouping">
+		<sql dialect="generic">
+			SELECT 
+				ta.fn_std ${sql.as} fn_std,
+				fnstd.price ${sql.as} price,
+				fnstd.description ${sql.as} description,
+				COUNT(ta.fn_std) ${sql.as} weight,
+				COUNT(ta.fn_std) * fnstd.price ${sql.as} cost_moving,
+				0.0 ${sql.as} vf_tot_std_cost,
+				ta.dv_id ${sql.as} dv_id,
+				ta.dp_id ${sql.as} dp_id
+			FROM 
+				ta LEFT OUTER JOIN fnstd ON ta.fn_std=fnstd.fn_std
+			GROUP BY ta.fn_std,fnstd.price,fnstd.description,ta.dv_id,ta.dp_id
+		</sql>
+		<table name="fnstd" role="main"/>
+		<field table="fnstd" name="fn_std" groupBy="true"/>
+		<field table="fnstd" name="price" groupBy="true"/>
+		<field table="fnstd" name="description" groupBy="true"/>
+		<field table="fnstd" name="vf_fnstd_count" formula="sum" baseField="fnstd.weight" dataType="number" decimals="0">
+			<title translatable="true">Furn. Std. Count</title>
+		</field>
+		<field table="fnstd" name="vf_tot_std_cost" formula="sum" baseField="fnstd.cost_moving" dataType="number" decimals="2">
+			<title translatable="true">Total Std. Cost</title>
+		</field>
+		<restriction type="sql" sql="dv_id = ${parameters['dvId']} AND  dp_id = ${parameters['dpId']}"/>
+		<sortField table="fnstd" name="fn_std" ascending="true"/>
+		<parameter name="dvId" dataType="text" value=""/>
+		<parameter name="dpId" dataType="text" value=""/>
+	</dataSource>
+
+
+	<panel id="list_abApTaByDpCnt_child" dataSource="ds_abApTaByDpCnt_child" type="paginatedReport" format="table" role="data"/>
+	
+</view>

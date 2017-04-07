@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<afmXmlView>
+    <title translatable="false">Activity Log by Category</title>
+    <afmTableGroup type="report" format="table">
+        <title translatable="false">Activity Log by Category</title>
+        <dataSource>
+            <database>
+                <tables>
+                    <table name="activity_log" role="main"/>
+                    <table name="csi" role="csi"/>
+                </tables>
+                <sort><order>
+                        <field name="hierarchy_ids" table="csi" ascending="true"/>
+                </order></sort>
+                <fields>
+                    <field name="activity_log_id" table="activity_log"/>
+                </fields>
+            </database>
+            <mdx>
+                <preferences dimensions="1" format="table" applyRestrictions="false">
+                    <query>
+                        <sql dialect="generic">
+                            SELECT
+                                activity_log.bl_id,
+                                activity_log.activity_log_id,
+                                csi.description
+                             FROM
+                               (SELECT
+                                    activity_log_id,
+                                    bl_id,
+                                    substring(hierarchy_ids, 1,
+                                        (charindex('|', hierarchy_ids) +
+                                         charindex('|', substring(hierarchy_ids, charindex('|', hierarchy_ids) + 1, 12))))
+                                    AS hierarchy_ids
+                                 FROM
+                                    activity_log LEFT OUTER JOIN csi ON activity_log.csi_id = csi.csi_id)
+                                AS activity_log
+                                LEFT OUTER JOIN csi ON activity_log.hierarchy_ids = csi.hierarchy_ids
+                        </sql>
+                        <sql dialect="oracle">
+                             SELECT
+                                activity_log.activity_log_id,
+                                csi.description
+                             FROM
+                               (SELECT
+                                    activity_log_id,
+                                    substr(hierarchy_ids, 1,
+                                        (instr('|', hierarchy_ids) +
+                                         instr('|', substr(hierarchy_ids,
+                                            instr('|', hierarchy_ids) + 1)))) hierarchy_ids
+                                 FROM
+                                    activity_log LEFT JOIN csi ON activity_log.csi_id = csi.csi_id)
+                                activity_log
+                                LEFT JOIN csi ON activity_log.hierarchy_ids = csi.hierarchy_ids
+                        </sql>
+                    </query>
+                    <dimensions>
+                        <dimension name="Category" column="description" hasAll="false"/>
+                    </dimensions>
+                    <measures>
+                        <measure name="Number of records" aggregator="count" column="activity_log_id"/>
+                    </measures>
+                </preferences>
+            </mdx>
+        </dataSource>
+    </afmTableGroup>
+</afmXmlView>

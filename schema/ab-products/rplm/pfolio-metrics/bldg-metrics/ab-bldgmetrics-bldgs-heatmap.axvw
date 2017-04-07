@@ -1,0 +1,421 @@
+<view version="2.0">
+    
+    <js file="ab-flash-controls-common.js"/>
+	<js file="ab-flash-heatmap.js"/>
+	
+	<js file="ab-bldgmetrics-bldgs-heatmap.js"/>
+	
+	<message name="area_estimated" translatable="true">Area - Area Estimated</message>
+	<message name="int_gross_area" translatable="true">Area - Int. Gross Area</message>
+	<message name="rentable_area" translatable="true">Area - Rentable Area</message>
+	<message name="total_lease_neg_area" translatable="true">Area - Total Lease Negotiated Area</message>
+	<message name="total_occup_area" translatable="true">Area - Total Occup. Area</message>
+	<message name="total_room_area" translatable="true">Area - Total Room Area</message>
+	<message name="usable_area" translatable="true">Area - Usable Area</message>
+	<message name="capital_project_cost" translatable="true">Cost - Active Capital Projects Cost</message>
+	<message name="chargeable_cost" translatable="true">Cost - Chargeable Cost</message>
+	<message name="operating_costs" translatable="true">Cost - Operating Costs</message>
+	<message name="value_book" translatable="true">Cost - Value-Book</message>
+	<message name="value_market" translatable="true">Cost - Value-Market</message>
+	<message name="building_occupancy" translatable="true">Occupancy - Building Occupancy</message>
+	<message name="employee_headcount" translatable="true">Occupancy - Employee Headcount</message>
+	<message name="max_bldg_occup" translatable="true">Occupancy - Max. Bldg. Occupancy</message>
+	<message name="vacancy_percent" translatable="true">Occupancy - Vacancy Percent</message>
+	<message name="avg_area_em" translatable="true">KPI - Avg. Area per Emp.</message>
+	<message name="cost_per_area" translatable="true">KPI - Cost per Area</message>	
+	<message name="efficency_rate" translatable="true">KPI - Efficency Rate (U/R)</message>
+	<message name="fci" translatable="true">KPI - FCI</message>
+	<message name="ru_ratio" translatable="true">KPI - RU Ratio(R/U)</message>	
+	
+	
+	<dataSource id="dsBuildingsHeatMap">
+		<table name="bl"/>
+		<field table="bl" name="bl_id"/>
+		<field table="bl" name="cost_sqft"/>
+		<field table="bl" name="area_avg_em"  dataType="number" decimals="2">
+            <sql dialect="generic">
+                (ROUND( (bl.area_usable / (CASE WHEN (SELECT COUNT(em.em_id) FROM EM WHERE em.bl_id = bl.bl_id) = 0 THEN 9999999999 ELSE (SELECT COUNT(em.em_id) FROM EM WHERE em.bl_id = bl.bl_id) END) ),2))
+            </sql>
+        </field>
+		<field table="bl" name="ratio_ru"/>
+		<field table="bl" name="area_usable"/>
+		<field table="bl" name="value_book"/>
+		<field table="bl" name="value_market"/>
+		<field table="bl" name="fci" dataType="number" decimals="2">
+			<sql dialect="generic">
+				(SELECT AVG(${sql.getFormula('AbCapitalPlanningCA-FacilityConditionIndex')}) FROM activity_log WHERE  cost_to_replace > 0 AND activity_type = 'ASSESSMENT' AND activity_log.bl_id = bl.bl_id)
+			</sql>
+		</field>		
+		<field table="bl" name="operating_costs" dataType="number" decimals="2">
+			<sql dialect="generic">
+				(SELECT SUM(  amount_expense ) FROM cost_tran, cost_cat WHERE cost_tran.cost_cat_id = cost_cat.cost_cat_id AND cost_tran.bl_id = bl.bl_id AND cost_cat.cost_type = 'OPERATING EXP.' )
+			</sql>
+		</field>		
+		<field table="bl" name="active_capital_cost" dataType="number" decimals="2">
+			<sql dialect="generic">
+				(SELECT  SUM(cost_est_design_exp) + SUM(cost_est_design_cap)  FROM activity_log, project WHERE project.bl_id = bl.bl_id and activity_log.project_id = project.project_id AND ( project.status LIKE 'Approved%' OR project.status LIKE 'Issued%' ))
+			</sql>
+		</field>		
+		<field table="bl" name="area_estimated" dataType="number" decimals="0">
+			<sql dialect="generic">
+				(SELECT SUM(CASE WHEN su.area_usable = 0 THEN su.area_manual ELSE su.area_usable END) FROM su   WHERE su.bl_id = bl.bl_id)
+			</sql>
+		</field>
+		<field name="chargeable_cost" table="bl" dataType="number" decimals="0">
+			<sql dialect="generic">
+				(select sum (rm.cost) from rm where rm.bl_id = bl.bl_id)
+			</sql>
+		</field>
+		<field name="ratio_ur" table="bl"/>		
+		<field name="area_gross_int" table="bl"/>		
+		<field name="area_ls_negotiated" table="bl"/>		
+		<field name="area_ocup" table="bl"/>		
+		<field name="area_rentable" table="bl"/>		
+		<field name="area_rm" table="bl"/>		
+		<field name="count_em" table="bl"/>		
+		<field name="count_max_occup" table="bl"/>		
+		<field name="count_occup" table="bl"/>		
+		<field table="bl" name="vacancy_percent" dataType="number" decimals="0">
+			<sql dialect="generic">
+				( ( bl.count_max_occup / ${sql.replaceZero('bl.count_occup')} ) - 1 ) * 100
+			</sql>
+		</field>
+		<field table="bl" name="lat"/>
+		<field table="bl" name="lon"/>
+		
+	</dataSource>
+	
+	<dataSource id="dsMinMaxBuildingsHeatMap">
+		<sql dialect="generic">
+			select 
+				max(a.cost_sqft) ${sql.as} cost_sqft_max, 
+				min(a.cost_sqft) ${sql.as} cost_sqft_min,
+				max(a.area_avg_em) ${sql.as} area_avg_em_max, 
+				min(a.area_avg_em) ${sql.as} area_avg_em_min,
+				max(a.ratio_ru) ${sql.as} ratio_ru_max, 
+				min(a.ratio_ru) ${sql.as} ratio_ru_min,
+				max(a.area_usable) ${sql.as} area_usable_max, 
+				min(a.area_usable) ${sql.as} area_usable_min,
+				max(a.value_book) ${sql.as} value_book_max, 
+				min(a.value_book) ${sql.as} value_book_min,
+				max(a.value_market) ${sql.as} value_market_max, 
+				min(a.value_market) ${sql.as} value_market_min,
+				max(a.fci) ${sql.as} fci_max, 
+				min(a.fci) ${sql.as} fci_min,
+				max(a.operating_costs ) ${sql.as} operating_costs_max, 
+				min(a.operating_costs) ${sql.as} operating_costs_min,
+				max(a.active_capital_cost) ${sql.as} active_capital_cost_max, 
+				min(a.active_capital_cost) ${sql.as} active_capital_cost_min,
+				max(a.area_estimated) ${sql.as} area_estimated_max, 
+				min(a.area_estimated) ${sql.as} area_estimated_min,
+				max(a.chargeable_cost) ${sql.as} chargeable_cost_max, 
+				min(a.chargeable_cost) ${sql.as} chargeable_cost_min,
+				max(a.ratio_ur) ${sql.as} ratio_ur_max, 
+				min(a.ratio_ur) ${sql.as} ratio_ur_min,
+				max(a.area_gross_int) ${sql.as} area_gross_int_max, 
+				min(a.area_gross_int) ${sql.as} area_gross_int_min,
+				max(a.area_ls_negotiated) ${sql.as} area_ls_negotiated_max, 
+				min(a.area_ls_negotiated) ${sql.as} area_ls_negotiated_min,
+				max(a.area_ocup) ${sql.as} area_ocup_max, 
+				min(a.area_ocup) ${sql.as} area_ocup_min,
+				max(a.area_rentable) ${sql.as} area_rentable_max, 
+				min(a.area_rentable) ${sql.as} area_rentable_min,
+				max(a.area_rm) ${sql.as} area_rm_max, 
+				min(a.area_rm) ${sql.as} area_rm_min,
+				max(a.count_em) ${sql.as} count_em_max, 
+				min(a.count_em) ${sql.as} count_em_min,
+				max(a.count_max_occup) ${sql.as} count_max_occup_max, 
+				min(a.count_max_occup) ${sql.as} count_max_occup_min,
+				max(a.count_occup) ${sql.as} count_occup_max, 
+				min(a.count_occup) ${sql.as} count_occup_min,
+				max(a.vacancy_percent) ${sql.as} vacancy_percent_max, 
+				min(a.vacancy_percent) ${sql.as} vacancy_percent_min
+				
+			from  (
+					SELECT 
+					(SELECT SUM(CASE WHEN (su.area_usable = 0  or su.area_usable is null)THEN(case when su.area_manual is not null then su.area_manual else 0 end) ELSE su.area_usable END)FROM su   WHERE su.bl_id = bl.bl_id) ${sql.as} area_estimated, 
+					bl.cost_sqft ${sql.as} cost_sqft,
+                    ROUND((bl.area_usable / (CASE WHEN (SELECT COUNT(em.em_id) FROM EM WHERE em.bl_id = bl.bl_id) = 0 THEN 9999999999 ELSE (SELECT COUNT(em.em_id) FROM EM WHERE em.bl_id = bl.bl_id) END )),2) ${sql.as} area_avg_em,
+					bl.ratio_ru ${sql.as} ratio_ru,
+					bl.area_usable ${sql.as} area_usable,
+					bl.value_book ${sql.as} value_book,
+					bl.value_market ${sql.as} value_market,
+					(SELECT AVG(${sql.getFormula('AbCapitalPlanningCA-FacilityConditionIndex')}) FROM activity_log WHERE  cost_to_replace > 0 AND activity_type = 'ASSESSMENT' AND activity_log.bl_id = bl.bl_id) ${sql.as} fci,
+					(SELECT SUM(  amount_expense ) FROM cost_tran, cost_cat WHERE cost_tran.cost_cat_id = cost_cat.cost_cat_id AND cost_tran.bl_id = bl.bl_id AND cost_cat.cost_type = 'OPERATING EXP.' ) ${sql.as} operating_costs,
+					(SELECT (case when (SUM(cost_est_design_exp) + SUM(cost_est_design_cap)) is null then 0 else (SUM(cost_est_design_exp) + SUM(cost_est_design_cap)) end ) FROM activity_log, project WHERE project.bl_id = bl.bl_id and activity_log.project_id = project.project_id
+						AND ( project.status LIKE 'Approved%' OR project.status LIKE 'Issued%' )) ${sql.as} active_capital_cost,
+					bl.ratio_ur ${sql.as} ratio_ur,
+					bl.area_gross_int ${sql.as} area_gross_int,
+					bl.area_ls_negotiated ${sql.as} area_ls_negotiated,
+					bl.area_ocup ${sql.as} area_ocup,
+					bl.area_rentable ${sql.as} area_rentable,
+					bl.area_rm ${sql.as} area_rm,
+					bl.count_em ${sql.as} count_em,
+					bl.count_max_occup ${sql.as} count_max_occup,
+					bl.count_occup ${sql.as} count_occup,
+					(select sum(rm.cost) from rm where rm.bl_id = bl.bl_id) ${sql.as} chargeable_cost,
+					(( ( bl.count_max_occup / ${sql.replaceZero('bl.count_occup')} ) - 1 ) * 100) ${sql.as} vacancy_percent
+				FROM bl ) ${sql.as} a 
+		</sql>	
+		
+		<table name="bl"/>
+		<field table="bl" name="cost_sqft_max" dataType="number" decimals="2"/>
+		<field table="bl" name="cost_sqft_min" dataType="number" decimals="2"/>
+		<field table="bl" name="area_avg_em_max" dataType="number" decimals="2"/>
+		<field table="bl" name="area_avg_em_min" dataType="number" decimals="2"/>
+		<field table="bl" name="ratio_ru_max" dataType="number" decimals="2"/>
+		<field table="bl" name="ratio_ru_min" dataType="number" decimals="2"/>
+		<field table="bl" name="area_usable_max" dataType="number" decimals="2"/>
+		<field table="bl" name="area_usable_min" dataType="number" decimals="2"/>
+		<field table="bl" name="value_book_max" dataType="number" decimals="2"/>
+		<field table="bl" name="value_book_min" dataType="number" decimals="2"/>
+		<field table="bl" name="value_market_max" dataType="number" decimals="2"/>
+		<field table="bl" name="value_market_min" dataType="number" decimals="2"/>
+		<field table="bl" name="fci_max" dataType="number" decimals="2"/>
+		<field table="bl" name="fci_min" dataType="number" decimals="2"/>
+		<field table="bl" name="operating_costs_max" dataType="number" decimals="2"/>
+		<field table="bl" name="operating_costs_min" dataType="number" decimals="2"/>
+		<field table="bl" name="active_capital_cost_max" dataType="number" decimals="2"/>
+		<field table="bl" name="active_capital_cost_min" dataType="number" decimals="2"/>
+		<field table="bl" name="area_estimated_max" dataType="number" decimals="2"/>
+		<field table="bl" name="area_estimated_min" dataType="number" decimals="2"/>
+		<field table="bl" name="chargeable_cost_max" dataType="number" decimals="2"/>
+		<field table="bl" name="chargeable_cost_min" dataType="number" decimals="2"/>
+		<field table="bl" name="ratio_ur_max" dataType="number" decimals="2"/>
+		<field table="bl" name="ratio_ur_min" dataType="number" decimals="2"/>
+		<field table="bl" name="area_gross_int_max" dataType="number" decimals="2"/>
+		<field table="bl" name="area_gross_int_min" dataType="number" decimals="2"/>
+		<field table="bl" name="area_ls_negotiated_max" dataType="number" decimals="2"/>
+		<field table="bl" name="area_ls_negotiated_min" dataType="number" decimals="2"/>
+		<field table="bl" name="area_ocup_max" dataType="number" decimals="2"/>
+		<field table="bl" name="area_ocup_min" dataType="number" decimals="2"/>
+		<field table="bl" name="area_rentable_max" dataType="number" decimals="2"/>
+		<field table="bl" name="area_rentable_min" dataType="number" decimals="2"/>
+		<field table="bl" name="area_rm_max" dataType="number" decimals="2"/>
+		<field table="bl" name="area_rm_min" dataType="number" decimals="2"/>
+		<field table="bl" name="count_em_max" dataType="number" decimals="2"/>
+		<field table="bl" name="count_em_min" dataType="number" decimals="2"/>
+		<field table="bl" name="count_max_occup_max" dataType="number" decimals="2"/>
+		<field table="bl" name="count_max_occup_min" dataType="number" decimals="2"/>
+		<field table="bl" name="count_occup_max" dataType="number" decimals="2"/>
+		<field table="bl" name="count_occup_min" dataType="number" decimals="2"/>
+		<field table="bl" name="vacancy_percent_max" dataType="number" decimals="2"/>
+		<field table="bl" name="vacancy_percent_min" dataType="number" decimals="2"/>
+		
+	</dataSource>
+	
+	<panel type="html" id="panelBuildingsHtml">
+		<title translatable="true">Heat Map</title>
+		<action id="selectMetric">
+			<title translatable="true">Select Metric</title>
+			<command type="openDialog" panelId="tableMetricFields_bldgs_heatmap" applyParentRestriction="false" width="400" height="500"/>
+			<command type="callFunction" functionName="initializeSelectMetricGrid"/>
+		</action>
+    	<html>
+ 			<div id="bldgsHeatMap"/>
+     	</html>
+	</panel>
+	
+	
+	<dataSource id="dsTableMetricFields_bldgs_heatmap">
+	    <sql dialect="sybase">
+			
+			select  ${parameters['area_estimated']} ${sql.as} metric_field , 1 ${sql.as} sort_field from dummy
+			union
+			select  ${parameters['int_gross_area']} ${sql.as} metric_field , 2 ${sql.as} sort_field from dummy
+			union
+			select  ${parameters['rentable_area']} ${sql.as} metric_field , 3 ${sql.as} sort_field from dummy
+			union
+			select  ${parameters['total_lease_neg_area']} ${sql.as} metric_field , 4 ${sql.as} sort_field from dummy
+			union
+			select  ${parameters['total_occup_area']} ${sql.as} metric_field , 5 ${sql.as} sort_field from dummy
+			union
+			select  ${parameters['total_room_area']} ${sql.as} metric_field , 6 ${sql.as} sort_field from dummy
+			union
+			select  ${parameters['usable_area']} ${sql.as} metric_field , 7 ${sql.as} sort_field from dummy
+			
+			union 
+			select  ${parameters['capital_project_cost']} ${sql.as} metric_field , 8 ${sql.as} sort_field from dummy
+			union
+			select  ${parameters['chargeable_cost']} ${sql.as} metric_field , 9 ${sql.as} sort_field from dummy
+			union
+			select  ${parameters['operating_costs']} ${sql.as} metric_field , 10 ${sql.as} sort_field from dummy
+			union
+			select  ${parameters['value_book']} ${sql.as} metric_field , 11 ${sql.as} sort_field from dummy
+			union
+			select  ${parameters['value_market']} ${sql.as} metric_field , 12 ${sql.as} sort_field from dummy
+			
+			union 
+			select  ${parameters['building_occupancy']} ${sql.as} metric_field , 13 ${sql.as} sort_field from dummy
+			union
+			select  ${parameters['employee_headcount']} ${sql.as} metric_field , 14 ${sql.as} sort_field from dummy
+			union
+			select  ${parameters['max_bldg_occup']} ${sql.as} metric_field , 15 ${sql.as} sort_field from dummy
+			union
+			select  ${parameters['vacancy_percent']} ${sql.as} metric_field , 16 ${sql.as} sort_field from dummy
+			
+			union
+			select  ${parameters['avg_area_em']} ${sql.as} metric_field , 17 ${sql.as} sort_field from dummy
+			union
+			select  ${parameters['cost_per_area']} ${sql.as} metric_field , 18 ${sql.as} sort_field from dummy
+			union 
+			select  ${parameters['efficency_rate']} ${sql.as} metric_field , 19 ${sql.as} sort_field from dummy
+			union
+			select  ${parameters['fci']} ${sql.as} metric_field , 20 ${sql.as} sort_field from dummy
+			union
+			select  ${parameters['ru_ratio']} ${sql.as} metric_field , 21 ${sql.as} sort_field from dummy
+			 
+    	</sql>
+		
+		<sql dialect="oracle">
+			select  ${parameters['area_estimated']} ${sql.as} metric_field , 1 ${sql.as} sort_field from dual
+			union
+			select  ${parameters['int_gross_area']} ${sql.as} metric_field , 2 ${sql.as} sort_field from dual
+			union
+			select  ${parameters['rentable_area']} ${sql.as} metric_field , 3 ${sql.as} sort_field from dual
+			union
+			select  ${parameters['total_lease_neg_area']} ${sql.as} metric_field , 4 ${sql.as} sort_field from dual
+			union
+			select  ${parameters['total_occup_area']} ${sql.as} metric_field , 5 ${sql.as} sort_field from dual
+			union
+			select  ${parameters['total_room_area']} ${sql.as} metric_field , 6 ${sql.as} sort_field from dual
+			union
+			select  ${parameters['usable_area']} ${sql.as} metric_field , 7 ${sql.as} sort_field from dual
+			
+			union 
+			select  ${parameters['capital_project_cost']} ${sql.as} metric_field , 8 ${sql.as} sort_field from dual
+			union
+			select  ${parameters['chargeable_cost']} ${sql.as} metric_field , 9 ${sql.as} sort_field from dual
+			union
+			select  ${parameters['operating_costs']} ${sql.as} metric_field , 10 ${sql.as} sort_field from dual
+			union
+			select  ${parameters['value_book']} ${sql.as} metric_field , 11 ${sql.as} sort_field from dual
+			union
+			select  ${parameters['value_market']} ${sql.as} metric_field , 12 ${sql.as} sort_field from dual
+			
+			union 
+			select  ${parameters['building_occupancy']} ${sql.as} metric_field , 13 ${sql.as} sort_field from dual
+			union
+			select  ${parameters['employee_headcount']} ${sql.as} metric_field , 14 ${sql.as} sort_field from dual
+			union
+			select  ${parameters['max_bldg_occup']} ${sql.as} metric_field , 15 ${sql.as} sort_field from dual
+			union
+			select  ${parameters['vacancy_percent']} ${sql.as} metric_field , 16 ${sql.as} sort_field from dual
+			
+			union
+			select  ${parameters['avg_area_em']} ${sql.as} metric_field , 17 ${sql.as} sort_field from dual
+			union
+			select  ${parameters['cost_per_area']} ${sql.as} metric_field , 18 ${sql.as} sort_field from dual
+			union 
+			select  ${parameters['efficency_rate']} ${sql.as} metric_field , 19 ${sql.as} sort_field from dual
+			union
+			select  ${parameters['fci']} ${sql.as} metric_field , 20 ${sql.as} sort_field from dual
+			union
+			select  ${parameters['ru_ratio']} ${sql.as} metric_field , 21 ${sql.as} sort_field from dual
+    	</sql>
+		
+		<sql dialect="sqlserver">
+			select  ${parameters['area_estimated']} ${sql.as} metric_field , 1 ${sql.as} sort_field 
+			union
+			select  ${parameters['int_gross_area']} ${sql.as} metric_field , 2 ${sql.as} sort_field 
+			union
+			select  ${parameters['rentable_area']} ${sql.as} metric_field , 3 ${sql.as} sort_field 
+			union
+			select  ${parameters['total_lease_neg_area']} ${sql.as} metric_field , 4 ${sql.as} sort_field 
+			union
+			select  ${parameters['total_occup_area']} ${sql.as} metric_field , 5 ${sql.as} sort_field 
+			union
+			select  ${parameters['total_room_area']} ${sql.as} metric_field , 6 ${sql.as} sort_field 
+			union
+			select  ${parameters['usable_area']} ${sql.as} metric_field , 7 ${sql.as} sort_field 
+			
+			union 
+			select  ${parameters['capital_project_cost']} ${sql.as} metric_field , 8 ${sql.as} sort_field 
+			union
+			select  ${parameters['chargeable_cost']} ${sql.as} metric_field , 9 ${sql.as} sort_field 
+			union
+			select  ${parameters['operating_costs']} ${sql.as} metric_field , 10 ${sql.as} sort_field 
+			union
+			select  ${parameters['value_book']} ${sql.as} metric_field , 11 ${sql.as} sort_field 
+			union
+			select  ${parameters['value_market']} ${sql.as} metric_field , 12 ${sql.as} sort_field 
+			
+			union 
+			select  ${parameters['building_occupancy']} ${sql.as} metric_field , 13 ${sql.as} sort_field 
+			union
+			select  ${parameters['employee_headcount']} ${sql.as} metric_field , 14 ${sql.as} sort_field 
+			union
+			select  ${parameters['max_bldg_occup']} ${sql.as} metric_field , 15 ${sql.as} sort_field 
+			union
+			select  ${parameters['vacancy_percent']} ${sql.as} metric_field , 16 ${sql.as} sort_field 
+			
+			union
+			select  ${parameters['avg_area_em']} ${sql.as} metric_field , 17 ${sql.as} sort_field 
+			union
+			select  ${parameters['cost_per_area']} ${sql.as} metric_field , 18 ${sql.as} sort_field 
+			union 
+			select  ${parameters['efficency_rate']} ${sql.as} metric_field , 19 ${sql.as} sort_field 
+			union
+			select  ${parameters['fci']} ${sql.as} metric_field , 20 ${sql.as} sort_field 
+			union
+			select  ${parameters['ru_ratio']} ${sql.as} metric_field , 21 ${sql.as} sort_field  
+    	</sql>
+		
+		
+		
+		
+		
+		<table name="afm_flds" role="main"/>
+		<field name="metric_field" table="afm_flds" dataType="text"/>
+		<field name="sort_field" table="afm_flds" dataType="number" decimals="0"/>
+		<sortField name="sort_field" table="afm_flds"/>
+		<parameter name="area_estimated" dataType="text" value=""/>
+		<parameter name="int_gross_area" dataType="text" value=""/>
+		<parameter name="rentable_area" dataType="text" value=""/>
+		<parameter name="total_lease_neg_area" dataType="text" value=""/>
+		<parameter name="total_occup_area" dataType="text" value=""/>
+		<parameter name="total_room_area" dataType="text" value=""/>
+		<parameter name="usable_area" dataType="text" value=""/>
+		<parameter name="capital_project_cost" dataType="text" value=""/>
+		<parameter name="chargeable_cost" dataType="text" value=""/>
+		<parameter name="operating_costs" dataType="text" value=""/>
+		<parameter name="value_book" dataType="text" value=""/>
+		<parameter name="value_market" dataType="text" value=""/>
+		<parameter name="building_occupancy" dataType="text" value=""/>
+		<parameter name="employee_headcount" dataType="text" value=""/>
+		<parameter name="max_bldg_occup" dataType="text" value=""/>
+		<parameter name="vacancy_percent" dataType="text" value=""/>
+		<parameter name="avg_area_em" dataType="text" value=""/>
+		<parameter name="cost_per_area" dataType="text" value=""/>
+		<parameter name="efficency_rate" dataType="text" value=""/>
+		<parameter name="fci" dataType="text" value=""/>
+		<parameter name="ru_ratio" dataType="text" value=""/>
+	</dataSource>
+	
+	<panel type="grid" id="tableMetricFields_bldgs_heatmap" dataSource="dsTableMetricFields_bldgs_heatmap" showOnLoad="false" multipleSelectionEnabled="true">
+		<action id="showMetric">
+			<title translatable="true">Show Metric</title>
+			<command type="closeDialog"/>
+		</action>
+		<field name="metric_field" table="afm_flds" dataType="text">
+			<title translatable="true">Metric Field</title>
+		</field>	
+	</panel>
+	
+	
+	
+	
+	
+	
+</view>
+
+
+
+
+
+
+
+
+
+
+

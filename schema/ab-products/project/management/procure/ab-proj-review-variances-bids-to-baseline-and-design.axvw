@@ -1,0 +1,133 @@
+<view version="2.0">
+    <layout type="borderLayout" id="mainLayout">
+        <north initialSize="100" split="false"/>
+        <center autoScroll="true"/>
+    </layout>
+    <js file="ab-proj-review-variances-bids-to-baseline-and-design.js"/>
+    <title>Review Variances - Bids to Baseline and Design</title>
+    
+    <panel type="view" id="projReviewVariancesBidsBaselineConsole" file="ab-proj-restriction-console-work-pkgs-actions.axvw" layout="mainLayout" region="north"/>
+
+    <dataSource id="projReviewVariancesBidsBaselineDs0" type="grouping" applyVpaRestrictions="false">
+        <table name="activity_log" role="main"/>
+        <sql dialect="generic">
+              SELECT 
+                activity_log.work_pkg_id,
+                activity_log.project_id,
+                work_pkg_bids.vn_id,
+                activity_log.duration,
+                activity_log.duration_est_baseline,
+                activity_log.design_total_estimate,
+                activity_log.baseline_total_estimate,
+                work_pkg_bids.cost_bid,
+                (work_pkg_bids.cost_bid - design_total_estimate) as design_cost_variance,
+                (work_pkg_bids.cost_bid -  baseline_total_estimate) as baseline_cost_variance,
+                work_pkg_bids.duration_bidded,
+                (work_pkg_bids.duration_bidded - activity_log.duration) as design_schedule_variance,
+                (work_pkg_bids.duration_bidded - activity_log.duration_est_baseline) as baseline_schedule_variance
+              FROM 
+                (SELECT activity_log.project_id, 
+                activity_log.work_pkg_id, 
+                sum(activity_log.duration) as duration,
+                sum(activity_log.duration_est_baseline) as duration_est_baseline,
+                sum(activity_log.cost_est_design_cap + activity_log.cost_est_design_exp ) AS design_total_estimate,
+                sum(activity_log.cost_est_cap + activity_log.cost_estimated ) AS baseline_total_estimate 
+                FROM activity_log
+                WHERE activity_log.work_pkg_id IS NOT NULL AND ${sql.vpaRestriction}
+                GROUP BY project_id,work_pkg_id) activity_log 
+              JOIN work_pkgs ON activity_log.project_id = work_pkgs.project_id 
+                AND activity_log.work_pkg_id = work_pkgs.work_pkg_id
+              JOIN work_pkg_bids ON activity_log.project_id = work_pkg_bids.project_id 
+                AND activity_log.work_pkg_id = work_pkg_bids.work_pkg_id
+            </sql>
+            <sql dialect="oracle">
+              SELECT 
+                activity_log.work_pkg_id,
+                activity_log.project_id,
+                work_pkg_bids.vn_id,
+                activity_log.duration,
+                activity_log.duration_est_baseline,
+                activity_log.design_total_estimate,
+                activity_log.baseline_total_estimate,
+                work_pkg_bids.cost_bid,
+                (work_pkg_bids.cost_bid - design_total_estimate) as design_cost_variance,
+                (work_pkg_bids.cost_bid -  baseline_total_estimate) as baseline_cost_variance,
+                work_pkg_bids.duration_bidded,
+                (work_pkg_bids.duration_bidded - activity_log.duration) as design_schedule_variance,
+                (work_pkg_bids.duration_bidded - activity_log.duration_est_baseline) as baseline_schedule_variance
+              FROM 
+                (SELECT activity_log.project_id, 
+                activity_log.work_pkg_id, 
+                sum(activity_log.duration) as duration,
+                sum(activity_log.duration_est_baseline) as duration_est_baseline,
+                sum(activity_log.cost_est_design_cap + activity_log.cost_est_design_exp ) AS design_total_estimate,
+                sum(activity_log.cost_est_cap + activity_log.cost_estimated ) AS baseline_total_estimate 
+                FROM activity_log
+                WHERE activity_log.work_pkg_id IS NOT NULL AND ${sql.vpaRestriction}
+                GROUP BY project_id,work_pkg_id) activity_log,work_pkgs, work_pkg_bids
+                WHERE   activity_log.project_id = work_pkgs.project_id 
+                AND activity_log.work_pkg_id = work_pkgs.work_pkg_id
+                AND activity_log.project_id = work_pkg_bids.project_id 
+                AND activity_log.work_pkg_id = work_pkg_bids.work_pkg_id
+        </sql>
+        <field name="vn_id" table="activity_log" dataType="text" groupBy="true" >
+            <title>Vendor Name</title>
+        </field>
+        <field name="work_pkg_id" dataType="text">
+            <title>Work Package</title>
+            <sql dialect="generic">MAX(work_pkg_id)</sql>
+        </field>
+        <field name="cost_bid" dataType="number" decimals="0">
+            <title>Amount Bid</title>
+            <sql dialect="generic">SUM(cost_bid)</sql>
+        </field>
+        <field name="design_total_estimate" dataType="number" decimals="0">
+            <title>Design Total Estimate</title>
+            <sql dialect="generic">SUM(design_total_estimate)</sql>
+        </field>
+        <field name="baseline_total_estimate" dataType="number" decimals="0">
+            <title>Baseline Total Estimate</title>
+            <sql dialect="generic">SUM(baseline_total_estimate)</sql>
+        </field>
+        <field name="design_cost_variance" dataType="number" decimals="0">
+            <title>Design Cost Variance</title>
+            <sql dialect="generic">SUM(design_cost_variance)</sql>
+        </field>
+        <field name="baseline_cost_variance" dataType="number" decimals="0">
+            <title>Baseline Cost Variance</title>
+            <sql dialect="generic">SUM(baseline_cost_variance)</sql>
+        </field>
+        <field name="duration_bidded" dataType="number" decimals="0">
+            <title>Duration Bidded</title>
+            <sql dialect="generic">SUM(duration_bidded)</sql>
+        </field>
+        <field name="duration" dataType="number" decimals="0">
+            <title>Design Duration</title>
+            <sql dialect="generic">SUM(duration)</sql>
+        </field>
+        <field name="duration_est_baseline" dataType="number" decimals="0">
+            <title>Baseline Duration</title>
+            <sql dialect="generic">SUM(duration_est_baseline)</sql>
+        </field>
+        <field name="design_schedule_variance" dataType="number" decimals="0">
+            <title>Design Schedule Variance</title>
+            <sql dialect="generic">SUM(design_schedule_variance)</sql>
+        </field>
+        <field name="baseline_schedule_variance" dataType="number" decimals="0">
+            <title>Baseline Schedule Variance</title>
+            <sql dialect="generic">SUM(baseline_schedule_variance)</sql>
+        </field>
+        <sortField name="vn_id" table="activity_log" ascending="true"/>
+    </dataSource>
+    
+    <panel type="crossTable" id="selectWorkPkgReport" layout="mainLayout" region="center" dataSource="projReviewVariancesBidsBaselineDs0" showOnLoad="false">
+       	<title>Review Variances - Bids to Baseline and Design</title>
+       	<action id="exportXLS">
+            <title>XLS</title>
+            <command type="exportPanel" outputType="xls" panelId="selectWorkPkgReport"/>
+        </action>
+        <event type="onClickItem">
+            <command type="callFunction" functionName="selectWorkPkgReport_onClickEvent"/>
+        </event>      	
+    </panel>
+</view>

@@ -1,0 +1,592 @@
+<view version="2.0">
+    <js file="ab-eam-gis-map-reports.js"/>
+    <!-- translatable messages -->
+    <message name="actionTitle_proposedProjectCost" translatable="true">Proposed Project Cost</message>
+    <message name="actionTitle_proposedProjectAssetCost" translatable="true">Proposed Project Asset Cost</message>
+    <message name="actionTitle_projectArea" translatable="true">Project Area</message>
+    <message name="actionTitle_projectHeadcount" translatable="true">Project Headcount</message>
+    <message name="actionTitle_costReplace" translatable="true">Replacement Cost</message>
+    <message name="actionTitle_costDepValue" translatable="true">Depreciated Value</message>
+    <message name="actionTitle_costValMarket" translatable="true">Market Value</message>
+    <message name="assetStatus_active" translatable="true">Active</message>
+    <message name="assetStatus_inactive" translatable="true">Inactive</message>
+    <message name="assetStatus_disposed" translatable="true">Disposed</message>
+    <message name="assetStatus_proposed" translatable="true">Proposed</message>
+    <message name="assetType_bl">Building</message>
+    <message name="assetType_eq">Equipment</message>
+    <message name="assetType_ta">Furniture</message>
+    <message name="assetType_property">Property</message>
+    
+    <!-- dataSources by type -->
+    <!-- Proposed Project Cost -->
+    <dataSource id="abEamGisDs_proposedProjectCost">
+        <sql dialect="generic">
+            SELECT 
+                bl.bl_id,
+                bl.lat,
+                bl.lon,
+                bl.ctry_id,
+                bl.regn_id,
+                bl.state_id,
+                bl.city_id,
+                bl.site_id,
+                site.count_em,
+                site.area_usable,
+                project.project_id,
+                project.criticality,
+                ${sql.isNull('tmp_project_data.project_cost', '0')} ${sql.as} project_cost,
+                ${sql.isNull('tmp_project_data.project_area', '0')} ${sql.as} project_area,
+                ${sql.isNull('tmp_project_data.project_headcount', '0')} ${sql.as} project_headcount 
+            FROM bl 
+                LEFT OUTER JOIN site ON bl.site_id=site.site_id 
+                LEFT OUTER JOIN 
+                    (
+                        SELECT
+                            project.project_id, 
+                            project.criticality, 
+                            project_asset.bl_id
+                       FROM project
+                            LEFT OUTER JOIN 
+                                (
+                                    SELECT DISTINCT activity_log.project_id ${sql.as} project_id, activity_log.bl_id ${sql.as} bl_id  FROM activity_log WHERE activity_log.bl_id IS NOT NULL
+                                    UNION
+                                    SELECT DISTINCT 
+                                        project_int.project_id ${sql.as} project_id, sb_items.bl_id ${sql.as} bl_id  
+                                    FROM sb_items 
+                                        LEFT OUTER JOIN project ${sql.as} project_int ON sb_items.sb_name = project_int.project_name 
+                                    WHERE sb_items.bl_id IS NOT NULL
+                                    UNION
+                                    SELECT DISTINCT 
+                                        project_int.project_id ${sql.as} project_id, gp.bl_id ${sql.as} bl_id  
+                                    FROM gp
+                                        LEFT OUTER JOIN portfolio_scenario ON portfolio_scenario.portfolio_scenario_id =  gp.portfolio_scenario_id
+                                        LEFT OUTER JOIN project ${sql.as} project_int ON portfolio_scenario.scn_name = project_int.project_name 
+                                    WHERE gp.bl_id IS NOT NULL
+                                 ) ${sql.as} project_asset ON project_asset.project_id = project.project_id
+                    ) ${sql.as} project ON project.bl_id = bl.bl_id
+                LEFT OUTER JOIN 
+                    (SELECT 
+                        tmp.project_id ${sql.as} project_id,
+                        tmp.bl_id ${sql.as} bl_id,
+                        SUM(tmp.project_cost) + (SELECT project.cost_est_baseline FROM project WHERE project.project_id = tmp.project_id) ${sql.as} project_cost,
+                        SUM(tmp.project_area) ${sql.as} project_area,
+                        SUM(tmp.project_headcount) ${sql.as} project_headcount 
+                    FROM(
+                            SELECT 
+                                project_int.project_id ${sql.as} project_id,
+                                sb_items.bl_id ${sql.as} bl_id,
+                                SUM(sb_items.cost_of_space + sb_items.cost_of_furn + sb_items.cost_of_move) ${sql.as} project_cost,
+                                SUM(sb_items.p01_value) ${sql.as} project_area,
+                                SUM(sb_items.unit_headcount) ${sql.as} project_headcount
+                            FROM sb_items
+                                LEFT OUTER JOIN project ${sql.as} project_int ON sb_items.sb_name = project_int.project_name
+                            WHERE sb_items.bl_id IS NOT NULL
+                            GROUP BY project_int.project_id, sb_items.bl_id
+                            UNION 
+                            SELECT 
+                                project_int.project_id ${sql.as} project_id,
+                                eq_req_items.bl_id ${sql.as} bl_id,
+                                SUM(eq_req_items.cost_est_baseline + eq_req_items.cost_moving) ${sql.as} project_cost,
+                                SUM(0) ${sql.as} project_area,
+                                SUM(0) ${sql.as} project_headcount
+                            FROM eq_req_items
+                                LEFT OUTER JOIN project ${sql.as} project_int ON eq_req_items.sb_name = project_int.project_name
+                            WHERE eq_req_items.bl_id IS NOT NULL
+                            GROUP BY project_int.project_id, eq_req_items.bl_id
+                        ) ${sql.as} tmp
+                    GROUP BY tmp.project_id, tmp.bl_id) ${sql.as} tmp_project_data  
+                    ON tmp_project_data.project_id = project.project_id AND tmp_project_data.bl_id = bl.bl_id   
+            WHERE ${parameters['sqlTypeRestriction']}        
+        </sql>
+        <table name="bl" role="main"/>
+        <table name="site" role="standard"/>
+        <table name="project" role="standard"/>
+        <field table="bl" name="bl_id" dataType="text"/>
+        <field table="bl" name="lat" dataType="number" decimals="16"/>
+        <field table="bl" name="lon" dataType="number" decimals="16"/>
+        <field table="bl" name="city_id" dataType="text"/>
+        <field table="bl" name="site_id" dataType="text"/>
+        <field table="site" name="count_em" dataType="number" decimals="2"/>
+        <field table="site" name="area_usable" dataType="number" decimals="2"/>
+        <field table="bl" name="project_cost" dataType="number" decimals="2">
+            <title>Project Proposed Cost</title>
+        </field>
+        <field table="bl" name="project_area" dataType="number" decimals="2">
+            <title>Project Proposed Area</title>
+        </field>
+        <field table="bl" name="project_headcount" dataType="number" decimals="0">
+            <title>Project Proposed Headcount</title>
+        </field>
+
+        <field table="project" name="project_id" dataType="text"/>
+        <field table="project" name="criticality" dataType="text"/>
+        <parameter name="sqlTypeRestriction" dataType="verbatim" value="1=1"/> 
+    </dataSource>
+    
+    <!-- Proposed Project Asset Cost -->
+    <dataSource id="abEamGisDs_proposedProjectAssetCost">
+        <sql dialect="generic">
+            SELECT 
+                bl.bl_id,
+                bl.lat,
+                bl.lon,
+                bl.ctry_id,
+                bl.regn_id,
+                bl.state_id,
+                bl.city_id,
+                bl.site_id,
+                site.count_em,
+                site.area_usable,
+                project.project_id,
+                project.criticality,
+                ${sql.isNull('tmp_project_data.project_cost', '0')} ${sql.as} project_cost,
+                ${sql.isNull('tmp_project_data.project_area', '0')} ${sql.as} project_area,
+                ${sql.isNull('tmp_project_data.project_headcount', '0')} ${sql.as} project_headcount 
+            FROM bl 
+                LEFT OUTER JOIN site ON bl.site_id=site.site_id 
+                LEFT OUTER JOIN 
+                    (
+                        SELECT
+                            project.project_id, 
+                            project.criticality, 
+                            project_asset.bl_id
+                       FROM project
+                            LEFT OUTER JOIN 
+                                (
+                                    SELECT DISTINCT activity_log.project_id ${sql.as} project_id, activity_log.bl_id ${sql.as} bl_id  FROM activity_log WHERE activity_log.bl_id IS NOT NULL
+                                    UNION
+                                    SELECT DISTINCT 
+                                        project_int.project_id ${sql.as} project_id, sb_items.bl_id ${sql.as} bl_id  
+                                    FROM sb_items
+                                        LEFT OUTER JOIN project ${sql.as} project_int ON sb_items.sb_name = project_int.project_name 
+                                    WHERE sb_items.bl_id IS NOT NULL
+                                    UNION
+                                    SELECT DISTINCT 
+                                        project_int.project_id ${sql.as} project_id, gp.bl_id ${sql.as} bl_id  
+                                    FROM gp
+                                        LEFT OUTER JOIN portfolio_scenario ON portfolio_scenario.portfolio_scenario_id =  gp.portfolio_scenario_id
+                                        LEFT OUTER JOIN project ${sql.as} project_int ON portfolio_scenario.scn_name = project_int.project_name 
+                                    WHERE gp.bl_id IS NOT NULL
+                                 ) ${sql.as} project_asset ON project_asset.project_id = project.project_id
+                    ) ${sql.as} project ON project.bl_id = bl.bl_id
+                LEFT OUTER JOIN 
+                    (SELECT 
+                        tmp.project_id ${sql.as} project_id,
+                        tmp.bl_id ${sql.as} bl_id,
+                        SUM(tmp.project_cost) ${sql.as} project_cost,
+                        SUM(tmp.project_area) ${sql.as} project_area,
+                        SUM(tmp.project_headcount) ${sql.as} project_headcount 
+                    FROM(
+                            SELECT 
+                                activity_log.project_id ${sql.as} project_id,
+                                activity_log.bl_id ${sql.as} bl_id,
+                                SUM(activity_log.cost_estimated + activity_log.cost_est_cap) ${sql.as} project_cost,
+                                SUM(0) ${sql.as} project_area,
+                                SUM(0) ${sql.as} project_headcount
+                            FROM  activity_log
+                            WHERE activity_log.bl_id IS NOT NULL AND activity_log.eq_id IS NOT NULL 
+                            GROUP BY activity_log.project_id, activity_log.bl_id
+                            UNION
+                            SELECT 
+                                project_int.project_id ${sql.as} project_id,
+                                sb_items.bl_id ${sql.as} bl_id,
+                                SUM(0) ${sql.as} project_cost,
+                                SUM(sb_items.p01_value) ${sql.as} project_area,
+                                SUM(sb_items.unit_headcount) ${sql.as} project_headcount
+                            FROM sb_items
+                            FROM sb_items
+                                LEFT OUTER JOIN project ${sql.as} project_int ON sb_items.sb_name = project_int.project_name
+                            WHERE sb_items.bl_id IS NOT NULL
+                            GROUP BY project_int.project_id, sb_items.bl_id
+                            UNION 
+                            SELECT 
+                                project_int.project_id ${sql.as} project_id,
+                                eq_req_items.bl_id ${sql.as} bl_id,
+                                SUM(eq_req_items.cost_est_baseline + eq_req_items.cost_moving) ${sql.as} project_cost,
+                                SUM(0) ${sql.as} project_area,
+                                SUM(0) ${sql.as} project_headcount
+                            FROM eq_req_items
+                                LEFT OUTER JOIN project ${sql.as} project_int ON eq_req_items.sb_name = project_int.project_name
+                            WHERE eq_req_items.bl_id IS NOT NULL AND eq_req_items.eq_id IS NOT NULL
+                            GROUP BY project_int.project_id, eq_req_items.bl_id
+                        ) ${sql.as} tmp
+                    GROUP BY tmp.project_id, tmp.bl_id) ${sql.as} tmp_project_data  
+                    ON tmp_project_data.project_id = project.project_id AND tmp_project_data.bl_id = bl.bl_id   
+            WHERE ${parameters['sqlTypeRestriction']}        
+        </sql>
+        <table name="bl" role="main"/>
+        <table name="site" role="standard"/>
+        <table name="project" role="standard"/>
+        <field table="bl" name="bl_id" dataType="text"/>
+        <field table="bl" name="lat" dataType="number" decimals="16"/>
+        <field table="bl" name="lon" dataType="number" decimals="16"/>
+        <field table="bl" name="city_id" dataType="text"/>
+        <field table="bl" name="site_id" dataType="text"/>
+        <field table="site" name="count_em" dataType="number" decimals="2"/>
+        <field table="site" name="area_usable" dataType="number" decimals="2"/>
+        <field table="bl" name="project_cost" dataType="number" decimals="2">
+            <title>Project Proposed Cost</title>
+        </field>
+        <field table="bl" name="project_area" dataType="number" decimals="2">
+            <title>Project Proposed Area</title>
+        </field>
+        <field table="bl" name="project_headcount" dataType="number" decimals="0">
+            <title>Project Proposed Headcount</title>
+        </field>
+
+        <field table="project" name="project_id" dataType="text"/>
+        <field table="project" name="criticality" dataType="text"/>
+        <parameter name="sqlTypeRestriction" dataType="verbatim" value="1=1"/> 
+    </dataSource>
+    
+    <!-- Proposed Project Area -->
+    <dataSource id="abEamGisDs_projectArea">
+        <sql dialect="generic">
+            SELECT 
+                bl.bl_id,
+                bl.lat,
+                bl.lon,
+                bl.ctry_id,
+                bl.regn_id,
+                bl.state_id,
+                bl.city_id,
+                bl.site_id,
+                site.count_em,
+                site.area_usable,
+                project.project_id,
+                project.criticality,
+                ${sql.isNull('tmp_project_data.project_cost', '0')} ${sql.as} project_cost,
+                ${sql.isNull('tmp_project_data.project_area', '0')} ${sql.as} project_area,
+                ${sql.isNull('tmp_project_data.project_headcount', '0')} ${sql.as} project_headcount 
+            FROM bl 
+                LEFT OUTER JOIN site ON bl.site_id=site.site_id 
+                LEFT OUTER JOIN 
+                    (
+                        SELECT
+                            project.project_id, 
+                            project.criticality, 
+                            project_asset.bl_id
+                       FROM project
+                            LEFT OUTER JOIN 
+                                (
+                                    SELECT DISTINCT activity_log.project_id ${sql.as} project_id, activity_log.bl_id ${sql.as} bl_id  FROM activity_log WHERE activity_log.bl_id IS NOT NULL
+                                    UNION
+                                    SELECT DISTINCT 
+                                        project_int.project_id ${sql.as} project_id, sb_items.bl_id ${sql.as} bl_id  
+                                    FROM sb_items 
+                                        LEFT OUTER JOIN project ${sql.as} project_int ON sb_items.sb_name = project_int.project_name 
+                                    WHERE sb_items.bl_id IS NOT NULL
+                                    UNION
+                                    SELECT DISTINCT 
+                                        project_int.project_id ${sql.as} project_id, gp.bl_id ${sql.as} bl_id  
+                                    FROM gp 
+                                        LEFT OUTER JOIN portfolio_scenario ON portfolio_scenario.portfolio_scenario_id =  gp.portfolio_scenario_id
+                                        LEFT OUTER JOIN project ${sql.as} project_int ON portfolio_scenario.scn_name = project_int.project_name 
+                                    WHERE gp.bl_id IS NOT NULL
+                                 ) ${sql.as} project_asset ON project_asset.project_id = project.project_id
+                    ) ${sql.as} project ON project.bl_id = bl.bl_id
+                LEFT OUTER JOIN 
+                    (
+                        SELECT 
+                            project_int.project_id AS project_id,
+                            sb_items.bl_id AS bl_id,
+                            SUM(sb_items.p01_value) AS project_area,
+                            SUM(sb_items.unit_headcount) AS project_headcount
+                        FROM sb_items
+                            LEFT OUTER JOIN project ${sql.as} project_int ON sb_items.sb_name = project_int.project_name
+                        WHERE sb_items.bl_id IS NOT NULL
+                        GROUP BY project_int.project_id, sb_items.bl_id 
+                    ) ${sql.as} tmp_project_data  
+                    ON tmp_project_data.project_id = project.project_id AND tmp_project_data.bl_id = bl.bl_id   
+            WHERE ${parameters['sqlTypeRestriction']}        
+        </sql>
+        <table name="bl" role="main"/>
+        <table name="site" role="standard"/>
+        <table name="project" role="standard"/>
+        <field table="bl" name="bl_id" dataType="text"/>
+        <field table="bl" name="lat" dataType="number" decimals="16"/>
+        <field table="bl" name="lon" dataType="number" decimals="16"/>
+        <field table="bl" name="city_id" dataType="text"/>
+        <field table="bl" name="site_id" dataType="text"/>
+        <field table="site" name="count_em" dataType="number" decimals="2"/>
+        <field table="site" name="area_usable" dataType="number" decimals="2"/>
+        <field table="bl" name="project_area" dataType="number" decimals="2">
+            <title>Project Proposed Area</title>
+        </field>
+        <field table="bl" name="project_headcount" dataType="number" decimals="0">
+            <title>Project Proposed Headcount</title>
+        </field>
+
+        <field table="project" name="project_id" dataType="text"/>
+        <field table="project" name="criticality" dataType="text"/>
+        <parameter name="sqlTypeRestriction" dataType="verbatim" value="1=1"/> 
+    </dataSource>
+    
+    <!-- Proposed Project Headcount -->
+    <dataSource id="abEamGisDs_projectHeadcount">
+        <sql dialect="generic">
+            SELECT 
+                bl.bl_id,
+                bl.lat,
+                bl.lon,
+                bl.ctry_id,
+                bl.regn_id,
+                bl.state_id,
+                bl.city_id,
+                bl.site_id,
+                site.count_em,
+                site.area_usable,
+                project.project_id,
+                project.criticality,
+                ${sql.isNull('tmp_project_data.project_cost', '0')} ${sql.as} project_cost,
+                ${sql.isNull('tmp_project_data.project_area', '0')} ${sql.as} project_area,
+                ${sql.isNull('tmp_project_data.project_headcount', '0')} ${sql.as} project_headcount 
+            FROM bl 
+                LEFT OUTER JOIN site ON bl.site_id=site.site_id 
+                LEFT OUTER JOIN 
+                    (
+                        SELECT
+                            project.project_id, 
+                            project.criticality, 
+                            project_asset.bl_id
+                       FROM project
+                            LEFT OUTER JOIN 
+                                (
+                                    SELECT DISTINCT activity_log.project_id ${sql.as} project_id, activity_log.bl_id ${sql.as} bl_id  FROM activity_log WHERE activity_log.bl_id IS NOT NULL
+                                    UNION
+                                    SELECT DISTINCT 
+                                        project_int.project_id ${sql.as} project_id, sb_items.bl_id ${sql.as} bl_id  
+                                    FROM sb_items 
+                                        LEFT OUTER JOIN project ${sql.as} project_int ON sb_items.sb_name = project_int.project_name 
+                                    WHERE sb_items.bl_id IS NOT NULL
+                                    UNION
+                                    SELECT DISTINCT 
+                                        project_int.project_id ${sql.as} project_id, gp.bl_id ${sql.as} bl_id  
+                                    FROM gp
+                                        LEFT OUTER JOIN portfolio_scenario ON portfolio_scenario.portfolio_scenario_id =  gp.portfolio_scenario_id
+                                        LEFT OUTER JOIN project ${sql.as} project_int ON portfolio_scenario.scn_name = project_int.project_name 
+                                    WHERE gp.bl_id IS NOT NULL
+                                 ) ${sql.as} project_asset ON project_asset.project_id = project.project_id
+                    ) ${sql.as} project ON project.bl_id = bl.bl_id
+                LEFT OUTER JOIN 
+                    (
+                        SELECT 
+                            project_int.project_id AS project_id,
+                            sb_items.bl_id AS bl_id,
+                            SUM(sb_items.p01_value) AS project_area,
+                            SUM(sb_items.unit_headcount) AS project_headcount
+                        FROM sb_items
+                            LEFT OUTER JOIN project ${sql.as} project_int ON sb_items.sb_name = project_int.project_name
+                        WHERE sb_items.bl_id IS NOT NULL
+                        GROUP BY project_int.project_id, sb_items.bl_id 
+                    ) ${sql.as} tmp_project_data  
+                    ON tmp_project_data.project_id = project.project_id AND tmp_project_data.bl_id = bl.bl_id   
+            WHERE ${parameters['sqlTypeRestriction']}        
+        </sql>
+        <table name="bl" role="main"/>
+        <table name="site" role="standard"/>
+        <table name="project" role="standard"/>
+        <field table="bl" name="bl_id" dataType="text"/>
+        <field table="bl" name="lat" dataType="number" decimals="16"/>
+        <field table="bl" name="lon" dataType="number" decimals="16"/>
+        <field table="bl" name="city_id" dataType="text"/>
+        <field table="bl" name="site_id" dataType="text"/>
+        <field table="site" name="count_em" dataType="number" decimals="2"/>
+        <field table="site" name="area_usable" dataType="number" decimals="2"/>
+        <field table="bl" name="project_area" dataType="number" decimals="2">
+            <title>Project Proposed Area</title>
+        </field>
+        <field table="bl" name="project_headcount" dataType="number" decimals="0">
+            <title>Project Proposed Headcount</title>
+        </field>
+
+        <field table="project" name="project_id" dataType="text"/>
+        <field table="project" name="criticality" dataType="text"/>
+        <parameter name="sqlTypeRestriction" dataType="verbatim" value="1=1"/> 
+    </dataSource>
+    
+    <dataSource id="abEamGisDs_assetRegistryCosts">
+        <sql dialect="generic">
+            SELECT
+                bl.bl_id ${sql.as} asset_id,
+                'bl' ${sql.as} asset_type,
+                '${parameters['localizedAsset_bl']}' ${sql.as} localized_asset_type,
+                (CASE WHEN bl.status NOT IN ('Disposed','Donated') OR EXISTS (SELECT 1 FROM ot WHERE ot.bl_id=bl.bl_id AND status='Owned') THEN '${parameters['assetStatusActive']}'
+                      WHEN bl.count_em = 0 THEN '${parameters['assetStatusInactive']}'
+                      WHEN bl.status IN ('Disposed','Donated') THEN '${parameters['assetStatusDisposed']}'
+                      WHEN EXISTS(SELECT 1 FROM ot WHERE ot.bl_id=bl.bl_id AND status='Pipeline') OR EXISTS(SELECT 1 FROM gp WHERE gp.bl_id=bl.bl_id) THEN '${parameters['assetStatusProposed']}'
+                END) ${sql.as} asset_status,
+                NULL ${sql.as} asset_std,
+                (SELECT ctry.geo_region_id FROM ctry WHERE ctry.ctry_id = bl.ctry_id) ${sql.as} geo_region_id,   
+                bl.ctry_id ${sql.as} ctry_id,
+                bl.regn_id ${sql.as} regn_id,
+                bl.state_id ${sql.as} state_id,
+                bl.city_id ${sql.as} city_id,
+                bl.site_id ${sql.as} site_id,
+                bl.bl_id ${sql.as} bl_id,
+                bl.pr_id ${sql.as} pr_id,
+                NULL ${sql.as} fl_id,
+                NULL ${sql.as} rm_id,
+                NULL ${sql.as} bu_id,
+                NULL ${sql.as} dv_id,
+                NULL ${sql.as} dp_id,
+                bl.value_book ${sql.as} cost_dep_value,
+                bl.value_market ${sql.as} cost_val_market,
+                bl.value_market ${sql.as} cost_replace,
+                bl.lat ${sql.as} lat,
+                bl.lon ${sql.as} lon,
+                (CASE WHEN bl.site_id IS NOT NULL THEN bl.site_id ELSE bl.pr_id END) ${sql.as} owner
+            FROM bl
+            WHERE ${parameters['blTypeRestriction']}
+            UNION 
+            SELECT 
+                eq.eq_id ${sql.as} asset_id,
+                'eq' ${sql.as} asset_type,
+                '${parameters['localizedAsset_eq']}' ${sql.as} localized_asset_type,
+                (CASE WHEN eq.status IN ('in') THEN '${parameters['assetStatusActive']}'
+                      WHEN eq.status IN ('out','rep','stor','miss') THEN '${parameters['assetStatusInactive']}'
+                      WHEN eq.status IN ('salv','sold','disp','don','sto') THEN '${parameters['assetStatusDisposed']}'
+                      WHEN EXISTS(SELECT 1 FROM eq_req_items WHERE eq_req_items.eq_id=eq.eq_id) THEN '${parameters['assetStatusProposed']}'
+                END) ${sql.as} asset_status,
+                eq.eq_std ${sql.as} asset_std,
+                (SELECT ctry.geo_region_id FROM ctry, bl WHERE ctry.ctry_id = bl.ctry_id AND eq.bl_id = bl.bl_id) ${sql.as} geo_region_id,   
+                (SELECT bl.ctry_id FROM bl WHERE bl.bl_id = eq.bl_id) ${sql.as} ctry_id,
+                (SELECT bl.regn_id FROM bl WHERE bl.bl_id = eq.bl_id) ${sql.as} regn_id,
+                (SELECT bl.state_id FROM bl WHERE bl.bl_id = eq.bl_id) ${sql.as} state_id,
+                (SELECT bl.city_id FROM bl WHERE bl.bl_id = eq.bl_id) ${sql.as} city_id,
+                eq.site_id ${sql.as} site_id,
+                eq.bl_id ${sql.as} bl_id,
+                eq.pr_id ${sql.as} pr_id,
+                eq.fl_id ${sql.as} fl_id,
+                eq.rm_id ${sql.as} rm_id,
+                (SELECT dv.bu_id FROM dv WHERE dv.dv_id = eq.dv_id) ${sql.as} bu_id,
+                eq.dv_id ${sql.as} dv_id,
+                eq.dp_id ${sql.as} dp_id,
+                (SELECT eq_dep.value_accum_dep FROM  eq_dep WHERE eq_dep.eq_id = eq.eq_id 
+                    AND eq_dep.report_id = (SELECT dep_reports.report_id FROM dep_reports WHERE dep_reports.last_date = (SELECT MAX(dep_reports.last_date) FROM dep_reports))) ${sql.as} cost_dep_value,
+                (SELECT eq_dep.value_current FROM  eq_dep WHERE eq_dep.eq_id = eq.eq_id 
+                    AND eq_dep.report_id = (SELECT dep_reports.report_id FROM dep_reports WHERE dep_reports.last_date = (SELECT MAX(dep_reports.last_date) FROM dep_reports))) ${sql.as} cost_val_market,
+                eq.cost_replace ${sql.as} cost_replace,
+                ${sql.isNull('eq.lat', '(SELECT bl.lat FROM bl WHERE bl.bl_id = eq.bl_id)')} ${sql.as} lat,
+                ${sql.isNull('eq.lon', '(SELECT bl.lon FROM bl WHERE bl.bl_id = eq.bl_id)')} ${sql.as} lon,
+                (CASE WHEN eq.em_id IS NOT NULL THEN eq.em_id 
+                    ELSE eq.dv_id${sql.concat}', '${sql.concat}eq.dp_id${sql.concat}', '${sql.concat}eq.bl_id END) ${sql.as} owner
+            FROM eq
+            WHERE ${parameters['eqTypeRestriction']}
+            UNION 
+            SELECT 
+                ta.ta_id ${sql.as} asset_id,
+                'ta' ${sql.as} asset_type,
+                '${parameters['localizedAsset_ta']}' ${sql.as} localized_asset_type,
+                (CASE WHEN ta.status IN ('in') THEN '${parameters['assetStatusActive']}'
+                      WHEN ta.status IN ('out','rep','stor') THEN '${parameters['assetStatusInactive']}'
+                      WHEN ta.status IN ('salv','sold','disp','don','sto') THEN '${parameters['assetStatusDisposed']}'
+                END) ${sql.as} asset_status,
+                ta.fn_std ${sql.as} asset_std,
+                (SELECT ctry.geo_region_id FROM ctry, bl WHERE ctry.ctry_id = bl.ctry_id AND ta.bl_id = bl.bl_id)  ${sql.as} geo_region_id,      
+                (SELECT bl.ctry_id FROM bl WHERE bl.bl_id = ta.bl_id) ${sql.as} ctry_id,
+                (SELECT bl.regn_id FROM bl WHERE bl.bl_id = ta.bl_id) ${sql.as} regn_id,
+                (SELECT bl.state_id FROM bl WHERE bl.bl_id = ta.bl_id) ${sql.as} state_id,
+                (SELECT bl.city_id FROM bl WHERE bl.bl_id = ta.bl_id) ${sql.as} city_id,
+                (SELECT bl.site_id FROM bl WHERE bl.bl_id = ta.bl_id) ${sql.as} site_id,
+                ta.bl_id ${sql.as} bl_id,
+                NULL ${sql.as} pr_id,
+                ta.fl_id ${sql.as} fl_id,
+                ta.rm_id ${sql.as} rm_id,
+                (SELECT dv.bu_id FROM dv WHERE dv.dv_id = ta.dv_id)  ${sql.as} bu_id,
+                ta.dv_id ${sql.as} dv_id,
+                ta.dp_id ${sql.as} dp_id,
+                (SELECT ta_dep.value_accum_dep FROM  ta_dep WHERE ta_dep.ta_id = ta.ta_id 
+                    AND ta_dep.report_id = (SELECT dep_reports.report_id FROM dep_reports WHERE dep_reports.last_date = (SELECT MAX(dep_reports.last_date) FROM dep_reports))) ${sql.as} cost_dep_value,
+                ta.value_replace ${sql.as} cost_val_market,
+                ta.value_replace ${sql.as} cost_replace,
+                ${sql.isNull('ta.lat', '(SELECT bl.lat FROM bl WHERE bl.bl_id = ta.bl_id)')} ${sql.as} lat,
+                ${sql.isNull('ta.lon', '(SELECT bl.lon FROM bl WHERE bl.bl_id = ta.bl_id)')} ${sql.as} lon,
+                (CASE WHEN ta.em_id IS NOT NULL THEN ta.em_id 
+                    ELSE ta.dv_id${sql.concat}', '${sql.concat}ta.dp_id${sql.concat}', '${sql.concat}ta.bl_id END) ${sql.as} owner
+            FROM ta
+            WHERE ${parameters['taTypeRestriction']}
+            UNION
+            SELECT
+                property.pr_id ${sql.as} asset_id,
+                'property' ${sql.as} asset_type,
+                '${parameters['localizedAsset_property']}' ${sql.as} localized_asset_type,
+                (CASE WHEN property.status IN ('OWNED','OWNED AND LEASED','LEASED','SUB-LEASED','SUB LET') OR EXISTS (SELECT 1 FROM ot WHERE ot.pr_id=property.pr_id AND status='Owned') THEN '${parameters['assetStatusActive']}'
+                      WHEN property.status IN ('FOR SALE','UNDER CONTRACT','ESCROWED') THEN '${parameters['assetStatusInactive']}'
+                      WHEN property.status IN ('LEASED (EXPIRED)','SOLD','DISPOSED') THEN '${parameters['assetStatusDisposed']}'
+                      WHEN EXISTS(SELECT 1 FROM ot WHERE ot.pr_id=property.pr_id AND status='Pipeline') THEN '${parameters['assetStatusProposed']}'
+                END) ${sql.as} asset_status,
+                NULL ${sql.as} asset_std,
+                (SELECT ctry.geo_region_id FROM ctry WHERE ctry.ctry_id = property.ctry_id) ${sql.as} geo_region_id,     
+                property.ctry_id ${sql.as} ctry_id,
+                property.regn_id ${sql.as} regn_id,
+                property.state_id ${sql.as} state_id,
+                property.city_id ${sql.as} city_id,
+                property.site_id ${sql.as} site_id,
+                NULL ${sql.as} bl_id,
+                property.pr_id ${sql.as} pr_id,
+                NULL ${sql.as} fl_id,
+                NULL ${sql.as} rm_id,
+                NULL ${sql.as} bu_id,
+                NULL ${sql.as} dv_id,
+                NULL ${sql.as} dp_id,
+                property.value_book ${sql.as} cost_dep_value,
+                property.value_market ${sql.as} cost_val_market,
+                property.value_market ${sql.as} cost_replace,
+                property.lat ${sql.as} lat,
+                property.lon ${sql.as} lon,
+                (CASE WHEN property.site_id IS NOT NULL THEN property.site_id${sql.concat}', ' 
+                    ELSE '' END)${sql.concat}
+                (CASE WHEN property.city_id IS NOT NULL THEN property.city_id${sql.concat}', ' 
+                    ELSE '' END)${sql.concat}property.ctry_id ${sql.as} owner
+            FROM property
+            WHERE ${parameters['propertyTypeRestriction']}
+        </sql>
+        <table name="bl" role="main"/>
+        <field table="bl" name="asset_id" dataType="text">
+            <title>Asset Code</title>
+        </field> 
+        <field table="bl" name="asset_type" dataType="text">
+            <title>Asset Type</title>
+        </field> 
+        <field table="bl" name="localized_asset_type" dataType="text">
+            <title>Asset Type</title>
+        </field> 
+        <field table="bl" name="asset_status" dataType="text">
+            <title>Asset Status</title>
+        </field> 
+        <field table="bl" name="bl_id" dataType="text"/>
+        <field table="bl" name="cost_dep_value" dataType="number" size="12" decimals="2">
+            <title>Depreciated Value</title>
+        </field> 
+        <field table="bl" name="cost_val_market" dataType="number" size="12" decimals="2">
+            <title>Market Value</title>
+        </field> 
+        <field table="bl" name="cost_replace" dataType="number" size="12" decimals="2">
+            <title>Replacement Cost</title>
+        </field> 
+        <field table="bl" name="lat" dataType="number" decimals="16"/>
+        <field table="bl" name="lon" dataType="number" decimals="16"/>
+        <field table="bl" name="owner" dataType="text">
+            <title>Owner</title>
+        </field>
+        
+        <restriction type="sql" sql="${parameters['sqlTypeRestriction']}"/>
+        <parameter name="sqlTypeRestriction" dataType="verbatim" value="1=1"/>
+        
+        <parameter name="blTypeRestriction" dataType="verbatim" value="1=1"/>
+        <parameter name="eqTypeRestriction" dataType="verbatim" value="1=1"/>
+        <parameter name="taTypeRestriction" dataType="verbatim" value="1=1"/>
+        <parameter name="propertyTypeRestriction" dataType="verbatim" value="1=1"/>
+        
+        <parameter name="assetStatusActive" dataType="verbatim" value="Active"/>
+        <parameter name="assetStatusInactive" dataType="verbatim" value="Inactive"/>
+        <parameter name="assetStatusDisposed" dataType="verbatim" value="Disposed"/>
+        <parameter name="assetStatusProposed" dataType="verbatim" value="Proposed"/>
+        
+        <parameter name="localizedAsset_bl" dataType="verbatim" value="Building"/>
+        <parameter name="localizedAsset_eq" dataType="verbatim" value="Equipment"/>
+        <parameter name="localizedAsset_ta" dataType="verbatim" value="Furniture"/>
+        <parameter name="localizedAsset_property" dataType="verbatim" value="Property"/>
+    </dataSource>
+</view>

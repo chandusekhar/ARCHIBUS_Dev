@@ -1,0 +1,124 @@
+<view version="2.0">
+    <js file="ab-proj-actions-summary.js"/>
+    <js file="ab-proj-restriction-console.js"/>
+    <message name="pending">Pending</message>
+    <message name="ongoing">Ongoing</message>
+    <message name="overdue">Overdue</message>
+    <message name="completed">Completed</message>
+    <message name="overduePending">Overdue-Pending</message>
+    <message name="overdueOngoing">Overdue-Ongoing</message>
+      
+  	<dataSource id="projActionsSummaryDs0" type="grouping" applyVpaRestrictions="false">
+        <table name="work_pkgs" role="main"/>
+        <field name="project_work_pkg_id" table="work_pkgs" dataType="text" groupBy="true">
+            <title>Project - Work Package</title>
+        </field>
+        <field name="pending" dataType="number" decimals="0">
+            <title>Pending</title>
+            <sql dialect="generic">SUM(pending)</sql>
+        </field>
+        <field name="ongoing" dataType="number" decimals="0">
+            <title>Ongoing</title>
+            <sql dialect="generic">SUM(ongoing)</sql>
+        </field>
+        <field name="overdue" dataType="number" decimals="0">
+            <title>Overdue</title>
+            <sql dialect="generic">SUM(overdue)</sql>
+        </field>
+        <field name="completed" dataType="number" decimals="0">
+            <title>Completed</title>
+            <sql dialect="generic">SUM(completed)</sql>
+        </field>
+          <sql dialect="generic">
+              SELECT (RTRIM(project_id) ${sql.concat} ' - ' ${sql.concat} RTRIM(work_pkg_id)) ${sql.as} project_work_pkg_id, project_id, 
+                  (SELECT COUNT(*) FROM activity_log WHERE status = 'SCHEDULED' 
+                      AND work_pkgs.project_id = activity_log.project_id AND work_pkgs.work_pkg_id = activity_log.work_pkg_id) ${sql.as} pending,
+                  (SELECT COUNT(*) FROM activity_log WHERE status LIKE 'IN PRO%' 
+                      AND work_pkgs.project_id = activity_log.project_id  AND work_pkgs.work_pkg_id = activity_log.work_pkg_id) ${sql.as} ongoing,
+                  (SELECT COUNT(*) FROM activity_log WHERE date_scheduled_end &lt; ${sql.currentDate} AND status NOT LIKE 'COMPLETED%' AND status NOT LIKE 'CLOSED%'  
+                      AND work_pkgs.project_id = activity_log.project_id  AND work_pkgs.work_pkg_id = activity_log.work_pkg_id) ${sql.as} overdue,
+                  (SELECT COUNT(*) FROM activity_log WHERE (status LIKE 'COMPLETED%' OR status = 'CLOSED')
+                      AND work_pkgs.project_id = activity_log.project_id  AND work_pkgs.work_pkg_id = activity_log.work_pkg_id) ${sql.as} completed
+              from work_pkgs WHERE ${sql.vpaRestriction}
+          </sql>
+          <sortField name="project_work_pkg_id" table="work_pkgs" ascending="true"/>
+    </dataSource>
+
+    <panel type="crossTable" id="projActionsSummaryCrossTable" dataSource="projActionsSummaryDs0" showOnLoad="false">
+        <title>Actions Summary</title> 
+        <action id="exportXLS">
+            <title>XLS</title>
+            <command type="exportPanel" outputType="xls" panelId="projActionsSummaryCrossTable"/>
+        </action>
+        <event type="onClickItem">
+            <command type="callFunction" functionName="projActionsSummaryCrossTable_onclick"/>
+        </event> 
+    </panel>
+    
+    <dataSource id="projActionsSummaryDs1">
+        <table name="activity_log" role="main"/>
+        <field name="action_title" table="activity_log" />
+        <field name="activity_type" table="activity_log" />
+        <field name="date_scheduled_end" table="activity_log" />
+        <field name="status_summary" table="activity_log" dataType="text">
+            <title>Status Summary</title>
+            <sql dialect="generic">
+            CASE 
+            WHEN date_scheduled_end &gt;= ${sql.currentDate} AND status = 'SCHEDULED' THEN 'pending'
+            WHEN date_scheduled_end &lt; ${sql.currentDate} AND status = 'SCHEDULED' THEN 'overduePending'
+            WHEN date_scheduled_end &gt;= ${sql.currentDate} AND status LIKE 'IN PRO%' THEN 'ongoing' 
+            WHEN date_scheduled_end &lt; ${sql.currentDate} AND status LIKE 'IN PRO%' THEN 'overdueOngoing'
+            WHEN date_scheduled_end &lt; ${sql.currentDate} AND status NOT LIKE 'IN PRO%' AND status NOT LIKE 'COMPLETED%' AND status NOT IN ('SCHEDULED','CLOSED') THEN 'overdue'
+            WHEN (status LIKE 'COMPLETED%' OR status = 'CLOSED') THEN 'completed'
+            ELSE 'Other' 
+            END
+            </sql>
+        </field>
+        <field name="status" table="activity_log" />
+        <field name="activity_log_id" table="activity_log" />
+        <field name="wbs_id" table="activity_log"/>        
+        <field name="description" table="activity_log" />        
+        <field name="project_work_pkg_id" table="activity_log" dataType="text">
+            <title>Project - Work Package</title>
+            <sql dialect="generic">RTRIM(project_id) ${sql.concat} ' - ' ${sql.concat} RTRIM(work_pkg_id)</sql>
+        </field>
+        <field name="project_id" table="activity_log"/>
+        <parameter name="project_work_pkg_restriction" dataType="verbatim" value="1=1"/>
+        <restriction type="sql" sql="${parameters['project_work_pkg_restriction']}" />
+    </dataSource>
+    
+    <panel type="grid" id="projActionsSummaryGrid" dataSource="projActionsSummaryDs1" showOnLoad="false">
+        <title>Action Items Details</title>
+        <action id="exportDOCX">
+            <title>DOC</title>
+            <command type="exportPanel" outputType="docx" panelId="projActionsSummaryGrid"/>
+        </action>
+        <action id="exportXLS">
+            <title>XLS</title>
+            <command type="exportPanel" outputType="xls" panelId="projActionsSummaryGrid"/>
+        </action>
+        <sortField name="action_title" table="activity_log" ascending="true"/>
+        <field name="action_title" table="activity_log" />
+        <field name="activity_type" table="activity_log" />
+        <field name="date_scheduled_end" table="activity_log" />
+        <field name="status_summary" table="activity_log" dataType="text">
+            <title>Status Summary</title>
+        </field>
+        <field name="status" table="activity_log" >
+            <title>Action Item Status</title>
+        </field>
+        <field name="activity_log_id" table="activity_log" />
+        <field name="wbs_id" table="activity_log"/>        
+        <field name="description" table="activity_log" />        
+        <field name="project_work_pkg_id" table="activity_log" dataType="text">
+            <title>Project - Work Package</title>
+        </field>
+    </panel>
+    
+        
+</view>
+    
+ 
+ 
+ 
+ 

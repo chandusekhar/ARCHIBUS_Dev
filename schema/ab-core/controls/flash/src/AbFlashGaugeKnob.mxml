@@ -1,0 +1,77 @@
+<?xml version="1.0" encoding="utf-8"?>
+<mx:Application xmlns:mx="http://www.adobe.com/2006/mxml" layout="absolute"
+	xmlns:ilog="http://www.ilog.com/2007/ilog/flex"
+	initialize="myInitialize()">
+	
+	<mx:Script>
+		<![CDATA[
+			import mx.controls.Alert;
+		
+			private var panelId:String;
+			
+			[Bindable]
+			private var categories:Array;
+			[Bindable]
+			private var isEditable:Boolean = false;
+			
+			private function myInitialize():void {
+				ExternalInterface.addCallback("RefreshData", RefreshData);
+				ExternalInterface.addCallback("setIsEditable",setIsEditable);
+				ExternalInterface.addCallback("setControlProperty",setControlProperty);
+				ExternalInterface.addCallback("setStyleProperty",setStyleProperty);
+							
+				panelId = Application.application.parameters.panelId;
+				isEditable = Application.application.parameters.isEditable;
+				if(Application.application.parameters.categories != undefined){
+					this.categories = (Application.application.parameters.categories as String).split("|");
+					gauge.categories = this.categories;
+				}
+			}
+			
+			// Can be called by JavaScript
+			// Refresh the data		
+			public function RefreshData():void {
+				try {
+					// get data from JavaScript
+					var data:String = ExternalInterface.call("getKnobData_JS",panelId);
+						
+					// sanity check
+					if (data==null || data=="null" || data=="") {
+						return;
+					}
+						
+					gauge.value = data;
+				}
+				catch (e: Error) {
+					Alert.show( "[RefreshData (" + data + ")] " + e.toString(), "ERROR" );
+				}
+			}
+			
+			/**
+	         * Sets control property specified by name.
+	         * Can be called from JS code to set properties not supported in AXVW format.
+	         */     
+	        public function setControlProperty(propertyName:String, propertyValue:Object):void {
+	            this.gauge[propertyName] = propertyValue;
+	        }
+			
+			/**
+	         * Sets style property specified by name.
+	         * Can be called from JS code to set properties not supported in AXVW format.
+	         */  
+	        public function setStyleProperty(propertyName:String, propertyValue:Object):void {
+	        	this.gauge.setStyle(propertyName,propertyValue);
+	        }
+	        
+			public function setIsEditable(editable:Boolean):void{
+				this.isEditable = editable;
+			}
+			public function valueChanged(event:Event):void{
+				ExternalInterface.call("gaugeChange_JS", gauge.value);
+			}
+		]]>
+	</mx:Script>
+	
+	<ilog:SimpleKnob id="gauge" editable="{isEditable}" width="100%" height="100%"
+		backgroundColors="[0xCCCCCC,0x999999]" change="valueChanged(event)"/>
+</mx:Application>

@@ -1,0 +1,93 @@
+<view version="2.0">
+    <!-- leaflet js library -->
+    <css url="//cdn.jsdelivr.net/leaflet/0.7.3/leaflet.css" />
+    <js  url="//cdn.jsdelivr.net/leaflet/0.7.3/leaflet.js" />
+    <!-- leaflet clusters -->
+    <js  file="leaflet-markercluster.js"/> 
+    <css file="leaflet-MarkerCluster.Default.css" />
+    <css file="leaflet-MarkerCluster.css" />
+    <!-- esri leaflet -->
+    <js url="//cdn.jsdelivr.net/leaflet.esri/1.0.0-rc.8/esri-leaflet.js" />
+    <!-- ab leaflet map -->
+    <js  file="ab-leaflet-map.js"/>
+    <css file="ab-leaflet-map.css"/>
+
+    <js file="colorbrewer.js"/>
+
+    <js file="ab-bldgops-report-parts-bylocation-mpsl-map-dialog.js"/>
+    <message name="requisitionLinkTitle" translatable="true">Requisition</message>
+    <message name="purchaseLinkTitle" translatable="true">Purchase</message>
+    <message name="selectLinkTitle" translatable="true">Select</message>
+    <message name="mapUnavailableLabel" translatable="true">Unavailable</message>
+    <message name="mapPartlyAvailableLabel" translatable="true">Partially Available</message>
+    <message name="mapAvailableLabel" translatable="true">Available</message>
+    <message name="mapRedLabel" translatable="true">Out of Stock</message>
+    <message name="mapYellowLabel" translatable="true">Understocked</message>
+    <message name="mapGreenLabel" translatable="true">In Stock</message>
+    <!-- Warehouse Map DataSource -->
+    <!-- Warehouse Map DataSource -->
+    <dataSource id="ptStoreLocMapDS">
+        <table name="pt_store_loc" role="main"/>
+        <table name="bl" role="standard"/>
+        <field table="pt_store_loc" name="pt_store_loc_id"/>
+        <field table="pt_store_loc" name="pt_store_loc_name"/>
+        <field table="pt_store_loc" name="site_id"/>
+        <field table="pt_store_loc" name="bl_id"/>
+        
+        <!-- case:1: The green marker represents buildings where all the storage locations have quantity available greater than 0, and quantity understocked = 0. -->
+        <!-- case:2: The red marker represents buildings where all the storage locations have quantity available <= 0 of the selected part. -->
+        <!-- case:3: The yellow marker represents all other buildings that contain the part.  This will show buildings that have a mix of in-stock and understocked storage locations, and/or locations that have quantity available > 0 but quantity understocked > 0. -->
+        <field name="locationType" dataType="number" decimals='0'>
+            <sql dialect="generic">
+            case when 
+                (not exists (select 1 from pt_store_loc_pt  where (select bl_id from pt_store_loc where pt_store_loc.pt_store_loc_id=pt_store_loc_pt.pt_store_loc_id)=pt_store_loc.bl_id and ${parameters['partRes']} and  pt_store_loc_pt.qty_on_hand &gt;0))
+                then 2
+              when 
+                (not exists (select 1 from pt_store_loc_pt  where (select bl_id from pt_store_loc where pt_store_loc.pt_store_loc_id=pt_store_loc_pt.pt_store_loc_id)=pt_store_loc.bl_id and ${parameters['partRes']} and  (pt_store_loc_pt.qty_on_hand &lt;=${parameters['qtyAvaliableParameter']} or pt_store_loc_pt.qty_to_order&gt;0)))
+                then 1
+              else 3 end
+            </sql>
+        </field>
+        <field name="qtyOnHand" dataType="number" decimals="2">
+            <title translatable="true">Quantity Available</title>
+            <sql dialect="generic">
+                (select ${sql.isNull("sum(qty_on_hand)","0")} from pt_store_loc_pt where pt_store_loc_pt.pt_store_loc_id=pt_store_loc.pt_store_loc_id and ${parameters['partRes']})
+            </sql>
+        </field>
+        <field name="qtyToOrder" dataType="number" decimals="2">
+            <title translatable="true">Quantity Understocked</title>
+            <sql dialect="generic">
+                (select ${sql.isNull("sum(qty_to_order)","0")} from pt_store_loc_pt where pt_store_loc_pt.pt_store_loc_id=pt_store_loc.pt_store_loc_id and ${parameters['partRes']})
+            </sql>
+        </field>
+        
+        <field table="bl" name="lon"/>
+        <field table="bl" name="lat"/>
+        <parameter name="qtyAvaliableParameter" dataType="verbatim" value="0"/>
+        <parameter name="partRes" dataType="verbatim" value="1=1"/>
+        <parameter name="storageLocRes" dataType="verbatim" value="1=1"/>
+        <restriction type="sql" sql="bl.lon is not null and bl.lat is not null and ${parameters['storageLocRes']}"/>
+    </dataSource>
+    <dataSource id="storeLocMapDs">
+        <table name="pt_store_loc" role="main"/>
+        <table name="bl" role="standard"/>
+        <field table="pt_store_loc" name="pt_store_loc_id"/>
+        <field table="pt_store_loc" name="pt_store_loc_name"/>
+        <field table="pt_store_loc" name="pt_store_loc_desc"/>
+        <field table="pt_store_loc" name="site_id"/>
+        <field table="pt_store_loc" name="bl_id"/>
+        <field table="bl" name="lat"/>
+        <field table="bl" name="lon"/>
+        <field table="pt_store_loc" name="fl_id"/>
+        <field table="pt_store_loc" name="rm_id"/>
+        <parameter name="storageLocRes" dataType="verbatim" value="1=1"/>
+        <restriction type="sql" sql="bl.lon is not null and bl.lat is not null and ${parameters['storageLocRes']}"/>
+    </dataSource>
+    <panel type="html" id="mapPanel">
+          <title translatable="true">Map</title>
+          
+          <html>
+               <div id="mapDiv"></div>
+          </html>
+    </panel>    
+</view>

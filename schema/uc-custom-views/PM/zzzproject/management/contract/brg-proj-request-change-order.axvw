@@ -1,0 +1,197 @@
+<afmXmlView>
+    <fileCategory extension="frms" fileName="ab-proj-console-short-west-details.frms"/>
+    <title translatable="true">Request Change Order</title>
+    <message translatable="true" hidden="true" name="projSelvalTitle">Projects With Work Package Contracts</message>
+    <message translatable="true" hidden="true" name="dateBeforeCurrent">You have entered a date that has occurred in the past.  Press OK to continue and save, or Cancel to return to form.</message>
+
+      <afmTableGroup type="form" format="editForm" frame="consoleFrame">  
+        <dataSource>
+            <database>
+                <tables>
+                    <table name="project" role="main"/>
+                </tables>
+                <fields>
+                	<field table="project" name="project_type"/>                	
+                    <field table="project" name="project_id"/>
+                    <field table="project" name="status"/>
+                </fields>
+                <sort>
+          			<order>
+            			<field name="project_id" table="project" ascending="true" />
+          			</order>
+        		</sort>
+            </database>
+        </dataSource>
+        <panels>
+            <panel type="console" columns="1" id="consolePanel">
+            	<title translatable="true">Filter</title>
+            	<afmAction type="javaScript" onclick="setFilter()">
+                    <title translatable="true">Show</title>
+                    <script language="javaScript">
+                    function setFilter() {
+						var restriction = getConsoleRestriction();
+						var westPanel = AFM.view.View.getControl('westFrame','westPanel');
+					    westPanel.refresh(restriction);
+					    westPanel.show(true);
+					}
+					</script>
+                </afmAction>
+                <afmAction id="clear">
+                    <title translatable="true">Clear</title>
+                    <command type="showPanel" panelId="westPanel" target="westFrame" applyParentRestriction="false" clearRestriction="true"/>
+                    <command type="callFunction" functionName="clearConsole"/>
+                </afmAction>
+                <fields>
+                   	<field table="project" name="project_type" readOnly="false" required="false" />               	
+                	<field table="project" readOnly="false" required="false" name="project_id">
+                		<afmAction type="javascript" onclick="projSelvalWithRestriction()">
+				    		<title>...</title>
+				    		<script language="javascript">
+				    		function projSelvalWithRestriction()
+							{
+								var restriction = "project.is_template = 0 AND EXISTS (SELECT 1 FROM activity_log WHERE activity_log.project_id = project.project_id "+
+								"AND activity_log.work_pkg_id IN (SELECT work_pkg_id FROM work_pkg_bids WHERE work_pkg_bids.status "+
+								"IN ( 'Contract Signed', 'In Process', 'In Process-On Hold', 'Completed', 'Completed and Verified', 'Paid in Full') "+
+								//"AND vn_id = (SELECT vn_id FROM vn WHERE vn.email='"+$('user_email_field').value+"')))";
+								"))";
+								projSelval(restriction);
+							}
+				    		</script>
+				    	</afmAction>
+            		</field>
+                    <field>
+                        <title translatable="true">Project Status</title>
+                        <ui>
+                            <select class="inputField_box" id="status" name="status">
+                                <option value="All" selected="1"><span translatable="true">All</span></option>
+                                <option value="In Planning"><span translatable="true">In Planning</span></option>
+                                <option value="In Execution"><span translatable="true">In Execution</span></option>
+                            </select>
+                        </ui>
+                    </field>
+                    <field>
+                    	<ui><input type="hidden" id="user_email_field" name="user_email_field" value="#{preferences.email}"/></ui>
+                    </field>
+                </fields>
+            </panel>
+        </panels>
+    </afmTableGroup> 	
+    <afmTableGroup type="report" format="grid" frame="westFrame">  
+        <dataSource>
+			<database>
+				<tables>
+					<table name="work_pkg_bids" role="main" />
+					<table name="work_pkgs" role="standard"/>
+				</tables>
+				<fields>
+					<field name="work_pkg_id" table="work_pkg_bids" />
+					<field name="project_id" table="work_pkgs" />
+				</fields>
+				<restrictions>
+				      <restriction type="sql" sql="work_pkg_bids.status IN ( 'Contract Signed', 'In Process', 'In Process-On Hold', 'Completed', 'Completed and Verified', 'Paid in Full') "/>
+					  <!--restriction type="sql" sql="work_pkg_bids.status IN ( 'Contract Signed', 'In Process', 'In Process-On Hold', 'Completed', 'Completed and Verified', 'Paid in Full') AND vn_id = (SELECT vn_id FROM vn WHERE vn.email='#Attribute%//@email%')"/-->
+				</restrictions>
+			</database>
+        </dataSource>
+        <panels>
+            <panel type="grid" id="westPanel" selectionEnabled="true">
+            	<title translatable="true">Select Work Package</title>
+            	<afmAction id="refresh">
+                    <title translatable="true">Refresh</title>
+                    <command type="showPanel" panelId="westPanel" target="westFrame" show="true" clearRestriction="true"/>
+                </afmAction>
+                <fields>           	
+                    <field table="work_pkg_bids" name="work_pkg_id" controlType="link">
+                    	<command type="showPanel" panelId="detailsPanel" target="detailsFrame" newRecord="true"/>
+                    </field>
+                    <field table="work_pkgs" name="project_id"/>
+                </fields>
+            </panel>
+        </panels>
+    </afmTableGroup>
+    
+    <afmTableGroup type="form" format="editForm" frame="detailsFrame">
+			<dataSource>
+				<database>
+					<tables>
+						<table name="activity_log" role="main" />
+					</tables>
+					<fields>
+						<field name="activity_log_id" table="activity_log"  />
+						<field name="requestor_type" table="activity_log" />
+						<field name="activity_type" table="activity_log" />
+						<field name="status" table="activity_log" />
+						<field name="created_by" table="activity_log"/>
+						
+						<field name="action_title" table="activity_log" />
+						<field name="project_id" table="activity_log" />
+						<field name="work_pkg_id" table="activity_log" />
+						<field name="proj_phase" table="activity_log" />
+						<field name="doc" table="activity_log" />
+						<field name="date_requested" table="activity_log" />
+						<field name="date_planned_for" table="activity_log" />
+						<field name="duration_est_baseline" table="activity_log" />
+						<field name="cost_est_cap" table="activity_log" />
+						<field name="wbs_id" table="activity_log" />
+						<field name="site_id" table="activity_log" />
+						<field name="bl_id" table="activity_log" />
+						<field name="fl_id" table="activity_log" />
+						<field name="rm_id" table="activity_log" />
+						<field name="location" table="activity_log" />
+						<field name="date_required" table="activity_log" />
+						<field name="hours_est_baseline" table="activity_log" />
+						<field name="cost_estimated" table="activity_log" />
+						<field name="description" table="activity_log" />
+					</fields>
+				</database>
+			</dataSource>
+			<panels>
+				<panel type="form" id="detailsPanel" columns="2" showOnLoad="false" beforeSave="beforeSaveForm">
+					<title translatable="true">Request Change Order</title>
+					<afmAction id="save">
+						<title translatable="true">Request</title>
+						<command type="saveForm"/>
+					</afmAction>
+					<afmAction id="cancel">
+						<title translatable="true">Cancel</title>
+						<command type="showPanel" panelId="detailsPanel" show="false"/>
+					</afmAction>
+					<fields>					
+						<field name="activity_log_id" table="activity_log" hidden="true" />
+						<field name="requestor_type" table="activity_log" hidden="true"/>
+						<field name="status" table="activity_log" hidden="true"/>
+						<field name="created_by" table="activity_log" hidden="true" />
+						<field name="activity_type" table="activity_log" required="true" hidden="true"/>
+						
+						<field name="work_pkg_id" table="activity_log" readOnly="true" required="true" />
+						<field name="project_id" table="activity_log" readOnly="true" required="true" />						
+						<field name="action_title" table="activity_log" required="true" />
+						<field name="proj_phase" table="activity_log" />
+						<field name="site_id" table="activity_log" />
+						<field name="bl_id" table="activity_log" />
+						<field name="fl_id" table="activity_log" />
+						<field name="rm_id" table="activity_log" />
+						<field name="location" table="activity_log" />
+						<!--field name="wbs_id" table="activity_log"/-->
+						<field />
+						<field name="date_required" table="activity_log" />
+						<field name="date_planned_for" table="activity_log" />
+						<field name="duration_est_baseline" table="activity_log" />
+						<field name="hours_est_baseline" table="activity_log" />
+						<field name="cost_est_cap" table="activity_log" />
+						<field name="cost_estimated" table="activity_log" />
+						<field name="date_requested" table="activity_log" readOnly="true"/>
+						<field name="doc" table="activity_log" />
+						<field name="description" table="activity_log" colspan="2"/>
+						<field>
+                    		<ui><input type="hidden" id="user_email" name="user_email" value="#{preferences.email}"/><input type="hidden" id="user_name" name="user_name" value="#Attribute%//@em_em_id%"/></ui>
+                    	</field>	
+					</fields>
+				</panel>
+			</panels>
+		</afmTableGroup>   
+    <formatting>
+    	<js file="/archibus/schema/ab-products/project/common/ab-proj-console-work-pkgs.js"/>
+    	<js file="#Attribute%//@relativeFileDirectory%/brg-proj-request-change-order.js"/>
+  	</formatting>
+</afmXmlView>

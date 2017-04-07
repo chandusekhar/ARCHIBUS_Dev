@@ -1,0 +1,636 @@
+<view version="2.0">
+
+	<js file="ab-haz-chem-hl-fl.js"/>
+   
+    <message name="msg_tier2_notListed" translatable="true">Not Listed</message>
+    <message name="msg_tier2_unknown" translatable="true">Unknown</message>
+    <message name="msg_tier2_hazardous" translatable="true">Hazardous</message>
+    <message name="msg_tier2_extremelyHazardous" translatable="true">Extremely Hazardous</message>
+    
+    <message name="msg_no_license" translatable="true">A license for the Hazardous Materials application is required to access this view. \n This installation does not have the appropriate license.  Please contact your system administrator.</message>
+    
+	<layout id="main">
+		<west initialSize="28%" split="true"/>
+		<center/>
+	</layout>
+
+	<layout id="nested_west" containingLayout="main" region="west">
+		<north initialSize="40%" split="true"/>
+		<center/>
+	</layout>
+
+	<layout id="nested_center" containingLayout="main" region="center">
+		<center/>
+		<south initialSize="30%" split="true"/>
+	</layout>
+
+	<layout id="nested_center_center" containingLayout="nested_center" region="center">
+		<center/>
+		<east initialSize="15%" split="true"/>
+	</layout>
+
+	<message name="error_noselection" translatable="true">You must first make a selection</message>
+
+	<title translatable="true">Highlight Hazardous Materials</title>
+
+	<dataSource id="abRiskMsdsRptDrawingTreeSiteDS">
+		<table name="site" role="main"/>
+		<field table="site" name="site_id"/>
+		<restriction type="sql" sql="EXISTS (SELECT 1 FROM rm left join bl on rm.bl_id=bl.bl_id WHERE rm.dwgname IS NOT NULL AND bl.site_id = site.site_id and exists(select 1 from msds_location where msds_location.bl_id=rm.bl_id and msds_location.fl_id=rm.fl_id and msds_location.rm_id=rm.rm_id))"/>
+		<sortField name="site_id" table="site" ascending="true"/>
+	</dataSource>
+
+	<dataSource id="abRiskMsdsRptDrawingTreeBlDS">
+		<table name="bl" role="main"/>
+		<field table="bl" name="bl_id"/>
+		<restriction type="sql" sql="EXISTS (SELECT 1 FROM rm WHERE rm.dwgname IS NOT NULL AND rm.bl_id = bl.bl_id) and exists(select 1 from msds_location where msds_location.bl_id=bl.bl_id)"/>
+		<sortField name="bl_id" table="bl" ascending="true"/>
+	</dataSource>
+
+	<dataSource id="abRiskMsdsRptDrawingTreeFlDS">
+		<sql dialect="generic">
+			SELECT
+			rm.bl_id ${sql.as} bl_id,
+			rm.fl_id ${sql.as} fl_id,
+			rm.dwgname ${sql.as} dwgname
+			FROM rm WHERE rm.dwgname IS NOT NULL and exists(select 1 from msds_location where msds_location.bl_id=rm.bl_id and msds_location.fl_id=rm.fl_id and msds_location.rm_id=rm.rm_id)
+			GROUP BY rm.bl_id,rm.fl_id,rm.dwgname
+        </sql>
+		<table name="fl" role="main"/>
+		<field name="fl_id"/>
+		<field name="dwgname"/>
+		<sortField name="fl_id" table="fl" ascending="true"/>
+	</dataSource>
+
+	<dataSource id="abRiskMsdsRptDrawingHlTypeDS" type="DrawingControlHighlight">
+		<title>Rooms by highest hazard</title>
+		<table name="rm" role="main"/>
+		<table name="rmtype" role="standard"/>
+		<field table="rm" name="bl_id"/>
+		<field table="rm" name="fl_id"/>
+		<field table="rm" name="rm_id"/>
+		<field table="rm" name="hpattern_acad" dataType="text" legendKey="true">
+			<sql dialect="generic">
+				case when exists(select 1 from msds_location left join msds_data on msds_location.msds_id = msds_data.msds_id
+				left join msds_constituent on msds_constituent.msds_id = msds_data.msds_id
+				left join msds_chemical on msds_chemical.chemical_id = msds_constituent.chemical_id
+				where msds_location.bl_id=rm.bl_id and msds_location.fl_id=rm.fl_id and msds_location.rm_id=rm.rm_id and msds_chemical.tier2 = 'Extremely Hazardous')
+				then '14 0 1 16719904'
+				when exists(select 1 from msds_location left join msds_data on msds_location.msds_id = msds_data.msds_id
+				left join msds_constituent on msds_constituent.msds_id = msds_data.msds_id
+				left join msds_chemical on msds_chemical.chemical_id = msds_constituent.chemical_id
+				where msds_location.bl_id=rm.bl_id and msds_location.fl_id=rm.fl_id and msds_location.rm_id=rm.rm_id and msds_chemical.tier2 = 'Hazardous')
+				then '14 0 7 16753495'
+                when exists(select 1 from msds_location left join msds_data on msds_location.msds_id = msds_data.msds_id
+                left join msds_constituent on
+                msds_constituent.msds_id = msds_data.msds_id
+                left join msds_chemical on msds_chemical.chemical_id = msds_constituent.chemical_id
+                where msds_location.bl_id=rm.bl_id and msds_location.fl_id=rm.fl_id and msds_location.rm_id=rm.rm_id and (msds_constituent.msds_id IS NULL OR msds_chemical.tier2 = 'Unknown'))
+                then '14 0 1 1943463'
+				when exists(select 1 from msds_location left join msds_data on msds_location.msds_id = msds_data.msds_id
+				left join msds_constituent on
+				msds_constituent.msds_id = msds_data.msds_id
+				left join msds_chemical on msds_chemical.chemical_id = msds_constituent.chemical_id
+				where msds_location.bl_id=rm.bl_id and msds_location.fl_id=rm.fl_id and msds_location.rm_id=rm.rm_id and msds_chemical.tier2 = 'Not Listed')
+				then '14 0 7 3394611'                
+				else null
+				end
+            </sql>
+		</field>
+	</dataSource>
+
+	<dataSource id="abRiskMsdsRptDrawingLabelTypeDS" type="DrawingControlLabels">
+		<title>Room number, number of hazards, top hazard names</title>
+		<sql dialect="generic">
+			SELECT
+			msds_location.bl_id ${sql.as} bl_id,
+			msds_location.fl_id ${sql.as} fl_id,
+			msds_location.rm_id ${sql.as} rm_id,
+			(select count(*) from msds_location a where a.bl_id=msds_location.bl_id and a.fl_id=msds_location.fl_id and a.rm_id=msds_location.rm_id) ${sql.as} count_em,
+			msds_data.product_name ${sql.as} option1
+			from msds_location left join msds_data on msds_location.msds_id = msds_data.msds_id
+            WHERE msds_location.msds_id IN 
+            (
+                SELECT
+                    msds_sort.msds_id
+                FROM (
+                    SELECT TOP 3
+                        (CASE msds_chemical.tier2 
+                            WHEN 'Extremely Hazardous' THEN 1
+                            WHEN 'Hazardous' THEN 2
+                            WHEN 'Unknown' THEN 3
+                            ELSE 4
+                        END) ${sql.as} ch_level,
+                        msds_chemical.chemical_id ${sql.as} chemical_id,
+                        temp_location.msds_id ${sql.as} msds_id 
+                    FROM msds_location ${sql.as} temp_location 
+                    LEFT OUTER JOIN msds_constituent ON  temp_location.msds_id = msds_constituent.msds_id
+                    LEFT OUTER JOIN msds_chemical ON msds_constituent.chemical_id = msds_chemical.chemical_id 
+                    WHERE msds_location.rm_id = temp_location.rm_id  AND msds_location.fl_id = temp_location.fl_id AND msds_location.bl_id = temp_location.bl_id
+                    ORDER BY ch_level ASC
+                ) ${sql.as} msds_sort
+            ) 
+			UNION
+
+			SELECT
+			rm.bl_id ${sql.as} bl_id,
+			rm.fl_id ${sql.as} fl_id,
+			rm.rm_id ${sql.as} rm_id,
+			0 ${sql.as} count_em,
+			'' ${sql.as} option1
+            from rm where not exists(select 1 from msds_location where msds_location.bl_id=rm.bl_id and msds_location.fl_id=rm.fl_id and msds_location.rm_id=rm.rm_id)
+        </sql>
+        <sql dialect="oracle">
+            SELECT
+            msds_location.bl_id ${sql.as} bl_id,
+            msds_location.fl_id ${sql.as} fl_id,
+            msds_location.rm_id ${sql.as} rm_id,
+            (select count(*) from msds_location a where a.bl_id=msds_location.bl_id and a.fl_id=msds_location.fl_id and a.rm_id=msds_location.rm_id) ${sql.as} count_em,
+            msds_data.product_name ${sql.as} option1
+            from msds_location left join msds_data on msds_location.msds_id = msds_data.msds_id
+            WHERE msds_location.msds_id IN 
+            (
+                SELECT
+                    msds_sort.msds_id
+                FROM (
+                    SELECT
+                        (CASE msds_chemical.tier2 
+                            WHEN 'Extremely Hazardous' THEN 1
+                            WHEN 'Hazardous' THEN 2
+                            WHEN 'Unknown' THEN 3
+                            ELSE 4
+                        END) ${sql.as} ch_level,
+                        msds_chemical.chemical_id ${sql.as} chemical_id,
+                        temp_location.bl_id ${sql.as} bl_id,
+                        temp_location.fl_id ${sql.as} fl_id,
+                        temp_location.rm_id ${sql.as} rm_id,
+                        temp_location.msds_id ${sql.as} msds_id 
+                    FROM msds_location ${sql.as} temp_location 
+                    LEFT OUTER JOIN msds_constituent ON  temp_location.msds_id = msds_constituent.msds_id
+                    LEFT OUTER JOIN msds_chemical ON msds_constituent.chemical_id = msds_chemical.chemical_id 
+                    ORDER BY ch_level ASC
+                ) ${sql.as} msds_sort
+                WHERE rownum &lt; 4 AND  msds_location.rm_id = msds_sort.rm_id  AND msds_location.fl_id = msds_sort.fl_id AND msds_location.bl_id = msds_sort.bl_id
+            ) 
+            UNION
+
+            SELECT
+            rm.bl_id ${sql.as} bl_id,
+            rm.fl_id ${sql.as} fl_id,
+            rm.rm_id ${sql.as} rm_id,
+            0 ${sql.as} count_em,
+            '' ${sql.as} option1
+            from rm where not exists(select 1 from msds_location where msds_location.bl_id=rm.bl_id and msds_location.fl_id=rm.fl_id and msds_location.rm_id=rm.rm_id)
+        </sql>
+		<table name="rm" role="main"/>
+		<field name="bl_id" hidden="true"/>
+		<field name="fl_id" hidden="true"/>
+		<field name="rm_id" />
+		<field name="count_em" />
+		<field name="option1"/>
+	</dataSource>
+
+    <!-- label dataSource for Mobile apps: labels for rooms with HAZMAT, showing also the Tier 2 Classification -->
+    <dataSource id="abRiskMsdsRptDrawingLabelTypeDS2" type="DrawingControlLabels">
+		<title>Room numbers of hazard locations</title>
+        <sql dialect="generic">
+            SELECT
+            msds_location.bl_id ${sql.as} bl_id,
+            msds_location.fl_id ${sql.as} fl_id,
+            msds_location.rm_id ${sql.as} rm_id,
+            msds_data.product_name ${sql.as} name,
+            rm.dwgname ${sql.as} dwgname,
+            (select (case                      
+                    when exists (select 1 FROM msds_chemical, msds_constituent               
+                                  WHERE msds_constituent.chemical_id = msds_chemical.chemical_id           
+                                     AND msds_constituent.msds_id = msds_data.msds_id                  
+                              AND tier2='Extremely Hazardous') then 'Extremely Hazardous'                                       
+                    when exists (select 1 FROM msds_chemical, msds_constituent               
+                                  WHERE msds_constituent.chemical_id = msds_chemical.chemical_id           
+                                     AND msds_constituent.msds_id = msds_data.msds_id                  
+                              AND tier2='Hazardous') then 'Hazardous'                               
+                    when exists (select 1 FROM msds_chemical, msds_constituent               
+                                  WHERE msds_constituent.chemical_id = msds_chemical.chemical_id           
+                                     AND msds_constituent.msds_id = msds_data.msds_id                  
+                              AND tier2='Not Listed') then 'Not Listed'                                        
+                    else 'Unknown'                
+                    end)
+            ) ${sql.as} extension
+            from msds_location 
+            left join msds_data on msds_location.msds_id = msds_data.msds_id
+            left join rm on msds_location.rm_id = rm.rm_id AND msds_location.fl_id = rm.fl_id AND msds_location.bl_id = rm.bl_id 
+            WHERE msds_location.msds_id IN 
+            (
+                SELECT
+                    msds_sort.msds_id
+                FROM (
+                    SELECT TOP 3
+                        (CASE msds_chemical.tier2 
+                            WHEN 'Extremely Hazardous' THEN 1
+                            WHEN 'Hazardous' THEN 2
+                            WHEN 'Unknown' THEN 3
+                            ELSE 4
+                        END) ${sql.as} ch_level,
+                        msds_chemical.chemical_id ${sql.as} chemical_id,
+                        msds_constituent.msds_id ${sql.as} msds_id 
+                    FROM msds_location ${sql.as} temp_location 
+                    LEFT OUTER JOIN msds_constituent ON  temp_location.msds_id = msds_constituent.msds_id
+                    LEFT OUTER JOIN msds_chemical ON msds_constituent.chemical_id = msds_chemical.chemical_id 
+                    WHERE msds_location.rm_id = temp_location.rm_id  AND msds_location.fl_id = temp_location.fl_id AND msds_location.bl_id = temp_location.bl_id
+                    ORDER BY ch_level ASC
+                ) ${sql.as} msds_sort
+            ) 
+        </sql>
+        <sql dialect="sqlserver">
+            SELECT
+            msds_location.bl_id ${sql.as} bl_id,
+            msds_location.fl_id ${sql.as} fl_id,
+            msds_location.rm_id ${sql.as} rm_id,
+            msds_data.product_name ${sql.as} name,
+            rm.dwgname ${sql.as} dwgname,
+            (select (case                      
+                    when exists (select 1 FROM msds_chemical, msds_constituent               
+                                  WHERE msds_constituent.chemical_id = msds_chemical.chemical_id           
+                                     AND msds_constituent.msds_id = msds_data.msds_id                  
+                              AND tier2='Extremely Hazardous') then 'Extremely Hazardous'                                       
+                    when exists (select 1 FROM msds_chemical, msds_constituent               
+                                  WHERE msds_constituent.chemical_id = msds_chemical.chemical_id           
+                                     AND msds_constituent.msds_id = msds_data.msds_id                  
+                              AND tier2='Hazardous') then 'Hazardous'                               
+                    when exists (select 1 FROM msds_chemical, msds_constituent               
+                                  WHERE msds_constituent.chemical_id = msds_chemical.chemical_id           
+                                     AND msds_constituent.msds_id = msds_data.msds_id                  
+                              AND tier2='Not Listed') then 'Not Listed'                                        
+                    else 'Unknown'                
+                    end)
+            ) ${sql.as} extension
+            from msds_location 
+            left join msds_data on msds_location.msds_id = msds_data.msds_id 
+            left join rm on msds_location.rm_id = rm.rm_id AND msds_location.fl_id = rm.fl_id AND msds_location.bl_id = rm.bl_id 
+            WHERE msds_location.msds_id IN 
+            (
+                SELECT
+                    msds_sort.msds_id
+                FROM (
+                    SELECT TOP 3
+                        (CASE msds_chemical.tier2 
+                            WHEN 'Extremely Hazardous' THEN 1
+                            WHEN 'Hazardous' THEN 2
+                            WHEN 'Unknown' THEN 3
+                            ELSE 4
+                        END) ${sql.as} ch_level,
+                        msds_chemical.chemical_id ${sql.as} chemical_id,
+                        msds_constituent.msds_id ${sql.as} msds_id 
+                    FROM msds_location ${sql.as} temp_location 
+                    LEFT OUTER JOIN msds_constituent ON  temp_location.msds_id = msds_constituent.msds_id
+                    LEFT OUTER JOIN msds_chemical ON msds_constituent.chemical_id = msds_chemical.chemical_id 
+                    WHERE msds_location.rm_id = temp_location.rm_id  AND msds_location.fl_id = temp_location.fl_id AND msds_location.bl_id = temp_location.bl_id
+                    ORDER BY ch_level ASC
+                ) ${sql.as} msds_sort
+            ) 
+        </sql>
+        <sql dialect="oracle">
+            SELECT
+            msds_location.bl_id ${sql.as} bl_id,
+            msds_location.fl_id ${sql.as} fl_id,
+            msds_location.rm_id ${sql.as} rm_id,
+            msds_data.product_name ${sql.as} name,
+            rm.dwgname ${sql.as} dwgname,
+            (select max(case 
+                      when exists (select 1 from msds_chemical 
+                            left join msds_constituent on msds_constituent.chemical_id = msds_chemical.chemical_id
+                            left join msds_data on msds_constituent.msds_id = msds_data.msds_id
+                            where msds_data.msds_id=msds_location.msds_id and tier2='Extremely Hazardous') then 'Extremely Hazardous'
+                      when exists (select 1 from msds_chemical 
+                            left join msds_constituent on msds_constituent.chemical_id = msds_chemical.chemical_id
+                            left join msds_data on msds_constituent.msds_id = msds_data.msds_id
+                            where msds_data.msds_id=msds_location.msds_id and tier2='Hazardous') then 'Hazardous'
+                      when exists (select 1 from msds_chemical 
+                            left join msds_constituent on msds_constituent.chemical_id = msds_chemical.chemical_id
+                            left join msds_data on msds_constituent.msds_id = msds_data.msds_id
+                            where msds_data.msds_id=msds_location.msds_id and tier2='Not Listed') then 'Not Listed'
+                      else 'Unknown'
+                    end)
+                    from msds_chemical 
+                    left join msds_constituent on msds_constituent.chemical_id = msds_chemical.chemical_id
+                    right join msds_data on msds_constituent.msds_id = msds_data.msds_id
+                    where msds_data.msds_id=msds_location.msds_id
+            ) ${sql.as} extension
+            from msds_location 
+            left join msds_data on msds_location.msds_id = msds_data.msds_id
+            left join rm on msds_location.rm_id = rm.rm_id AND msds_location.fl_id = rm.fl_id AND msds_location.bl_id = rm.bl_id 
+            WHERE msds_location.msds_id IN 
+            (
+                SELECT
+                    msds_sort.msds_id
+                FROM (
+                    SELECT
+                        (CASE msds_chemical.tier2 
+                            WHEN 'Extremely Hazardous' THEN 1
+                            WHEN 'Hazardous' THEN 2
+                            WHEN 'Unknown' THEN 3
+                            ELSE 4
+                        END) ${sql.as} ch_level,
+                        msds_chemical.chemical_id ${sql.as} chemical_id,
+                        temp_location.bl_id ${sql.as} bl_id,
+                        temp_location.fl_id ${sql.as} fl_id,
+                        temp_location.rm_id ${sql.as} rm_id,
+                        msds_constituent.msds_id ${sql.as} msds_id 
+                    FROM msds_location ${sql.as} temp_location 
+                    LEFT OUTER JOIN msds_constituent ON  temp_location.msds_id = msds_constituent.msds_id
+                    LEFT OUTER JOIN msds_chemical ON msds_constituent.chemical_id = msds_chemical.chemical_id 
+                    ORDER BY ch_level ASC
+                ) ${sql.as} msds_sort
+                WHERE rownum &lt; 4 AND  msds_location.rm_id = msds_sort.rm_id  AND msds_location.fl_id = msds_sort.fl_id AND msds_location.bl_id = msds_sort.bl_id
+            ) 
+        </sql>           
+        <table name="rm" role="main"/>
+        <field name="bl_id"  dataType="text" hidden="true"/>
+        <field name="fl_id"  dataType="text" hidden="true"/>
+        <field name="rm_id" dataType="text"/>
+        <field name="name" dataType="text"/>
+        <field name="extension" dataType="text"/>
+        <sortField table="rm" name="bl_id"/>
+        <sortField table="rm" name="fl_id"/>
+        <sortField table="rm" name="rm_id"/>
+    </dataSource>
+    
+     <!-- highlight dataSource for Mobile apps: rooms without HAZMAT -->
+    <dataSource id="abRiskMsdsRptDrawingHlTypeDS3" type="DrawingControlHighlight">
+		<title>Rooms without hazards</title>
+        <table name="rm" role="main"/>
+        <field table="rm" name="bl_id"/>
+        <field table="rm" name="fl_id"/>
+        <field table="rm" name="rm_id"/>
+        <field table="rm" name="hpattern_acad" dataType="text" legendKey="true">
+            <sql dialect="generic">
+                '14 0 1 16119285'
+            </sql>
+        </field>
+        <restriction type="sql"
+            sql="not exists(select 1 from msds_location where msds_location.bl_id=rm.bl_id and msds_location.fl_id=rm.fl_id and msds_location.rm_id=rm.rm_id)"/>
+    </dataSource>
+
+    <!-- label dataSource for Mobile apps: labels for rooms without HAZMAT -->
+    <dataSource id="abRiskMsdsRptDrawingLabelTypeDS3" type="DrawingControlLabels">
+		<title>Room numbers of locations without hazards</title>
+        <table name="rm" role="main"/>
+        <field name="bl_id" hidden="true"/>
+        <field name="fl_id" hidden="true"/>
+        <field name="rm_id"/>
+        <restriction type="sql"
+            sql="not exists(select 1 from msds_location where msds_location.bl_id=rm.bl_id and msds_location.fl_id=rm.fl_id and msds_location.rm_id=rm.rm_id)"/>
+    </dataSource>
+
+	<panel type="tree" id="abRiskMsdsRptDrawingTreeSite" dataSource="abRiskMsdsRptDrawingTreeSiteDS" layout="nested_west" region="north">
+		<title translatable="true">Select Floor</title>
+		<action id="showSeletedFloorPlan">
+			<title translatable="true">Show Selected</title>
+		</action>
+		<panel type="tree" id="abRiskMsdsRptDrawingTreeBl" dataSource="abRiskMsdsRptDrawingTreeBlDS">
+		</panel>
+		<panel type="tree" id="abRiskMsdsRptDrawingTreeFl" dataSource="abRiskMsdsRptDrawingTreeFlDS">
+			<event type="onClickNode">
+				<command type="callFunction" functionName="onTreeClick"/>
+			</event>
+		</panel>
+	</panel>
+
+	<dataSource id="abRiskMsdsRptDrawingGridLocationDS" distinct="true">
+		<table name="msds_location" role="main"/>
+        <table name="rm" role="standard"/>
+		<field table="msds_location" name="bl_id"/>
+		<field table="msds_location" name="fl_id"/>
+		<field table="msds_location" name="rm_id"/>
+        <field table="rm" name="bl_id"/>
+        <field table="rm" name="fl_id"/>
+        <field table="rm" name="rm_id"/>
+        <field table="rm" name="dwgname"/>
+	</dataSource>
+
+	<panel type="grid" id="abRiskMsdsRptDrawingGridMsds" showOnLoad="false" dataSource="abRiskMsdsRptDrawingGridLocationDS" layout="nested_west" region="center">
+		<title translatable="true">Select Room</title>
+		<field table="msds_location" name="bl_id" controlType="link" onclick="selectRoom"/>
+		<field table="msds_location" name="fl_id" controlType="link" onclick="selectRoom"/>
+		<field table="msds_location" name="rm_id" controlType="link" onclick="selectRoom"/>
+        <field table="rm" name="dwgname" hidden="true"/>
+        <field table="rm" name="bl_id" hidden="true"/>
+        <field table="rm" name="fl_id" hidden="true"/>
+        <field table="rm" name="rm_id" hidden="true"/>
+	</panel>
+
+	<dataSource id="abRiskMsdsRptDrawingFormLocationDS">
+		<table name="rm" role="main"/>
+		<table name="bl" role="standard"/>
+		<field table="rm" name="bl_id"/>
+		<field table="bl" name="name"/>
+		<field table="rm" name="fl_id"/>
+		<field table="rm" name="rm_id"/>
+		<field table="rm" name="rm_std"/>
+		<field table="rm" name="rm_cat"/>
+		<field table="rm" name="rm_type"/>
+		<field table="rm" name="rm_use"/>
+		<field table="rm" name="dv_id"/>
+		<field table="rm" name="dp_id"/>
+		<field table="rm" name="area"/>
+		<field name="msds_count" dataType="number" decimals="0">
+			<title translatable="true">Number of Materials</title>
+			<sql dialect="generic">(select count(msds_id) from msds_location where msds_location.bl_id=rm.bl_id and msds_location.fl_id=rm.fl_id and msds_location.rm_id=rm.rm_id)</sql>
+		</field>
+	</dataSource>
+
+	<panel type="columnReport" columns="1" showOnLoad="false" id="abRiskMsdsRptDrawingFormLocation" dataSource="abRiskMsdsRptDrawingFormLocationDS" layout="nested_west" region="center">
+		<title translatable="true">Selected Room Details</title>
+		<action id="clearSelectedRoom">
+			<title translatable="true">Clear Selection</title>
+		</action>
+	</panel>
+
+	<panel type="drawing" id="abRiskMsdsRptDrawingDrawingPanel" multiple="true" layout="nested_center_center" region="center" highlightDataSource="abRiskMsdsRptDrawingHlTypeDS" labelsDataSource="abRiskMsdsRptDrawingLabelTypeDS">
+		<action id="exportDOCX">
+			<title translatable="true">DOC</title>
+			<tooltip translatable="true">Export current view of drawing to Docx file.</tooltip>
+			<command type="exportPanel" outputType="docx" panelId="abRiskMsdsRptDrawingDrawingPanel"/>
+		</action>
+		<title></title>
+	</panel>
+
+	<panel type="html" id="abRiskMsdsRptDrawingDrawingPanel_legend" layout="nested_center_center" region="east">
+		<title>Legend</title>
+		<html>
+			<div id="abRiskMsdsRptDrawingDrawingPanel_legendDiv" style="width:100%; display: none">
+				<table class="panelReport">
+					<tr class="dataRow">
+						<td class="color" width="">
+							<div style="width:100%;height:16px;background-color:#ADADAD;"></div>
+						</td>
+						<td translatable="true" class="text" width="80%">No Materials</td>
+					</tr>
+                    <tr class="dataRow">
+                        <td class="color" width="">
+                            <div style="width:100%;height:16px;background-color:#61C0C0;"></div>
+                        </td>
+                        <td translatable="true" class="text" width="80%">Unknown</td>
+                    </tr>
+					<tr class="dataRow">
+						<td class="color" width="">
+							<div style="width:100%;height:16px;background-color: #69FF69;"></div>
+						</td>
+						<td translatable="true" class="text" width="80%">Not Listed</td>
+					</tr>
+					<tr class="dataRow">
+						<td class="color" width="">
+							<div style="width:100%;height:16px;background-color:#FFAD69;"></div>
+						</td>
+						<td translatable="true" class="text" width="80%">Hazardous</td>
+					</tr>
+					<tr class="dataRow">
+						<td class="color" width="">
+							<div style="width:100%;height:16px;background-color:#FF6969;"></div>
+						</td>
+						<td translatable="true" class="text" width="80%">Extremely Hazardous</td>
+					</tr>
+				</table>
+			</div>
+		</html>
+	</panel>
+
+	<dataSource id="abRiskMsdsRptDrawingMsdsLocDS">
+		<table name="msds_location" role="main"/>
+		<table name="msds_data" role="standard"/>
+		<table name="bl" role="standard"/>
+		<table name="rm" role="standard"/>        
+		<field table="msds_location" name="msds_id" hidden="true"/>
+		<field table="msds_data" name="ghs_id"/>
+		<field table="msds_data" name="manufacturer_id"/>
+		<field table="msds_data" name="product_name"/>
+		<field table="bl" name="site_id"/>
+		<field table="msds_location" name="bl_id"/>
+		<field table="msds_location" name="fl_id"/>
+		<field table="msds_location" name="rm_id"/>
+		<field table="msds_location" name="quantity"/>
+		<field table="msds_location" name="quantity_units"/>
+		<field table="msds_location" name="quantity_units_type" hidden="true"/>
+		<field table="msds_location" name="container_cat"/>
+		<field table="msds_location" name="container_type"/>
+		<field table="msds_location" name="num_containers"/>
+		<field table="msds_location" name="temperature"/>
+		<field table="msds_location" name="temperature_units"/>
+		<field table="msds_location" name="pressure"/>
+		<field table="msds_location" name="pressure_units"/>
+		<field table="msds_location" name="auto_number" hidden="true"/>
+        <field name="tier2" dataType="verbatim">
+            <title translatable="true">Tier2</title>
+            <sql dialect="generic">
+            (select (case                      
+                    when exists (select 1 FROM msds_chemical, msds_constituent               
+                                  WHERE msds_constituent.chemical_id = msds_chemical.chemical_id           
+                                     AND msds_constituent.msds_id = msds_data.msds_id                  
+                              AND tier2='Extremely Hazardous') then ${parameters['tier2_extremelyHazardous']}                                       
+                    when exists (select 1 FROM msds_chemical, msds_constituent               
+                                  WHERE msds_constituent.chemical_id = msds_chemical.chemical_id           
+                                     AND msds_constituent.msds_id = msds_data.msds_id                  
+                              AND tier2='Hazardous') then ${parameters['tier2_hazardous']}                           
+                    when exists (select 1 FROM msds_chemical, msds_constituent               
+                                  WHERE msds_constituent.chemical_id = msds_chemical.chemical_id           
+                                     AND msds_constituent.msds_id = msds_data.msds_id                  
+                              AND tier2='Not Listed') then ${parameters['tier2_notListed']}                                       
+                    else ${parameters['tier2_unknown']}             
+                    end))
+            </sql>
+             <sql dialect="oracle">
+            (select max(case 
+                      when exists (select 1 from msds_chemical 
+                            left join msds_constituent on msds_constituent.chemical_id = msds_chemical.chemical_id
+                            left join msds_data on msds_constituent.msds_id = msds_data.msds_id
+                            where msds_data.msds_id=msds_location.msds_id and tier2='Extremely Hazardous') then ${parameters['tier2_extremelyHazardous']}
+                      when exists (select 1 from msds_chemical 
+                            left join msds_constituent on msds_constituent.chemical_id = msds_chemical.chemical_id
+                            left join msds_data on msds_constituent.msds_id = msds_data.msds_id
+                            where msds_data.msds_id=msds_location.msds_id and tier2='Hazardous') then ${parameters['tier2_hazardous']}
+                      when exists (select 1 from msds_chemical 
+                            left join msds_constituent on msds_constituent.chemical_id = msds_chemical.chemical_id
+                            left join msds_data on msds_constituent.msds_id = msds_data.msds_id
+                            where msds_data.msds_id=msds_location.msds_id and tier2='Not Listed') then ${parameters['tier2_notListed']}
+                      else ${parameters['tier2_unknown']}
+                    end)
+                    from msds_chemical 
+                    left join msds_constituent on msds_constituent.chemical_id = msds_chemical.chemical_id
+                    right join msds_data on msds_constituent.msds_id = msds_data.msds_id
+                    where msds_data.msds_id=msds_location.msds_id
+              )
+             </sql>           
+        </field>
+        <parameter name="tier2_notListed" dataType="text" value=""/>
+        <parameter name="tier2_unknown" dataType="text" value=""/>
+        <parameter name="tier2_hazardous" dataType="text" value=""/>
+        <parameter name="tier2_extremelyHazardous" dataType="text" value=""/>
+	</dataSource>
+
+	<panel type="grid" controlType="reportGrid" id="abRiskMsdsRptDrawingAssignment" dataSource="abRiskMsdsRptDrawingMsdsLocDS" layout="nested_center" region="south" showOnLoad="false">
+		<title translatable="true">Material Locations</title>
+		<action id="XLS">
+			<title>XLS</title>
+			<command type="exportPanel" outputType="xls" panelId="abRiskMsdsRptDrawingAssignment"/>
+		</action>
+		<action id="pdf">
+			<title>PDF</title>
+            <command type="callFunction" functionName="refreshPanel"/>
+			<command type="exportPanel" outputType="pdf" panelId="abRiskMsdsRptDrawingAssignment_exportToPDF" orientation="landscape" applyParentRestriction="true"/>
+		</action>
+		<field table="msds_location" name="msds_id" hidden="true"/>
+        <field table="msds_location" name="tier2">
+            <title translatable="true">Tier 2 Classification</title>
+        </field>
+		<field table="msds_data" name="ghs_id" controlType="link" onclick="showMSDSDetails"/>
+		<field table="msds_data" name="manufacturer_id" controlType="link"  onclick="showMSDSDetails"/>
+		<field table="msds_data" name="product_name" controlType="link"  onclick="showMSDSDetails"/>
+		<field table="bl" name="site_id" controlType="link" onclick="showMSDSDetails"/>
+		<field table="msds_location" name="bl_id" controlType="link"  onclick="showMSDSDetails"/>
+		<field table="msds_location" name="fl_id" controlType="link" onclick="showMSDSDetails"/>
+		<field table="msds_location" name="rm_id" controlType="link"  onclick="showMSDSDetails"/>
+		<field table="msds_location" name="quantity" controlType="link" onclick="showMSDSDetails"/>
+		<field table="msds_location" name="quantity_units" controlType="link" onclick="showMSDSDetails"/>
+		<field table="msds_location" name="quantity_units_type" hidden="true"/>
+		<field table="msds_location" name="container_cat" controlType="link" onclick="showMSDSDetails"/>
+		<field table="msds_location" name="container_type" controlType="link" onclick="showMSDSDetails"/>
+		<field table="msds_location" name="num_containers" controlType="link" onclick="showMSDSDetails"/>
+		<field table="msds_location" name="temperature" controlType="link" onclick="showMSDSDetails"/>
+		<field table="msds_location" name="temperature_units" controlType="link" onclick="showMSDSDetails"/>
+		<field table="msds_location" name="pressure" controlType="link" onclick="showMSDSDetails"/>
+		<field table="msds_location" name="pressure_units" controlType="link" onclick="showMSDSDetails"/>
+		<field table="msds_location" name="auto_number" hidden="true"/>
+        <sortField name="bl_id" table="msds_location" ascending="true"/>
+        <sortField name="fl_id" table="msds_location" ascending="true"/>
+        <sortField name="rm_id" table="msds_location" ascending="true"/>
+	</panel>
+
+    <panel type="grid" controlType="reportGrid" id="abRiskMsdsRptDrawingAssignment_exportToPDF" dataSource="abRiskMsdsRptDrawingMsdsLocDS" layout="nested_center" region="south" showOnLoad="false" hidden="true">
+        <title translatable="true">Material Locations</title>
+        <field table="msds_location" name="msds_id" hidden="true"/>
+        <field table="msds_location" name="tier2">
+            <title translatable="true">Tier 2 Classification</title>
+        </field>
+        <field table="msds_data" name="ghs_id"/>
+        <field table="msds_data" name="manufacturer_id"/>
+        <field table="msds_data" name="product_name"/>
+        <field table="bl" name="site_id"/>
+        <field table="msds_location" name="bl_id"/>
+        <field table="msds_location" name="fl_id"/>
+        <field table="msds_location" name="rm_id"/>
+        <field table="msds_location" name="quantity"/>
+        <field table="msds_location" name="quantity_units"/>
+        <field table="msds_location" name="quantity_units_type" hidden="true"/>
+        <field table="msds_location" name="container_cat"/>
+        <field table="msds_location" name="container_type"/>
+        <field table="msds_location" name="num_containers"/>
+        <field table="msds_location" name="temperature" hidden="true"/>
+        <field table="msds_location" name="temperature_units" hidden="true"/>
+        <field table="msds_location" name="pressure" hidden="true"/>
+        <field table="msds_location" name="pressure_units" hidden="true"/>
+        <field table="msds_location" name="auto_number" hidden="true"/>
+        <sortField name="bl_id" table="msds_location" ascending="true"/>
+        <sortField name="fl_id" table="msds_location" ascending="true"/>
+        <sortField name="rm_id" table="msds_location" ascending="true"/>
+    </panel>
+</view>

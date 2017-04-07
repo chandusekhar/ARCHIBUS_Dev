@@ -1,0 +1,80 @@
+<view version="2.0">
+    <title translatable="true">Work Restrictions by Category</title>
+    
+    <message translatable="true" name="workRestrictionsPanelTitle">Work Restrictions</message>
+    <message translatable="true" name="activeRestrictionsPanelTitle">Active Work Restrictions</message>
+    <message translatable="true" name="seeOnlyButtonTitle">See Active Restrictions Only</message>
+    <message translatable="true" name="seeAllButtonTitle">See all Restrictions</message>
+    
+    <layout type="borderLayout" id="mainLayout">
+        <west id="treeLayout" autoScroll="true" split="true" initialSize="30%"/>
+        <center id="tabsLayout" autoScroll="true"/>
+    </layout>
+    
+    <js file="ab-ehs-rpt-restrictions-by-category.js"/>
+    
+    <dataSource id="abEhsRptRestrByCateg_categDs">
+        <table name="ehs_restriction_cat" role="main"/>
+        <field name="restriction_category_id"/>
+        <field name="description"/>
+    </dataSource>
+    
+    <panel type="grid" id="abEhsRptRestrByCateg_categ" dataSource="abEhsRptRestrByCateg_categDs" region="west" recordLimit="0">
+        <title translatable="true">Work Restriction Categories</title>
+        <sortField name="restriction_category_id" ascending="true"/>
+        <field name="restriction_category_id" controlType="link">
+            <command type="showPanel" panelId="abEhsRptRestrByCateg_restr"/>
+        </field>
+        <field name="description" controlType="link">
+            <command type="showPanel" panelId="abEhsRptRestrByCateg_restr"/>
+        </field>
+    </panel>
+    
+    <dataSource id="abEhsRptRestrByCateg_restrDs">
+        <table name="ehs_restrictions" role="main"/>
+        <table name="em" role="standard"/>
+        <field table="ehs_restrictions" name="restriction_id"/>
+        <field table="ehs_restrictions" name="em_id"/>
+        <field table="em" name="dp_id"/>
+        <field table="ehs_restrictions" name="restriction_type_id"/>
+        <field table="ehs_restrictions" name="restriction_class"/>
+        <field table="ehs_restrictions" name="date_start"/>
+        <field table="ehs_restrictions" name="date_end"/>
+        <field name="lost_work_days_auto" dataType="text">
+            <title>Lost Work (Days)</title>
+            <sql dialect="generic">
+                (CASE lost_work_days WHEN 0 
+                    THEN (SELECT COUNT(cal_date) FROM afm_cal_dates WHERE 
+                            day_type = 'Workday' AND 
+                            date_start &lt;= cal_date AND 
+                            cal_date &lt;= CASE WHEN date_end IS NULL THEN ${sql.currentDate} ELSE date_end END) 
+                    ELSE lost_work_days
+                END)
+            </sql>
+        </field>
+        <field table="ehs_restrictions" name="description"/>
+        
+        <restriction type="sql" sql="${parameters['activeRestriction']}"/>
+        
+        <parameter name="activeRestriction" dataType="verbatim" value=""/>
+        
+    </dataSource>
+    
+    <panel type="grid" id="abEhsRptRestrByCateg_restr" dataSource="abEhsRptRestrByCateg_restrDs" region="center" showOnLoad="false">
+        <sortField table="ehs_restrictions" name="em_id"/>
+        <sortField table="ehs_restrictions" name="restriction_type_id"/>
+        <sortField table="ehs_restrictions" name="restriction_class"/>
+        <sortField table="ehs_restrictions" name="date_start"/>
+        <sortField table="ehs_restrictions" name="date_end"/>
+        <action id="see"></action>
+        <action id="exportDOCX">
+            <title translatable="true">DOCX</title>
+            <command type="exportPanel" outputType="docx" panelId="abEhsRptRestrByCateg_restr" printRestriction="true" orientation="landscape"/>
+        </action>
+        <action id="exportXLS">
+            <title translatable="true">XLS</title>
+            <command type="exportPanel" outputType="xls" panelId="abEhsRptRestrByCateg_restr"/>
+        </action>
+    </panel>
+
+</view>

@@ -1,0 +1,113 @@
+<view version="2.0">
+    <designInfo type="report" pattern="ab-viewdef-report-drilldown-two-level-horizontal" isAlterable="false"/>
+    <message name="floorPanelTitle" translatable="true">Departments of Division Code: [{0}]</message>
+    <message name="roomFloorPanelTitle" translatable="true">Workspace Transactions of Department Code: [{0}]</message>
+    <layout type="borderLayout" id="mainLayout">
+        <north autoScroll="true" split="true" initialSize="30%"/>
+        <center autoScroll="true"/>
+    </layout>
+    <layout type="borderLayout" id="centerLayout" containingLayout="mainLayout" region="center">
+        <north autoScroll="true" split="true" initialSize="30%"/>
+        <center autoScroll="true"/>
+    </layout>
+    <title translatable="true">View Room Prorations by Floor and Department</title>
+    
+    <dataSource id="ds_ab-sp-vw-rmpct-by-fl-dp_grid_fl">
+        <table name="fl" role="main"/>
+        <field table="fl" name="bl_id"/>
+        <field table="fl" name="fl_id"/>
+        <field table="fl" name="area_gross_int"/>
+        <field table="fl" name="area_nocup"/>
+        <field table="fl" name="area_ocup"/>
+        <field table="fl" name="area_remain"/>
+        <restriction type="sql" sql="EXISTS (SELECT 1 FROM rmpct WHERE rmpct.bl_id = fl.bl_id AND rmpct.fl_id = fl.fl_id)"/>
+    </dataSource>
+    
+    <dataSource id="ds_ab-sp-vw-rmpct-by-fl-dp_grid_dp" type="grouping">
+        <table name="rmpct" role="main"/>
+        <table name="dp" role="standard"/>
+        <field table="rmpct" name="bl_id" groupBy="true"/>
+        <field table="rmpct" name="fl_id" groupBy="true"/>
+        <field table="dp" name="dv_id" groupBy="true"/>
+        <field table="dp" name="dp_id" groupBy="true"/>
+        <field table="dp" name="name" groupBy="true"/>
+        <field name="tot_area" formula="sum" baseField="rmpct.area_rm" dataType="number" decimals="2"/>
+        <restriction type="sql" sql="EXISTS (SELECT 1 FROM rmpct WHERE rmpct.dv_id = dp.dv_id AND rmpct.dp_id = dp.dp_id AND rmpct.rm_cat IS NULL) OR EXISTS(SELECT 1 FROM rmcat WHERE rmpct.rm_cat = rmcat.rm_cat AND rmcat.used_in_calcs IN ('all_totals', 'dp_comn_ocup_totals')) AND rmpct.dp_id IS NOT NULL"/>
+    </dataSource>
+    
+    <dataSource id="ds_ab-sp-vw-rmpct-by-fl-dp_grid_rmpct">
+        <table name="rmpct" role="main"/>
+        <table name="rmcat" role="standard"/>
+        <field table="rmpct" name="bl_id"/>
+        <field table="rmpct" name="fl_id"/>
+        <field table="rmpct" name="rm_id"/>
+        <field table="rmpct" name="area_rm"/>
+        <field table="rmpct" name="rm_cat"/>
+        <field table="rmpct" name="rm_type"/>
+        <field table="rmpct" name="dv_id"/>
+        <field table="rmpct" name="dp_id"/>
+        <field table="rmpct" name="prorate"/>
+        <field table="rmpct" name="pct_space"/>
+        <field table="rmpct" name="pct_time"/>
+        <field table="rmcat" name="used_in_calcs"/>
+    </dataSource>
+    
+    <panel type="grid" id="floorsGrid" dataSource="ds_ab-sp-vw-rmpct-by-fl-dp_grid_fl" layout="mainLayout" region="north">
+        <title translatable="true">Select Floor</title>
+        <sortField table="fl" name="bl_id" ascending="true"/>
+        <sortField table="fl" name="fl_id" ascending="true"/>
+		<action>
+            <title translatable="true">Paginated Report</title>
+			<command type="openDialog" viewName="ab-paginated-report-job.axvw?viewName=ab-sp-vw-rmpct-by-fl-dp-prnt.axvw"/>
+        </action>
+		
+        <field table="fl" name="bl_id" controlType="link">
+            <command type="callFunction" functionName="onSelectFloor"/>
+        </field>
+        <field table="fl" name="fl_id" controlType="link">
+            <command type="callFunction" functionName="onSelectFloor"/>
+        </field>
+        <field table="fl" name="area_gross_int" controlType="link">
+            <command type="callFunction" functionName="onSelectFloor"/>
+        </field>
+        <field table="fl" name="area_nocup" controlType="link">
+            <command type="callFunction" functionName="onSelectFloor"/>
+        </field>
+        <field table="fl" name="area_ocup" controlType="link">
+            <command type="callFunction" functionName="onSelectFloor"/>
+        </field>
+        <field table="fl" name="area_remain" controlType="link">
+            <command type="callFunction" functionName="onSelectFloor"/>
+        </field>
+    </panel>
+    <panel type="grid" id="deptGrid" dataSource="ds_ab-sp-vw-rmpct-by-fl-dp_grid_dp" showOnLoad="false" layout="centerLayout" region="north">
+        <title translatable="true">Select Department</title>
+        <sortField table="dp" name="dv_id" ascending="true"/>
+        <sortField table="dp" name="dp_id" ascending="true"/>
+        <field table="dp" name="dv_id" controlType="link">
+            <command type="callFunction" functionName="onSelectDept"/>
+        </field>
+        <field table="dp" name="dp_id" controlType="link">
+            <command type="callFunction" functionName="onSelectDept"/>
+        </field>
+        <field table="dp" name="name" controlType="link">
+            <command type="callFunction" functionName="onSelectDept"/>
+        </field>
+        <field name="tot_area" dataType="number" decimals="2" controlType="link">
+            <title translatable="true">Total Area</title>
+            <command type="callFunction" functionName="onSelectDept"/>
+        </field>
+    </panel>
+    <panel type="grid" id="roomsGrid" controlType="reportGrid" dataSource="ds_ab-sp-vw-rmpct-by-fl-dp_grid_rmpct" showOnLoad="false" layout="centerLayout" region="center">
+        <title translatable="true">Room Prorations</title>
+        <sortField table="rmpct" name="rm_id" ascending="true"/>
+        <field table="rmpct" name="rm_id"/>
+        <field table="rmpct" name="area_rm"/>
+        <field table="rmpct" name="rm_cat"/>
+        <field table="rmpct" name="rm_type"/>
+        <field table="rmpct" name="prorate"/>
+        <field table="rmpct" name="pct_space"/>
+        <field table="rmpct" name="pct_time"/>
+    </panel>
+    <js file="ab-sp-vw-rmpct-by-fl-dp.js"/>
+</view>

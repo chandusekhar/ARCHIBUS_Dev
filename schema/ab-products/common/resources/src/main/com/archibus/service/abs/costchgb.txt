@@ -1,0 +1,1134 @@
+/*****************************************************************************
+costchgb.abs
+04.03.97
+
+Performs roll-up and chargeback (proration) of Costs recorded in the 
+cost_tran table according to the Roll-Up and Proration settings in 
+cost_cat (Cost Categories) table. Each Cost record has a Cost Category
+foreign-key value - this value determines how that cost will be rolled-up
+and/or charged back.
+
+Rolling up a building cost to properties and then charging it back to
+Leases: It would appear that each original cost is now accounted for
+3 times - for the building, for the property, and then for the
+Leases. This is true. Each entity (bldg, property, lease) can be
+considered as one account. Costs are assigned at most once per
+account.  Also the only costs which are paid are those which are
+invoiced. Typically the costs will only be invoiced at one level -
+typically leases.
+
+Prorating property or building costs to leases: the Negotiated Area
+of the lease is always used as the basis for proration.
+
+Rolled Up costs and Chargeback costs are stored in the
+cost_tran_sched table with a status of 'AUTO-ROLLUP' or
+'AUTO-CHARGEBACK' until the Approve Chargeback Costs action has been
+run. Then they move to the cost_tran table and get a chrgbck_status
+of Rolled up ('RU') or Prorated ('PR')
+
+Rolled Up costs are summed and grouped according cost category and
+the roll-up entity id (either a Property Id or Building Id). Because
+a number of costs are grouped together the roll up cost does not
+exactly represent a cost for a particular date. The date_due assigned
+to the roll-up cost is the last date from the costs which have been
+grouped. To insure that the roll up costs most accurately represent
+the costs for a time period it is useful to fun the Cost Chargeback
+action on a regular basis such as monthly.
+
+For lease chargeback the rules in the Lease Chargeback Agreements
+table are also used to determine the pro-rated value for particular
+Leases. Note: Direct bill costs are not subject to the Lease
+Chargeback because they are costs which have already been directly
+applied to the lease. At the time a user applies those costs they
+should consider and check the lease chargeback agreement to determine
+the actual cost to assign to the lease.
+
+06.09.97 JH - Modified SetStatusOfCostsWIthBadOwners() sql statement to be
+              compatible with Oracle. Also modified to only update those
+		    records which have a chargback status of 'N'.
+09.22.99 JH - Modified for MSSQL
+03.20.00 JH - Localization - Updated string constants
+05.09.02 YQ - change MsgBox to AfmMsgBox for localization
+07.16.02 JH - changed rs.Fields( "amount_income" ).Value To:
+					CStr( rs.Fields( "amount_income" ).NumValue )
+			since .Value returns a number in exponential notation and 
+			which is limited to 6 significant digits.
+07.30.02 YQ - Localization - Replace Decimal Symbol With Dot For SQL Statement for Localiation
+*****************************************************************************/
+
+Option Explicit
+
+Type CostsFieldsStructure
+	sOwnerId		As String
+	sAmountExpense As String
+	sAmountIncome	As String
+	sCostCat		As String
+	sDateDue		As String
+	sDescription	As String
+End Type
+	
+
+'---- External functions
+Declare Sub lsarea_UpdateLeaseAreas()
+Declare Sub proparea_UpdateBlAndPrAreas()
+Declare Function SqlFunc_Replace0WithHuge( sFieldName As String ) As String
+Declare Function SqlFunc_StringConcat() As String
+Declare Function sup_MakeLiteralOrBlank( strVal As String ) As String
+Declare Function Sup_ReplaceDecimalSymbolWithDotForDouble( dForeignNumber As Double ) As String
+
+'---- Views called
+Declare Sub cbcosts()
+Declare Sub cbcstap()
+
+
+'---- Internal Functions
+Declare Function ScheduledChargebackCostsExist() As Boolean
+Declare Function WantToDeleteExistingScheduledChargebackCosts() As Boolean
+Declare Sub DeleteExistingScheduledChargebackCosts()
+Declare Function WantToRecalcPropAndLeaseAreas() As Boolean
+
+Declare Sub SetStatusOfCostsWIthBadOwners()
+
+Declare Sub CalculateCostsRollUps()
+Declare Sub CalcRollUp( sRollUpType As String )
+
+Declare Sub CalculateCostsProrations()
+Declare Sub SetChrgbckStatusOfDirectBillCosts()
+Declare Function GetLeaseAreaType() As String
+Declare Sub SetChrgbckStatusOfLeaseDeptProrateCostsToSU()
+
+Declare Sub CalcCostProrationsForCostTranRecs()
+Declare Sub CalcCostProrationsForCostTranSchedRecs()
+Declare Sub PerformProrationForCostTranRecs( rs As RecordSet, _
+		iNumCostRecs As Integer )
+
+Declare Sub ProratePropCostToBldgs( CostFieldVals As CostsFieldsStructure )
+Declare Sub ProratePropCostToLeases( CostFieldVals As CostsFieldsStructure )
+Declare Sub ProrateBldgCostToLeases( CostFieldVals As CostsFieldsStructure )
+Declare Sub ProrateLeaseCostToDepts( CostFieldVals As CostsFieldsStructure )
+
+Declare Sub CheckChargeBackCostsAgainstLeaseChargeBackAgreements()
+Declare Sub WarnOfChargeBackExceptions()
+
+Declare Sub costchgb_ApproveAllChargeBackCosts()
+
+'------------------------------------------------------------------------------
+'----							 TRANSLATE
+Const kCalcCostChargeBackTitle$		= "Calculate Cost Chargeback"
+
+Const kThereAreExistingScheduledRollUpAndOrChargebackCosts$ = _
+		"There are existing scheduled rollup and/or chargeback costs."
+Const kYouMustEitherApproveThemOrDeleteThemB4NewCBCalc$ = _
+		"You must either approve or delete existing scheduled rollup and/or chargeback costs before new chargeback costs can be calculated."
+Const kDoYouWantTheScheduledRollUpAndOrChargebackCostsDeletedNow$ = _
+		"Do you want the scheduled rollup and chargeback costs deleted now?"
+
+Const kTheChargebackCalculationsRelyOnAccurateAreaValuesMsg$ = _
+		"The Cost Chargeback calculations rely on accurate area values in the Property, Building, Lease, and Departmental Areas (Suites, Groups, or Rooms) tables in order to accurately prorate costs."
+Const kDoYouWishToHaveAllOfTheseAreasRecalculatedNowMsg$ = _
+		"Do you wish to have all of these areas recalculated now?"
+
+Const kCalculatingCostRollUpsMsg$  = "Calculating cost rollups from:"
+Const kPleaseWaitMsg$			= "Please wait..."
+Const kBuildingsToPropertiesMsg$	= "Buildings to Properties"
+Const kLeasesToBuildingsMsg$		= "Leases to Buildings"
+Const kLeasesToPropertiesMsg$		= "Leases to Properties"
+
+Const kProperties$				= "Properties"
+Const kBuildings$				= "Buildings"
+Const kLeases$					= "Leases"
+
+Const kRolledUpTotalFrom$		= "Rolled up total from"
+Const kOf$					= "of"
+Const kFromDateDueMsg$			= "From Date Due:"
+Const kToDateDueMsg$			= "To Date Due:"
+
+Const kCalculatingCostProrationsMsg$="Calculating Cost Prorations"
+Const kProratedPortionFromMsg$	= "Prorated portion from"		
+
+Const kProperty$				= "Property"
+Const kBuilding$				= "Building"
+Const kLease$					= "Lease"
+
+Const kSomeCostsCouldNotBeRolledUpAndOrChargedBackMsg$ = _
+		"Some costs could not be rolled up and/or charged back."
+Const kTheseExceptionsAreDueToMsg$ = "These exceptions are due to:"
+Const kMissingOwnerCodesMsg$	     = _
+	"Missing owner field codes such as Building, Property, or Lease codes."
+Const kLeaseToDeptProrationsNotPossibleMsg$ = _
+	"Lease to Department prorations not possible because using Suite method."
+Const kLoadTheChargeBackExceptionReportToViewMsg$ = _
+		"Load the 'Chargeback Exceptions' report to view these costs."
+
+Const kApprovingChargeBackCostsMsg$ = "Approving Chargeback costs"
+'------------------------------------------------------------------------------
+
+'------------------------------------------------------------------------------
+'---- Do NOT Translate
+Const kTab$					= Chr$(9)
+Const kCrlf$					= Chr$(13) & Chr$(10)
+
+'---- The following values must match the STORED values in the enum list for
+'---- cost_cat.rollup_prorate:
+Const kAllNoneDirect$			= "ALL-NONE-DIRECT"
+Const kBldgPropNone$			= "BLDG-PROP-NONE"
+Const kBldgPropLease$			= "BLDG-PROP-LEASE"
+Const kBldgNoneLease$			= "BLDG-NONE-LEASE"
+Const kLeaseBldgNone$			= "LEASE-BLDG-NONE"
+Const kLeaseNoneDept$			= "LEASE-NONE-DEPT"
+Const kLeasePropNone$			= "LEASE-PROP-NONE"
+Const kPropNoneBldg$			= "PROP-NONE-BLDG"
+Const kPropNoneLease$			= "PROP-NONE-LEASE"
+
+'---- Rollup
+Const kBldgProp$				= "BLDG-PROP"
+Const kLeaseBldg$				= "LEASE-BLDG"
+Const kLeaseProp$				= "LEASE-PROP"
+
+'------------------------------------------------------------------------------
+
+Private psLeaseAreaType As String
+
+
+'------------------------------------------------------------------------------
+Sub Main()
+
+	If ScheduledChargebackCostsExist() Then
+		If WantToDeleteExistingScheduledChargebackCosts() Then
+			DeleteExistingScheduledChargebackCosts
+		Else
+			End		'---- Ends program - can not create new chargeback
+					'---- costs unless all existing chargeback costs
+					'---- are either approved or deleted.
+		End If
+	End If
+
+	If WantToRecalcPropAndLeaseAreas() Then
+		lsarea_UpdateLeaseAreas
+		proparea_UpdateBlAndPrAreas
+	End If
+
+	SetStatusOfCostsWIthBadOwners
+
+	CalculateCostsRollUps
+	CalculateCostsProrations
+
+	CheckChargeBackCostsAgainstLeaseChargeBackAgreements
+
+	WarnOfChargeBackExceptions
+
+	Call cbcosts
+	Avw.Display
+
+End Sub
+'------------------------------------------------------------------------------
+
+'------------------------------------------------------------------------------
+'---- Determines whether there are any existing scheduled roll-up or chargeback
+'---- costs in the scheduled costs table which have not yet been approved.
+Function ScheduledChargebackCostsExist() As Boolean
+
+	Dim rs As New RecordSet
+
+	rs.Open "SELECT 1 FROM cost_tran_sched" & _
+		  " WHERE status IN ( 'AUTO-ROLLUP', 'AUTO-CHARGEBACK' )"
+
+	If Not rs.EOF Then
+		ScheduledChargebackCostsExist = TRUE
+	Else
+		ScheduledChargebackCostsExist = FALSE
+	End If
+
+	rs.Close
+
+End Function
+'------------------------------------------------------------------------------
+
+
+'------------------------------------------------------------------------------
+'---- Prompt user if they want to recalculate all Property and Lease Areas
+'---- upon which prorations are based.
+Function WantToDeleteExistingScheduledChargebackCosts() As Boolean
+
+	If AfmMsgBox( kThereAreExistingScheduledRollUpAndOrChargebackCosts & _
+			 BASIC.EOLN$ & _
+			 kYouMustEitherApproveThemOrDeleteThemB4NewCBCalc & _
+			 BASIC.EOLN$ & _
+			 kDoYouWantTheScheduledRollUpAndOrChargebackCostsDeletedNow, _
+			 ebQuestion + ebYesNo, kCalcCostChargeBackTitle ) = ebYes Then
+		WantToDeleteExistingScheduledChargebackCosts = TRUE
+	Else 
+		WantToDeleteExistingScheduledChargebackCosts = False
+	End If
+
+End Function
+'------------------------------------------------------------------------------
+
+'------------------------------------------------------------------------------
+'---- DELETION OF SCHEDULED CHARGEBACK COSTS:
+'---- Deletes cost_tran_sched recs w/status 'AUTO-ROLLUP' or 'AUTO-CHARGEBACK'
+'---- All cost_tran recs w/chrgbck_status of 'CS' get chrgbck_status set to 'N'
+Sub DeleteExistingScheduledChargebackCosts()
+
+	ProjDb.ExecuteSql "DELETE FROM cost_tran_sched" & _
+				  " WHERE status IN ( 'AUTO-ROLLUP', 'AUTO-CHARGEBACK' )"
+
+	ProjDb.ExecuteSql "UPDATE cost_tran SET chrgbck_status = 'N'" & _
+				  " WHERE chrgbck_status IN ( 'CS', 'SU' )"
+
+End Sub
+'------------------------------------------------------------------------------
+
+'------------------------------------------------------------------------------
+Function WantToRecalcPropAndLeaseAreas() As Boolean
+
+	If AfmMsgBox( kTheChargebackCalculationsRelyOnAccurateAreaValuesMsg & _
+			 BASIC.EOLN$ & BASIC.EOLN$ & _
+			 kDoYouWishToHaveAllOfTheseAreasRecalculatedNowMsg & _
+			 BASIC.EOLN$, ebQuestion + ebYesNo, _
+			 kCalcCostChargeBackTitle ) = ebYes Then
+		WantToRecalcPropAndLeaseAreas = TRUE
+	Else 
+		WantToRecalcPropAndLeaseAreas = False
+	End If
+
+End Function
+'------------------------------------------------------------------------------
+
+'------------------------------------------------------------------------------
+'---- All costs which can not be fully rolled up or charged back because
+'---- owner id fields are missing are marked as bad.
+Sub SetStatusOfCostsWIthBadOwners()
+
+	Dim sSqlStmt As String
+	Dim sSelectProrateStmt As String
+
+'	---- Update cost_tran in case 'Bad Owners' values have been edited and
+'	---- fixed by user. (added 06.09.97 - JH)
+	ProjDb.ExecuteSql "UPDATE cost_tran set chrgbck_status = 'N'" & _
+				  " WHERE chrgbck_status = 'BO'"
+
+	sSelectProrateStmt ="( SELECT cost_cat.rollup_prorate" & _
+					" FROM cost_cat" & _
+			          " WHERE cost_cat.cost_cat_id = cost_tran.cost_cat_id)"
+
+	sSqlStmt = "UPDATE cost_tran SET chrgbck_status = 'BO'" & _
+		     " WHERE (( 'BLDG-PROP-NONE' = " & sSelectProrateStmt & " )" & _
+			   " AND (( cost_tran.bl_id IS NULL )" & _
+				   " OR ( EXISTS ( SELECT bl.pr_id FROM bl" & _
+						" WHERE bl.bl_id = cost_tran.bl_id" & _
+						" AND bl.pr_id IS NULL )) )" & _
+			   " AND chrgbck_status = 'N'	)" & _
+		     " OR (( 'BLDG-PROP-LEASE' = " & sSelectProrateStmt & " )" & _
+			   " AND (( cost_tran.bl_id IS NULL )" & _
+				   " OR ( EXISTS ( SELECT bl.pr_id FROM bl" & _
+						" WHERE bl.bl_id = cost_tran.bl_id" & _
+						" AND bl.pr_id IS NULL )) )" & _
+			   " AND chrgbck_status = 'N'	)" & _
+		     " OR (( 'LEASE-BLDG-NONE' = " & sSelectProrateStmt & " )" & _
+			   " AND (( cost_tran.ls_id IS NULL )" & _
+				   " OR ( EXISTS ( SELECT ls.bl_id FROM ls" & _
+						" WHERE ls.ls_id = cost_tran.ls_id" & _
+						" AND ls.bl_id IS NULL )) )" & _
+			   " AND chrgbck_status = 'N'	)" & _
+		     " OR (( 'LEASE-PROP-NONE' = " & sSelectProrateStmt & " )" & _
+			   " AND (( cost_tran.ls_id IS NULL )" & _
+				   " OR ( EXISTS ( SELECT ls.bl_id FROM ls" & _
+						" WHERE ls.ls_id = cost_tran.ls_id" & _
+						" AND ls.bl_id IS NULL ))" & _
+				   " OR ( EXISTS ( SELECT bl.pr_id FROM ls, bl" & _
+						" WHERE ls.ls_id = cost_tran.ls_id" & _
+						" AND bl.bl_id = ls.bl_id" & _
+						" AND bl.pr_id IS NULL )) )" & _
+			   " AND chrgbck_status = 'N'	)" & _
+		     " OR (( 'PROP-NONE-BLDG' = " & sSelectProrateStmt & " )" & _
+			   " AND ( cost_tran.pr_id IS NULL )" & _
+			   " AND chrgbck_status = 'N'	)" & _
+		     " OR (( 'PROP-NONE-LEASE' = " & sSelectProrateStmt & " )" & _
+			   " AND ( cost_tran.pr_id IS NULL )" & _
+			   " AND chrgbck_status = 'N'	)" & _
+		     " OR (( 'BLDG-NONE-LEASE' = " & sSelectProrateStmt & " )" & _
+			   " AND ( cost_tran.bl_id IS NULL )" & _
+			   " AND chrgbck_status = 'N'	)" & _
+		     " OR (( 'LEASE-NONE-DEPT' = " & sSelectProrateStmt & " )" & _
+			   " AND ( cost_tran.ls_id IS NULL )" & _
+			   " AND chrgbck_status = 'N'	)"
+	ProjDb.ExecuteSql sSqlStmt
+
+End Sub
+'------------------------------------------------------------------------------
+
+'------------------------------------------------------------------------------
+'---- ROLL-UP cases are: Bldgs to Props, Leases to Bldgs, Leases to Properties
+Sub CalculateCostsRollUps()
+
+	MsgOpen kCalculatingCostRollUpsMsg & BASIC.EOLN$ & BASIC.EOLN$ & _
+		   kTab & kBuildingsToPropertiesMsg & BASIC.EOLN$ & BASIC.EOLN$ & _
+		   kTab & kPleaseWaitMsg, 0, FALSE, TRUE
+
+	CalcRollUp kBldgProp
+	MsgSetThermometer 33
+
+	MsgSetText kCalculatingCostRollUpsMsg & BASIC.EOLN$ & BASIC.EOLN$ & _
+			kTab & kLeasesToBuildingsMsg & BASIC.EOLN$ & BASIC.EOLN$ & _
+		     kTab & kPleaseWaitMsg
+	CalcRollUp kLeaseBldg
+	MsgSetThermometer 67
+
+	MsgSetText kCalculatingCostRollUpsMsg & BASIC.EOLN$ & BASIC.EOLN$ & _
+			kTab & kLeasesToPropertiesMsg & BASIC.EOLN$ & BASIC.EOLN$ & _
+		     kTab & kPleaseWaitMsg
+	CalcRollUp kLeaseProp
+	MsgSetThermometer 100
+
+	Sleep 300
+	MsgClose
+
+End Sub
+'------------------------------------------------------------------------------
+
+
+'------------------------------------------------------------------------------
+'---- Calculates roll up costs to cost_tran_sched from cost_tran COSTS:
+/*   o All cost_tran records with a chrgbck_status - 'N' are examined
+     o Sum by the Rollup table Id; only fill in that Id in cost_tran_sched
+     o Group by cost_cat_id and the rollup table id
+     o cost_tran_sched memo value set to: 
+          'Rolled up total from {tablename} of {cost_cat_id} From: {from date}
+			To: {to date}'
+          {tablename} = Lease - or Bldg - or Prop
+		{from date} is the earliest date for all the grouped costs
+		{to date} is the latest date for all the grouped costs
+     o Records get created in cost_tran_sched with a status of 'AUTO-ROLLUP'
+     o When a cost_tran record has been RolledUp or ChargedBack it's
+          status is set to CS (Chargeback Scheduled)
+*/
+Sub CalcRollUp( sRollUpType As String )
+
+	Dim sRollUpFromTableTitle As String
+	Dim sRollUpDescription As String
+	Dim sRollUpWhereStmt As String
+	Dim sSqlStmt As String
+	Dim sFromTables As String
+	Dim sFromTablesRest As String
+	Dim sRollUpFromTableId As String
+	Dim sRollUpToTableId As String
+	Dim sGroupByTable As String
+	Dim sGroupById As String
+
+	Select Case sRollUpType
+	Case kBldgProp
+		sFromTables = "bl"
+		sFromTablesRest = "cost_tran.bl_id = bl.bl_id"
+		sRollUpFromTableTitle = kBuildings
+		sRollUpFromTableId = "bl_id"
+		sRollUpToTableId = "pr_id"
+		sGroupByTable = "bl"
+		sGroupById = "pr_id"
+
+	Case kLeaseBldg
+		sFromTables = "ls"
+		sFromTablesRest = "cost_tran.ls_id = ls.ls_id"
+		sRollUpFromTableTitle = kLeases
+		sRollUpFromTableId = "ls_id"
+		sRollUpToTableId = "bl_id"
+		sGroupByTable = "ls"
+		sGroupById = "bl_id"
+
+	Case kLeaseProp
+		sFromTables = "ls, bl"
+		sFromTablesRest = "cost_tran.ls_id = ls.ls_id" & _
+						" AND ls.bl_id = bl.bl_id"
+		sRollUpFromTableTitle = kLeases
+		sRollUpFromTableId = "ls_id"
+		sRollUpToTableId = "pr_id"
+		sGroupByTable = "bl"
+		sGroupById = "pr_id"
+	End Select
+
+	sRollUpDescription = "'" & kRolledUpTotalFrom & _
+					" " & sRollUpFromTableTitle & _
+					 " " & kOf & " ' " & SqlFunc_StringConcat & _
+						" cost_tran.cost_cat_id " & _
+						SqlFunc_StringConcat & " ' " & _
+					 kFromDateDueMsg & " ' " & SqlFunc_StringConcat
+
+	If ProjDb.ServerType = "MSSQL" Then 
+		sRollUpDescription = sRollUpDescription & _
+				" CONVERT( VARCHAR, MIN( date_due )) " 
+	Else 
+		sRollUpDescription = sRollUpDescription & " MIN( date_due ) " 
+	End If
+
+	sRollUpDescription = sRollUpDescription & SqlFunc_StringConcat & " ' " & _
+					 kToDateDueMsg & " ' " & SqlFunc_StringConcat
+
+	If ProjDb.ServerType = "MSSQL" Then 
+		sRollUpDescription = sRollUpDescription & _
+				" CONVERT( VARCHAR, MAX( date_due )) " 
+	Else 
+		sRollUpDescription = sRollUpDescription & " MAX( date_due ) " 
+	End If
+
+	sRollUpWhereStmt = " WHERE chrgbck_status = 'N'" & _
+				" AND cost_tran." & sRollUpFromTableId & " IS NOT NULL"
+	
+
+'	---- Create the rollup cost records
+	sSqlStmt = "INSERT INTO cost_tran_sched" & _
+				" ( amount_expense, amount_income, cost_cat_id," & _
+				" date_due, description, status, " & sGroupById & " )" & _
+			" SELECT SUM( amount_expense ), SUM( amount_income )," & _
+				" cost_tran.cost_cat_id, MAX( date_due ), " & _
+				sRollUpDescription & _
+				", 'AUTO-ROLLUP', " & sGroupByTable & "." & sGroupById & _
+			" FROM cost_tran, cost_cat, " & sFromTables & _
+			sRollUpWhereStmt & _
+			" AND " & sFromTablesRest & _
+			" AND cost_cat.cost_cat_id = cost_tran.cost_cat_id" & _
+			" AND cost_cat.rollup_prorate LIKE '" & sRollUpType & "%'" & _
+			" GROUP BY cost_tran.cost_cat_id, " & _
+					sGroupByTable & "." & sGroupById
+
+	ProjDb.ExecuteSql sSqlStmt
+	
+	sSqlStmt = "UPDATE cost_tran SET chrgbck_status = 'CS'" & _
+			sRollUpWhereStmt & _
+			" AND EXISTS (SELECT 1 FROM cost_cat" & _
+				" WHERE cost_cat.cost_cat_id = cost_tran.cost_cat_id" & _
+				" AND cost_cat.rollup_prorate LIKE '" & sRollUpType & "%')"
+
+	ProjDb.ExecuteSql sSqlStmt
+
+End Sub
+'------------------------------------------------------------------------------
+
+'------------------------------------------------------------------------------
+'----
+Sub CalculateCostsProrations()
+
+	MsgOpen kCalculatingCostProrationsMsg & BASIC.EOLN$ & BASIC.EOLN$ & _
+		   kTab & kPleaseWaitMsg, 0, FALSE, TRUE
+
+	Dim rs As New RecordSet
+
+	SetChrgbckStatusOfDirectBillCosts
+	MsgSetThermometer 2
+
+	psLeaseAreaType = GetLeaseAreaType()
+	MsgSetThermometer 3
+	If psLeaseAreaType = "su" Then SetChrgbckStatusOfLeaseDeptProrateCostsToSU
+	MsgSetThermometer 5
+
+	CalcCostProrationsForCostTranRecs
+	MsgSetThermometer 54
+
+	CalcCostProrationsForCostTranSchedRecs
+	MsgSetThermometer 100
+
+	MsgClose
+
+End Sub
+'------------------------------------------------------------------------------
+
+'------------------------------------------------------------------------------
+'---- When a cost_tran record has been RolledUp or ChargedBack it's
+'---- status is set to CS. Direct Bill costs do not rollup or prorate.
+Sub SetChrgbckStatusOfDirectBillCosts()
+
+	Dim sSqlStmt As String
+
+	sSqlStmt = "UPDATE cost_tran SET chrgbck_status = 'CS'" & _
+			" WHERE chrgbck_status = 'N'" & _
+			" AND '" & kAllNoneDirect & "' =" & _
+					"( SELECT rollup_prorate FROM cost_cat" & _
+					 " WHERE cost_cat.cost_cat_id =" & _
+					 " cost_tran.cost_cat_id )" 
+	ProjDb.ExecuteSql sSqlStmt
+
+End Sub
+'------------------------------------------------------------------------------
+
+'------------------------------------------------------------------------------
+Function GetLeaseAreaType() As String
+
+	Dim rs As New RecordSet
+	Dim sLeaseAreaType As String
+
+	rs.Open "SELECT lease_area_type FROM afm_scmpref"
+	sLeaseAreaType = rs.Fields( 0 ).Value 
+	rs.Close
+
+	If ( sLeaseAreaType = "cr" ) Or ( sLeaseAreaType = "ar" ) Then
+		sLeaseAreaType = "rm"
+	End If
+
+	GetLeaseAreaType = sLeaseAreaType
+
+End Function
+'------------------------------------------------------------------------------
+
+'------------------------------------------------------------------------------
+'---- Can not Prorate Lease Costs to Depts if using Lease Area Method of
+'---- Suites. So mark these records.
+Sub SetChrgbckStatusOfLeaseDeptProrateCostsToSU()
+		
+	Dim sSqlStmt As String
+
+	sSqlStmt = "UPDATE cost_tran SET chrgbck_status = 'SU'" & _
+			" WHERE chrgbck_status = 'N'" & _
+			" AND '" & kLeaseNoneDept & "' =" & _
+					"( SELECT rollup_prorate FROM cost_cat" & _
+					 " WHERE cost_cat.cost_cat_id =" & _
+					 " cost_tran.cost_cat_id )" 
+	ProjDb.ExecuteSql sSqlStmt
+
+End Sub
+'------------------------------------------------------------------------------
+
+'------------------------------------------------------------------------------
+'---- The following rollup_prorate values for for cost categories are just
+'---- used for chargeback. All costs with these rollup_prorate values will 
+'---- come only from the cost_tran table.
+'---- PROP-NONE-BLDG, PROP-NONE-LEASE, BLDG-NONE-LEASE, LEASE-NONE-DEPT
+Sub CalcCostProrationsForCostTranRecs()
+
+	Dim rs As New RecordSet
+	Dim sFromWhereStmt As String
+	Dim sSqlStmt As String
+	Dim iNumCostRecs As Integer
+
+	sFromWhereStmt = " FROM cost_tran, cost_cat" & _
+				  " WHERE chrgbck_status = 'N'" & _
+				  " AND cost_cat.cost_cat_id = cost_tran.cost_cat_id" & _
+				  " AND rollup_prorate IN ( 'PROP-NONE-BLDG'," & _
+				  " 'PROP-NONE-LEASE', 'BLDG-NONE-LEASE'," & _
+				  " 'LEASE-NONE-DEPT' )"
+	rs.Open "SELECT COUNT(*)" & sFromWhereStmt
+	iNumCostRecs = rs.Fields( 0 ).NumValue
+	rs.Close
+	MsgSetThermometer 6
+
+	sSqlStmt = "SELECT cost_tran_id, pr_id, bl_id, ls_id," & _
+				" amount_expense, amount_income," & _
+				" cost_tran.cost_cat_id, rollup_prorate," & _
+				" date_due, description" & _
+				sFromWhereStmt
+	rs.Open sSqlStmt
+	MsgSetThermometer 8
+
+	If iNumCostRecs <> 0 Then PerformProrationForCostTranRecs rs, iNumCostRecs
+	rs.Close
+
+	sSqlStmt = "UPDATE cost_tran SET chrgbck_status = 'CS'" & _
+			" WHERE chrgbck_status = 'N'" & _
+			" AND EXISTS (SELECT 1 FROM cost_cat" & _
+				" WHERE cost_cat.cost_cat_id = cost_tran.cost_cat_id" & _
+				" AND cost_cat.rollup_prorate IN ( 'PROP-NONE-BLDG'," & _
+				  "'PROP-NONE-LEASE','BLDG-NONE-LEASE','LEASE-NONE-DEPT'))"
+	ProjDb.ExecuteSql sSqlStmt
+
+End Sub
+'------------------------------------------------------------------------------
+
+'------------------------------------------------------------------------------
+'---- The following rollup_prorate values for cost categories are just
+'---- used for rollup - chargebacks. All costs with these rollup_prorate
+'---- values have already been rollup to the cost_tran_sched table:
+'---- BLDG-PROP-NONE, BLDG-PROP-LEASE, LEASE-BLDG-NONE, LEASE-PROP-NONE
+'---- The only rollup_prorate type which gets prorated back down after being
+'---- rolled up is: BLDG-PROP-LEASE
+Sub CalcCostProrationsForCostTranSchedRecs()
+
+	Dim rs As New RecordSet
+	Dim sFromWhereStmt As String
+	Dim sSqlStmt As String
+	Dim CostFieldVals As CostsFieldsStructure
+	Dim iNumCostRecs As Integer
+	Dim nThermIncrement As Single
+	Dim nThermValue As Single
+
+	sFromWhereStmt = " FROM cost_tran_sched, cost_cat" & _
+				  " WHERE status = 'AUTO-ROLLUP'" & _
+				  " AND cost_cat.cost_cat_id =" & _
+									" cost_tran_sched.cost_cat_id" & _
+				  " AND rollup_prorate = 'BLDG-PROP-LEASE'"
+	rs.Open "SELECT COUNT(*)" & sFromWhereStmt
+	iNumCostRecs = rs.Fields( 0 ).NumValue
+	rs.Close
+
+	MsgSetThermometer 55
+
+	sSqlStmt = "SELECT pr_id, amount_expense, amount_income," & _
+				" cost_tran_sched.cost_cat_id, date_due, description" & _
+			  sFromWhereStmt
+	rs.Open sSqlStmt
+
+	nThermValue = 57
+	MsgSetThermometer nThermValue
+	If iNumCostRecs <> 0 Then nThermIncrement = 42 / iNumCostRecs
+
+	While Not rs.EOF
+
+		CostFieldVals.sOwnerId = rs.Fields( "pr_id" ).Value
+		CostFieldVals.sAmountExpense = CStr( rs.Fields( "amount_expense" ).NumValue )
+		CostFieldVals.sAmountIncome = CStr( rs.Fields( "amount_income" ).NumValue )
+		CostFieldVals.sCostCat = rs.Fields( "cost_cat_id" ).Value
+		CostFieldVals.sDateDue = rs.Fields( "date_due" ).Value
+		CostFieldVals.sDescription = rs.Fields( "description" ).Value
+
+		ProratePropCostToLeases CostFieldVals
+
+		nThermValue = nThermValue + nThermIncrement
+		MsgSetThermometer nThermValue
+		rs.MoveNext
+	Wend
+	rs.Close
+
+End Sub
+'------------------------------------------------------------------------------
+
+'------------------------------------------------------------------------------
+'---- Process the records - prorate them according to the proration rules
+Sub PerformProrationForCostTranRecs( rs As RecordSet, iNumCostRecs As Integer )
+
+	Dim CostFieldVals As CostsFieldsStructure
+	Dim sRollUpProrate As String
+	Dim nThermIncrement As Single
+	Dim nThermValue As Single
+
+	nThermIncrement = 45 / iNumCostRecs
+	nThermValue = 9
+	MsgSetThermometer nThermValue
+
+	While Not rs.EOF
+
+		CostFieldVals.sAmountExpense = CStr( rs.Fields( "amount_expense" ).NumValue ) 
+		CostFieldVals.sAmountIncome = CStr( rs.Fields( "amount_income" ).NumValue )
+		CostFieldVals.sCostCat = rs.Fields( "cost_cat_id" ).Value
+		CostFieldVals.sDateDue = rs.Fields( "date_due" ).Value
+		CostFieldVals.sDescription = rs.Fields( "description" ).Value
+
+		Select Case rs.Fields( "rollup_prorate" ).Value
+		Case kPropNoneBldg
+			CostFieldVals.sOwnerId = rs.Fields( "pr_id" ).Value
+			ProratePropCostToBldgs CostFieldVals
+		Case kPropNoneLease
+			CostFieldVals.sOwnerId = rs.Fields( "pr_id" ).Value
+			ProratePropCostToLeases CostFieldVals
+		Case kBldgNoneLease
+			CostFieldVals.sOwnerId = rs.Fields( "bl_id" ).Value
+			ProrateBldgCostToLeases CostFieldVals
+		Case kLeaseNoneDept
+			CostFieldVals.sOwnerId = rs.Fields( "ls_id" ).Value
+			ProrateLeaseCostToDepts CostFieldVals
+		End Select
+
+		nThermValue = nThermValue + nThermIncrement
+		MsgSetThermometer nThermValue
+		rs.MoveNext
+	Wend
+
+End Sub
+'------------------------------------------------------------------------------
+
+
+'------------------------------------------------------------------------------
+'---- Creates records in cost_tran_sched for prorated costs from a cost_tran
+'---- record which is reported to a property but is prorated to buildings
+'---- This routine will create a cost_tran_sched record w/the prorated cost for
+'---- EACH and every Bldg assigned to the Property on the original cost passed.
+Sub ProratePropCostToBldgs( CostFieldVals As CostsFieldsStructure )
+
+	Dim sSqlStmt As String
+
+	sSqlStmt = "INSERT INTO cost_tran_sched" & _
+		" ( bl_id, amount_expense, amount_income, cost_cat_id, date_due," & _
+		" status, description )" & _
+		" SELECT bl_id, " & _
+			CostFieldVals.sAmountExpense & " * bl.area_rentable / " & _
+				SqlFunc_Replace0WithHuge( "property.area_bl_rentable" ) & _
+			", " & CostFieldVals.sAmountIncome & " * bl.area_rentable /" & _
+				SqlFunc_Replace0WithHuge( "property.area_bl_rentable" ) & _
+			", '" & CostFieldVals.sCostCat & _
+			"', " & ProjDb.ISOToNativeDate( CostFieldVals.sDateDue ) & _
+			", 'AUTO-CHARGEBACK'" & _
+			", '" & kProratedPortionFromMsg & " " & kProperty & ": " & _
+				CostFieldVals.sOwnerId & " " & kOf & " " & _
+				CostFieldVals.sCostCat & " - " & _
+				sup_MakeLiteralOrBlank(CostFieldVals.sDescription) +"'" & _
+		" FROM bl, property" & _
+		" WHERE bl.pr_id = '" & CostFieldVals.sOwnerId & "'" & _
+		" AND property.pr_id = '" & CostFieldVals.sOwnerId & "'"
+
+	ProjDb.ExecuteSql sSqlStmt
+
+End Sub
+'------------------------------------------------------------------------------
+
+'------------------------------------------------------------------------------
+'---- Creates records in cost_tran_sched for prorated costs from a cost_tran
+'---- record which is reported to a property but is prorated to Leases
+'---- This routine will create a cost_tran_sched record w/the prorated cost for
+'---- EACH and every Lease assigned to the Property on the original cost passed
+Sub ProratePropCostToLeases( CostFieldVals As CostsFieldsStructure )
+
+	Dim sSqlStmt As String
+
+	sSqlStmt = "INSERT INTO cost_tran_sched" & _
+		" ( ls_id, amount_expense, amount_income, cost_cat_id, date_due," & _
+		" status, description )" & _
+		" SELECT ls_id, " & _
+				Sup_ReplaceDecimalSymbolWithDotForDouble(CDbl(CostFieldVals.sAmountExpense)) & " * ls.area_negotiated / " & _
+				SqlFunc_Replace0WithHuge( "property.area_lease_neg" ) & _
+			", " & Sup_ReplaceDecimalSymbolWithDotForDouble(CDbl(CostFieldVals.sAmountIncome)) & "* ls.area_negotiated/" & _
+				SqlFunc_Replace0WithHuge( "property.area_lease_neg" ) & _
+			", '" & CostFieldVals.sCostCat & _
+			"', " & ProjDb.ISOToNativeDate( CostFieldVals.sDateDue ) & _
+			", 'AUTO-CHARGEBACK'" & _
+			", '" & kProratedPortionFromMsg & " " & kProperty & ": " & _
+				CostFieldVals.sOwnerId & " " & kOf & " " & _
+				CostFieldVals.sCostCat & " - " & _
+				sup_MakeLiteralOrBlank(CostFieldVals.sDescription) +"'" & _
+		" FROM bl, ls, property" & _
+		" WHERE bl.pr_id = '" & CostFieldVals.sOwnerId & "'" & _
+		" AND ls.bl_id = bl.bl_id" & _
+		" AND property.pr_id = '" & CostFieldVals.sOwnerId & "'"
+
+	ProjDb.ExecuteSql sSqlStmt
+
+End Sub
+'------------------------------------------------------------------------------
+
+'------------------------------------------------------------------------------
+'---- Creates records in cost_tran_sched for prorated costs from a cost_tran
+'---- record which is reported to a building but is prorated to Leases
+'---- This routine will create a cost_tran_sched record w/the prorated cost for
+'---- EACH and every Lease assigned to the Building on the original cost passed
+Sub ProrateBldgCostToLeases( CostFieldVals As CostsFieldsStructure )
+
+	Dim sSqlStmt As String
+
+	sSqlStmt = "INSERT INTO cost_tran_sched" & _
+		" ( ls_id, amount_expense, amount_income, cost_cat_id, date_due," & _
+		" status, description )" & _
+		" SELECT ls_id, " & _
+			CostFieldVals.sAmountExpense & " * ls.area_negotiated / " & _
+				SqlFunc_Replace0WithHuge( "bl.area_ls_negotiated" ) & _
+			", " & CostFieldVals.sAmountIncome & "* ls.area_negotiated/" & _
+				SqlFunc_Replace0WithHuge( "bl.area_ls_negotiated" ) & _
+			", '" & CostFieldVals.sCostCat & _
+			"', " & ProjDb.ISOToNativeDate( CostFieldVals.sDateDue ) & _
+			", 'AUTO-CHARGEBACK'" & _
+			", '" & kProratedPortionFromMsg & " " & kBuilding & ": " & _
+				CostFieldVals.sOwnerId & " " & kOf & " " & _
+				CostFieldVals.sCostCat & " - " & _
+				sup_MakeLiteralOrBlank(CostFieldVals.sDescription) +"'" & _
+		" FROM ls, bl" & _
+		" WHERE ls.bl_id = '" & CostFieldVals.sOwnerId & "'" & _
+		" AND bl.bl_id = '" & CostFieldVals.sOwnerId & "'"
+
+	ProjDb.ExecuteSql sSqlStmt
+
+End Sub
+'------------------------------------------------------------------------------
+
+
+'------------------------------------------------------------------------------
+'---- Creates records in cost_tran_sched for prorated costs from a cost_tran
+'---- record which is reported to a Lease but is prorated to Depts.
+'---- If using a Suite Area Method then this sub-routine will never be called
+'---- because we have already marked the cost_tran records as 'SU' not 'N'.
+'---- This routine will create a cost_tran_sched record w/the prorated cost for
+'---- EACH and every Dept assigned to the Lease on the original cost passed.
+'---- Dept area is determined from all Groups or Rooms assigned to the Lease.
+'---- Groups or Rooms are used based on the Lease Area Type being used.
+Sub ProrateLeaseCostToDepts( CostFieldVals As CostsFieldsStructure )
+
+	Dim sSqlStmt As String
+
+	sSqlStmt = "INSERT INTO cost_tran_sched" & _
+		" ( dv_id, dp_id, amount_expense, amount_income, cost_cat_id," & _
+		" date_due, status, description )" & _
+		" SELECT dv_id, dp_id, " & _
+			CostFieldVals.sAmountExpense & " * SUM( " & psLeaseAreaType & _
+				"." & "area_chargable ) / " & _
+				SqlFunc_Replace0WithHuge( "ls.area_rentable" ) & _
+			", " & CostFieldVals.sAmountIncome & " * SUM( " & _
+				psLeaseAreaType & "." & "area_chargable ) / " & _
+				SqlFunc_Replace0WithHuge( "ls.area_rentable" ) & _
+			", '" & CostFieldVals.sCostCat & _
+			"', " & ProjDb.ISOToNativeDate( CostFieldVals.sDateDue ) & _
+			", 'AUTO-CHARGEBACK'" & _
+			", '" & kProratedPortionFromMsg & " " & kLease & ": " & _
+				CostFieldVals.sOwnerId & " " & kOf & " " & _
+				CostFieldVals.sCostCat & " - " & _
+				sup_MakeLiteralOrBlank(CostFieldVals.sDescription) +"'" & _
+		" FROM ls, " & psLeaseAreaType & _
+		" WHERE ls.ls_id = '" & CostFieldVals.sOwnerId & "'" & _
+		" AND " & psLeaseAreaType &  ".ls_id = '" & _
+									CostFieldVals.sOwnerId & "'" & _
+		" GROUP BY " & psLeaseAreaType & ".dv_id, " & _
+					psLeaseAreaType & ".dp_id, ls.area_rentable"
+
+	ProjDb.ExecuteSql sSqlStmt
+
+End Sub
+'------------------------------------------------------------------------------
+
+'------------------------------------------------------------------------------
+'---- Update the cost_tran_sched chargeback costs according to the rules set
+'---- in the Lease chargeback agreements table
+'---- The Lease Chargeback agreements are NOT considered for Direct Bill
+'---- Costs. This is because the Direct Bill Costs are entered direcly
+'---- into the cost_tran table and never get rolled-up or chargedback.
+Sub CheckChargeBackCostsAgainstLeaseChargeBackAgreements()
+
+	Dim sSqlStmt As String
+	Dim sWhereLsCBAgreeStmt As String
+
+	sWhereLsCBAgreeStmt = _
+		" WHERE ls_chrgbck_agree.ls_id = cost_tran_sched.ls_id" & _
+		" AND ls_chrgbck_agree.cost_cat_id = cost_tran_sched.cost_cat_id"
+
+'	---- No Charge and/or Lower Cap
+	sSqlStmt = "DELETE FROM cost_tran_sched" & _
+			" WHERE status = 'AUTO-CHARGEBACK'" & _
+			" AND ls_id IS NOT NULL" & _
+			" AND (( 'NO CHARGE' = ( SELECT charge_type" & _
+							    " FROM ls_chrgbck_agree" & _
+								 sWhereLsCBAgreeStmt & "))" & _
+				" OR (( amount_expense < ( SELECT amount_cap_lower" & _
+									" FROM ls_chrgbck_agree" & _
+									sWhereLsCBAgreeStmt & "))" & _
+					" AND ( amount_income < (SELECT amount_cap_lower" & _
+									" FROM ls_chrgbck_agree" & _
+									sWhereLsCBAgreeStmt & "))" & _
+					")" & _
+				")"
+	ProjDb.ExecuteSql sSqlStmt
+
+'	---- Percentage
+	sSqlStmt = "UPDATE cost_tran_sched" & _
+			" SET amount_expense = ( SELECT pct_factor * amount_expense" & _
+							   " FROM ls_chrgbck_agree" & _
+							   sWhereLsCBAgreeStmt & ")" & _
+			", amount_income = ( SELECT pct_factor * amount_income" & _
+							   " FROM ls_chrgbck_agree" & _
+							   sWhereLsCBAgreeStmt & ")" & _
+			" WHERE status = 'AUTO-CHARGEBACK'" & _
+			" AND ls_id IS NOT NULL" & _
+			" AND EXISTS ( SELECT 1 FROM ls_chrgbck_agree" & _
+					     sWhereLsCBAgreeStmt & _
+					   " AND charge_type = 'PERCENTAGE'" & ")"
+	ProjDb.ExecuteSql sSqlStmt
+
+'	---- Fixed Amount - Expense
+	sSqlStmt = "UPDATE cost_tran_sched" & _
+			" SET amount_expense = ( SELECT amount_fixed" & _
+							   " FROM ls_chrgbck_agree" & _
+							   sWhereLsCBAgreeStmt & ")" & _
+			" WHERE status = 'AUTO-CHARGEBACK'" & _
+			" AND ls_id IS NOT NULL" & _
+			" AND amount_expense <> 0" & _
+			" AND EXISTS ( SELECT 1 FROM ls_chrgbck_agree" & _
+					     sWhereLsCBAgreeStmt & _
+					   " AND charge_type = 'FIXED'" & ")"
+	ProjDb.ExecuteSql sSqlStmt
+
+'	---- Fixed Amount - Income
+	sSqlStmt = "UPDATE cost_tran_sched" & _
+			" SET amount_income = ( SELECT amount_fixed" & _
+							   " FROM ls_chrgbck_agree" & _
+							   sWhereLsCBAgreeStmt & ")" & _
+			" WHERE status = 'AUTO-CHARGEBACK'" & _
+			" AND ls_id IS NOT NULL" & _
+			" AND amount_income <> 0" & _
+			" AND EXISTS ( SELECT 1 FROM ls_chrgbck_agree" & _
+					     sWhereLsCBAgreeStmt & _
+					   " AND charge_type = 'FIXED'" & ")"
+	ProjDb.ExecuteSql sSqlStmt
+
+End Sub
+'------------------------------------------------------------------------------
+
+'------------------------------------------------------------------------------
+'---- Displays a message to the user if their have been chargeback exceptions
+Sub WarnOfChargeBackExceptions()
+
+	Dim rs As New RecordSet
+	Dim iNumExceptions As Integer
+	Dim iNumOtherExceptions As Integer
+	Dim iNumOwnerExceptions As Integer
+	Dim iNumDeptExceptions As Integer
+	Dim sMsg As String
+
+	rs.Open "SELECT COUNT(*) FROM cost_tran" & _
+		  " WHERE chrgbck_status = 'N'"
+	iNumOtherExceptions = rs.Fields( 0 ).NumValue 
+
+	rs.Open "SELECT COUNT(*) FROM cost_tran" & _
+		  " WHERE chrgbck_status = 'BO'"
+	iNumOwnerExceptions = rs.Fields( 0 ).NumValue 
+
+	rs.Open "SELECT COUNT(*) FROM cost_tran" & _
+		  " WHERE chrgbck_status = 'SU'"
+	iNumDeptExceptions = rs.Fields( 0 ).NumValue 
+	rs.Close
+
+	iNumExceptions = iNumOtherExceptions + iNumOwnerExceptions + _
+					iNumDeptExceptions
+
+	If iNumExceptions > 0 Then
+
+		sMsg = kSomeCostsCouldNotBeRolledUpAndOrChargedBackMsg
+
+		If ( iNumOwnerExceptions > 0 ) Or ( iNumDeptExceptions > 0 ) Then
+			sMsg = sMsg & BASIC.EOLN$ & kTheseExceptionsAreDueToMsg
+			If iNumOwnerExceptions > 0 Then
+				sMsg = sMsg & BASIC.EOLN$ & kTab & kMissingOwnerCodesMsg
+			End If
+			If iNumDeptExceptions > 0 Then
+				sMsg = sMsg & BASIC.EOLN$ & kTab & _
+						kLeaseToDeptProrationsNotPossibleMsg
+			End If
+		End If
+
+		sMsg = sMsg & BASIC.EOLN$ & BASIC.EOLN$ & _
+							kLoadTheChargeBackExceptionReportToViewMsg
+		MsgBox sMsg, ebInformation, kCalcCostChargeBackTitle
+	End If
+
+End Sub
+'------------------------------------------------------------------------------
+
+'------------------------------------------------------------------------------
+/*  APPROVE ALL CHARGEBACK COSTS:
+     o When a cost_tran_sched AUTO-ROLLUP record is approved:
+          - a cost_tran record is created with a chrgbck_status of RU
+     o When a cost_tran_sched AUTO-CHARGEBACK record is approved:
+          - a cost_tran record is created with a chrgbck_status of PR
+     o All cost_tran_sched 'AUTO-ROLLUP' and 'AUTO-CHARGEBACK' records are
+		deleted
+     o All cost_tran records with chrgbck_status = CS get set to CA
+*/
+Sub costchgb_ApproveAllChargeBackCosts()
+
+	MsgOpen kApprovingChargeBackCostsMsg & BASIC.EOLN$ & BASIC.EOLN$ & _
+		   kTab & kPleaseWaitMsg, 0, FALSE, TRUE
+
+	Dim sSqlStmt As String
+	Dim sCostFields As String
+
+	sCostFields = "pr_id, bl_id, ls_id, dv_id, dp_id," & _
+			   " amount_expense, amount_income, cost_cat_id," & _
+			   " date_due, date_paid, description"
+
+	MsgSetThermometer 1
+
+	sSqlStmt = "INSERT INTO cost_tran ( " & sCostFields & _
+				" , chrgbck_status, status )" & _
+			" SELECT " & sCostFields & " , 'RU', 'PAYABLE'" & _
+			" FROM cost_tran_sched" & _
+			" WHERE status = 'AUTO-ROLLUP'"
+	ProjDb.ExecuteSql sSqlStmt
+
+	MsgSetThermometer 30
+
+	sSqlStmt = "INSERT INTO cost_tran ( " & sCostFields & _
+				" , chrgbck_status, status )" & _
+			" SELECT " & sCostFields & " , 'PR', 'PAYABLE'" & _
+			" FROM cost_tran_sched" & _
+			" WHERE status = 'AUTO-CHARGEBACK'"
+	ProjDb.ExecuteSql sSqlStmt
+
+	MsgSetThermometer 60
+
+	sSqlStmt = "UPDATE cost_tran SET status = 'RECEIVABLE'" & _
+			" WHERE amount_income > amount_expense" & _
+			" AND status = 'PAYABLE'"
+	ProjDb.ExecuteSql sSqlStmt
+
+	MsgSetThermometer 70
+
+	sSqlStmt = "DELETE FROM cost_tran_sched" & _
+			" WHERE status IN ( 'AUTO-ROLLUP', 'AUTO-CHARGEBACK' )"
+	ProjDb.ExecuteSql sSqlStmt
+
+	MsgSetThermometer 85
+ 
+	sSqlStmt = "UPDATE cost_tran SET chrgbck_status = 'CA'" & _
+			" WHERE chrgbck_status = 'CS'"
+	ProjDb.ExecuteSql sSqlStmt
+
+	MsgSetThermometer 100
+
+	Call cbcstap
+	Avw.Display
+	MsgClose
+
+End Sub
+'------------------------------------------------------------------------------
+
+
+/******************************************
+Notes on the chargeback calculations:
+
+CHARGEBACK cases are:
+Direct Bill
+Properties to Leases
+Buildings to Leases
+Leases to Departments
+Properties to Buildings
+Properties to Leases
+
+ALL-NONE-DIRECT --- just set chrgbck_status to 'CS'
+
+'---- Rollup then chargeback - recs all from cost_tran_sched with status of
+'---- 'AUTO-ROLLUP'
+BLDG-PROP-NONE
+BLDG-PROP-LEASE
+LEASE-BLDG-NONE
+LEASE-PROP-NONE
+
+'---- Just chargeback - recs all from cost_tran
+PROP-NONE-BLDG
+PROP-NONE-LEASE
+BLDG-NONE-LEASE
+LEASE-NONE-DEPT
+
+
+Notes: 
+- cost_tran.chrgbck_status: N,CS,CA,RU,PR
+
+  CHARGE-BACK cost_tran COSTS:
+     o All cost_tran records with a chrgbck_status - 'N' are examined
+     o All cost_tran_sched records with a status - 'AUTO-ROLLUP' are examined
+     o cost_tran_sched memo value set to: 
+          'Prorated portion from {tablename-id_value} of {source cost memo}
+               {tablename-id_value} = Lease - or Bldg - or Prop -
+     o When a cost_tran record has been RolledUp or ChargedBack it's
+          status is set to CS
+     o Records get created in cost_tran_sched with status of 'AUTO-CHARGEBACK'
+
+     Proration rules:
+
+          From Properties to Leases: Prorated Cost for each Lease = 
+               Cost for Property as a Whole * Negotiated Area of Lease 
+                    / Total Negotiated Area of all Leases on the Property
+
+          From Buildings to Leases: Prorated Cost for each Lease = 
+               Cost for Building as a Whole * Negotiated Rent. Area of Lease 
+                    / Total Negotiated Rentable Area of all Leases in the Bldg
+
+          From Properties to Buildings: Prorated Cost for each Building = 
+               Cost Assigned to Property as a Whole * Building Rentable Area
+                    / Total Building Rentable Area of all Bldgs in the Property
+
+          Prorating Lease Costs to Departments:
+               Based on the measured rentable for suites, groups, or rooms
+               based on your chosen Lease Area method.  
+			The chargeable areas for Suites, Groups, or Rooms
+			Get Recalced In Recalc Section based on Lease Area Method
+			
+**********************/

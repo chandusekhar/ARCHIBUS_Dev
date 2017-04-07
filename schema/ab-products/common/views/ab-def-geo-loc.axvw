@@ -1,0 +1,440 @@
+<view version="2.0">
+
+    <message name="msg_no_geo_id" translatable="true">No Geographic Region</message>
+    <message name="msg_no_ctry_id" translatable="true">No Country</message> 
+    <message name="msg_no_regn_id" translatable="true">No Region</message> 
+    <message name="msg_no_state_id" translatable="true">No State</message> 
+    <message name="msg_no_city_id" translatable="true">No City</message> 
+    
+    <message name="msg_add_geo" translatable="true">Geographic Region</message>
+    <message name="msg_add_ctry" translatable="true">Country</message> 
+    <message name="msg_add_regn" translatable="true">Region</message> 
+    <message name="msg_add_state" translatable="true">State</message> 
+    <message name="msg_add_city" translatable="true">City</message> 
+    <message name="msg_add_site" translatable="true">Site</message> 
+    
+    <message name="formSaved" translatable="true">Form saved successfully.</message>
+    <message name="messageConfirmDelete" translatable="true">Are you sure you want to delete '{0}' ?</message>
+    
+    <layout type="borderLayout" id="mainLayout">
+        <north id="console" initialSize="80" split="true"/>
+        <center autoScroll="true"/>
+    </layout>
+    <layout type="borderLayout" id="nestedLayout" containingLayout="mainLayout" region="center">
+        <west id="pkey" initialSize="400" split="true"/>
+        <center id="content" autoScroll="true"/>
+    </layout>
+    
+    <title translatable="true">Define Geographical Locations</title>
+
+    <dataSource id="console_AbDefGeoLoc_ds">
+        <table name="site" role="main"/>
+        <field table="site" name="ctry_id"/>
+        <field table="site" name="regn_id"/>
+        <field table="site" name="state_id"/>
+        <field table="site" name="city_id"/>
+        <field table="site" name="site_id"/>
+    </dataSource>
+    
+    <panel type="console" id="console_AbDefGeoLoc" dataSource="console_AbDefGeoLoc_ds" columns="5" labelsPosition="top" layout="mainLayout" region="north">
+        <title translatable="true">Filter</title>
+        <action id="show">
+            <title translatable="true">Show</title>
+        </action>
+        <action id="clear">
+            <title translatable="true">Clear</title>
+            <command type="clearPanel" panelId="console_AbDefGeoLoc"/>
+        </action>
+        <field table="site" name="ctry_id" style="width:120;"/>
+        <field table="site" name="regn_id" style="width:120;"/>
+        <field table="site" name="state_id" style="width:120;"/>
+        <field table="site" name="city_id" style="width:120;"/>
+        <field table="site" name="site_id" showSelectValueAction="true" style="width:120;"/>
+    </panel>
+    
+    <dataSource id="tree_geo_AbDefGeoLoc_ds">
+        <sql dialect="generic">
+            SELECT 
+                geo_region.geo_region_id ${sql.as} geo_region_id,
+                geo_region.geo_region_name ${sql.as} name
+            FROM geo_region
+            WHERE 
+                ${parameters['geographic_region_id']}
+                AND ( EXISTS(SELECT 1 FROM ctry WHERE ctry.geo_region_id = geo_region.geo_region_id AND ${parameters['country_id']}) OR ${parameters['country_id_null']})               
+            UNION
+            SELECT 
+                'WW99' ${sql.as} geo_region_id,
+                '' ${sql.as} name
+            FROM geo_region
+            WHERE EXISTS(SELECT state.state_id FROM state WHERE state.regn_id IS NULL AND state.ctry_id IS NULL AND ${parameters['state_id']} ) OR 
+            EXISTS(SELECT site.site_id FROM site WHERE site.city_id IS NULL AND site.state_id IS NULL AND site.regn_id IS NULL AND site.ctry_id IS NULL AND ${parameters['site_id']})
+        </sql>
+        <table name="geo_region"/>
+        <field table="geo_region" name="geo_region_id"/>
+        <field table="geo_region" name="geo_region_name"/>
+        <sortField table="geo_region" name="geo_region_id" ascending="true"/>
+        <parameter name="geographic_region_id" dataType="verbatim" value="1=1"/>
+        <parameter name="country_id" dataType="verbatim" value="1=1"/>
+        <parameter name="country_id_null" dataType="verbatim" value="1=1"/>
+        <parameter name="region_id" dataType="verbatim" value="1=1"/>
+        <parameter name="region_id_null" dataType="verbatim" value="1=1"/>
+        <parameter name="state_id" dataType="verbatim" value="1=1"/>
+        <parameter name="state_id_null" dataType="verbatim" value="1=1"/>
+        <parameter name="city_id" dataType="verbatim" value="1=1"/>
+        <parameter name="city_id_null" dataType="verbatim" value="1=1"/>
+        <parameter name="site_id" dataType="verbatim" value="1=1"/>
+        <parameter name="site_id_null" dataType="verbatim" value="1=1"/>
+    </dataSource>
+    
+    <dataSource id="tree_ctry_AbDefGeoLoc_ds">
+        <sql dialect="generic">
+            SELECT 
+                ctry.ctry_id ${sql.as} ctry_id,
+                ctry.name ${sql.as} name,
+                ctry.geo_region_id ${sql.as} geo_region_id
+            FROM ctry
+            WHERE 
+                ${parameters['country_id']}
+                AND ( EXISTS(SELECT 1 FROM regn WHERE regn.ctry_id = ctry.ctry_id AND ${parameters['region_id']}) OR ${parameters['region_id_null']})
+                AND ( EXISTS(SELECT 1 FROM state WHERE state.ctry_id = ctry.ctry_id AND ${parameters['state_id']}) OR ${parameters['state_id_null']})
+                AND ( EXISTS(SELECT 1 FROM city WHERE city.ctry_id = ctry.ctry_id AND ${parameters['city_id']}) OR ${parameters['city_id_null']})
+                AND ( EXISTS(SELECT 1 FROM site WHERE site.ctry_id = ctry.ctry_id AND ${parameters['site_id']}) OR ${parameters['site_id_null']})
+            UNION
+            SELECT 
+                'WW99' ${sql.as} ctry_id,
+                '' ${sql.as} name,
+                ${sql.isNull('ctry.geo_region_id', '\'WW99\'')} ${sql.as} geo_region_id
+            FROM ctry
+            WHERE EXISTS(SELECT state.state_id FROM state WHERE state.regn_id IS NULL AND state.ctry_id IS NULL AND ${parameters['state_id']} ) OR 
+            EXISTS(SELECT site.site_id FROM site WHERE site.city_id IS NULL AND site.state_id IS NULL AND site.regn_id IS NULL AND site.ctry_id IS NULL AND ${parameters['site_id']})
+        </sql>
+        <table name="ctry"/>
+        <field table="ctry" name="ctry_id"/>
+        <field table="ctry" name="name"/>
+        <sortField table="ctry" name="ctry_id" ascending="true"/>
+        <parameter name="country_id" dataType="verbatim" value="1=1"/>
+        <parameter name="region_id" dataType="verbatim" value="1=1"/>
+        <parameter name="region_id_null" dataType="verbatim" value="1=1"/>
+        <parameter name="state_id" dataType="verbatim" value="1=1"/>
+        <parameter name="state_id_null" dataType="verbatim" value="1=1"/>
+        <parameter name="city_id" dataType="verbatim" value="1=1"/>
+        <parameter name="city_id_null" dataType="verbatim" value="1=1"/>
+        <parameter name="site_id" dataType="verbatim" value="1=1"/>
+        <parameter name="site_id_null" dataType="verbatim" value="1=1"/>
+    </dataSource>
+    <dataSource id="tree_regn_AbDefGeoLoc_ds">
+        <sql dialect="generic">
+            SELECT 
+                regn.regn_id ${sql.as} regn_id,
+                regn.name ${sql.as} name,
+                regn.ctry_id ${sql.as} ctry_id 
+            FROM regn
+            WHERE 
+                ${parameters['region_id']}
+                AND ( EXISTS(SELECT 1 FROM state WHERE state.regn_id = regn.regn_id AND ${parameters['state_id']}) OR ${parameters['state_id_null']})
+                AND ( EXISTS(SELECT 1 FROM city WHERE city.regn_id = regn.regn_id AND ${parameters['city_id']}) OR ${parameters['city_id_null']})
+                AND ( EXISTS(SELECT 1 FROM site WHERE site.regn_id = regn.regn_id AND ${parameters['site_id']}) OR ${parameters['site_id_null']})
+            UNION
+            SELECT 
+                'WW99' ${sql.as} regn_id,
+                '' ${sql.as} name,
+                ${sql.isNull('state.ctry_id', '\'WW99\'')} ${sql.as} ctry_id
+            FROM state
+            WHERE state.regn_id IS NULL
+                AND ${parameters['state_id']}
+                AND ( EXISTS(SELECT 1 FROM city WHERE city.state_id = state.state_id AND ${parameters['city_id']}) OR ${parameters['city_id_null']})
+                AND ( EXISTS(SELECT 1 FROM site WHERE site.state_id = state.state_id AND ${parameters['site_id']}) OR ${parameters['site_id_null']})
+            UNION
+            SELECT
+                'WW99' ${sql.as} regn_id,
+                '' ${sql.as} name,
+                ${sql.isNull('site.ctry_id', '\'WW99\'')} ${sql.as} ctry_id
+            FROM site
+            WHERE site.regn_id IS NULL AND site.state_id IS NULL AND site.city_id IS NULL AND ${parameters['site_id']}
+        </sql>
+        <table name="regn"/>
+        <field table="regn" name="regn_id"/>
+        <field table="regn" name="name"/>
+        <sortField table="regn" name="regn_id" ascending="true"/>
+        <parameter name="region_id" dataType="verbatim" value="1=1"/>
+        <parameter name="state_id" dataType="verbatim" value="1=1"/>
+        <parameter name="state_id_null" dataType="verbatim" value="1=1"/>
+        <parameter name="city_id" dataType="verbatim" value="1=1"/>
+        <parameter name="city_id_null" dataType="verbatim" value="1=1"/>
+        <parameter name="site_id" dataType="verbatim" value="1=1"/>
+        <parameter name="site_id_null" dataType="verbatim" value="1=1"/>
+    </dataSource>
+    
+    <dataSource id="tree_state_AbDefGeoLoc_ds">
+        <sql dialect="generic">
+            SELECT 
+                state.state_id ${sql.as} state_id,
+                state.name ${sql.as} name,
+                ${sql.isNull('state.regn_id', '\'WW99\'')} ${sql.as} regn_id,
+                ${sql.isNull('state.ctry_id', '\'WW99\'')} ${sql.as} ctry_id
+            FROM state
+            WHERE 
+                ${parameters['state_id']}
+                AND ( EXISTS(SELECT 1 FROM city WHERE city.state_id = state.state_id AND ${parameters['city_id']}) OR ${parameters['city_id_null']})
+                AND ( EXISTS(SELECT 1 FROM site WHERE site.state_id = state.state_id AND ${parameters['site_id']}) OR ${parameters['site_id_null']})
+            UNION
+            SELECT 
+                'WW99' ${sql.as} state_id,
+                '' ${sql.as} name,
+                ${sql.isNull('site.regn_id', '\'WW99\'')} ${sql.as} regn_id,
+                ${sql.isNull('site.ctry_id', '\'WW99\'')} ${sql.as} ctry_id
+            FROM site
+            WHERE site.state_id IS NULL AND site.city_id IS NULL AND ${parameters['site_id']}
+        </sql>
+        <table name="state"/>
+        <field table="state" name="state_id"/>
+        <field table="state" name="name"/>
+        <sortField table="state" name="state_id" ascending="true"/>
+        <parameter name="state_id" dataType="verbatim" value="1=1"/>
+        <parameter name="city_id" dataType="verbatim" value="1=1"/>
+        <parameter name="city_id_null" dataType="verbatim" value="1=1"/>
+        <parameter name="site_id" dataType="verbatim" value="1=1"/>
+        <parameter name="site_id_null" dataType="verbatim" value="1=1"/>
+    </dataSource>
+    <dataSource id="tree_city_AbDefGeoLoc_ds">
+        <sql dialect="generic">
+            SELECT 
+                city.city_id ${sql.as} city_id,
+                city.name ${sql.as} name,
+                city.state_id ${sql.as} state_id,
+                city.timezone_id ${sql.as} timezone_id,
+                ${sql.isNull('city.regn_id', '\'WW99\'')} ${sql.as} regn_id,
+                ${sql.isNull('city.ctry_id', '\'WW99\'')} ${sql.as} ctry_id
+            FROM city
+            WHERE 
+                ${parameters['city_id']}
+                AND ( EXISTS(SELECT 1 FROM site WHERE site.city_id = city.city_id AND ${parameters['site_id']}) OR ${parameters['site_id_null']})
+            UNION
+            SELECT 
+                'WW99' ${sql.as} city_id,
+                '' ${sql.as} name,
+                ${sql.isNull('site.state_id', '\'WW99\'')} ${sql.as} state_id,
+            '' ${sql.as} timezone_id,
+                ${sql.isNull('site.regn_id', '\'WW99\'')} ${sql.as} regn_id,
+                ${sql.isNull('site.ctry_id', '\'WW99\'')} ${sql.as} ctry_id
+            FROM site
+            WHERE site.city_id IS NULL AND ${parameters['site_id']}
+        </sql>
+        <table name="city"/>
+        <field table="city" name="city_id"/>
+        <field table="city" name="name"/>
+        <sortField table="city" name="city_id" ascending="true"/>
+        <parameter name="city_id" dataType="verbatim" value="1=1"/>
+        <parameter name="site_id" dataType="verbatim" value="1=1"/>
+        <parameter name="site_id_null" dataType="verbatim" value="1=1"/>
+    </dataSource>
+    
+    <dataSource id="tree_site_AbDefGeoLoc_ds">
+        <sql dialect="generic">
+            SELECT 
+                site.site_id ${sql.as} site_id,
+                site.name ${sql.as} name,
+                ${sql.isNull('site.city_id', '\'WW99\'')} ${sql.as} city_id,
+                ${sql.isNull('site.state_id', '\'WW99\'')} ${sql.as} state_id,
+                ${sql.isNull('site.regn_id', '\'WW99\'')} ${sql.as} regn_id,
+                ${sql.isNull('site.ctry_id', '\'WW99\'')} ${sql.as} ctry_id
+            FROM site
+            WHERE ${parameters['site_id']}
+        </sql>
+        <table name="site"/>
+        <field table="site" name="site_id"/>
+        <field table="site" name="name"/>
+        <sortField table="site" name="site_id" ascending="true"/>
+        <parameter name="site_id" dataType="verbatim" value="1=1"/>
+    </dataSource>
+    
+    <panel type="tree" id="tree_geo_AbDefGeoLoc" dataSource="tree_geo_AbDefGeoLoc_ds" layout="nestedLayout" region="west">
+        <title translatable="true">Select Location</title>
+        <action id="addNew">
+            <title translatable="true">Add New</title>
+        </action>
+        <event type="onClickNode">
+            <command type="callFunction" functionName="onClickTreeNode"/>
+        </event>
+        <panel type="tree" id="tree_ctry_AbDefGeoLoc" dataSource="tree_ctry_AbDefGeoLoc_ds">
+            <event type="onClickNode">
+                <command type="callFunction" functionName="onClickTreeNode"/>
+            </event>
+            <field table="ctry" name="ctry_id"/>
+            <field table="ctry" name="name"/>
+        </panel>
+        <panel type="tree" id="tree_regn_AbDefGeoLoc" dataSource="tree_regn_AbDefGeoLoc_ds">
+            <event type="onClickNode">
+                <command type="callFunction" functionName="onClickTreeNode"/>
+            </event>
+            <field table="regn" name="regn_id"/>
+            <field table="regn" name="name"/>
+        </panel>
+        <panel type="tree" id="tree_state_AbDefGeoLoc" dataSource="tree_state_AbDefGeoLoc_ds">
+            <event type="onClickNode">
+                <command type="callFunction" functionName="onClickTreeNode"/>
+            </event>
+            <field table="state" name="state_id"/>
+            <field table="state" name="name"/>
+        </panel>
+        <panel type="tree" id="tree_city_AbDefGeoLoc" dataSource="tree_city_AbDefGeoLoc_ds">
+            <event type="onClickNode">
+                <command type="callFunction" functionName="onClickTreeNode"/>
+            </event>
+            <field table="city" name="city_id"/>
+            <field table="city" name="name"/>
+        </panel>
+        <panel type="tree" id="tree_site_AbDefGeoLoc" dataSource="tree_site_AbDefGeoLoc_ds">
+            <event type="onClickNode">
+                <command type="callFunction" functionName="onClickTreeNode"/>
+            </event>
+            <field table="site" name="site_id"/>
+            <field table="site" name="name"/>
+        </panel>
+        <field table="geo_region" name="geo_region_id"/>
+        <field table="geo_region" name="name"/>
+    </panel>
+    
+    <tabs id="tabs_AbDefGeoLoc" workflow="enforced" cssClass="wizard" layout="nestedLayout" region="center">
+        <tab name="tab_geo_AbDefGeoLoc" selected="true">
+            <title translatable="true">Geo-Region</title>
+            <dataSource id="geo_AbDefGeoLoc_ds">
+                <table name="geo_region"/>
+                <field table="geo_region" name="geo_region_id"/>
+                <field table="geo_region" name="geo_region_name"/>
+            </dataSource>
+            <panel type="form" id="geo_AbDefGeoLoc" dataSource="geo_AbDefGeoLoc_ds" showOnLoad="false">
+                <action id="save">
+                    <title translatable="true">Save</title>
+                </action>
+                <action id="delete">
+                    <title translatable="true">Delete</title>
+                </action>
+                <field table="geo_region" name="geo_region_id"/>
+                <field table="geo_region" name="geo_region_name"/>
+            </panel>
+        </tab>
+        <tab name="tab_ctry_AbDefGeoLoc" selected="false">
+            <title translatable="true">Country</title>
+            <dataSource id="ctry_AbDefGeoLoc_ds">
+                <table name="ctry"/>
+                <field table="ctry" name="geo_region_id"/>
+                <field table="ctry" name="ctry_id"/>
+                <field table="ctry" name="name"/>
+            </dataSource>
+            <panel type="form" id="ctry_AbDefGeoLoc" dataSource="ctry_AbDefGeoLoc_ds" showOnLoad="false">
+                <action id="save">
+                    <title translatable="true">Save</title>
+                </action>
+                <action id="delete">
+                    <title translatable="true">Delete</title>
+                </action>
+                <field table="ctry" name="geo_region_id"/>
+                <field table="ctry" name="ctry_id"/>
+                <field table="ctry" name="name"/>
+            </panel>
+        </tab>
+        <tab name="tab_regn_AbDefGeoLoc">
+            <title translatable="true">Region</title>
+            <dataSource id="regn_AbDefGeoLoc_ds">
+                <table name="regn"/>
+                <field table="regn" name="ctry_id"/>
+                <field table="regn" name="regn_id"/>
+                <field table="regn" name="name"/>
+            </dataSource>
+            <panel type="form" id="regn_AbDefGeoLoc" dataSource="regn_AbDefGeoLoc_ds" showOnLoad="false">
+                <action id="save">
+                    <title translatable="true">Save</title>
+                </action>
+                <action id="delete">
+                    <title translatable="true">Delete</title>
+                </action>
+                <field table="regn" name="ctry_id"/>
+                <field table="regn" name="regn_id"/>
+                <field table="regn" name="name"/>
+            </panel>
+        </tab>
+        <tab name="tab_state_AbDefGeoLoc">
+            <title translatable="true">State</title>
+            <dataSource id="state_AbDefGeoLoc_ds">
+                <table name="state"/>
+                <field table="state" name="ctry_id"/>
+                <field table="state" name="regn_id"/>
+                <field table="state" name="state_id"/>
+                <field table="state" name="name"/>
+            </dataSource>
+            <panel type="form" id="state_AbDefGeoLoc" dataSource="state_AbDefGeoLoc_ds" showOnLoad="false">
+                <action id="save">
+                    <title translatable="true">Save</title>
+                </action>
+                <action id="delete">
+                    <title translatable="true">Delete</title>
+                </action>
+                <field table="state" name="ctry_id"/>
+                <field table="state" name="regn_id"/>
+                <field table="state" name="state_id"/>
+                <field table="state" name="name"/>
+            </panel>
+        </tab>
+        <tab name="tab_city_AbDefGeoLoc">
+            <title translatable="true">City</title>
+            <dataSource id="city_AbDefGeoLoc_ds">
+                <table name="city"/>
+                <field table="city" name="ctry_id"/>
+                <field table="city" name="regn_id"/>
+                <field table="city" name="state_id"/>
+                <field table="city" name="county_id"/>
+                <field table="city" name="city_id"/>
+                <field table="city" name="name"/>
+                <field table="city" name="timezone_id"/>
+            </dataSource>
+            <panel type="form" id="city_AbDefGeoLoc" dataSource="city_AbDefGeoLoc_ds" showOnLoad="false">
+                <action id="save">
+                    <title translatable="true">Save</title>
+                </action>
+                <action id="delete">
+                    <title translatable="true">Delete</title>
+                </action>
+                <field table="city" name="ctry_id"/>
+                <field table="city" name="regn_id"/>
+                <field table="city" name="state_id"/>
+                <field table="city" name="county_id"/>
+                <field table="city" name="city_id"/>
+                <field table="city" name="name"/>
+                <field table="city" name="timezone_id"/>
+            </panel>
+        </tab>
+        <tab name="tab_site_AbDefGeoLoc">
+            <title translatable="true">Site</title>
+            <dataSource id="site_AbDefGeoLoc_ds">
+                <table name="site"/>
+                <field table="site" name="ctry_id"/>
+                <field table="site" name="regn_id"/>
+                <field table="site" name="state_id"/>
+                <field table="site" name="city_id"/>
+                <field table="site" name="site_id"/>
+                <field table="site" name="no_bldgs"/>
+                <field table="site" name="acres"/>
+                <field table="site" name="name"/>
+            </dataSource>
+            <panel type="form" id="site_AbDefGeoLoc" dataSource="site_AbDefGeoLoc_ds" columns="2" showOnLoad="false">
+                <action id="save">
+                    <title translatable="true">Save</title>
+                </action>
+                <action id="delete">
+                    <title translatable="true">Delete</title>
+                </action>
+                <field table="site" name="site_id"/>
+                <field table="site" name="name"/>
+                <field table="site" name="city_id"/>
+                <field table="site" name="state_id"/>
+                <field table="site" name="regn_id"/>
+                <field table="site" name="ctry_id"/>
+                <field table="site" name="no_bldgs"/>
+                <field table="site" name="acres"/>
+            </panel>
+        </tab>
+    </tabs>
+
+    <js file="ab-def-geo-loc.js"/>
+</view>

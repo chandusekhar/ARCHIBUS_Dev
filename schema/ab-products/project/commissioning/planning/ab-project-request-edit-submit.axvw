@@ -1,0 +1,282 @@
+<view version="2.0">
+    <title>Manage Active Projects</title>
+    <message name="formMissingValues">One or more fields contain incorrect or missing values. Form was not saved. Please correct values and save again.</message>
+    <message name="messageConfirmDelete" translatable="true">Are you sure you want to delete &apos;{0}&apos; ?</message>
+    <message name="endBeforeStart">Invalid date input.  End date cannot precede start date.</message>
+    <message name="dateBeforeCurrent">You have entered a start date that has occurred in the past.  Press OK to continue and save, or Cancel to return to form.</message>
+    <message name="createdSummary">Created</message>
+    <message name="requestedSummary">Requested</message>
+    <message name="routedSummary">Routed for Approval</message>
+    <message name="approvedSummary">Approved</message>
+    <message name="issuedSummary">Issued</message>
+    <message name="completedSummary">Completed</message>
+    <message name="closedSummary">Closed</message>
+    <js file="ab-project-request-edit-submit.js"/>
+    
+    <panel type="view" id="projectRequestEditSubmit_viewPanel" file="ab-questionnaire.axvw" />
+ 	 
+ 	<dataSource type="grouping" id="projectRequestEditSubmit_ds0">
+        <table name="project" role="main"/>
+        <sql dialect="generic">
+        	SELECT 	duration_est,
+        			cost_budget,
+                    funding_probability,
+        			(CASE 
+						WHEN status =   'Created' THEN '1-' ${sql.concat} ${parameters['created']} 
+						WHEN status IN   ('Requested','Requested-Estimated','Requested-On Hold','Requested-Rejected') THEN '2-' ${sql.concat} ${parameters['requested']}
+						WHEN status =   'Requested-Routed' THEN '3-' ${sql.concat} ${parameters['routed']}            							
+						WHEN status LIKE 'Approved%' THEN '4-' ${sql.concat} ${parameters['approved']}
+						WHEN status LIKE 'Issued%' THEN '5-' ${sql.concat} ${parameters['issued']}
+						WHEN status LIKE 'Completed%' THEN '6-' ${sql.concat} ${parameters['completed']}
+                        WHEN status =    'Closed' THEN '7-' ${sql.concat} ${parameters['closed']}
+  					END) ${sql.as} status_sorted
+        	FROM project 
+            WHERE project.is_template = 0  	     	
+        </sql> 
+        <field table="project" name="status_sorted" groupBy="true" dataType="text"> 
+        	<title translatable="true">Project Status</title>
+        </field>        
+        <field name="sum_duration_est" formula="sum" baseField="project.duration_est" dataType="number" decimals="0">
+            <title translatable="true">Duration - Estimated (Days) - Sum</title>
+        </field>
+        <field name="sum_cost_budget" formula="sum" baseField="project.cost_budget" dataType="number" decimals="2">
+            <title translatable="true">Cost - Est. Design - Sum</title>
+        </field> 
+		<field name="sum_adj_cost_est" dataType="number" decimals="2">
+            <title translatable="true">Cost - Est. Adjusted - Sum</title>
+            <sql dialect="generic">
+                SUM(cost_budget*funding_probability/100.00)
+            </sql>
+        </field>
+        <parameter name="created" dataType="text" value=""/>
+        <parameter name="requested" dataType="text" value=""/>
+        <parameter name="routed" dataType="text" value=""/>
+        <parameter name="approved" dataType="text" value=""/>
+        <parameter name="issued" dataType="text" value=""/>
+        <parameter name="completed" dataType="text" value=""/>
+        <parameter name="closed" dataType="text" value=""/>
+    </dataSource>
+    
+    <panel type="crossTable" id="projectRequestEditSubmit_summary" dataSource="projectRequestEditSubmit_ds0">
+        <title translatable="true">Projects Totals by Status</title>
+        <action id="addNew">
+            <title>Create Project</title>
+            <command type="openDialog" viewName="ab-project-request-edit-submit-add-new.axvw" newRecord="true"/>
+        </action>
+		<action id="export:XLS">
+            <title>XLS</title>
+            <command type="exportPanel" outputType="xls" panelId="projectRequestEditSubmit_summary"/>
+        </action>
+        <action id="abViewdefSummaryReport_refresh">
+            <title translatable="true">Refresh</title>
+            <command type="showPanel" panelId="projectRequestEditSubmit_summary"/>
+        </action>
+
+        <event type="onClickItem">
+            <command type="callFunction" functionName="showProjects"/>
+        </event>    
+    </panel>
+
+    <dataSource id="projectRequestEditSubmit_ds1">
+    	<table name="project" role="main"/>    	
+        <field table="project" name="project_id" />
+		<field table="project" name="project_name" />
+        <field table="project" name="duration_baseline" dataType="number" size="20" decimals="0" showTotals="true">
+            <sql dialect="generic">project.duration_est</sql>
+        </field>
+        <field table="project" name="date_start" />
+        <field table="project" name="date_end" />
+        <field table="project" name="cost_budget" showTotals="true"/>
+       	<field table="project" name="funding_probability" />
+		<field table="project" name="adj_cost_est" dataType="number" decimals="2" showTotals="true" >
+            <sql dialect="generic">cost_budget*funding_probability/100.00</sql>
+        </field>
+        <field table="project" name="status"/> 
+        <field table="project" name="status_sorted" dataType="number">
+            <sql dialect="generic">
+                    CASE 
+                        WHEN status ='Created' THEN 1 
+                        WHEN status ='Requested' THEN 2
+                        WHEN status ='Requested-Estimated' THEN 3
+                        WHEN status ='Requested-On Hold' THEN 4
+                        WHEN status ='Requested-Rejected' THEN 5
+                        WHEN status ='Requested-Routed' THEN 6
+                        WHEN status ='Approved' THEN 7                                       
+                        WHEN status ='Approved-In Design' THEN 8
+                        WHEN status ='Approved-Cancelled' THEN 9
+                        WHEN status ='Issued-In Process' THEN 10
+                        WHEN status ='Issued-On Hold' THEN 11
+                        WHEN status ='Issued-Stopped' THEN 12
+                        WHEN status ='Completed-Pending' THEN 13
+                        WHEN status ='Completed-Not Ver' THEN 14
+                        WHEN status ='Completed-Verified' THEN 15
+                        WHEN status ='Closed' THEN 16
+                    END
+            </sql>
+        </field>    
+        <restriction type="sql" sql="project.is_template = 0"/>                
+        <sortField table="project" name="status_sorted" ascending="true"/>
+        <sortField table="project" name="date_start" ascending="true"/>
+        <sortField table="project" name="project_id" ascending="true"/>
+    </dataSource>
+               
+    <panel id="projectRequestEditSubmit_projects" type="grid" 
+    				dataSource="projectRequestEditSubmit_ds1">
+        <title translatable="true">Projects</title>  
+        <action id="export:XLS">
+            <title>XLS</title>
+            <command type="exportPanel" outputType="xls" panelId="projectRequestEditSubmit_projects"/>
+        </action>  
+        <field table="project" name="project_id" controlType="link">
+			<command type="openDialog" panelId="projectRequestEditSubmit_projectForm"/>
+		</field>
+        <field table="project" name="project_name"/>
+        <field table="project" name="duration_baseline" showTotals="true">
+            <title>Duration - Estimated (Days)</title>
+        </field>
+        <field table="project" name="date_start"/>
+        <field table="project" name="date_end"/>
+        <field table="project" name="cost_budget" showTotals="true"/>        
+        <field table="project" name="funding_probability"/>
+		<field table="project" name="adj_cost_est" dataType="number" decimals="2" showTotals="true">
+        	<title>Adjusted Estimate</title>
+        </field>
+        <field table="project" name="status"/>
+    </panel>
+  
+ 	<dataSource id="projectRequestEditSubmit_projectDs">
+	    <table name="project" role="main" />
+	    <field name="project_id" table="project" />
+        <field name="project_name" table="project" />
+	    <field name="project_type" table="project" />
+	    <field name="status" table="project" />
+	    <field name="program_id" table="project" />
+	    <field name="dept_contact" table="project" />
+	    <field name="phone_dept_contact" table="project" />
+	    <field name="site_id" table="project" />
+	    <field name="bl_id" table="project" />
+	    <field name="dv_id" table="project" />
+	    <field name="dp_id" table="project" />
+	    <field name="area_affected" table="project" />
+	    <field name="emp_affected" table="project" />
+	    <field name="cost_budget" table="project" />
+        <field name="funding_probability" table="project"/>
+	    <field name="ac_id" table="project" />
+	    <field name="date_start" table="project" />
+	    <field name="date_end" table="project" />
+	    <field name="days_per_week" table="project" />
+        <field name="duration_est" table="project"/>
+	    <field name="requestor" table="project" />
+	    <field name="phone_req" table="project" />
+	    <field name="date_created" table="project" /> 
+	    <field name="doc" table="project"/>   
+        <field name="doc_risk_mgmt" table="project"/>
+        <field name="doc_charter" table="project"/>
+        <field name="doc_impl_plan" table="project"/>    
+	    <field name="summary" table="project"/>
+	    <field name="description" table="project" />        
+	    <field name="scope" table="project" />  
+	    <field name="benefit" table="project" />
+	    <field name="contact_id" table="project"/>
+        <field name="is_template" table="project"/>
+	    <field name="project_quest" table="project" />
+	</dataSource>
+	
+    <panel type="form" id="projectRequestEditSubmit_projectForm" columns="2" dataSource="projectRequestEditSubmit_projectDs" showOnLoad="false">
+	    <title>Edit Project Profile</title>
+        <action id="routeForApproval" enabled="${record['project.status'] == 'Requested'}" >
+            <title>Route For Approval</title>
+        </action>
+        <action id="request" enabled="${record['project.status'] == 'Created'}" >
+            <title>Request</title>
+        </action>
+        <action enabled="${record['project.status'] == 'Created'}" >
+            <title>Withdraw</title>
+            <command type="deleteRecord"/>
+            <command type="showPanel" panelId="projectRequestEditSubmit_projects" applyParentRestriction="false" clearRestriction="true"/>
+            <command type="showPanel" panelId="projectRequestEditSubmit_summary" applyParentRestriction="false"/>
+            <command type="closeDialog"/>
+        </action>
+        <action id="save" enabled="${record['project.status'] == 'Created' || record['project.status'] == 'Requested'}" >
+            <title>Save Changes</title>
+        </action>
+		<field name="project_id" table="project" readOnly="true" />
+        <field name="program_id" table="project" />                
+        <field name="project_name" table="project" />
+        <field name="ac_id" table="project" />
+        <field name="project_type" table="project" required="true" readOnly="true" />
+        <field name="cost_budget" table="project" /> 
+        <field name="status" table="project" readOnly="true"/>                 
+        <field name="funding_probability" table="project"/>
+        <field/><field/>                                                         
+        <field name="summary" table="project" rowspan="2"/>
+        <field name="date_start" table="project" required="true"/>
+        <field name="date_end" table="project" required="true"/>
+        <field name="description" table="project" rowspan="3" />
+        <field name="duration_est" table="project"/>
+        <field name="days_per_week" table="project" />
+        <field/>        
+        <field name="scope" table="project" rowspan="3" /> 
+        <field name="site_id" table="project" />
+        <field name="bl_id" table="project" required="true" >
+            <action id="projectRequestEditSubmit_selValBlId">
+                <title>...</title>
+                <command type="selectValue"
+                    showIndex="true"
+                    fieldNames="project.site_id, project.bl_id"
+                    selectFieldNames="bl.site_id, bl.bl_id"
+                    visibleFieldNames="bl.site_id, bl.bl_id, bl.name">   
+                    <title>Building Code</title>
+                </command>         
+            </action>
+        </field>
+        <field name="dv_id" table="project" />                 
+        <field name="benefit" table="project" rowspan="3"/>
+        <field name="dp_id" table="project" />
+        <field name="area_affected" table="project" />                
+        <field name="emp_affected" table="project" />
+        <field/><field/>	       
+		<field name="doc" table="project" readOnly="${record['project.status'] != 'Created' &amp;&amp; record['project.status'] != 'Requested'}"/>   
+        <field name="dept_contact" table="project" required="true">
+            <action id="projectRequestEditSubmit_selValDeptContact">
+                <title>...</title>
+                <command type="selectValue"
+                    fieldNames="project.dept_contact, project.phone_dept_contact"
+                    selectFieldNames="em.em_id, em.phone"
+                    visibleFieldNames="em.em_id,em.phone">
+                    <title>Department Contact</title>  
+                </command>         
+            </action>
+        </field>                   
+        <field name="doc_risk_mgmt" table="project" readOnly="${record['project.status'] != 'Created' &amp;&amp; record['project.status'] != 'Requested'}"/>
+        <field name="phone_dept_contact" table="project" >
+            <action id="projectRequestEditSubmit_selValPhoneDeptContact">
+                <title>...</title>
+                <command type="selectValue"
+                    fieldNames="project.dept_contact, project.phone_dept_contact"
+                    selectFieldNames="em.em_id, em.phone"
+                    visibleFieldNames="em.em_id,em.phone">   
+                    <title>Department Contact Phone</title>
+                </command>         
+            </action>
+        </field>                
+        <field name="doc_charter" table="project" readOnly="${record['project.status'] != 'Created' &amp;&amp; record['project.status'] != 'Requested'}"/>
+        <field name="requestor" table="project" readOnly="true" />                
+        <field name="doc_impl_plan" table="project" readOnly="${record['project.status'] != 'Created' &amp;&amp; record['project.status'] != 'Requested'}"/>
+        <field name="phone_req" table="project" >
+            <action id="projectRequestEditSubmit_selValPhoneReq">
+                <title>...</title>
+                <command type="selectValue"
+                    fieldNames="project.phone_req"
+                    selectFieldNames="em.phone"
+                    visibleFieldNames="em.em_id,em.phone">
+                    <title>Requestor Phone</title>
+                </command>          
+            </action>
+        </field> 
+        <field/>  
+        <field name="date_created" table="project" readOnly="true" />            
+	    <field name="project_quest" table="project" hidden="true" />
+	</panel>
+ 
+</view>

@@ -1,0 +1,154 @@
+<view version="2.0">
+    <designInfo type="summary" pattern="ab-viewdef-summary-report-drilldown" isAlterable="false"/>
+    
+    <message name="dPTitle_egressPlans" translatable="true">Egress Plans</message>
+    <message name="dPTitle_hazMatPlans" translatable="true">Hazardous Materials Plans</message>
+    <message name="dPTitle_smokeZones" translatable="true">Fire or Smoke</message>
+    <message name="dPTitle_alarmZones" translatable="true">Sprinkler Zones</message>
+    <message name="dPTitle_securityZones" translatable="true">Security Zones</message>
+    <message name="dPTitle_hvacZones" translatable="true">HVAC Zones</message>
+    <message name="dPTitle_emerLightZones" translatable="true">Emergency Lighting Zones</message>
+    <message name="dPTitle_rms" translatable="true">Room Plans</message>
+    <message name="dPTitle_equip" translatable="true">Equipment Plans</message>
+    <message name="detailPanelTitle_egress" translatable="true">Egress Plan Details</message>
+    <message name="detailPanelTitle_hazMat" translatable="true">Hazardous Materials Plan Details</message>
+    
+    <layout type="borderLayout" id="mainLayout">
+        <west id="top" initialSize="20%" split="true"/>
+        <center id="center" autoScroll="true"/>
+    </layout>
+    
+    <layout id="nested_west" containingLayout="main" region="west">
+        <north id="building" split="true" initialSize="60%"/>
+        <center id="flooring" initialSize="40%"/> 
+    </layout>
+    
+    <layout id="nested_center" containingLayout="main" region="center">
+        <center id="dwgPosition"/>
+        <south id="legentPosition" initialSize="20%" split="true"/>
+    </layout>
+    
+    <title translatable="true">Egress and Occupancy Plans</title>
+    
+    <dataSource id="abEgressPlans-building">
+        <table name="bl" role="main"/>
+        <field name="bl_id" table="bl"/>
+        <sortField table="bl" name="bl_id" ascending="true"/>
+    <restriction type="sql" sql=" exists(select 1 from fl where bl.bl_id=fl.bl_id and exists( select 1 from rm where rm.fl_id=fl.fl_id and rm.bl_id=fl.bl_id and rm.dwgname is not null))"/>
+    </dataSource>
+    
+    <dataSource id="abEgressPlans-select-flooring">
+        <sql dialect="generic">
+            SELECT
+            rm.bl_id ${sql.as} bl_id,
+            rm.fl_id ${sql.as} fl_id,
+            rm.dwgname ${sql.as} dwgname  
+            FROM rm  where rm.dwgname is not null GROUP BY rm.bl_id,rm.fl_id,rm.dwgname
+        </sql>
+        <table name="fl" role="main"/>
+        <field name="bl_id"/>
+        <field name="fl_id"/>
+        <field name="dwgname"/>
+        <sortField table="fl" name="fl_id" ascending="true"/>
+    </dataSource>
+    
+    <dataSource id="abEgressPlans_drawing_regcomplianceHighlight" type="DrawingControlHighlight"> 
+        <table name="regcompliance" role="main"/>
+        <table name="regulation" role="standard"/>
+        <field table="regcompliance" name="bl_id"/>
+        <field table="regcompliance" name="fl_id"/>
+        <field table="regcompliance" name="rm_id"/>
+        <field table="regcompliance" name="regcomp_id"/>
+        <field table="regcompliance" name="regulation" legendKey="true"/>
+        <field table="regulation" name="hpattern_acad"/>
+        <parameter name="regulationer" dataType="text" value=""/>
+        <restriction type="sql" sql="regcompliance.regulation = ${parameters['regulationer']}"/>
+    </dataSource>
+    
+    <dataSource id="abEgressPlans_drawing_regcomplianceLabel" type="DrawingControlLabels">
+        <table name="regcompliance" role="main"/>
+        <table name="regulation" role="standard"/>
+        <field table="regcompliance" name="regcomp_id"/>
+        <field table="regcompliance" name="description"/>
+        <field table="regcompliance" name="rm_id"/>
+        <field table="regcompliance" name="bl_id"/>
+        <field table="regcompliance" name="fl_id"/>
+    </dataSource>     
+    
+     <dataSource id="abEgressPlans_drawing_rmHighlight" type="DrawingControlHighlight">  
+        <table name="rm" role="main"/>
+        <field table="rm" name="bl_id" hidden="true" legendKey="true"/>
+        <field table="rm" name="fl_id" hidden="true"/>
+        <field table="rm" name="rm_id" />       
+        <restriction type="sql" sql="EXISTS (SELECT 1 FROM em WHERE em.bl_id=rm.bl_id AND em.fl_id=rm.fl_id AND em.rm_id=rm.rm_id)"/>
+    </dataSource>
+    
+    <dataSource id="abEgressPlans_drawing_rmLabel" type="DrawingControlLabels">
+        <table name="em" role="main"/>
+        <table name="rm" role="standard"/>
+        <field table="rm" name="bl_id" hidden="true"/>
+        <field table="rm" name="fl_id" hidden="true"/>
+        <field table="rm" name="rm_id"/>  
+        <field table="em" name="em_id"/>
+    </dataSource>     
+    
+    <panel type="grid" id="abEgressPlans-select-building" afterRefresh="blPanelAfterRefresh" dataSource="abEgressPlans-building" layoutRegion="building">
+        <title translatable="true">Buildings </title>
+        
+        <field name="bl_id" table="bl" controlType="link">
+            <command type="showPanel" panelId="abEgressPlans_select_flooring"/>
+        </field>
+    </panel>
+    
+    <panel type="grid" id="abEgressPlans_select_flooring" showOnLoad="false" dataSource="abEgressPlans-select-flooring" layoutRegion="flooring">
+        <title translatable="true">Floors </title>
+        <field name="bl_id" hidden="true"/>
+        <field name="fl_id" table="fl" controlType="link">
+            <command type="callFunction" functionName="showDrawing"/>
+        </field>
+        <field name="dwgname" table="fl" controlType="link">
+            <command type="callFunction" functionName="showDrawing"/>
+        </field>
+    </panel> 
+    
+    <panel type="drawing" id="abEgressPlans_DrawingPanel" layoutRegion="dwgPosition"
+        multiple="false"  selectionMode="0" assetTypes="null"
+            highlightSelector="false" labelSelector="false" >
+         <title translatable="true">[]</title>
+          
+    </panel>
+    
+    <dataSource id="abEgressPlans_grid_regdetail">
+        <table name="regcompliance" role="main"/>
+        <field table="regcompliance" name="regcomp_id"/>
+        <field table="regcompliance" name="description"/>
+        <field table="regcompliance" name="rm_id"/>
+        <field table="regcompliance" name="bl_id"/>
+        <field table="regcompliance" name="fl_id"/>
+    </dataSource>
+     
+   <dataSource id="abEgressPlans-occ-plan_drawing_rmdetail">
+        <table name="em" role="main"/>
+        <table name="rm" role="standard"/>
+        <field table="rm" name="bl_id" />
+        <field table="rm" name="fl_id" />
+        <field table="rm" name="rm_id"/>
+        <field table="em" name="em_id"/>
+        <field table="em" name="dv_id"/>
+        <field table="em" name="dp_id"/>
+        <field table="em" name="name_first"/>
+        <field table="em" name="name_last"/>
+    </dataSource>
+ 
+    <panel type="grid" id="abEgressPlans_regdetailGrid" dataSource="abEgressPlans_grid_regdetail" showOnLoad="false" layoutRegion="legentPosition">
+        <title translatable="true">Egress Plan Details</title>
+    </panel>
+    
+ 
+   <panel type="grid" id="abEgressPlans_occupancyGrid" dataSource="abEgressPlans-occ-plan_drawing_rmdetail" layoutRegion="legentPosition" showOnLoad="false">
+        <title translatable="true">Occupants</title> 
+   </panel>
+    
+    <js file="ab-egress-occ-plans.js"/>
+    
+</view>

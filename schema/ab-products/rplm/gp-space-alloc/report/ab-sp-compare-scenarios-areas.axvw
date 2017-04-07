@@ -1,0 +1,80 @@
+<view version="2.0" showLoadProgress="true">
+
+    <js file="ab-sp-compare-scenarios-areas.js"/>
+    
+    <message name="AreaTitle" translatable="true">Areas</message>
+    
+    <dataSource id="abSpRptAreaCrossTableDS" type="grouping">
+        <sql dialect="generic">
+          select 
+               'Usable Areas'  ${sql.as} parent_allocation_type,
+                     
+                0 ${sql.as} Usable_Owned_area,
+                     
+                0 ${sql.as} Usable_Leased_area,
+                     
+                0  ${sql.as} Allocated_Area,
+                
+                ${sql.currentDate} ${sql.as} date_start
+			from gp 
+                
+           union 
+           
+           select 
+               'Allocated Areas'  ${sql.as} parent_allocation_type,
+                     
+                0 ${sql.as} Usable_Owned_area,
+                     
+                0 ${sql.as} Usable_Leased_area,
+                     
+                0 ${sql.as} Allocated_Area,
+                
+                ${sql.currentDate} ${sql.as} date_start  
+			from gp 
+                          
+            union 
+                
+            select 
+                case when  (gp.allocation_type = 'Usable Area - Owned' or gp.allocation_type = 'Usable Area - Leased') then 'Usable Areas' 
+                     when  gp.allocation_type = 'Allocated Area' then 'Allocated Areas' end ${sql.as} parent_allocation_type,
+                     
+                case when  gp.allocation_type = 'Usable Area - Owned' then gp.area_manual
+                     else  0  end ${sql.as} Usable_Owned_area,
+                     
+                case when  gp.allocation_type = 'Usable Area - Leased' then gp.area_manual
+                     else  0  end ${sql.as} Usable_Leased_area,
+                     
+                case when  gp.allocation_type = 'Allocated Area' then gp.area_manual
+                     else  0  end ${sql.as} Allocated_Area,
+                gp.date_start ${sql.as} date_start
+                          
+                from gp
+                left join portfolio_scenario on portfolio_scenario.portfolio_scenario_id = gp.portfolio_scenario_id where gp.date_start is not null and ${parameters['filterRestriction']}
+        </sql>
+        <table name="gp"/>
+        <field name="parent_allocation_type" dataType="text" groupBy="true"/>
+        <field name="date_start" dataType="date" groupBy="true"/>
+
+        <field name="Usable_Owned_area" formula="sum" baseField="gp.Usable_Owned_area" dataType="number">
+             <title>Usable – Owned</title>
+        </field>
+        <field name="Usable_Leased_area" formula="sum" baseField="gp.Usable_Leased_area" dataType="number">
+              <title>Usable – Leased</title>
+        </field>
+          <field name="Allocated_Area" formula="sum" baseField="gp.Allocated_Area" dataType="number">
+              <title>Allocated Areas</title>
+        </field>
+        <parameter name="filterRestriction" dataType="verbatim" value="1=1"/>
+        <restriction type="sql" sql="parent_allocation_type is not null"/>
+    </dataSource>
+
+    <!--  set showOnLoad=false because the panel will be refreshed from JavaScript on load -->    
+    <panel id="abSpRptAreaCrossTable1" type="crossTable" dataSource="abSpRptAreaCrossTableDS" layout="main" region="center" showOnLoad="false">
+        <title>Areas</title>
+    </panel>
+    <!--  set showOnLoad=false because the panel will be refreshed from JavaScript on load -->    
+    <panel id="abSpRptAreaCrossTable2" type="crossTable" dataSource="abSpRptAreaCrossTableDS" layout="main" region="center" showOnLoad="false">
+        <title>Areas</title>
+    </panel>
+    
+</view>

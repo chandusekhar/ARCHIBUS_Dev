@@ -1,0 +1,143 @@
+<view version="2.0">
+    
+     <message name="area_gross_int_title" translatable="true">Gross Area</message>
+     <message name="area_avg_em_title" translatable="true">Avg. Area per Emp.</message>
+     <message name="cost_sqft_title" translatable="true">Cost per Area</message>
+     <message name="option_status_owned" translatable="true">Owned</message>
+     <message name="option_status_leased" translatable="true">Leased</message>
+     
+     <js file="ab-rplm-pfadmin-gpd-summary-details.js"/>
+    
+    <dataSource id="abRplmGpdSummaryDetails_ds">
+        <sql dialect="generic">
+            SELECT 
+                bl.bl_id ${sql.as} bl_id,
+                bl.ctry_id ${sql.as} ctry_id,
+                bl.use1 ${sql.as} use1,
+                bl.site_id  ${sql.as} site_id,
+                (SELECT SUM(CASE WHEN (su.area_usable = 0  or su.area_usable is null)THEN(case when su.area_manual is not null then su.area_manual else 0 end) ELSE su.area_usable END)FROM su   WHERE su.bl_id = bl.bl_id) ${sql.as} area_estimated, 
+                bl.cost_sqft ${sql.as} cost_sqft,
+                ( SELECT ( CASE COUNT(*) WHEN 0 THEN bl.area_avg_em ELSE ( bl.area_usable / COUNT(*) ) END ) FROM em WHERE em.bl_id = bl.bl_id ) ${sql.as} area_avg_em,
+                bl.ratio_ru ${sql.as} ratio_ru,
+                bl.area_usable ${sql.as} area_usable,
+                bl.value_book ${sql.as} value_book,
+                bl.value_market ${sql.as} value_market,
+                (SELECT AVG(${sql.getFormula('AbCapitalPlanningCA-FacilityConditionIndex')}) FROM activity_log WHERE  activity_log.cost_to_replace > 0 AND activity_log.activity_type = 'ASSESSMENT' AND activity_log.bl_id = bl.bl_id) ${sql.as} fci,
+                (SELECT SUM(  amount_expense ) FROM cost_tran, cost_cat WHERE cost_tran.cost_cat_id = cost_cat.cost_cat_id AND cost_tran.bl_id = bl.bl_id ) ${sql.as} operating_costs,
+                (SELECT (case when (SUM(activity_log.cost_est_cap) + SUM(activity_log.cost_estimated)) is null then 0 else (SUM(activity_log.cost_est_cap) + SUM(activity_log.cost_estimated)) end ) FROM activity_log, project WHERE project.bl_id = bl.bl_id and activity_log.project_id = project.project_id
+                    AND ( project.status LIKE 'Approved%' OR project.status LIKE 'Issued%' )) ${sql.as} active_capital_cost,
+                bl.ratio_ur ${sql.as} ratio_ur,
+                bl.area_gross_int ${sql.as} area_gross_int,
+                bl.area_ls_negotiated ${sql.as} area_ls_negotiated,
+                bl.area_ocup ${sql.as} area_ocup,
+                bl.area_rentable ${sql.as} area_rentable,
+                bl.area_rm ${sql.as} area_rm,
+                (SELECT COUNT(*) FROM em WHERE em.bl_id = bl.bl_id) ${sql.as} count_em,
+                bl.count_max_occup ${sql.as} count_max_occup,
+                bl.count_occup ${sql.as} count_occup,
+                (select sum(rm.cost) from rm where rm.bl_id = bl.bl_id) ${sql.as} cost_chargeable,
+                ((1 - bl.count_occup/ ${sql.replaceZero('bl.count_max_occup')}) *100) ${sql.as} vacancy_percent,
+                (case when EXISTS(SELECT * FROM ot WHERE ot.status &lt;&gt; 'disposed' AND ot.bl_id = bl.bl_id)
+                         then  ${parameters['status_owned']} 
+                       else ${parameters['status_leased']} end) ${sql.as} ownership,              
+                (SELECT SUM(  amount_expense * DATEDIFF(MM,  GETDATE(), cost_tran_recur.date_end )) FROM cost_tran_recur WHERE cost_tran_recur.ls_id IS NOT NULL AND DATEDIFF(MM,  GETDATE(), cost_tran_recur.date_end ) &gt;= 0  AND EXISTS(SELECT * FROM ls WHERE ls.ls_id = cost_tran_recur.ls_id AND ls.bl_id = bl.bl_id)) ${sql.as} commitment_cost   
+            FROM bl  
+        </sql>
+        <sql dialect="oracle">
+            SELECT 
+                bl.bl_id ${sql.as} bl_id,
+                bl.ctry_id ${sql.as} ctry_id,
+                bl.use1 ${sql.as} use1,
+                bl.site_id  ${sql.as} site_id,
+                (SELECT SUM(CASE WHEN (su.area_usable = 0  or su.area_usable is null)THEN(case when su.area_manual is not null then su.area_manual else 0 end) ELSE su.area_usable END)FROM su   WHERE su.bl_id = bl.bl_id) ${sql.as} area_estimated, 
+                bl.cost_sqft ${sql.as} cost_sqft,
+                ( SELECT ( CASE COUNT(*) WHEN 0 THEN bl.area_avg_em ELSE ( bl.area_usable / COUNT(*) ) END ) FROM em WHERE em.bl_id = bl.bl_id ) ${sql.as} area_avg_em,
+                bl.ratio_ru ${sql.as} ratio_ru,
+                bl.area_usable ${sql.as} area_usable,
+                bl.value_book ${sql.as} value_book,
+                bl.value_market ${sql.as} value_market,
+                (SELECT AVG(${sql.getFormula('AbCapitalPlanningCA-FacilityConditionIndex')}) FROM activity_log WHERE  activity_log.cost_to_replace > 0 AND activity_log.activity_type = 'ASSESSMENT' AND activity_log.bl_id = bl.bl_id) ${sql.as} fci,
+                (SELECT SUM(  amount_expense ) FROM cost_tran, cost_cat WHERE cost_tran.cost_cat_id = cost_cat.cost_cat_id AND cost_tran.bl_id = bl.bl_id ) ${sql.as} operating_costs,
+                (SELECT (case when (SUM(activity_log.cost_est_cap) + SUM(activity_log.cost_estimated)) is null then 0 else (SUM(activity_log.cost_est_cap) + SUM(activity_log.cost_estimated)) end ) FROM activity_log, project WHERE project.bl_id = bl.bl_id and activity_log.project_id = project.project_id
+                    AND ( project.status LIKE 'Approved%' OR project.status LIKE 'Issued%' )) ${sql.as} active_capital_cost,
+                bl.ratio_ur ${sql.as} ratio_ur,
+                bl.area_gross_int ${sql.as} area_gross_int,
+                bl.area_ls_negotiated ${sql.as} area_ls_negotiated,
+                bl.area_ocup ${sql.as} area_ocup,
+                bl.area_rentable ${sql.as} area_rentable,
+                bl.area_rm ${sql.as} area_rm,
+                (SELECT COUNT(*) FROM em WHERE em.bl_id = bl.bl_id) ${sql.as} count_em,
+                bl.count_max_occup ${sql.as} count_max_occup,
+                bl.count_occup ${sql.as} count_occup,
+                (select sum(rm.cost) from rm where rm.bl_id = bl.bl_id) ${sql.as} cost_chargeable,
+                ((1 - bl.count_occup/ ${sql.replaceZero('bl.count_max_occup')}) *100) ${sql.as} vacancy_percent,
+                (case when EXISTS(SELECT * FROM ot WHERE ot.status &lt;&gt; 'disposed' AND ot.bl_id = bl.bl_id)
+                         then ${parameters['status_owned']}
+                       else ${parameters['status_leased']} end) ${sql.as} ownership,                   
+                (SELECT SUM(  amount_expense * MONTHS_BETWEEN(cost_tran_recur.date_end, SYSDATE)) FROM cost_tran_recur WHERE cost_tran_recur.ls_id IS NOT NULL AND MONTHS_BETWEEN(cost_tran_recur.date_end, SYSDATE) &gt;= 0 AND EXISTS(SELECT * FROM ls WHERE ls.ls_id = cost_tran_recur.ls_id AND ls.bl_id = bl.bl_id) ) ${sql.as} commitment_cost   
+            FROM bl  
+        </sql>
+        <table name="bl"/>
+		<field name="bl_id" dataType="text"/>
+		<field name="ownership" dataType="text"/>
+		<field name="area_estimated" dataType="number" size="16" decimals="0" numericFormat="area"/>
+    	<field name="area_gross_int" dataType="number" size="16" decimals="0" numericFormat="area"/>    	
+    	<field name="commitment_cost" dataType="number" size="16" decimals="0" currency="${project.budgetCurrency.code}"/>
+		<field name="area_rentable" dataType="number" size="16" decimals="0" />
+		<field name="area_ls_negotiated" dataType="number" size="16" decimals="0" />
+		<field name="area_ocup" dataType="number" size="16" decimals="0" />
+		<field name="area_rm" dataType="number" size="16" decimals="0" />
+		<field name="area_usable" dataType="number" size="16" decimals="0" />
+		<field name="active_capital_cost" dataType="number" size="16" decimals="0" currency="${project.budgetCurrency.code}"/>		
+		<field name="operating_costs" dataType="number" size="16" decimals="0" currency="${project.budgetCurrency.code}"/>
+		<field name="value_book" dataType="number" size="16" decimals="0" currency="${project.budgetCurrency.code}"/>
+		<field name="value_market" dataType="number" size="16" decimals="0" currency="${project.budgetCurrency.code}"/>
+		<field name="count_occup" dataType="number" size="16" decimals="0" />
+		<field name="count_em" dataType="number" size="16" decimals="0" />
+		<field name="count_max_occup" dataType="number" size="16" decimals="0" />
+		<field name="vacancy_percent" dataType="number" size="16" decimals="0" />
+		<field name="area_avg_em" dataType="number" size="16" decimals="0" numericFormat="area"/>
+		<field name="cost_sqft" dataType="number" size="16" decimals="2" currency="${project.budgetCurrency.code}"  numericFormat="area"/>
+		<field name="ratio_ur" dataType="number" size="16" decimals="0" />
+		<field name="fci" dataType="number" size="16" decimals="0" />
+		<field name="ratio_ru" dataType="number" size="16" decimals="0" />
+        <parameter name="status_owned" dataType="text" value=""/>
+        <parameter name="status_leased" dataType="text" value=""/>
+    </dataSource>
+    
+    <panel type="grid" id="abRplmGpdSummaryDetails" dataSource="abRplmGpdSummaryDetails_ds" showOnLoad="false">
+        <title>Portfolio Details</title>
+        <action id="exportXLS">
+            <title>XLS</title>
+            <command type="exportPanel" outputType="xls" panelId="abRplmGpdSummaryDetails"/>
+        </action>
+        <field name="bl_id"/>
+        <field name="area_gross_int"/>
+        <field name="ownership">
+            <title>Ownership</title>
+        </field> 
+        <field name="fci">
+            <title translatable="true">Facilities Condition Index</title>
+        </field>            
+        <field name="commitment_cost" dataType="number" size="16" decimals="0" currency="${project.budgetCurrency.code}">
+            <title translatable="true">Total Lease Commitment</title>
+        </field>
+        <field name="operating_costs" dataType="number" size="16" decimals="0" currency="${project.budgetCurrency.code}">
+            <title translatable="true">Total Operating Costs</title>
+        </field>
+        <field name="active_capital_cost" dataType="number" size="16" decimals="0" currency="${project.budgetCurrency.code}">
+            <title translatable="true">Total Capital Costs</title>
+        </field>
+        <field name="count_max_occup">
+            <title translatable="true">Building Maximum Headcount</title>
+        </field> 
+        <field name="count_occup">
+            <title translatable="true">Building Occupancy</title>
+        </field>
+        <field name="vacancy_percent">
+            <title translatable="true">Vacancy Percent</title>
+        </field>        
+        <field name="area_avg_em" dataType="number" size="16" decimals="0"/>
+        <field name="cost_sqft" dataType="number" size="16" decimals="2"/>
+    </panel>
+</view>

@@ -1,0 +1,128 @@
+'CIUP.ABS
+'CI - composite inventory
+'UP - update calculations
+
+Option Explicit
+
+'---- Internal Functions
+Declare Sub calc_gp()
+
+
+'------------------------------------------------------------------------------
+'----                                    TRANSLATE
+Const kPleaseWaitMsg$              = "Please wait ... "
+Const kUpdatingGroupAreaTotalsMsg$ = "Updating Group Area Totals"
+
+
+'------------------------------------------------------------------------------
+
+'----------------------------------------------------------------------------- 
+'------ GROUP CALCULATIONS ---------------------------------------------------
+'----------------------------------------------------------------------------- 
+
+Sub calc_gp()
+
+     MsgOpen kUpdatingGroupAreaTotalsMsg & BASIC.EOLN$ & _
+             kPleaseWaitMsg, 0, FALSE, TRUE
+
+     Dim ff As New FieldFormula
+     Dim fo As New FieldOperation
+
+     '--- Sum TOTAL, DEPT, and COMN GROUP area from GP to FL
+
+     fo.Owner = "fl"
+     fo.Assigned = "gp"
+     fo.Calculate "fl.area_gp", "SUM", "gp.area"
+     fo.InpFilter = "gp.dp_id IS NOT NULL"
+     fo.Calculate "fl.area_gp_dp", "SUM", "gp.area"
+     fo.InpFilter = "gp.prorate <> 'NONE'"
+     fo.Calculate "fl.area_gp_comn", "SUM", "gp.area" 
+     fo.Clear
+
+     MsgSetThermometer 10
+
+     '--- Calculate FLOOR REMAINING AREA
+
+     ff.Assigned = "fl"
+     ff.Calculate "fl.area_remain", "fl.area_gross_int - fl.area_gp - fl.area_rm"
+     ff.Clear
+
+     MsgSetThermometer 20
+
+     '--- Sum REMAINING, TOTAL, DEPT, and COMN GROUP area from FL to BL
+
+     fo.Owner = "bl"
+     fo.Assigned = "fl"
+     fo.AddOperation "bl.area_gp", "SUM", "fl.area_gp"
+     fo.AddOperation "bl.area_gp_dp", "SUM", "fl.area_gp_dp"
+     fo.AddOperation "bl.area_gp_comn", "SUM", "fl.area_gp_comn"
+     fo.AddOperation "bl.area_remain", "SUM", "fl.area_remain"
+     fo.Calculate
+     fo.Clear
+
+     MsgSetThermometer 30
+
+     '--- Sum TOTAL, DEPT, and COMN GROUP area from BL to SITE
+
+     fo.Owner = "site"
+     fo.Assigned = "bl"
+     fo.AddOperation "site.area_gp", "SUM", "bl.area_gp"
+     fo.AddOperation "site.area_gp_dp", "SUM", "bl.area_gp_dp"
+     fo.AddOperation "site.area_gp_comn", "SUM", "bl.area_gp_comn"
+     fo.Calculate
+     fo.Clear
+
+     MsgSetThermometer 40
+
+     '--- Sum GROUP AREA from GP to DP
+
+     fo.Owner = "dp"
+     fo.Assigned = "gp"
+     fo.Calculate "dp.area_gp", "SUM", "gp.area"
+     fo.Clear
+
+     MsgSetThermometer 50
+
+     '--- Sum GROUP AREA from DP to DV
+
+     fo.Owner = "dv"
+     fo.Assigned = "dp"
+     fo.Calculate "dv.area_gp", "SUM", "dp.area_gp"
+     fo.Clear
+
+     MsgSetThermometer 60
+  
+     '--- Sum GROUP AREA from DV to BU
+
+     fo.Owner = "bu"
+     fo.Assigned = "dv"
+     fo.Calculate "bu.area_gp", "SUM", "dv.area_gp"
+     fo.Clear
+
+     MsgSetThermometer 70
+
+     '--- Calculate GPSTD AREA and COUNT
+
+     fo.Owner    = "gpstd"
+     fo.Assigned = "gp"
+     fo.AddOperation "gpstd.area", "SUM", "gp.area"
+     fo.AddOperation "gpstd.tot_count", "COUNT", "gp.area"
+     fo.Calculate
+     fo.Clear
+
+     MsgSetThermometer 80
+
+     Avw.SetTblChanged "site", AVW_TBLCHANGE_UPDATE
+     Avw.SetTblChanged "bl", AVW_TBLCHANGE_UPDATE
+     Avw.SetTblChanged "fl", AVW_TBLCHANGE_UPDATE
+     Avw.SetTblChanged "bu", AVW_TBLCHANGE_UPDATE
+     Avw.SetTblChanged "dv", AVW_TBLCHANGE_UPDATE
+     Avw.SetTblChanged "dp", AVW_TBLCHANGE_UPDATE
+     Avw.SetTblChanged "gpstd", AVW_TBLCHANGE_UPDATE
+     Avw.ReQuery
+
+     MsgSetThermometer 100
+     MsgClose
+
+End Sub
+

@@ -1,0 +1,101 @@
+<view version="2.0">
+    <designInfo type="report" pattern="ab-viewdef-report-drilldown-two-level-horizontal" isAlterable="false"/>
+    <message name="rmCatPanelTitle" translatable="true">Room Categories: [{0}]</message>
+    <message name="rmTypePanelTitle" translatable="true">Room Types: [{0}]</message>
+    <layout type="borderLayout" id="mainLayout">
+        <north autoScroll="true" split="true" initialSize="30%"/>
+        <center autoScroll="true"/>
+    </layout>
+    <layout type="borderLayout" id="centerLayout" containingLayout="mainLayout" region="center">
+        <north autoScroll="true" split="true" initialSize="30%"/>
+        <center autoScroll="true"/>
+    </layout>
+    <title translatable="true">View Room Categories and Types by Division</title>
+    
+    <dataSource id="ds_ab-sp-vw-rmcat-by-dv_grid_dv">
+        <table name="dv" role="main"/>
+        <field table="dv" name="dv_id"/>
+        <field table="dv" name="name"/>
+        <field table="dv" name="area_rm"/>
+        <restriction type="sql" sql="EXISTS (SELECT 1 FROM rm WHERE rm.dv_id = dv.dv_id AND rm.rm_cat IS NOT NULL AND rm.rm_type IS NOT NULL)"/>
+    </dataSource>
+    
+    <dataSource id="ds_ab-sp-vw-rmcat-by-dv_grid_rm_rmcat" type="grouping">
+        <table name="rm" role="main"/>
+        <table name="rmcat" role="standard"/>
+        <field name="rm_cat" table="rm" groupBy="true"/>
+        <field name="occupiable" table="rmcat"  groupBy="true"/>
+        <field name="used_in_calcs" table="rmcat" groupBy="true"/>
+        <field name="tot_count" formula="count" baseField="rm.rm_id" dataType="number" decimals="0"/>
+        <field name="tot_area" formula="sum" baseField="rm.area" dataType="number" decimals="2"/>
+        <restriction type="sql" sql="rm.rm_cat IS NOT NULL"/>
+    </dataSource>
+    
+    <dataSource id="ds_ab-sp-vw-rmcat-by-dv_grid_rm_rmtype" type="grouping">
+        <table name="rm" role="main"/>
+        <field name="rm_type" table="rm" groupBy="true"/>
+        <field name="tot_count" formula="count" baseField="rm.rm_id" dataType="number" decimals="0"/>
+        <field name="tot_area" formula="sum" baseField="rm.area" dataType="number" decimals="2"/>
+        <field name="area_avg" formula="avg" baseField="rm.area" dataType="number" decimals="2"/>
+        <field name="pct_dv" baseField="dv.area_rm" dataType="number" decimals="2">
+            <sql dialect="generic">CASE WHEN AVG(dv.area_rm) =0 THEN 0 ELSE 100*SUM(rm.area)/AVG(dv.area_rm) END</sql>
+        </field>
+        <restriction type="sql" sql="rm.rm_type IS NOT NULL"/>
+    </dataSource>
+    
+    <panel type="grid" id="divisionGrid" dataSource="ds_ab-sp-vw-rmcat-by-dv_grid_dv" layout="mainLayout" region="north">
+        <title translatable="true">Select Division</title>
+        <sortField table="dv" name="dv_id" ascending="true"/>
+        <field table="dv" name="dv_id" controlType="link">
+            <command type="callFunction" functionName="onSelectDv"/>
+        </field>
+        <field table="dv" name="name" controlType="link">
+            <command type="callFunction" functionName="onSelectDv"/>
+        </field>
+        <field table="dv" name="area_rm" controlType="link">
+            <command type="callFunction" functionName="onSelectDv"/>
+        </field>
+    </panel>
+    
+    <panel type="grid" id="rmCatGrid" dataSource="ds_ab-sp-vw-rmcat-by-dv_grid_rm_rmcat" showOnLoad="false" layout="centerLayout" region="north">
+        <title translatable="true">Select Room Category</title>
+        <sortField table="rm" name="rm_cat" ascending="true"/>
+        <field name="rm_cat" table="rm" controlType="link">
+            <command type="callFunction" functionName="onSelectRmCat"/>
+        </field>
+        <field name="occupiable" table="rmcat" controlType="link">
+            <command type="callFunction" functionName="onSelectRmCat"/>
+        </field>
+        <field name="tot_count" dataType="number" decimals="0" controlType="link">
+            <title translatable="true">Total Count</title>
+            <command type="callFunction" functionName="onSelectRmCat"/>
+        </field>
+        <field name="tot_area" dataType="number" decimals="2" controlType="link">
+            <title translatable="true">Total Area</title>
+            <command type="callFunction" functionName="onSelectRmCat"/>
+        </field>
+        <field name="used_in_calcs" table="rmcat" controlType="link">
+            <command type="callFunction" functionName="onSelectRmCat"/>
+        </field>
+    </panel>
+    
+    <panel type="grid" id="rmTypeGrid" controlType="reportGrid" dataSource="ds_ab-sp-vw-rmcat-by-dv_grid_rm_rmtype" showOnLoad="false" layout="centerLayout" region="center">
+        <title translatable="true">Room Types</title>
+        <sortField table="rm" name="rm_type" ascending="true"/>
+        <field name="rm_type" table="rm"/>
+        <field name="tot_count" dataType="number" decimals="0">
+            <title translatable="true">Total Count</title>
+        </field>
+        <field name="tot_area" dataType="number" decimals="2">
+            <title translatable="true">Total Area</title>
+        </field>
+        <field name="area_avg" dataType="number" decimals="2">
+            <title translatable="true">Average Area</title>
+        </field>
+        <field name="pct_dv" dataType="number" decimals="2">
+            <title translatable="true">Pct. of Division</title>
+        </field>
+    </panel>
+    
+    <js file="ab-sp-vw-rmcat-by-dv.js"/>
+</view>

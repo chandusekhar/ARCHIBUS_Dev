@@ -1,0 +1,132 @@
+<view version="2.0">
+    <layout file="2panels.axvw"/>
+    <js file="ab-proj-mng-rpt-cost-var.js"/>
+    
+    <dataSource id="projMngRptCostVarDs0">
+        <table name="work_pkgs" role="main"/>
+        <field name="work_pkg_id" table="work_pkgs"/>
+        <field name="project_id" table="work_pkgs"/>
+        <field name="status" table="work_pkgs"/>
+    </dataSource>
+    
+    <panel type="grid" id="projMngRptCostVarGrid" dataSource="projMngRptCostVarDs0" showOnLoad="true" region="west">
+        <title>Work Packages</title>
+        <sortField name="wbs_id" table="work_pkgs" ascending="true"/>
+        <field name="work_pkg_id" table="work_pkgs" controlType="link" id="selectWorkPkg"/>
+        <field name="status" table="work_pkgs"/>
+    </panel>
+    
+    <dataSource id="projMngRptCostVarDs1" type="grouping" applyVpaRestrictions="false">
+        <table name="activity_log" role="main"/>
+        <sql dialect="generic">
+          SELECT work_pkg_id, (RTRIM(wbs_id) ${sql.concat} ' - ' ${sql.concat} RTRIM(action_title) ${sql.concat} ' - ' ${sql.concat} RTRIM(activity_log_id)) ${sql.as} action_item, 
+          project_id, (cost_est_cap + cost_estimated) ${sql.as} baseline_costs, 
+          (cost_est_design_cap + cost_est_design_exp) ${sql.as} design_estimated_costs, 
+          (cost_act_cap + cost_actual) ${sql.as} actual_costs, 
+          (cost_est_design_cap + cost_est_design_exp - cost_est_cap - cost_estimated) ${sql.as} variance_design_baseline, 
+          (cost_act_cap + cost_actual - cost_est_design_cap - cost_est_design_exp) ${sql.as} variance_actual_design 
+          FROM activity_log WHERE ${sql.vpaRestriction}
+        </sql>
+        <field name="action_item" dataType="text" groupBy="true">
+            <title>WBS - Action Title - ID</title>
+        </field>
+        <field name="baseline_costs" dataType="number" decimals="2">
+            <title>Baseline Costs</title>
+            <sql dialect="generic">SUM(baseline_costs)</sql>
+        </field>
+        <field name="design_estimated_costs" dataType="number" decimals="2">
+            <title>Design Estimated Costs</title>
+            <sql dialect="generic">SUM(design_estimated_costs)</sql>
+        </field>
+        <field name="actual_costs" dataType="number" decimals="2">
+            <title>Actual Costs</title>
+            <sql dialect="generic">SUM(actual_costs)</sql>
+        </field>
+        <field name="variance_design_baseline" dataType="number" decimals="2">
+            <title>Variance: Design to Baseline:</title>
+            <sql dialect="generic">SUM(variance_design_baseline)</sql>
+        </field>
+        <field name="variance_actual_design" dataType="number" decimals="2">
+            <title>Variance: Actual to Design</title>
+            <sql dialect="generic">SUM(variance_actual_design)</sql>
+        </field>
+        <sortField name="action_item" table="activity_log" ascending="true"/>
+    </dataSource>
+    
+    <panel type="crossTable" id="projMngRptCostVarCrossTable" dataSource="projMngRptCostVarDs1" region="center" showOnLoad="false">
+        <title>Action Cost Variances</title>
+        <action type="menu" id="projMngRptCostVarCrossTable_toolsMenu" imageName="/schema/ab-core/graphics/icons/view/export.png">
+            <tooltip>Tools</tooltip>
+            <action id="exportXLS">
+                <title>Export to XLS</title>
+                <command type="exportPanel" outputType="xls" panelId="projMngRptCostVarCrossTable"/>
+            </action>
+        </action>
+        <event type="onClickItem">
+            <command type="callFunction" functionName="projMngRptCostVarCrossTable_onclick"/>
+        </event>
+    </panel>
+    
+    <dataSource id="projMngRptCostVarDs2">
+        <table name="activity_log" role="main"/>
+        <field name="action_item" dataType="text">
+            <title>WBS - Action Title - ID</title>
+            <sql dialect="generic">RTRIM(wbs_id) ${sql.concat} ' - ' ${sql.concat} RTRIM(action_title) ${sql.concat} ' - ' ${sql.concat} RTRIM(activity_log_id)</sql>
+        </field>
+        <field name="wbs_id">
+        		<title>WBS Code</title>
+        </field>
+        <field name="action_title"/>
+        <field name="activity_log_id"/>
+        <field name="work_pkg_id"/>
+        <field name="project_id"/>
+        <field name="proj_phase"/>
+        <field name="status">
+            <title>Action Item Status</title>
+        </field>
+        <field name="cost_estimated" table="activity_log"/>
+        <field name="cost_est_cap" table="activity_log"/>
+        <field name="cost_est_design_cap" table="activity_log"/>
+        <field name="cost_est_design_exp" table="activity_log"/>
+        <field name="cost_act_cap" table="activity_log" />
+        <field name="cost_actual" table="activity_log" />
+        <parameter name="action_item_restriction" dataType="verbatim" value="1=1"/>
+        <restriction type="sql" sql="${parameters['action_item_restriction']}" />
+    </dataSource>
+    
+    <panel type="columnReport" id="projMngRptCostVarColumnReport" dataSource="projMngRptCostVarDs2" columns="2" showOnLoad="false" hidden="true">
+        <title>Action Item Details</title>
+    </panel>
+    
+    <panel type="grid" id="projMngRptCostVarActionsGrid" dataSource="projMngRptCostVarDs2" showOnLoad="false" hidden="true" >
+        <title>Actions</title>
+        <action type="menu" id="projMngRptCostVarActionsGrid_toolsMenu" imageName="/schema/ab-core/graphics/icons/view/export.png">
+            <tooltip>Tools</tooltip>
+            <action id="exportDOCX">
+                <title>Export to DOCX</title>
+                <command type="exportPanel" outputType="docx" orientation="landscape" panelId="projMngRptCostVarActionsGrid"/>
+            </action>
+            <action id="exportXLS">
+                <title>Export to XLS</title>
+                <command type="exportPanel" outputType="xls" panelId="projMngRptCostVarActionsGrid"/>
+            </action>
+        </action>
+        <sortField name="action_item" table="activity_log" ascending="true"/>
+        <field name="wbs_id">
+        		<title>WBS Code</title>
+        </field>
+        <field name="action_title"/>
+        <field name="cost_estimated" table="activity_log"/>
+        <field name="cost_est_cap" table="activity_log"/>
+        <field name="cost_est_design_cap" table="activity_log"/>
+        <field name="cost_est_design_exp" table="activity_log"/>
+        <field name="cost_act_cap" table="activity_log" />
+        <field name="cost_actual" table="activity_log" />
+        <field name="status"/>
+        <field name="activity_log_id">
+        		<title>Action ID</title>
+        </field>
+        <field name="work_pkg_id" table="activity_log"/>
+    </panel>
+
+</view>

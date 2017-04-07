@@ -1,0 +1,538 @@
+<view version="2.0">
+    <js file="ab-eam-cpt-proj-console-asset.js"/>
+    <js file="ab-eam-common.js"/>
+    <css>
+        div.instructions {
+            cursor: auto;
+        }
+        
+        table.panel, table.panelTop{
+            width:75%;
+        }
+    </css>      
+
+    <message name="titleAssetSummaryPanel" translatable="true">Summary of Required Assets for `{0}`.</message>
+    <message name="infoSummaryText_requirements" translatable="true">Statistics for Requirements:</message>
+    <message name="infoSummaryText_forecast" translatable="true">Statistics for Period 1:</message>
+    
+    <message name="infoSummaryText_assetCount" translatable="true">Asset Count</message>
+    <message name="infoSummaryText_forecastedCost" translatable="true">Forecasted Cost</message>
+    <message name="infoSummaryText_forecastedArea" translatable="true">Forecasted Area</message>
+    
+    <message name="infoSummaryText_total" translatable="true">Total of All Statistics:</message>
+    <message name="infoSummaryText_standard" translatable="true">Standard Asset Statistics:</message>
+    <message name="infoSummaryText_individual" translatable="true">Individual Asset Statistics:</message>
+    
+    <message name="labelAssetPlanId" translatable="true">Asset Plan ID</message>
+    <message name="labelAssetStandard" translatable="true">Asset Standard</message>
+    
+    <layout id="mainLayout">
+        <north initialSize="30%" id="summaryPos"/>
+        <center id="centerPos"/>
+        <south initialSize="30%" id="southPos"/>
+    </layout>
+
+    <dataSource id="abEamAssetSummary_ds" applyVpaRestrictions="false">
+        <table name="sb" role="main"/>
+        <table name="sb_items" role="standard"/>
+        <table name="eq_req_items" role="standard"/>
+        <field name="sb_name"/>
+        
+        <field name="count_of_assets" dataType="number" decimals="0">
+            <title>Count of All Assets</title>
+            <sql dialect="generic">
+                (SELECT COUNT(eq_req_items.auto_number) FROM eq_req_items WHERE eq_req_items.sb_name = sb.sb_name AND ${sql.getVpaRestrictionForTable('eq_req_items')})
+                 + (SELECT SUM(sb_items.p01_value) FROM  sb_items WHERE (sb_items.eq_std IS NOT NULL OR sb_items.fn_std IS NOT NULL) AND sb_items.sb_name = sb.sb_name AND ${sql.getVpaRestrictionForTable('sb_items')})
+            </sql>
+        </field>
+        <field name="cost_of_assets" dataType="number" decimals="2" numericFormat="BudgetCurrency" currency="${project.budgetCurrency.code}">
+            <title>Forecasted Cost of All Assets</title>
+            <sql dialect="generic">
+                (SELECT ${sql.isNull('SUM(eq_req_items.cost_est_baseline)', 0)} FROM eq_req_items WHERE eq_req_items.sb_name = sb.sb_name AND ${sql.getVpaRestrictionForTable('eq_req_items')}) 
+                  + (SELECT ${sql.isNull('SUM((sb_items.eq_cost + sb_items.cost_of_move) * sb_items.p01_value)', 0)} FROM  sb_items WHERE sb_items.eq_std IS NOT NULL AND sb_items.sb_name = sb.sb_name AND ${sql.getVpaRestrictionForTable('sb_items')})
+                  +(SELECT ${sql.isNull('SUM((sb_items.cost_of_furn + sb_items.cost_of_move) * sb_items.p01_value)', 0)} FROM  sb_items WHERE sb_items.fn_std IS NOT NULL AND sb_items.sb_name = sb.sb_name AND ${sql.getVpaRestrictionForTable('sb_items')})  
+            </sql>
+        </field>
+        <field name="area_of_assets" dataType="number" decimals="2" numericFormat="Area">
+            <title>Forecasted Area of All Assets</title>
+            <sql dialect="generic">
+                (SELECT ${sql.isNull('SUM(eq_req_items.unit_area)', 0)} FROM eq_req_items WHERE eq_req_items.sb_name = sb.sb_name AND ${sql.getVpaRestrictionForTable('eq_req_items')})
+                  + (SELECT ${sql.isNull('SUM( sb_items.unit_area * sb_items.p01_value)', 0)} FROM  sb_items WHERE (sb_items.eq_std IS NOT NULL OR sb_items.fn_std IS NOT NULL) AND sb_items.sb_name = sb.sb_name AND ${sql.getVpaRestrictionForTable('sb_items')})
+            </sql>
+        </field>
+
+        <field name="count_of_grouped_by_eq" dataType="number" decimals="0">
+            <title>Count of Standard Equipment</title>
+            <sql dialect="generic">
+                (SELECT SUM(sb_items.p01_value) FROM  sb_items WHERE sb_items.eq_std IS NOT NULL AND sb_items.sb_name = sb.sb_name AND ${sql.getVpaRestrictionForTable('sb_items')})
+            </sql>
+        </field>
+        <field name="cost_of_grouped_by_eq" dataType="number" decimals="2" numericFormat="BudgetCurrency" currency="${project.budgetCurrency.code}">
+            <title>Cost of Standard Equipment</title>
+            <sql dialect="generic">
+                (SELECT ${sql.isNull('SUM((sb_items.eq_cost + sb_items.cost_of_move) * sb_items.p01_value)', 0)} FROM  sb_items WHERE sb_items.eq_std IS NOT NULL AND sb_items.sb_name = sb.sb_name AND ${sql.getVpaRestrictionForTable('sb_items')})
+            </sql>
+        </field>
+        <field name="area_of_grouped_by_eq" dataType="number" decimals="2" numericFormat="Area">
+            <title>Area of Standard Equipment</title>
+            <sql dialect="generic">
+                (SELECT ${sql.isNull('SUM( sb_items.unit_area * sb_items.p01_value)', 0)} FROM  sb_items WHERE sb_items.eq_std IS NOT NULL AND sb_items.sb_name = sb.sb_name AND ${sql.getVpaRestrictionForTable('sb_items')})
+            </sql>
+        </field>
+
+        <field name="count_of_grouped_by_fn" dataType="number" decimals="0">
+            <title>Count of Standard Furniture</title>
+            <sql dialect="generic">
+                (SELECT SUM(sb_items.p01_value) FROM  sb_items WHERE sb_items.fn_std IS NOT NULL AND sb_items.sb_name = sb.sb_name AND ${sql.getVpaRestrictionForTable('sb_items')})
+            </sql>
+        </field>
+        <field name="cost_of_grouped_by_fn" dataType="number" decimals="2" numericFormat="BudgetCurrency" currency="${project.budgetCurrency.code}">
+            <title>Cost of Standard Furniture</title>
+            <sql dialect="generic">
+                (SELECT ${sql.isNull('SUM((sb_items.cost_of_furn + sb_items.cost_of_move) * sb_items.p01_value)', 0)} FROM  sb_items WHERE sb_items.fn_std IS NOT NULL AND sb_items.sb_name = sb.sb_name AND ${sql.getVpaRestrictionForTable('sb_items')})
+            </sql>
+        </field>
+        <field name="area_of_grouped_by_fn" dataType="number" decimals="2" numericFormat="Area">
+            <title>Area of Standard Furniture</title>
+            <sql dialect="generic">
+                (SELECT ${sql.isNull('SUM( sb_items.unit_area * sb_items.p01_value)', 0)} FROM  sb_items WHERE sb_items.fn_std IS NOT NULL AND sb_items.sb_name = sb.sb_name AND ${sql.getVpaRestrictionForTable('sb_items')})
+            </sql>
+        </field>
+
+        <field name="count_of_grouped" dataType="number" decimals="0">
+            <title>Total Count of Standard Assets</title>
+            <sql dialect="generic">
+               (SELECT SUM(sb_items.p01_value) FROM  sb_items WHERE (sb_items.fn_std IS NOT NULL OR sb_items.eq_std IS NOT NULL) AND sb_items.sb_name = sb.sb_name AND ${sql.getVpaRestrictionForTable('sb_items')})
+            </sql>
+        </field>
+        <field name="cost_of_grouped" dataType="number" decimals="2" numericFormat="BudgetCurrency" currency="${project.budgetCurrency.code}">
+            <title>Total Cost of Standard Assets</title>
+            <sql dialect="generic">
+                (SELECT ${sql.isNull('SUM((sb_items.eq_cost + sb_items.cost_of_move) * sb_items.p01_value)', 0)} FROM  sb_items WHERE sb_items.eq_std IS NOT NULL AND sb_items.sb_name = sb.sb_name AND ${sql.getVpaRestrictionForTable('sb_items')})
+            + (SELECT ${sql.isNull('SUM((sb_items.cost_of_furn + sb_items.cost_of_move) * sb_items.p01_value)', 0)} FROM  sb_items WHERE sb_items.fn_std IS NOT NULL AND sb_items.sb_name = sb.sb_name AND ${sql.getVpaRestrictionForTable('sb_items')})
+            </sql>
+        </field>
+        <field name="area_of_grouped" dataType="number" decimals="2" numericFormat="Area">
+            <title>Total Area of Standard Assets</title>
+            <sql dialect="generic">
+            (SELECT ${sql.isNull('SUM( sb_items.unit_area * sb_items.p01_value)', 0)} FROM  sb_items WHERE (sb_items.fn_std IS NOT NULL OR sb_items.eq_std IS NOT NULL) AND sb_items.sb_name = sb.sb_name AND ${sql.getVpaRestrictionForTable('sb_items')})
+            </sql>
+        </field>
+
+        <field name="count_of_individual_by_eq" dataType="number" decimals="0">
+            <title>Count of Individual Equipment</title>
+            <sql dialect="generic">
+                (SELECT COUNT(eq_req_items.auto_number) FROM eq_req_items WHERE eq_req_items.asset_type = 'eq' AND eq_req_items.sb_name = sb.sb_name AND ${sql.getVpaRestrictionForTable('eq_req_items')})
+            </sql>
+        </field>
+        <field name="cost_of_individual_by_eq" dataType="number" decimals="2" numericFormat="BudgetCurrency" currency="${project.budgetCurrency.code}">
+            <title>Cost of Individual Equipment</title>
+            <sql dialect="generic">
+                (SELECT ${sql.isNull('SUM(eq_req_items.cost_est_baseline)', 0)} FROM eq_req_items WHERE eq_req_items.asset_type = 'eq' AND eq_req_items.sb_name = sb.sb_name AND ${sql.getVpaRestrictionForTable('eq_req_items')})
+            </sql>
+        </field>
+        <field name="area_of_individual_by_eq" dataType="number" decimals="2" numericFormat="Area">
+            <title>Area of Individual Equipment</title>
+            <sql dialect="generic">
+                (SELECT ${sql.isNull('SUM(eq_req_items.unit_area)', 0)} FROM eq_req_items WHERE eq_req_items.asset_type = 'eq' AND eq_req_items.sb_name = sb.sb_name AND ${sql.getVpaRestrictionForTable('eq_req_items')})
+            </sql>
+        </field>
+
+        <field name="count_of_individual_by_fn" dataType="number" decimals="0">
+            <title>Count of Individual Furniture</title>
+            <sql dialect="generic">
+                (SELECT COUNT(eq_req_items.auto_number) FROM eq_req_items WHERE eq_req_items.asset_type = 'ta' AND eq_req_items.sb_name = sb.sb_name AND ${sql.getVpaRestrictionForTable('eq_req_items')})
+            </sql>
+        </field>
+        <field name="cost_of_individual_by_fn" dataType="number" decimals="2" numericFormat="BudgetCurrency" currency="${project.budgetCurrency.code}">
+            <title>Cost of Individual Furniture</title>
+            <sql dialect="generic">
+                (SELECT ${sql.isNull('SUM(eq_req_items.cost_est_baseline)', 0)} FROM eq_req_items WHERE eq_req_items.asset_type = 'ta' AND eq_req_items.sb_name = sb.sb_name AND ${sql.getVpaRestrictionForTable('eq_req_items')})
+            </sql>
+        </field>
+        <field name="area_of_individual_by_fn" dataType="number" decimals="2" numericFormat="Area">
+            <title>Area of Individual Furniture</title>
+            <sql dialect="generic">
+                (SELECT ${sql.isNull('SUM(eq_req_items.unit_area)', 0)} FROM eq_req_items WHERE eq_req_items.asset_type = 'ta' AND eq_req_items.sb_name = sb.sb_name AND ${sql.getVpaRestrictionForTable('eq_req_items')})
+            </sql>
+        </field>
+
+        <field name="count_of_individual" dataType="number" decimals="0">
+            <title>Total Count of Individual Assets</title>
+            <sql dialect="generic">
+                (SELECT COUNT(eq_req_items.auto_number) FROM eq_req_items WHERE eq_req_items.sb_name = sb.sb_name AND ${sql.getVpaRestrictionForTable('eq_req_items')})
+            </sql>
+        </field>
+        <field name="cost_of_individual" dataType="number" decimals="2" numericFormat="BudgetCurrency" currency="${project.budgetCurrency.code}">
+            <title>Total Cost of Individual Assets</title>
+            <sql dialect="generic">
+                (SELECT ${sql.isNull('SUM(eq_req_items.cost_est_baseline)', 0)} FROM eq_req_items WHERE eq_req_items.sb_name = sb.sb_name AND ${sql.getVpaRestrictionForTable('eq_req_items')})
+            </sql>
+        </field>
+        <field name="area_of_individual" dataType="number" decimals="2" numericFormat="Area">
+            <title>Total Area of Individual Assets</title>
+            <sql dialect="generic">
+                (SELECT ${sql.isNull('SUM(eq_req_items.unit_area)', 0)} FROM eq_req_items WHERE eq_req_items.sb_name = sb.sb_name AND ${sql.getVpaRestrictionForTable('eq_req_items')})
+            </sql>
+        </field>
+   </dataSource>
+    
+    <panel type="form" id="abEamAssetSummary" afterRefresh="formatCurrency" dataSource="abEamAssetSummary_ds" columns="6" showOnLoad="false" layoutRegion="summaryPos">
+        <action id="createSpaceBudget">
+            <title>Create Requirements</title>
+        </action>
+         <action id="addLocations">
+            <title>Add Baseline Locations</title>
+        </action>
+        <action id="editSpaceStandard">
+            <title>Define Room Standards</title>
+            <command type="openDialog" viewName="ab-sp-def-rmstd.axvw" applyParentRestriction="false"/>
+        </action>
+        <action id="abEamProj_list_reports" type="menu">
+            <title>Reports</title>
+        </action>
+        
+        <field/>
+        <field name="count_of_assets" dataType="number" decimals="0" readOnly="true">
+            <title>Count of All Assets</title>
+        </field>
+        <field/>
+        <field name="cost_of_assets" dataType="number" decimals="2"  readOnly="true" currency="${project.budgetCurrency.code}">
+            <title>Forecasted Cost of All Assets</title>
+        </field>
+        <field/>
+        <field name="area_of_assets" dataType="number" decimals="2"  readOnly="true">
+            <title>Forecasted Area of All Assets</title>
+        </field>
+
+       <field/>
+       <field/>
+       <field/>
+       <field/>
+       <field/>
+       <field/>
+
+
+        <field/>
+        <field name="count_of_grouped_by_eq" dataType="number" decimals="0" readOnly="true">
+            <title>Count of Standard Equipment</title>
+        </field>
+         <field/>
+         <field name="cost_of_grouped_by_eq" dataType="number" decimals="2" readOnly="true" currency="${project.budgetCurrency.code}">
+            <title>Cost of Standard Equipment</title>
+        </field>
+        <field/>
+        <field name="area_of_grouped_by_eq" dataType="number" decimals="2" readOnly="true">
+            <title>Area of Standard Equipment</title>
+        </field>
+        
+        <field/>
+        <field name="count_of_grouped_by_fn" dataType="number" decimals="0" readOnly="true">
+            <title>Count of Standard Furniture</title>
+        </field>
+         <field/>
+         <field name="cost_of_grouped_by_fn" dataType="number" decimals="2" readOnly="true" currency="${project.budgetCurrency.code}">
+            <title>Cost of Standard Furniture</title>
+        </field>
+        <field/>
+        <field name="area_of_grouped_by_fn" dataType="number" decimals="2" readOnly="true">
+            <title>Area of Standard Furniture</title>
+        </field>
+        
+        <field/>
+        <field name="count_of_grouped" dataType="number" decimals="0" readOnly="true">
+            <title>Total Count of Standard Assets</title>
+        </field>
+        <field/>
+        <field name="cost_of_grouped" dataType="number" decimals="2" readOnly="true" currency="${project.budgetCurrency.code}">
+            <title>Total Cost of Standard Assets</title>
+        </field>
+       <field/>
+        <field name="area_of_grouped" dataType="number" decimals="2" readOnly="true">
+            <title>Total Area of Standard Assets</title>
+        </field>
+        <field/>
+        <field/>
+        <field/>
+        <field/>
+        <field/>
+        <field/>
+        <field/>
+        <field name="count_of_individual_by_eq" dataType="number" decimals="0" readOnly="true">
+            <title>Count of Individual Equipment</title>
+        </field>
+        <field/>
+         <field name="cost_of_individual_by_eq" dataType="number" decimals="2" readOnly="true" currency="${project.budgetCurrency.code}">
+            <title>Cost of Individual Equipment</title>
+        </field>
+        <field/>
+        <field name="area_of_individual_by_eq" dataType="number" decimals="2" readOnly="true">
+            <title>Area of Individual Equipment</title>
+        </field>
+        
+        <field/>
+        <field name="count_of_individual_by_fn" dataType="number" decimals="0" readOnly="true">
+            <title>Count of Individual Furniture</title>
+        </field>
+        <field/>
+        <field name="cost_of_individual_by_fn" dataType="number" decimals="2" readOnly="true" currency="${project.budgetCurrency.code}">
+            <title>Cost of Individual Furniture</title>
+        </field>
+        <field/>
+        <field name="area_of_individual_by_fn" dataType="number" decimals="2" readOnly="true">
+            <title>Area of Individual Furniture</title>
+        </field>
+        
+        <field/>
+        <field name="count_of_individual" dataType="number" decimals="0" readOnly="true">
+            <title>Total Count of Individual Assets</title>
+        </field>
+        <field/>
+        <field name="cost_of_individual" dataType="number" decimals="2" readOnly="true" currency="${project.budgetCurrency.code}">
+            <title>Total Cost of Individual Assets</title>
+        </field>
+        <field/>
+        <field name="area_of_individual" dataType="number" decimals="2" readOnly="true">
+            <title>Total Area of Individual Assets</title>
+        </field>
+    </panel> 
+    
+    
+    <dataSource id="abEamAssetSbItems_ds">
+        <table name="sb_items"/>
+        <field name="auto_number"/>
+        <field name="bu_id"/>
+        <field name="dv_id"/>
+        <field name="dp_id"/>
+        <field name="fg_title"/>
+        <field name="eq_std"/>
+        <field name="fn_std"/>
+        <field name="p00_value" decimals="0">
+            <title>Baseline</title>
+        </field>
+        <field name="p01_value" decimals="0">
+            <title>Project Requirement</title>
+        </field>
+        <field name="cost_of_baseline" dataType="number" decimals="2" numericFormat="BudgetCurrency" currency="${project.budgetCurrency.code}">
+            <title>Cost of Baseline</title>
+            <sql dialect="generic">
+                (CASE 
+                    WHEN sb_items.eq_std IS NOT NULL 
+                        THEN (sb_items.eq_cost + sb_items.cost_of_move)*sb_items.p00_value
+                    WHEN sb_items.fn_std IS NOT NULL
+                        THEN (sb_items.cost_of_furn + sb_items.cost_of_move)*sb_items.p00_value
+                    ELSE 0
+                  END)
+            </sql>
+        </field>
+        <field name="area_of_baseline" dataType="number" decimals="2" numericFormat="Area">
+            <title>Area of Baseline</title>
+            <sql dialect="generic">
+                (sb_items.unit_area * sb_items.p00_value)
+            </sql>
+        </field>
+        <field name="cost_of_requirement" dataType="number" decimals="2" numericFormat="BudgetCurrency" currency="${project.budgetCurrency.code}">
+            <title>Cost of Requirement</title>
+            <sql dialect="generic">
+                (CASE 
+                    WHEN sb_items.eq_std IS NOT NULL 
+                        THEN (sb_items.eq_cost + sb_items.cost_of_move)*sb_items.p01_value
+                    WHEN sb_items.fn_std IS NOT NULL
+                        THEN (sb_items.cost_of_furn + sb_items.cost_of_move)*sb_items.p01_value
+                    ELSE 0
+                  END)
+            </sql>
+        </field>
+        <field name="area_of_requirement" dataType="number" decimals="2" numericFormat="Area">
+            <title>Area of Requirement</title>
+            <sql dialect="generic">
+                (sb_items.unit_area * sb_items.p01_value)
+            </sql>
+        </field>
+        <field name="bl_id"/>
+        <field name="fl_id"/>
+        <field name="eq_cost">
+            <title>Unit Cost - Asset</title>
+        </field>
+        <field name="cost_of_move">
+            <title>Unit Cost - Moving</title>
+        </field>
+        <field name="cost_of_furn">
+            <title>Unit Cost - Furnishing</title>
+        </field>
+        <field name="unit_area">
+            <title>Unit Area</title>
+        </field>
+        <restriction type="parsed">
+            <clause table="sb_items" name="rm_std" op="IS NULL" value=""/>
+        </restriction>
+    </dataSource>
+    
+    <panel type="grid" id="abEamAssetSbItems" dataSource="abEamAssetSbItems_ds" showOnLoad="false" layoutRegion="centerPos">
+        <title>List of Required Assets by Standard Count</title>
+        <action id="add" imageName="/schema/ab-core/graphics/icons/view/add-icon.png">
+            <tooltip>Add Required Asset</tooltip>
+        </action>
+        <action type="menu" id="abEamAssetSbItems_export" imageName="/schema/ab-core/graphics/icons/view/export.png">
+            <tooltip>Export</tooltip>
+            <action id="docx">
+                <title>DOCX</title>
+                <command type="exportPanel" panelId="abEamAssetSbItems" outputType="docx" printRestriction="true" orientation="landscape"/>
+            </action>
+            <action id="xls">
+                <title>XLS</title>
+                <command type="exportPanel" panelId="abEamAssetSbItems" outputType="xls"/>
+            </action>
+        </action>
+        <action id="tools" imageName="/schema/ab-core/graphics/icons/view/gear.png">
+            <tooltip>Tools</tooltip>
+            <command type="selectFields" panelId="abEamAssetSbItems"/>
+        </action>
+        <field name="bu_id"/>
+        <field name="dv_id"/>
+        <field name="dp_id"/>
+        <field name="fg_title"/>
+        <field name="eq_std"/>
+        <field name="fn_std"/>
+        <field name="p00_value" decimals="0">
+            <title>Baseline</title>
+        </field>
+        <field name="p01_value" decimals="0">
+            <title>Project Requirement</title>
+        </field>
+        <field name="cost_of_baseline" hidden="true" numericFormat="BudgetCurrency" currency="${project.budgetCurrency.code}">
+            <title>Cost of Baseline</title>
+        </field>
+        <field name="area_of_baseline" hidden="true" numericFormat="Area">
+            <title>Area of Baseline</title>
+        </field>
+        <field name="cost_of_requirement" numericFormat="BudgetCurrency" currency="${project.budgetCurrency.code}">
+            <title>Cost of Requirement</title>
+        </field>
+        <field name="area_of_requirement" numericFormat="Area">
+            <title>Area of Requirement</title>
+        </field>
+        <field name="bl_id"/>
+        <field name="fl_id"/>
+        <field name="eq_cost" hidden="true" numericFormat="BudgetCurrency" currency="${project.budgetCurrency.code}">
+            <title>Unit Cost - Asset</title>
+        </field>
+        <field name="cost_of_move" hidden="true" numericFormat="BudgetCurrency" currency="${project.budgetCurrency.code}">
+            <title>Unit Cost - Moving</title>
+        </field>
+        <field name="cost_of_furn" hidden="true" numericFormat="BudgetCurrency" currency="${project.budgetCurrency.code}">
+            <title>Unit Cost - Furnishing</title>
+        </field>
+        <field name="unit_area" hidden="true" numericFormat="Area">
+            <title>Unit Area</title>
+        </field>
+        <field name="comments" hidden="true"/>
+        <field name="auto_number" controlType="link" hidden="true"/>
+        <sortField name="auto_number"/>
+    </panel>
+    
+    <dataSource id="abEamAssetEqItems_ds">
+        <table name="eq_req_items"/>
+        <field name="auto_number"/>
+        <field name="planning_id"/>
+        <field name="sb_name"/>
+        <field name="bu_id"/>
+        <field name="dv_id"/>
+        <field name="dp_id"/>
+        <field name="description"/>
+        <field name="eq_id"/>
+        <field name="cost_est_baseline" numericFormat="BudgetCurrency" currency="${project.budgetCurrency.code}"/>
+        <field name="unit_area"/>
+        <field name="bl_id"/>
+        <field name="fl_id"/>
+        <field name="rm_id"/>
+        <field name="mfr"/>
+        <field name="modelno"/>
+        <field name="comments"/>
+        <field name="asset_type"/>
+        <field name="criticality"/>
+        <field name="ta_id"/>
+    </dataSource>
+    
+    <panel type="grid" id="abEamAssetEqItems" dataSource="abEamAssetEqItems_ds" showOnLoad="false" layoutRegion="southPos">
+        <sortField name="auto_number"/>
+        <title>List of Required Individual Assets</title>
+        <action id="add" imageName="/schema/ab-core/graphics/icons/view/add-icon.png">
+            <tooltip>Add Required Individual Asset</tooltip>
+        </action>
+        <action type="menu" id="abEamAssetEqItems_export" imageName="/schema/ab-core/graphics/icons/view/export.png">
+            <tooltip>Export</tooltip>
+            <action id="docx">
+                <title>DOCX</title>
+                <command type="exportPanel" panelId="abEamAssetEqItems" outputType="docx" printRestriction="true" orientation="landscape"/>
+            </action>
+            <action id="xls">
+                <title>XLS</title>
+                <command type="exportPanel" panelId="abEamAssetEqItems" outputType="xls"/>
+            </action>
+        </action>
+        <action id="tools" imageName="/schema/ab-core/graphics/icons/view/gear.png">
+            <tooltip>Tools</tooltip>
+            <command type="selectFields" panelId="abEamAssetEqItems"/>
+        </action>
+        <field id="assignRow" controlType="image" imageName="/schema/ab-core/graphics/icons/view/wrench-icon.png" onclick="abEamCptProjAssetController.onAssignRow"> 
+            <tooltip translatable="true">Create Action</tooltip>
+        </field>
+        <field name="auto_number" controlType="link" hidden="true"/>
+        <field name="sb_name" hidden="true"/>
+        <field name="planning_id"/>
+        <field name="eq_id"/>
+        <field name="ta_id"/>
+        <field name="criticality"/>
+        <field name="bu_id"/>
+        <field name="dv_id"/>
+        <field name="dp_id"/>
+        <field name="description"/>
+        <field name="bl_id"/>
+        <field name="fl_id"/>
+        <field name="rm_id"/>
+        <field name="cost_est_baseline" hidden="true" currency="${project.budgetCurrency.code}"/>
+        <field name="unit_area" hidden="true"/>
+        <field name="mfr" hidden="true"/>
+        <field name="modelno" hidden="true"/>
+        <field name="comments" hidden="true"/>
+        <field name="asset_type" hidden="true"/>
+    </panel>    
+    
+    
+    <dataSource id="abEamAssetAddAction_ds">
+        <table name="activity_log"/>
+        <field name="project_id"/>
+        <field name="work_pkg_id"/>
+        <field name="activity_type"/>
+    </dataSource>
+    
+    <panel type="form" id="abEamAssetAddAction_form" dataSource="abEamAssetAddAction_ds" showOnLoad="false" hidden="true">
+        <title>Select Project, Work Package and Action Type</title>
+        <action id="save" mainAction="true">
+            <title>OK</title>
+        </action>
+        <action id="cancel">
+            <title>Cancel</title>
+            <command type="closeDialog"/>
+        </action>
+        <field name="project_id" readOnly="true">
+            <action id="selectValueProject">
+                <title translatable="false">...</title>
+                <tooltip>Select Value</tooltip>
+                <command type="callFunction" functionName="onSelectValue_Project"/>
+            </action>
+        </field>
+        <field name="work_pkg_id">
+            <action id="selectValueWorkPkg">
+                <title translatable="false">...</title>
+                <tooltip>Select Value</tooltip>
+                <command type="callFunction" functionName="onSelectWorkPkgWithAddNew"/>
+            </action>
+        </field>
+        <field name="activity_type" required="true"/>
+    </panel>
+    
+    <panel type="view" id="abEamAssetGenericHelper" file="ab-eam-common-ds-and-panels.axvw" hidden="true"/>
+    <panel type="view" id="abProjectSelectReportHelper" file="ab-eam-reports-common.axvw"/>
+</view>

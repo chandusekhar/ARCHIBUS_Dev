@@ -1,0 +1,296 @@
+<view version="2.0">
+    <message name="noRecordSelected" translatable="true">Please make selection first.</message>
+    <message name="msg_service_gap" translatable="true">The Date Service Starts, Date Service Ends, and  Billing Period values seem to be out of sequence, would you still like the save this bill as it is?</message>
+    <message name="msg_roll_up" translatable="true">We were unable to update the Bill totals, please update the totals for Bill Code: &apos;{0}&apos; manually.</message>
+    <title>Add/Edit Stream Data</title>
+    <dataSource id="ds_bill">
+		<table name="bill" role="main"/>
+		<field table="bill" name="vn_id"/>
+		<field table="bill" name="vn_ac_id"/>
+		<field table="bill" name="bill_id"/>
+		<field table="bill" name="bill_type_id"/>
+		<field table="bill" name="site_id"/>
+		<field table="bill" name="bl_id"/>
+		<field table="bill" name="amount_expense"/>
+		<field table="bill" name="amount_income"/>
+		<field table="bill" name="status"/>
+		<field table="bill" name="qty_energy"/>
+		<field table="bill" name="qty_power"/>
+		<field table="bill" name="qty_volume"/>
+		<field table="bill" name="date_service_start"/>
+		<field table="bill" name="date_service_end"/>
+		<field table="bill" name="date_issued"/>
+		<field table="bill" name="date_due"/>
+		<field table="bill" name="time_period"/>
+		<field table="bill" name="date_approved"/>
+		<field table="bill" name="doc"/>
+		<field table="bill" name="count_lines"/>
+		<field table="bill" name="description"/>
+		<table name="bill_type" role="standard"/>
+		<field  table="bill_type" name="bill_type_id" dataType="text">
+			<sql dialect="generic">
+				(select edesc from afm.brg_enum('bill_type','unit_report') e where e.eid=bill_type.unit_report)
+			</sql>
+		</field>
+    </dataSource>
+    <panel type="form" columns="2" id="bill_form" dataSource="ds_bill">
+        <title translatable="true">Stream Data</title>
+		<!--action id="prevSelect">
+			<title translatable="true">&lt;&lt; Select</title>
+			<command type="selectTabPage" tabPanelId="tabsFrame" tabPageName="select"/>
+			<command type="callFunction" functionName="clearRestriction"/>
+			<command type="callFunction" functionName="setRestriction"/>
+		</action-->
+		<action id="submit" >
+				<title translatable="true">Submit</title>
+				<command type="selectTabPage" tabPageName="billLineListTab" newRecord="true" applyParentRestriction="true"/>
+		</action>
+		<action id="save">
+				<title translatable="true">Save</title>
+				<!--command type="callFunction" functionName="checkServiceGap"/-->
+				<!--command type="saveForm"/-->
+				<command type="callFunction" functionName="controller.saveData()"/>
+		</action>
+		<action id="new" >
+			<title translatable="true">Input New Collection</title>
+			<command type="selectTabPage" tabPageName="billLineTab" newRecord="true" applyParentRestriction="true"/>
+		</action>
+		<action id="printBill">
+			<title translatable="true">Print</title>
+			<command type="callFunction" functionName="printBill"/>
+		</action>
+		<action id="Cancel">
+			<title translatable="true">Close</title>
+			<command type="closeDialog" />
+		</action>
+		<!--action id="reject">
+			<title translatable="true">Reject</title>
+			<command type="callFunction" functionName="rejectBill"/>
+			<command type="saveForm"/>
+			<command type="selectTabPage" tabPanelId="tabsFrame" tabPageName="select"/>
+			<command type="callFunction" functionName="clearRestriction"/>
+			<command type="callFunction" functionName="setRestriction"/>
+			</action-->
+		<!--action id="delete">
+			<title translatable="true">Delete</title>
+			<command type="deleteRecord"/>
+			<command type="selectTabPage" tabPanelId="tabsFrame" tabPageName="select"/>
+			<command type="callFunction" functionName="clearRestriction"/>
+			<command type="callFunction" functionName="setRestriction"/>
+			</action-->
+		<field table="bill" name="vn_id" readOnly="${!(panel.newRecord &amp;&amp; controller.vnId=='')}" hidden="false">
+				 <action>
+					<tooltip>Select Vendor</tooltip>
+					 <command type="selectValue"
+					 dialogTitle="Vendor"
+					 fieldNames="bill.vn_id"
+					 selectFieldNames="vn.vn_id"
+					 visibleFieldNames="vn.vn_id, vn.company"
+					 selectValueType="grid"
+					 restriction = "vn.vn_id in (select vn_id from vn_ac where bill_type_id in  (select bill_type_id from bill_type where activity_id = 'AbRiskES'))"
+					 />
+			</action>
+		</field>
+		<field table="bill" name="vn_ac_id" readOnly="${!panel.newRecord}" hidden="false" onchange="controller.afterStreamTyped()">
+			<title>Stream/Substream</title>
+			<action>
+					<tooltip>Select Stream</tooltip>
+					<command type="callFunction" functionName="controller.selectStream()"/>
+			</action>
+		</field>
+		<field table="bill" name="bill_id" readOnly="${!panel.newRecord}"><title>Bill #</title></field>
+		<field table="bill" name="date_issued" hidden="false" required="true" readOnly="${(!(record['bill.status']=='Created' || record['bill.status']=='Rejected'))}"/>
+		<field table="bill" name="bill_type_id" hidden="true">
+			<title>Stream</title>
+			 <action>
+					<tooltip>Select Stream</tooltip>
+					 <command type="selectValue"
+					 dialogTitle="Stream"
+					 fieldNames="bill.bill_type_id"
+					 selectFieldNames="bill_type.bill_type_id"
+					 visibleFieldNames="bill_type.bill_type_id, bill_type.description"
+					 selectValueType="grid"
+					 restriction = "bill_type.activity_id = 'AbRiskES'"
+					 />
+			</action>
+		</field>
+		<field table="bill" name="site_id" required="false" hidden="true" readOnly="true"><title>Primary Site</title></field>
+
+		<field table="bill" name="bl_id" required="false" hidden="true" readOnly="true">
+			<title>Primary Building</title>
+										  <action>
+											<tooltip>Select Building</tooltip>
+											<command type="callFunction" functionName="controller.selectBuilding()"/>
+										  </action>
+		</field>
+
+		<field table="bill" name="amount_expense" readOnly="true" hidden="true"/>
+		<field table="bill" name="amount_income" readOnly="true" hidden="true"/>
+
+		
+		<field table="bill" name="date_service_start" required="true"  readOnly="${!(record['bill.status']=='Created' || record['bill.status']=='Rejected')}"/>
+		<field table="bill" name="date_service_end" required="true"  readOnly="${!(record['bill.status']=='Created' || record['bill.status']=='Rejected')}"/>
+		<field table="bill" name="date_due" hidden="true"/>
+		<!--field/-->
+		<field table="bill" name="time_period" required="true"  readOnly="${!(record['bill.status']=='Created' || record['bill.status']=='Rejected')}">
+				<action>
+					<title>...</title>
+					<command type="callFunction" functionName="controller.selectTimePeriod()" />
+				</action>
+		</field>
+		<field table="bill" name="date_approved" readOnly="true" hidden="true"/>
+		<field table="bill" name="status" readOnly="true" />
+		<field table="bill" name="doc"  readOnly="${!(record['bill.status']=='Created' || record['bill.status']=='Rejected')}"/>
+		<field/>
+		<field table="bill" name="description" colspan="2"  readOnly="${!(record['bill.status']=='Created' || record['bill.status']=='Rejected')}">
+			<!--action>
+				<title>Select Recently Entered Descriptions</title>
+					<command type="selectValue" fieldNames="bill.description" selectFieldNames="bill.description"/>
+			</action-->
+		</field>
+		<field  table="bill_type" name="bill_type_id" hidden="true" required="false"/>
+		<field table="bill" name="qty_energy" readOnly="true"><title>Amount</title></field>
+		<field table="bill" name="qty_power" readOnly="true" hidden="true"/>
+		<field table="bill" name="qty_volume" readOnly="true" hidden="true"/>
+		<field table="bill" name="count_lines" readOnly="true"/>
+    </panel>
+    <dataSource id="ds_bill_line">
+        <table name="bill_line" role="main"/>
+		
+		<field table="bill_line" name="vn_id"/>
+		<field table="bill_line" name="bill_id"/>
+		<field table="bill_line" name="bill_line_id"/>
+		<field table="bill_line" name="amount_expense"/>
+		<field table="bill_line" name="amount_income"/>
+		<field table="bill_line" name="bill_type_id"/>
+		<field table="bill_line" name="bill_unit_id"/>
+		<field table="bill_line" name="qty"/>
+		<field table="bill_line" name="qty_energy"/>
+		<field table="bill_line" name="qty_power"/>
+		<field table="bill_line" name="description"/>
+		<field table="bill_line" name="diverted"/>
+		<field table="bill_line" name="loc_id"/>
+		<field table="bill_line" name="date_collected"/>
+		<field  table="bill_line" name="qty_volume" />
+		<table name="bill" role="standard"/>
+		<field  table="bill" name="status" />
+		<table name="bill_type" role="standard"/>
+		<field  table="bill_type" name="bill_type_id" dataType="text">
+			<sql dialect="generic">
+				(select edesc from afm.brg_enum('bill_type','unit_report') e where e.eid=bill_type.unit_report)
+			</sql>
+		</field>
+		
+    </dataSource>
+	<tabs workflow="enforced" id="billLineTabs">
+		<tab name="billLineListTab" useFrame="false" selected="true">
+			<title translatable="true">Stream Line List</title>
+			    <panel type="grid" showOnLoad="true" useParentRestriction="true" id="bill_line_report" dataSource="ds_bill_line">
+				<title translatable="true"></title>
+					<sortField table="bill_line" name="bill_line_id" ascending="true"/>
+				<field controlType="button">
+				    <command type="selectTabPage" tabPageName="billLineTab"/>
+				    <title translatable="true">Edit</title>
+				</field>
+				<field table="bill_line" name="loc_id"/>
+				<field table="bill_line" name="vn_id" hidden="true"/>
+				<field table="bill_line" name="bill_id" readOnly="true" hidden="true"/>
+				<field table="bill_line" name="bill_line_id"><title>Stream Line ID</title></field>
+				<field table="bill_line" name="bill_unit_id">
+				<field table="bill_line" name="date_collected"/>
+				<field table="bill_line" name="amount_expense" hidden="true"/>
+				<field table="bill_line" name="amount_income" hidden="true"/>
+				<field table="bill_line" name="qty"/>
+
+				<title>Stream Units</title></field>
+				<field table="bill_line" name="bill_type_id" hidden="true">
+				  <title>Stream</title>
+				</field>
+				<field table="bill_line" name="qty_energy"><title>Amount</title></field>
+				<field  table="bill_type" name="bill_type_id" ><title>Unit</title></field>
+				<field table="bill_line" name="diverted"/>
+				<field table="bill_line" name="description"/>
+			</panel>
+		</tab>
+		<tab name="billLineTab" useFrame="false">
+			<title translatable="true">Stream Line Details</title>
+			    <panel type="form" columns="2" id="bill_line_form" dataSource="ds_bill_line">
+				<title translatable="true"></title>
+				<action id="prev">
+				    <title translatable="true">&lt;&lt; Stream List</title>
+				    <command type="selectTabPage" tabPanelId="billLineTabs" tabPageName="billLineListTab" applyParentRestriction="false"/>
+				</action>
+				<action id="save">
+				    <title translatable="true">Save</title>
+				    <!--command type="saveForm"/-->
+					<command type="callFunction" functionName="controller.validateAndSaveForm()"/>
+				    <!--command type="callFunction" functionName="rollUp"/-->
+				    <!--command type="showPanel" panelId="bill_line_form"/>
+				    <command type="showPanel" panelId="bill_form" applyParentRestriction="false"/-->
+				</action>
+				<!--action id="delete">
+				    <title translatable="true">Delete</title>
+				    <command type="deleteRecord"/>
+				    <command type="callFunction" functionName="rollUp"/>
+				    <command type="selectTabPage" tabPanelId="billLineTabs" tabPageName="billLineListTab" applyParentRestriction="false"/>
+					<command type="showPanel" panelId="bill_form" applyParentRestriction="false"/>
+				</action-->
+			        <field table="bill_line" name="vn_id" readOnly="true" hidden="true"/>
+		           <field table="bill_line" name="bill_id" readOnly="true" hidden="true"/>
+				<field  table="bill" name="status" hidden="true"/>
+
+			        <field table="bill_line" name="bill_type_id" showSelectValueAction="false" hidden="true" >
+					   <title>Stream</title>
+						<action>
+							<tooltip>Select Stream</tooltip>
+							 <command type="selectValue"
+							 dialogTitle="Stream"
+							 fieldNames="bill_type.bill_type_id"
+							 selectFieldNames="bill_type.bill_type_id"
+							 visibleFieldNames="bill_type.bill_type_id, bill_type.description"
+							 selectValueType="grid"
+							 restriction = "bill_type.activity_id = 'AbRiskES' and status=1"
+							 />
+						</action>
+					</field>
+
+					<field table="bill_line" name="loc_id" required="true"  readOnly="${!(record['bill.status']=='Created' || record['bill.status']=='Rejected')}">
+						  <action>
+							<tooltip>Select Location</tooltip>
+							<command type="callFunction" functionName="controller.bill_line_select_location()"/>
+						  </action>
+					</field>
+					<field table="bill_line" name="bill_line_id" showSelectValueAction="false" hidden="false" readOnly="true"><title>Stream Line ID</title></field>
+
+					<field table="bill_line" name="qty"  readOnly="${!(record['bill.status']=='Created' || record['bill.status']=='Rejected')}"/>
+					<field table="bill_line" name="diverted" required="true"  readOnly="${!(record['bill.status']=='Created' || record['bill.status']=='Rejected')}"/>
+					<field table="bill_line" name="bill_unit_id" readOnly="${!(record['bill.status']=='Created' || record['bill.status']=='Rejected')}">
+					      <title>Stream Units</title>
+						  <action>
+								<tooltip>Stream Unit</tooltip>
+								<command type="callFunction" functionName="controller.selectStreamUnit()"/>
+						  </action>
+					</field>
+					<field table="bill_line" name="date_collected" readOnly="${!(record['bill.status']=='Created' || record['bill.status']=='Rejected')}"/>
+					
+					 <field table="bill_line" name="qty_energy" readOnly="true"><title>Amount</title></field>
+					 <field/>
+			          <!--field table="bill_line" name="qty_power" readOnly="true" />
+			           <field table="bill_line" name="qty_volume" readOnly="true" /-->
+				    <field table="bill_line" name="amount_expense" hidden="true"/>
+			        <field table="bill_line" name="amount_income" hidden="true"/>
+
+	        	    <field table="bill_line" name="description" colspan="2" readOnly="${!(record['bill.status']=='Created' || record['bill.status']=='Rejected')}">
+					<!--action>
+						<title>Select Recently Entered Descriptions</title>
+							<command type="selectValue" fieldNames="bill_line.description" selectFieldNames="bill_line.description"/>
+					</action-->
+					</field>
+
+			    </panel>
+		</tab>
+	</tabs>
+
+    <js file="uc-es-stream-upd.js"/>
+	<js file="brg-common.js"/>
+</view>

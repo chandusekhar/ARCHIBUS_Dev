@@ -1,0 +1,153 @@
+<view version="2.0">
+	<js file="ab-rplm-gvmnt-manage-rp-inventory-findmng.js" />
+	<layout>
+		<north id="console_layout" initialSize="30%" split="true"/>
+		<center id="grid_layout"/>
+	</layout>
+	<message name="label_trans_date" translatable="true">Date of Posted Transaction:</message>
+	<dataSource id="dsSearch">
+		<table name="grp_trans" role="main"/>
+		<field table="grp_trans" name="unique_identifier"/>
+		<field table="grp_trans" name="real_property_name"/>
+		<field table="grp_trans" name="grp_type_id"/>
+		<field table="grp_trans" name="grp_use_id"/>
+		<field table="grp_trans" name="legal_interest_ind"/>
+		<field table="grp_trans" name="status_indicator"/>
+		<field table="grp_trans" name="reporting_grp_agency_id"/>
+		<field table="grp_trans" name="using_grp_agency_id"/>
+		<field table="grp_trans" name="country"/>
+		<field table="grp_trans" name="county"/>
+		<field table="grp_trans" name="state"/>
+		<field table="grp_trans" name="city"/>
+	</dataSource>
+	<panel type="console" id="consoleSearch" layoutRegion="console_layout" columns="3" dataSource="dsSearch">
+		<title translatable="true">Filter</title>
+		<action id="filter">
+			<title translatable="true">Show</title>
+		</action>
+		<action id="clear">
+			<title translatable="true">Clear</title>
+		</action>
+		<!-- 1'st line -->
+		<field table="grp_trans" name="unique_identifier"/>
+		<field table="grp_trans" name="real_property_name"/>
+		<field table="grp_trans" name="grp_type_id"/>
+		<!-- 2'nd line -->
+		<field table="grp_trans" name="grp_use_id"/>
+		<field table="grp_trans" name="legal_interest_ind"/>
+		<field table="grp_trans" name="status_indicator"/>
+		<!-- 3'rd line -->
+		<field table="grp_trans" name="reporting_grp_agency_id"/>
+		<field table="grp_trans" name="using_grp_agency_id"/>
+		<field table="grp_trans" name="country"/>
+		<!-- 4'th line -->
+		<field table="grp_trans" name="county"/>
+		<field table="grp_trans" name="state"/>
+		<field table="grp_trans" name="city"/>
+		<!-- 5'th line -->
+		<field showLabel="false">
+			<title translatable="false">&#160;</title>
+			<html>
+				<span id="trans_date_label">&#160;</span>
+			</html>
+		</field>
+		<field id="date_trans_posted_start" dataType="date">
+			<title translatable="true">Start Date</title>
+		</field>
+		<field id="date_trans_posted_end" dataType="date">
+			<title translatable="true">End Date</title>
+		</field>
+	</panel>
+	<dataSource id="dsPropertyList">
+		<sql dialect="generic">
+			select 
+			    unique_identifier,
+			    real_property_name,
+				(select grp_type_description from grp_type where grp_type.grp_type_id = grp.grp_type_id) as grp_type,
+			    date_last_update,
+			    status_indicator,
+			    legal_interest_ind,
+			    country,
+			    state,
+				city,
+				county,
+			    (select count(*) from grp_trans where grp_trans.unique_identifier = grp.unique_identifier and grp_trans.status = 'CREATED') as num_unposted_trans,
+				grp_type_id,
+				grp_use_id,
+				reporting_grp_agency_id,
+				using_grp_agency_id
+			from grp
+			where 1 = 1 
+			UNION
+			select
+			    unique_identifier,
+			    real_property_name,
+				(select grp_type_description from grp_type where grp_type.grp_type_id = grp_trans.grp_type_id) as grp_type,
+			    null as date_last_update,
+			    status_indicator,
+			    legal_interest_ind,
+			    country,
+			    state,
+				city,
+				county,
+			    1 as num_unposted_trans,
+				grp_type_id,
+				grp_use_id,
+				reporting_grp_agency_id,
+				using_grp_agency_id
+			from grp_trans
+			where trans_type = 'INSERT' AND status = 'CREATED'
+		</sql>
+		<restriction type="sql" 
+             sql="1=1 ${parameters['start_date']} ${parameters['end_date']}"/>
+		<parameter name="start_date" dataType="verbatim" value=""/>
+		<parameter name="end_date" dataType="verbatim" value=""/>	
+		<table name="grp" role="main"/>
+		<field table="grp" name="unique_identifier" dataType="text"/>
+		<field table="grp" name="real_property_name" dataType="text"/>
+		<field table="grp" name="grp_type" dataType="text">
+			<title translatable="true">Real Property Type</title>
+		</field>
+		<field table="grp" name="date_last_update" dataType="date"/>
+		<field table="grp" name="num_unposted_trans" dataType="number" decimals="0">
+			<title translatable="true">Number of New Unposted Transactions</title>
+		</field>
+		<field table="grp" name="status_indicator" dataType="text"/>
+		<field table="grp" name="legal_interest_ind" dataType="text"/>
+		<field table="grp" name="country" dataType="text"/>
+		<field table="grp" name="state" dataType="text"/>
+		<field table="grp" name="city" dataType="text"/>
+		<field table="grp" name="county" dataType="text"/>
+		<!--<parameter name="restriction" dataType="verbatim" value=""/>-->
+	</dataSource>
+	<panel type="grid" id="gridPropertyList" dataSource="dsPropertyList">
+		<title translatable="true">Properties Portfolio</title>
+		<action id="new">
+			<title translatable="true">Add New</title>
+		</action>
+		<action id="exportXLS">
+			<title>XLS</title>
+			<command type="exportPanel" outputType="xls" panelId="gridPropertyList" viewName="ab-rplm-gvmnt-manage-rp-inventory-findmng.axvw"/>
+		</action>
+		<action id="exportPDF">
+			<title>PDF</title>
+			<command type="exportPanel" outputType="pdf" panelId="gridPropertyList" viewName="ab-rplm-gvmnt-manage-rp-inventory-findmng.axvw" orientation="landscape"/>
+		</action>
+		<field id="manage" controlType="button">
+			<title translatable="true">Manage</title>
+		</field>
+		<field table="grp" name="real_property_name" dataType="text"/>
+		<field table="grp" name="unique_identifier" dataType="text"/>
+		<field table="grp" name="grp_type" dataType="text">
+			<title translatable="true">Real Property Type</title>
+		</field>
+		<field table="grp" name="date_last_update" dataType="date"/>
+		<field table="grp" name="num_unposted_trans" dataType="number" decimals="0">
+			<title translatable="true">Number of New Unposted Transactions</title>
+		</field>
+		<field table="grp" name="status_indicator" dataType="text"/>
+		<field table="grp" name="legal_interest_ind" dataType="text"/>
+		<field table="grp" name="country" dataType="text"/>
+		<field table="grp" name="state" dataType="text"/>
+	</panel>
+</view>

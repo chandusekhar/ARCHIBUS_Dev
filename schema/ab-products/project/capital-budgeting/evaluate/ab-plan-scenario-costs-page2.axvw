@@ -1,0 +1,156 @@
+<view version="2.0">    
+    <js file="ab-plan-scenario-costs-page2.js"/> 
+    <message name="mismatchedProgramId">Program assigned to Project does not match the Funding Source Program Name</message>
+    <message name="fundsUnavailableByDate">Funding Source is not available for the selected Fiscal Year.</message>
+      
+    <dataSource id="planScenarioCostsScenarioItemsTableDs" type="grouping" applyVpaRestrictions="false">
+        <table name="projscns" role="main"/>
+        <parameter name="projectId" value="%" dataType="text"/>
+        <parameter name="projScenarioId" value="%" dataType="text"/>
+        <sql dialect="generic"> 
+        SELECT fiscalyear.fiscal_year, est_scenario_costs.cost_scenario, 
+        CASE WHEN (action_items_design_costs.design_cost IS NULL) THEN 0 ELSE action_items_design_costs.design_cost END design_cost, 
+        est_scenario_costs.fund_id, est_scenario_costs.project_id, est_scenario_costs.proj_scenario_id      
+        FROM
+          (SELECT YEAR(date_planned_for) AS fiscal_year
+          FROM activity_log
+          WHERE project_id LIKE ${parameters['projectId']}
+            AND date_planned_for IS NOT NULL
+          GROUP BY YEAR(date_planned_for)
+          UNION
+          SELECT fiscal_year FROM projscns
+          WHERE project_id LIKE ${parameters['projectId']}
+            AND proj_scenario_id LIKE ${parameters['projScenarioId']}
+            AND fiscal_year IS NOT NULL
+          GROUP BY fiscal_year ) fiscalyear
+        LEFT OUTER JOIN
+          (SELECT project_id, YEAR(date_planned_for) AS activity_log_year, (SUM(cost_est_cap) + SUM(cost_estimated)) AS design_cost
+          FROM activity_log
+          WHERE (project_id LIKE ${parameters['projectId']})
+          GROUP BY YEAR(date_planned_for), project_id) action_items_design_costs
+        ON fiscalyear.fiscal_year = action_items_design_costs.activity_log_year
+        LEFT OUTER JOIN
+          (SELECT project_id, proj_scenario_id, fund_id, fiscal_year, SUM(costs_est_exp + costs_est_cap) AS cost_scenario
+          FROM projscns
+          WHERE project_id LIKE ${parameters['projectId']}
+            AND proj_scenario_id LIKE ${parameters['projScenarioId']}
+          GROUP BY fiscal_year, project_id, fund_id, proj_scenario_id) est_scenario_costs
+        ON fiscalyear.fiscal_year = est_scenario_costs.fiscal_year
+        WHERE est_scenario_costs.fund_id IS NOT NULL
+        </sql>
+        <sql dialect="oracle">
+        SELECT fiscalyear.fiscal_year, est_scenario_costs.cost_scenario, 
+        CASE WHEN (action_items_design_costs.design_cost IS NULL) THEN 0 ELSE action_items_design_costs.design_cost END design_cost, 
+        est_scenario_costs.fund_id, est_scenario_costs.project_id, est_scenario_costs.proj_scenario_id
+        FROM
+          (SELECT TO_NUMBER(TO_CHAR(date_planned_for,'YYYY')) AS fiscal_year
+          FROM activity_log
+          WHERE project_id LIKE ${parameters['projectId']}
+            AND date_planned_for IS NOT NULL
+          GROUP BY TO_CHAR(date_planned_for,'YYYY')
+          UNION
+          SELECT fiscal_year FROM projscns
+          WHERE project_id LIKE ${parameters['projectId']}
+            AND proj_scenario_id LIKE ${parameters['projScenarioId']}
+            AND fiscal_year IS NOT NULL
+          GROUP BY fiscal_year ) fiscalyear,
+        (SELECT project_id, TO_CHAR(date_planned_for,'YYYY') AS activity_log_year, (SUM(cost_est_cap) + SUM(cost_estimated)) AS design_cost
+          FROM activity_log
+          WHERE (project_id LIKE ${parameters['projectId']})
+          GROUP BY TO_CHAR(date_planned_for,'YYYY'), project_id) action_items_design_costs,
+        (SELECT project_id, proj_scenario_id, fund_id, fiscal_year, SUM(costs_est_exp + costs_est_cap) AS cost_scenario
+          FROM projscns
+          WHERE project_id LIKE ${parameters['projectId']}
+            AND proj_scenario_id LIKE ${parameters['projScenarioId']}
+          GROUP BY fiscal_year, project_id, fund_id,proj_scenario_id) est_scenario_costs
+        WHERE est_scenario_costs.fund_id IS NOT NULL
+          AND fiscalyear.fiscal_year = action_items_design_costs.activity_log_year (+)
+          AND fiscalyear.fiscal_year = est_scenario_costs.fiscal_year (+)
+          </sql>
+        <field name="fund_id" table="projscns" dataType="text" groupBy="true">
+            <title>Funding Source</title>
+        </field>
+        <field name="fiscal_year" table="projscns" dataType="text" groupBy="true">
+            <title>Fiscal Year</title>
+        </field>
+        <field name="design_cost" dataType="number" decimals="2">
+            <title>Baseline Cost</title>
+            <sql dialect="generic">MAX(design_cost)</sql>
+        </field>
+        <field name="cost_scenario" dataType="number" decimals="2">
+            <title>Scenario Cost</title>
+            <sql dialect="generic">SUM(cost_scenario)</sql>
+        </field>
+        <sortField name="fund_id" table="projscns" ascending="true"/>
+        <sortField name="fiscal_year" table="projscns" ascending="true"/>
+    </dataSource>
+    
+    <panel id="planScenarioCostsScenarioItemsTable" type="crossTable" dataSource="planScenarioCostsScenarioItemsTableDs" showOnLoad="false">
+    	<instructions translatable="true">Click on any cost value to edit the funding information associated with that cost.</instructions>
+        <title>Edit Scenario</title>
+        <action id="previous">
+            <title>Previous</title>
+        </action>
+        <action id="addScenarioItem">
+            <title>Add Scenario Item</title>
+        </action>
+        <action id="exportXLS">
+            <title>XLS</title>
+            <command type="exportPanel" outputType="xls" panelId="planScenarioCostsScenarioItemsTable"/>
+        </action>
+        <event type="onClickItem">
+            <command type="callFunction" functionName="planScenarioCostsScenarioItemsTable_onClick"/>
+        </event>
+    </panel>
+    
+    <dataSource id="planScenarioCostsScenarioItemFormDs">
+        <table name="projscns" role="main"/>
+        <field name="proj_scenario_id" table="projscns"/>
+        <field name="project_id" table="projscns"/>
+        <field name="fiscal_year" table="projscns"/>
+        <field name="fund_id" table="projscns"/>
+        <field name="costs_est_cap" table="projscns"/>
+        <field name="costs_est_exp" table="projscns"/>
+    </dataSource>
+    
+    <dataSource id="planScenarioCostsScenarioItemFormDs2">
+    	<table name="project" role="main"/>
+    	<field name="project_id" table="project"/>
+		<field name="program_id" table="project"/>
+    </dataSource>
+    
+    <dataSource id="planScenarioCostsScenarioItemFormDs3">
+    	<table name="funding" role="main"/>
+    	<field name="fund_id" table="funding"/>
+		<field name="program_id" table="funding"/>
+		<field name="date_avail" table="funding"/>
+		<field name="date_avail_end" table="funding"/>
+    </dataSource>
+    
+    <panel type="form" id="planScenarioCostsScenarioItemForm" dataSource="planScenarioCostsScenarioItemFormDs" showOnLoad="false">
+        <title>Add or Edit Scenario Item</title>
+        <action id="save">
+            <title>Save</title>
+        </action>
+        <action id="delete">
+            <title>Delete</title>
+            <command type="deleteRecord"/>
+            <command type="showPanel" panelId="planScenarioCostsScenarioItemsTable" applyParentRestriction="false"/>
+            <command type="closeDialog"/>
+        </action> 
+        <action id="cancel">
+            <title>Cancel</title>
+            <command type="closeDialog"/>
+        </action>      
+        <field name="proj_scenario_id" table="projscns" readOnly="true" required="true"/>
+        <field name="project_id" table="projscns" readOnly="true" required="true"/>
+        <field name="fiscal_year" table="projscns" required="true"/>
+        <field name="fund_id" table="projscns" required="true">
+            <action id="selectFund">
+                <title>...</title>
+            </action>
+        </field>
+        <field name="costs_est_cap" table="projscns" required="true"/>
+        <field name="costs_est_exp" table="projscns" required="true"/>
+    </panel>
+</view>

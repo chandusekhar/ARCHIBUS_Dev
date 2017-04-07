@@ -1,0 +1,174 @@
+
+<!-- Find-manage view with multiple panels that shows how to enable/disable/hide/show view elements 
+     using AXVW binding expressions and JS API. -->
+<view version="2.0">
+    <!-- Expressions in view title. -->
+	<title>Task Information: activity = ${view.taskInfo.activityId}, process = ${view.taskInfo.processId}, task = ${view.taskInfo.taskId}</title>
+	
+	<js file="ab-ex-project-find-manage-conditional.js"/>
+
+	<layout type="borderLayout">
+		<west initialSize="600" split="true" />
+		<center autoScroll="true" />
+		<south initialSize="200" split="true"/>
+	</layout>
+
+	<dataSource id="exProjectFindManageConditional_ds">
+		<table name="project" role="main" />
+		<field table="project" name="project_id" />
+		<field table="project" name="requestor" />
+		<field table="project" name="date_requested" />
+		<field table="project" name="date_commence_work" />
+		<field table="project" name="date_target_end" />
+		<field table="project" name="date_end" />
+		<field table="project" name="proj_mgr" />
+		<field table="project" name="dv_id" />
+		<field table="project" name="dp_id" />
+		<field table="project" name="status" />
+		<field table="project" name="description" />
+		<field table="project" name="project_type" />
+	</dataSource>
+
+    <!-- The list of projects. -->
+	<panel type="grid" id="exProjectFindManageConditional_projectGrid" region="west" dataSource="exProjectFindManageConditional_ds">
+		<title>Select Project</title>
+		<field table="project" name="project_id" />
+		<field table="project" name="status" />
+		<field table="project" name="requestor" />
+		<!-- The review button is enabled or disabled depending on the project requestor.
+		     The view evaluates the expression for each record in the grid. -->
+		<field controlType="button" enabled="${record['project.requestor'] != ''}">
+			<title>Review by ${user.name}</title>
+			<tooltip>Grid Button</tooltip>
+			<command type="showPanel" panelId="exProjectFindManageConditional_projectForm" />
+		</field>
+	</panel>
+
+    <!-- Project details. -->
+	<panel type="form" columns="1" id="exProjectFindManageConditional_projectForm" region="center" dataSource="exProjectFindManageConditional_ds">
+	    <!-- Expression in panel title.
+	         The view evaluates all expressions in the panel whenever the panel's record is loaded or reloaded. -->
+		<title>Review Project ${record['project.project_id']}</title>
+
+        <action id="save">
+            <title>Save</title>
+            <tooltip>Command Action</tooltip>
+            <command type="saveForm"/>
+        </action>
+            <!-- The panel button is shown or hidden depending on the record field value. -->
+    		<action onclick="approveProject" hidden="${record['project.status'] == 'Created'}">
+		    <title>Approve by ${user.name}</title>
+                    <tooltip>JavaScript Action</tooltip>
+    		</action>
+    
+            <!-- Fields are editable or read-only depending on the user permissions. -->
+    		<field table="project" name="project_id" readOnly="${!user.isMemberOfGroup('FIM')}"/>
+    		<field table="project" name="status" readOnly="${user.isMemberOfGroup('FIM')}" />
+    		<field table="project" name="requestor" readOnly="${record['project.status'] != 'Created'}">
+	         <action>
+	            <title>...</title>
+	            <tooltip>Select Value</tooltip>
+	            <command type="selectValue" 
+	                fieldNames="project.requestor" 
+                    selectFieldNames="em.em_id" 
+                    visibleFieldNames="em.em_id,em.phone,em.email"/>
+	         </action>
+           <action id="sql_action">
+                <title>SQL</title>
+                <tooltip>Select Value with SQL restriction</tooltip>
+                <command type="selectValue" 
+                    fieldNames="project.requestor" 
+                    selectFieldNames="em.em_id" 
+                    visibleFieldNames="em.em_id,em.phone,em.email,em.dv_id"
+                    restriction="em.dv_id LIKE 'SOFTWARE%'"/>
+           </action>
+		    </field>
+        <field table="project" name="dv_id" />
+        <field table="project" name="dp_id" />
+		    <field table="project" name="date_end" hidden="${record['project.status'] == 'Created'}" />
+    </panel>
+    
+    <!-- Read-only current user information. -->
+    <panel type="form" columns="1" id="exProjectFindManageConditional_userForm" region="center" dataSource="exProjectFindManageConditional_ds">
+        <title>User Information</title>
+
+        <!-- Enable the button depending on the field value in the record loaded into another panel in this view. -->
+        <action id="userInfoAction" hidden="${view.panels.get('exProjectFindManageConditional_projectForm').getFieldValue('project.status') == 'Created'}">
+            <title>Action</title>
+            <tooltip>This button does not do anything</tooltip>
+        </action>
+
+        <!-- add hidden field from the data source to prevent auto-display of all data source fields -->
+        <field table="project" name="project_id" hidden="true"/>
+    
+    		<field id="user_role" controlType="text" value="${user.role}">
+    			<title>${user.name} Role</title>
+    		</field>
+        <field id="user_email" controlType="text" value="${user.email}">
+            <title>${user.name} Email</title>
+        </field>
+        <field id="user_phone" controlType="text" value="${user.employee.phone}">
+            <title>${user.name} Phone</title>
+        </field>
+        <field id="user_room_id" controlType="text" value="${user.employee.space.roomId}">
+            <title>${user.name} Room</title>
+        </field>
+        <field id="user_department" controlType="text" value="${user.employee.organization.departmentId}">
+            <title>${user.name} Department</title>
+        </field>
+	</panel>
+	
+	<!-- Form with test buttons that call JS event listeners. -->
+	<panel type="form" id="exProjectFindManageConditional_testForm" region="south" dataSource="exProjectFindManageConditional_ds">
+	    <title>Test Console: Enable or Disable Action Buttons</title>
+	    
+        <action onclick="enableDisableFieldButton">
+            <title>Field Select Value Button</title>
+            <tooltip>Enable or disable the Requestor field SQL button</tooltip>
+        </action>
+
+        <action onclick="enableDisableFormButton">
+            <title>Form Save Button</title>
+            <tooltip>Enable or disable the form Save button</tooltip>
+        </action>
+
+  	    <action onclick="enableDisableGridButton">
+  	        <title>Grid First Row Button</title>
+  	        <tooltip>Enable or disable the first grid button</tooltip>
+  	    </action>
+
+        <action onclick="enableDisableAllGridButtons">
+            <title>All Grid Buttons</title>
+            <tooltip>Enable or disable all grid buttons</tooltip>
+        </action>
+
+        <action onclick="enableDisableAllButtons">
+            <title>All View Buttons</title>
+            <tooltip>Enable or disable all buttons on the page</tooltip>
+        </action>
+
+        <action onclick="changeActionTooltip">
+            <title>Change Button Tooltip</title>
+            <tooltip>Change the tooltip of the Action button in the User Information form</tooltip>
+        </action>
+
+        <!-- add hidden field from the data source to prevent auto-display of all data source fields -->
+        <field table="project" name="project_id" hidden="true"/>
+	</panel>
+	
+	<!-- Tab pages are enabled/disabled/shown/hidden depending on user permissions. -->
+	<tabs id="exProjectFindManageConditional_tabs" region="south">
+  	    <tab name="exProjectFindManageConditional_page-1" selected="true">
+  	        <title>Page 1 (${user.name})</title>
+  	    </tab>
+  	    <tab name="exProjectFindManageConditional_page-2" enabled="${user.isMemberOfGroup('FIM')}">
+              <title>Page 2</title>
+  	    </tab>
+        <tab name="exProjectFindManageConditional_page-3" enabled="${!user.isMemberOfGroup('FIM')}">
+            <title>Page 3</title>
+        </tab>
+        <tab name="exProjectFindManageConditional_page-4" hidden="${user.isMemberOfGroup('FIM')}">
+            <title>Page 4</title>
+        </tab>
+	</tabs>
+</view>

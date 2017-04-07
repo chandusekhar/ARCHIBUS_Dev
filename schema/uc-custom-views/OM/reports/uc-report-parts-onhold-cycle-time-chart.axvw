@@ -1,0 +1,108 @@
+<view version="2.0">
+    <title>Parts Cycle Time</title>
+    <preferences>
+        <viewTitleBar show="false" />
+    </preferences>
+
+    <layout file="console-small.axvw" />
+    <js file="ab-ondemand-common.js" />
+    <js file="ab-ondemand-report-common.js" />
+    <js file="uc-report-parts-onhold-cycle-time-chart.js" />
+
+    <message name="selectTitle" translatable="true">-select-</message>
+
+    <dataSource id="consoleDS">
+        <table name="wrhwr" role="main" />
+        <field table="wrhwr" name="tr_id" />
+        <field table="wrhwr" name="date_requested" />
+    </dataSource>
+
+    <dataSource id="incDays">
+        <query>
+            <sql dialect="sqlserver">
+            SELECT * FROM (SELECT ROW_NUMBER() OVER(Order by cal_date) - 1 as days_on_hold FROM afm_cal_dates) t WHERE days_on_hold &lt; 50
+            </sql>
+        </query>
+        <table name="afm_cal_dates" role="main" />
+        <field name="days_on_hold" table="afm_cal_dates" dataType="number" size="6" decimals="0">
+            <title translatable="true">Days On Hold</title>
+        </field>
+    </dataSource>
+
+    <dataSource id="partsChartDS" type="grouping">
+        <query>
+            <sql dialect="sqlserver">
+            SELECT wrhwr.wr_id, tr_id, days_on_hold, date_requested, date_completed, status, (SELECT SUM(1) FROM wrotherhwrother o WHERE o.wr_id = wrhwr.wr_id AND (other_rs_type = 'MISC' OR other_rs_type LIKE 'PARTS%')) num_parts FROM wrhwr
+            LEFT OUTER JOIN (
+                SELECT wr_id, SUM(days_on_hold) days_on_hold FROM
+                (
+                SELECT pc.wr_id, DATEDIFF(day,  MAX(hp.date_modified), pc.date_modified) days_on_hold, pc.date_modified date_part_com, MAX(hp.date_modified) date_part_hold
+                  FROM (SELECT * FROM uc_wr_audit WHERE status_new = 'PC' AND status_old = 'HP') pc, uc_wr_audit hp
+                 WHERE pc.wr_id = hp.wr_id AND hp.status_new = 'HP'
+                   AND pc.uc_wr_audit_id > hp.uc_wr_audit_id
+                 GROUP BY pc.wr_id, pc.uc_wr_audit_id, pc.status_new, pc.date_modified
+                ) t
+                GROUP BY wr_id
+            ) dp ON dp.wr_id = wrhwr.wr_id
+            WHERE days_on_hold IS NOT NULL
+            </sql>
+        </query>
+        <table name="wrhwr" role="main" />
+        <sortField name="days_on_hold" ascending="true" />
+
+        <restriction type="sql" sql="1=1" />
+
+        <field name="days_on_hold" table="wrhwr" groupBy="true" dataType="number" size="6" decimals="0">
+            <title translatable="true">Days On Hold</title>
+        </field>
+
+        <field name="wr_id_count" table="wrhwr" formula="count" dataType="number"
+            baseField="wrhwr.wr_id" size="6" decimals="0">
+            <title># Work Requests</title>
+        </field>
+    </dataSource>
+
+    <panel type="console" columns="3" id="requestConsole"
+        dataSource="consoleDS" region="north">
+        <title translatable="true">Filter</title>
+        <action id="filter">
+            <title translatable="true">Show</title>
+            <!--command type="callFunction"
+                functionName="ABODRPTC_setRestriction('wrhwr.month','reportPanel')" /-->
+            <command type="callFunction"
+                functionName="apply_console_restriction()" />
+        </action>
+        <action id="clear">
+            <title translatable="true">Clear</title>
+            <command type="clearForm"
+                panelId="reportPanel" />
+        </action>
+        <field table="wrhwr" name="date_requested" alias="wrhwr.date_requested.from" >
+            <title>Requested Date From:</title>
+        </field>
+        <field table="wrhwr" name="date_requested" alias="wrhwr.date_requested.to" >
+            <title>To:</title>
+        </field>
+        <field table="wrhwr" name="prob_type" hidden="true" />
+    </panel>
+
+    <panel 	id="partsCycleTime_chart"
+            type="chart"
+            controlType="columnChart"
+            dataSource="partsChartDS"
+            showLegendOnLoad="true"
+            showLegendAsPopUp="false"
+            legendLocation="right"
+            showDataTips="true"
+            backgroundColor="0xc6e2ff"
+            fillColor="0xff0000"
+            fillType="solid">
+        <title translatable="true">Parts Cycle Time</title>
+        <groupingAxis dataSource="partsChartDS" table="wrhwr" field="days_on_hold" showLabel="true" labelRotation="45">
+            <title translatable="true">Days</title>
+        </groupingAxis>
+        <dataAxis dataSource="partsChartDS" table="wrhwr" field="wr_id_count" showLabel="true">
+            <title translatable="true"># Work Requests</title>
+        </dataAxis>
+    </panel>
+</view>

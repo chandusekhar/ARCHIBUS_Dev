@@ -1,0 +1,167 @@
+<view version="2.0">
+	<js file="ab-rplm-gvmnt-manage-rp-inventory-proptrans.js"/>
+	<message name="posted_0" translatable="true">No</message>
+	<message name="posted_1" translatable="true">Yes</message>
+	<message name="msg_approve_transaction" translatable="true">Are you sure you want to Approve this transaction?</message>
+	<message name="msg_reject_transaction" translatable="true">Are you sure you want to Reject this transaction?</message>
+	<message name="no_posted_trans" translatable="true">Current transaction must be approved before adding a new one.</message>
+    
+    <!-- used for enum_list fields -->
+    <message name="notApplicable" translatable="true">Not Applicable</message>
+    <message name="active" translatable="true">Active</message>
+    <message name="inactive" translatable="true">Inactive</message>
+    <message name="excess" translatable="true">Excess</message>
+    <message name="disposed" translatable="true">Disposed</message>
+    
+	<layout>
+		<north id="north_layout" split="true"/>
+		<center id="center_layout"/>
+	</layout>
+	<dataSource id="dsPropertyInfo">
+		<sql dialect="generic">
+			SELECT 
+			    unique_identifier,
+			    mission_dependency,
+			    real_property_name,
+			    city,
+			    (select grp_type_description from grp_type where grp_type_id = grp.grp_type_id) ${sql.as} grp_type,
+			    state,
+			    status_indicator,
+			    country,
+			    date_last_update,
+			    county,
+			    time_last_update,
+			    congressional_district,
+			    last_updated_by,
+			    zip_code,
+			    '1' ${sql.as} posted
+			FROM grp
+			WHERE unique_identifier = ${parameters['selected']}
+			UNION
+			SELECT 
+			    unique_identifier,
+			    mission_dependency,
+			    real_property_name,
+			    city,
+			    (select grp_type_description from grp_type where grp_type_id = grp_trans.grp_type_id) ${sql.as} grp_type,
+			    state,
+			    status_indicator,
+			    country,
+			    date_of_transaction ${sql.as} date_last_update,
+			    county,
+			    time_of_transaction ${sql.as} time_last_update,
+			    congressional_district,
+			    user_name_requestor ${sql.as} last_updated_by,
+			    zip_code,
+			    '0' ${sql.as} posted
+			FROM grp_trans
+			WHERE unique_identifier = ${parameters['selected']} AND 
+			    NOT EXISTS(SELECT '1' FROM grp WHERE unique_identifier = ${parameters['selected']})
+			    AND grp_trans_id = (SELECT MAX(b.grp_trans_id) FROM grp_trans b WHERE b.unique_identifier = ${parameters['selected']})
+		</sql>
+		<table name="grp" role="main"/>
+		<field table="grp" name="unique_identifier" dataType="text" />
+		<field table="grp" name="mission_dependency" dataType="number" decimals="0" />
+		<field table="grp" name="real_property_name" dataType="text" />
+		<field table="grp" name="city" dataType="text" />
+		<field table="grp" name="grp_type" dataType="text" >
+			<title translatable="true">Real Property Type</title>
+		</field>
+		<field table="grp" name="state" dataType="text" />
+		<field table="grp" name="status_indicator" dataType="text" />
+		<field table="grp" name="country" dataType="text" />
+		<field table="grp" name="date_last_update" dataType="date" />
+		<field table="grp" name="county" dataType="text" />
+		<field table="grp" name="time_last_update" dataType="time" />
+		<field table="grp" name="congressional_district" dataType="text" />
+		<field table="grp" name="last_updated_by" dataType="text" />
+		<field table="grp" name="zip_code" dataType="text" />
+		<field table="grp" name="posted" dataType="text" >
+			<title translatable="true">Posted ?</title>
+		</field>
+		<parameter name="selected" dataType="text" value=""/>
+	</dataSource>
+	<panel type="form" id="formPropertyInfo" columns="2" layoutRegion="north_layout" dataSource="dsPropertyInfo">
+		<title translatable="true">Property Information</title>
+		<action id="details">
+			<title translatable="true">Property Details</title>
+		</action>
+		<field table="grp" name="unique_identifier" dataType="text" readOnly="true"/>
+		<field table="grp" name="mission_dependency" dataType="number" decimals="0" readOnly="true"/>
+		<field table="grp" name="real_property_name" dataType="text" readOnly="true"/>
+		<field table="grp" name="city" dataType="text" readOnly="true"/>
+		<field table="grp" name="grp_type" dataType="text" readOnly="true">
+			<title translatable="true">Real Property Type</title>
+		</field>
+		<field table="grp" name="state" dataType="text" readOnly="true"/>
+		<field table="grp" name="status_indicator" dataType="text" readOnly="true"/>
+		<field table="grp" name="country" dataType="text" readOnly="true"/>
+		<field table="grp" name="date_last_update" dataType="date" readOnly="true"/>
+		<field table="grp" name="county" dataType="text" readOnly="true"/>
+		<field table="grp" name="time_last_update" dataType="time" readOnly="true"/>
+		<field table="grp" name="congressional_district" dataType="text" readOnly="true"/>
+		<field table="grp" name="last_updated_by" dataType="text" readOnly="true"/>
+		<field table="grp" name="zip_code" dataType="text" readOnly="true"/>
+		<field table="grp" name="posted" dataType="text" readOnly="true">
+			<title translatable="true">Posted ?</title>
+		</field>
+		<field/>
+	</panel>
+	<dataSource id="dsTransactions">
+		<sql dialect="generic">
+			SELECT 
+				unique_identifier,
+				grp_trans_id,
+				date_of_transaction,
+				time_of_transaction,
+				'' ${sql.as} date_time_of_transaction,
+				description_of_change,
+				user_name_requestor,
+				status,
+				grp_type_id,
+				trans_type
+			FROM grp_trans
+		</sql>
+		<table name="grp_trans" role="main"/>
+		<field table="grp_trans" name="unique_identifier"/>
+		<field table="grp_trans" name="grp_trans_id"/>
+		<field table="grp_trans" name="date_of_transaction"/>
+		<field table="grp_trans" name="time_of_transaction"/>
+		<field name="date_time_of_transaction" dataType="text">
+			<title translatable="true">Date and Time of Transaction</title>
+		</field>
+		<field table="grp_trans" name="description_of_change"/>
+		<field table="grp_trans" name="user_name_requestor"/>
+		<field table="grp_trans" name="status"/>
+		<field table="grp_trans" name="grp_type_id"/>
+		<field table="grp_trans" name="trans_type"/>
+		<parameter name="selected" dataType="text" value=""/>
+		<restriction type="sql" sql="grp_trans.status = 'CREATED' AND grp_trans.unique_identifier = ${parameters['selected']}"/>
+	</dataSource>
+	<panel type="grid" id="gridTransactions" dataSource="dsTransactions">
+		<sortField name="grp_trans_id" ascending="false"/>
+		<title translatable="true">Transactions Pending Approval</title>
+		<action id="new">
+			<title translatable="true">Add New Transaction</title>
+		</action>
+		<field id="details" controlType="button">
+			<title translatable="true">Details</title>
+		</field>
+		<field id="approve" controlType="button" enabled="${user.isMemberOfGroup('GOVERNMENT RPLM INVENTORY PROCESS OWNER')}">
+			<title translatable="true">Approve</title>
+		</field>
+		<field id="reject" controlType="button" enabled="${user.isMemberOfGroup('GOVERNMENT RPLM INVENTORY PROCESS OWNER')}">
+			<title translatable="true">Reject</title>
+		</field>
+		<field table="grp_trans" name="grp_trans_id"/>
+		<field table="grp_trans" name="date_of_transaction" hidden="true"/>
+		<field table="grp_trans" name="time_of_transaction" hidden="true"/>
+		<field name="date_time_of_transaction" dataType="text">
+			<title translatable="true">Date and Time of Transaction</title>
+		</field>
+		<field table="grp_trans" name="description_of_change"/>
+		<field table="grp_trans" name="user_name_requestor"/>
+		<field table="grp_trans" name="status"/>
+		<field table="grp_trans" name="trans_type"/>
+	</panel>
+</view>

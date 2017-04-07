@@ -1,0 +1,169 @@
+<view version="2.0">
+    <layout type="borderLayout" id="mainLayout">
+      <north initialSize="100" split="true"/>
+      <center autoScroll="true"/>
+    </layout>
+    <title>Review Vendors Used by Project Type</title>
+
+    <dataSource id="projReviewVendorsUsedProjTypeDs0">
+        <table name="vn" role="main"/>
+        <field name="state" table="vn"/>
+        <field name="city" table="vn"/>
+        <field name="vn_id" table="vn"/>
+    </dataSource>
+    
+    <panel type="console" id="projReviewVendorsUsedProjTypeConsole" dataSource="projReviewVendorsUsedProjTypeDs0" layout="mainLayout" region="north">
+        <title>Filter</title>
+        <action id="show">
+            <title>Show</title>
+            <command type="showPanel" panelId="projReviewVendorsUsedProjTypeCrossTable"/>
+        </action>
+        <action id="clear">
+            <title>Clear</title>
+            <command type="clearPanel" panelId="projReviewVendorsUsedProjTypeConsole"/>
+            <command type="showPanel" panelId="projReviewVendorsUsedProjTypeCrossTable" applyParentRestriction="false" clearRestriction="true"/>
+        </action>
+        <field name="state" table="vn">
+            <title>Vendor State</title>
+        </field>
+        <field name="city" table="vn">
+            <title>Vendor City</title>
+        </field>
+    </panel>
+    
+    <dataSource id="projReviewVendorsUsedProjTypeDs1" type="grouping" applyVpaRestrictions="false">
+        <table name="vn" role="main" />
+        <field name="vn_id" table="vn" groupBy="true">
+            <title>Vendor</title>
+        </field>
+        <field name="project_type" table="vn" groupBy="true">
+            <title>Project Type</title>
+        </field>
+        <field name="amount_tot_invoice" dataType="number" decimals="2">
+            <title>Total Invoiced</title>
+            <sql dialect="generic">SUM(amount_tot_invoice)</sql>
+        </field>
+        <field name="total_paid" dataType="number" decimals="2">
+            <title>Total Paid</title>
+            <sql dialect="generic">SUM(total_paid)</sql>
+        </field>
+        <field name="total_bids" dataType="number" decimals="0">
+            <title># of Bids Submitted</title>
+            <sql dialect="generic">SUM(total_bids)</sql>
+        </field>
+        <field name="awarded_bids" dataType="number" decimals="0">
+            <title># of Bids Awarded</title>
+            <sql dialect="generic">SUM(awarded_bids)</sql>
+        </field>
+        <field name="change_orders" dataType="number" decimals="0">
+            <title># of Change Orders</title>
+            <sql dialect="generic">SUM(change_orders)</sql>
+        </field>
+        <sortField name="vn_id" table="vn" ascending="true"/>
+        <sortField name="project_type" table="vn" ascending="true"/>
+        <sql dialect="generic">
+            SELECT vn.vn_id, project_type, 
+            CASE WHEN MAX(vn.city) IS NULL THEN '' ELSE MAX(vn.city) END ${sql.as} city, 
+            CASE WHEN MAX(vn.state) IS NULL THEN '' ELSE MAX(vn.state) END ${sql.as} state, 
+            CASE WHEN MAX(amount_tot_invoice) IS NULL THEN 0 ELSE MAX(amount_tot_invoice) END ${sql.as} amount_tot_invoice, 
+            CASE WHEN MAX(total_paid) IS NULL THEN 0 ELSE MAX(total_paid) END ${sql.as} total_paid, 
+            CASE WHEN MAX(total_bids) IS NULL THEN 0 ELSE MAX(total_bids) END ${sql.as} total_bids, 
+            CASE WHEN MAX(awarded_bids) IS NULL THEN 0 ELSE MAX(awarded_bids) END ${sql.as} awarded_bids, 
+            CASE WHEN MAX(change_orders) IS NULL THEN 0 ELSE MAX(change_orders) END ${sql.as} change_orders 
+            FROM (
+            SELECT vn.vn_id, ${sql.translatableField('projecttype.project_type')}, vn.city, vn.state,
+              (SELECT SUM(amount_tot_invoice) 
+               FROM invoice 
+               WHERE invoice.status IN ('ISSUED','SENT','CLOSED') AND invoice.vn_id= vn.vn_id
+               AND invoice.project_id = project.project_id) 
+              ${sql.as} amount_tot_invoice,
+              (SELECT SUM( amount_expense ) 
+               FROM invoice_payment, invoice 
+               WHERE invoice.vn_id = vn.vn_id 
+               AND invoice_payment.invoice_id = invoice.invoice_id
+               AND invoice.project_id = project.project_id) 
+              ${sql.as} total_paid,
+              (SELECT count(*) 
+               FROM work_pkg_bids 
+               WHERE work_pkg_bids.vn_id = vn.vn_id
+               AND work_pkg_bids.project_id = project.project_id) 
+              ${sql.as} total_bids,
+              (SELECT COUNT (*) 
+               FROM work_pkg_bids 
+               WHERE work_pkg_bids.vn_id = vn.vn_id 
+               AND status IN ('Approved','Contract Signed','In Process','In Process-On Hold','Completed','Completed and Verified','Paid in Full')
+               AND work_pkg_bids.project_id = project.project_id)
+              ${sql.as} awarded_bids,
+              (SELECT COUNT(*) 
+               FROM activity_log 
+               WHERE activity_type = 'PROJECT - CHANGE ORDER'
+               AND activity_log.project_id = project.project_id 
+               AND activity_log.work_pkg_id = ANY (SELECT work_pkg_id 
+                  FROM work_pkgs 
+                  WHERE activity_log.project_id = project.project_id
+                  AND EXISTS (SELECT vn_id FROM work_pkg_bids 
+                    WHERE work_pkg_bids.project_id = work_pkgs.project_id 
+                    AND work_pkg_bids.work_pkg_id = work_pkgs.work_pkg_id
+                    AND work_pkg_bids.vn_id = vn.vn_id 
+                    AND status IN ('Approved','Contract Signed','In Process','In Process-On Hold','Completed','Completed and Verified','Paid in Full') ) ) )
+              ${sql.as} change_orders
+             FROM vn JOIN work_pkg_bids ON vn.vn_id = work_pkg_bids.vn_id
+              JOIN project ON project.project_id = work_pkg_bids.project_id
+              JOIN projecttype ON project.project_type = projecttype.project_type
+            ) ${sql.as} vn GROUP BY vn_id, project_type
+          </sql>
+          <sql dialect="oracle">
+          SELECT vn.vn_id, project_type, 
+            CASE WHEN MAX(vn.city) IS NULL THEN '' ELSE MAX(vn.city) END ${sql.as} city, 
+            CASE WHEN MAX(vn.state) IS NULL THEN '' ELSE MAX(vn.state) END ${sql.as} state, 
+            CASE WHEN MAX(amount_tot_invoice) IS NULL THEN 0 ELSE MAX(amount_tot_invoice) END ${sql.as} amount_tot_invoice, 
+            CASE WHEN MAX(total_paid) IS NULL THEN 0 ELSE MAX(total_paid) END ${sql.as} total_paid, 
+            CASE WHEN MAX(total_bids) IS NULL THEN 0 ELSE MAX(total_bids) END ${sql.as} total_bids, 
+            CASE WHEN MAX(awarded_bids) IS NULL THEN 0 ELSE MAX(awarded_bids) END ${sql.as} awarded_bids, 
+            CASE WHEN MAX(change_orders) IS NULL THEN 0 ELSE MAX(change_orders) END ${sql.as} change_orders 
+            FROM (
+          SELECT  vn.vn_id, project_type, vn.city, vn.state, 
+          (SELECT SUM(amount_tot_invoice) 
+          FROM invoice 
+          WHERE   invoice.status IN ('ISSUED','SENT','CLOSED') AND invoice.vn_id= vn.vn_id
+            AND invoice.project_id = project.project_id) ${sql.as} amount_tot_invoice,
+          (SELECT SUM( amount_expense ) 
+          FROM invoice_payment, invoice 
+          WHERE   invoice.vn_id = vn.vn_id 
+            AND invoice_payment.invoice_id = invoice.invoice_id
+            AND invoice.project_id = project.project_id) ${sql.as} total_paid,
+          (SELECT count(*) 
+          FROM work_pkg_bids 
+          WHERE   work_pkg_bids.vn_id = vn.vn_id
+            AND work_pkg_bids.project_id = project.project_id) ${sql.as} total_bids,
+          (SELECT COUNT (*) 
+          FROM work_pkg_bids 
+          WHERE   work_pkg_bids.vn_id = vn.vn_id 
+            AND status IN ('Approved','Contract Signed','In Process','In Process-On Hold','Completed','Completed and Verified','Paid in Full')
+            AND work_pkg_bids.project_id = project.project_id) ${sql.as} awarded_bids,
+          (SELECT COUNT(*) 
+          FROM activity_log 
+          WHERE   activity_type = 'PROJECT - CHANGE ORDER'
+            AND activity_log.project_id = project.project_id 
+            AND activity_log.work_pkg_id = ANY 
+                  (SELECT work_pkg_id 
+                  FROM work_pkgs 
+                  WHERE   activity_log.project_id = project.project_id
+                    AND EXISTS  (SELECT vn_id FROM work_pkg_bids 
+                        WHERE   work_pkg_bids.project_id = work_pkgs.project_id 
+                          AND work_pkg_bids.work_pkg_id = work_pkgs.work_pkg_id
+                          AND work_pkg_bids.vn_id = vn.vn_id 
+                          AND status IN ('Approved','Contract Signed','In Process','In Process-On Hold','Completed','Completed and Verified','Paid in Full') ) ) ) ${sql.as} change_orders
+        FROM vn, work_pkg_bids, project 
+        WHERE vn.vn_id = work_pkg_bids.vn_id AND project.project_id = work_pkg_bids.project_id) ${sql.as} vn GROUP BY vn_id, project_type
+        </sql>        
+    </dataSource>
+
+    <panel type="crossTable" id="projReviewVendorsUsedProjTypeCrossTable" dataSource="projReviewVendorsUsedProjTypeDs1" layout="mainLayout" region="center">
+        <title>Review Vendors Used by Project Type</title>
+        <action id="exportXLS">
+            <title>XLS</title>
+            <command type="exportPanel" outputType="xls" panelId="projReviewVendorsUsedProjTypeCrossTable"/>
+        </action> 
+    </panel>
+</view>

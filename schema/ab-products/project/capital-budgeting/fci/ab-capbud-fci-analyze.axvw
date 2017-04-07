@@ -1,0 +1,266 @@
+<view version="2.0">
+    <layout file="ab-proj-console-west-details.axvw"/>
+    <js file="ab-capbud-fci-analyze.js"/>
+    <title>Analyze Required Funding and Facility Condition's Index by Year</title>
+    <message name="useSelValButton">Please use ellipsis to select values</message>
+    <message name="allTypes">{default - all types}</message>
+    <message name="emptyRequiredFields">Missing required field</message>
+    <message name="invalid_date_range">Date range is invalid</message>
+    
+    <dataSource id="capbudFciAnalyzeConsoleDs">
+        <table name="actscns" role="main"/>
+        <table name="activity_log" role="standard"/>
+        <field name="project_id" table="activity_log"/>
+        <field name="activity_log_id" table="actscns" />  
+        <field name="proj_scenario_id" table="actscns"/> 
+        <field name="bl_id" table="activity_log"/>
+        <field name="fiscal_year" table="actscns"/>
+    </dataSource>
+    
+    <panel id="capbudFciAnalyzeConsole" type="console" columns="2" layout="mainLayout" region="north" dataSource="capbudFciAnalyzeConsoleDs">
+        <title>Filter</title>
+        <action id="show">
+            <title>Show</title>
+        </action>
+        <action id="clear">
+            <title>Clear</title>                    
+        </action>
+        <field name="proj_scenario_id" table="actscns" hidden="true"/> 
+        <field colspan="2">
+            <title>Projects</title>
+            <html>
+              <input id="capbudFciAnalyzeConsole_projects" name="capbudFciAnalyzeConsole_projects" class="inputField_multi_col" type="text" onkeypress="View.showMessage(getMessage('useSelValButton'))" onfocus="View.showMessage(getMessage('useSelValButton'))"  maxlength="500" size="500"/><img class="selectValue_Button" value="..." onclick="View.openDialog('ab-capbud-fci-analyze-select-proj.axvw');" src="/archibus/schema/ab-system/graphics/ab-icons-ellipses.gif" />
+            </html>
+        </field>
+        <field colspan="2">
+            <title>Action Scenarios</title>
+            <html>
+              <input id="capbudFciAnalyzeConsole_scenarios" name="capbudFciAnalyzeConsole_scenarios" class="inputField_multi_col" type="text" onkeypress="View.showMessage(getMessage('useSelValButton'))" onfocus="View.showMessage(getMessage('useSelValButton'))"  maxlength="500" size="500"/><img class="selectValue_Button" value="..." onclick="View.openDialog('ab-capbud-fci-analyze-select-scn.axvw');" src="/archibus/schema/ab-system/graphics/ab-icons-ellipses.gif" />
+            </html>
+        </field>
+        <field colspan="2">
+            <title>Buildings</title>
+            <html>
+              <input id="capbudFciAnalyzeConsole_buildings" name="capbudFciAnalyzeConsole_buildings" class="inputField_multi_col" type="text" onkeypress="View.showMessage(getMessage('useSelValButton'))" onfocus="View.showMessage(getMessage('useSelValButton'))"  maxlength="500" size="500"/><img class="selectValue_Button" value="..." onclick="View.openDialog('ab-capbud-fci-analyze-select-bl.axvw');" src="/archibus/schema/ab-system/graphics/ab-icons-ellipses.gif" />
+            </html>
+        </field>
+        <field>
+            <title>From Year</title>
+            <html><div style="position:relative;float:left">              
+                <input id="from_year" class="inputField" type="text" value="" style="width:70" size="4"/>
+              </div>
+              <div style="position:relative;padding-left:2px;padding-top:1px;">
+                <div style="position:relative;float:top;height:9px"><img id="from_yeard" alt="Up" style="vertical-align:top;border:0;margin:0;padding:0" src="/archibus/schema/ab-system/graphics/but_yeard.gif" onclick="changeYear(1, 'from_year');"/></div>
+                <div><img  id="from_yearu" alt="Down" style="vertical-align:top;border:0;margin:0;padding:0" src="/archibus/schema/ab-system/graphics/but_yearu.gif" onclick="changeYear(-1, 'from_year');"/></div>
+              </div>
+            </html>
+        </field>
+        <field>
+            <title>To Year</title>
+            <html><div style="position:relative;float:left">              
+                <input id="to_year" class="inputField" type="text" value="" style="width:70" size="4"/>
+              </div>
+              <div style="position:relative;padding-left:2px;padding-top:1px;">
+                <div style="position:relative;float:top;height:9px"><img id="to_yeard" alt="Up" style="vertical-align:top;border:0;margin:0;padding:0" src="/archibus/schema/ab-system/graphics/but_yeard.gif" onclick="changeYear(1, 'to_year');"/></div>
+                <div><img id="to_yearu" style="vertical-align:top;border:0;margin:0;padding:0" alt="Down" src="/archibus/schema/ab-system/graphics/but_yearu.gif" onclick="changeYear(-1, 'to_year');"/></div>
+              </div>
+            </html>
+        </field>
+    </panel>
+    
+    <dataSource id="capbudFciAnalyzeGridDs">
+        <table name="project" role="main"/>
+        <field table="project" name="project_id"/>
+        <field name="project_name" table="project"/>
+        <field table="project" name="project_type"/>
+        <sortField table="project" name="project_id" ascending="true"/>
+        <restriction type="sql" sql="project.project_type LIKE 'ASSESSMENT%'"/>
+    </dataSource>
+
+    <panel type="grid" id="capbudFciAnalyzeGrid" dataSource="capbudFciAnalyzeGridDs" layout="nestedLayout_1" region="west">
+        <title>Select Assessment Project</title>
+   		<field table="project" name="project_id" controlType="link">
+   			<command type="callFunction" functionName="capbudFciAnalyzeGrid_onClick"/>
+   		</field>
+        <field name="project_name" table="project"/>
+        <field table="project" name="project_type"/>
+    </panel>
+    
+    <dataSource id="capbudFciAnalyzeScenariosTableDs" type="grouping" applyVpaRestrictions="false">
+        <table name="actscns" role="main"/>
+        <parameter name="projRestriction" value="activity_log.project_id IN (activity_log.project_id)" dataType="verbatim"/>
+        <parameter name="scnRestriction" value="actscns.proj_scenario_id IN (actscns.proj_scenario_id)" dataType="verbatim"/>
+        <parameter name="blRestriction" value="activity_log.bl_id IN (activity_log.bl_id)" dataType="verbatim"/>
+        <parameter name="fiscal_year_from" value="1900" dataType="verbatim"/>
+        <parameter name="fiscal_year_to" value="2990" dataType="verbatim"/>
+
+        <sql dialect="generic">
+        
+            SELECT  fiscal_years.project_scenario_building, fiscal_years.fiscal_year, MIN(fiscal_years.funding_req) ${sql.as} funding_req,
+                    isNull(AVG(actscns_fci.fci),0) ${sql.as} avg_fci, isNull(MIN(actscns_fci.fci),0) ${sql.as} min_fci, isNull(MAX(actscns_fci.fci),0) ${sql.as} max_fci
+            
+            FROM
+
+                (SELECT (RTRIM(activity_log.project_id) ${sql.concat} '-' ${sql.concat} RTRIM(actscns.proj_scenario_id) ${sql.concat} '-' ${sql.concat} RTRIM(activity_log.bl_id)) ${sql.as} project_scenario_building,
+                        (MIN(actscns.fiscal_year)-1) ${sql.as} fiscal_year, 0 ${sql.as} funding_req
+                        FROM actscns
+                        LEFT OUTER JOIN activity_log ON actscns.activity_log_id = activity_log.activity_log_id 
+                        WHERE ${parameters['projRestriction']}
+                        AND ${parameters['scnRestriction']}
+                        AND ${parameters['blRestriction']}
+                        AND activity_log.activity_type='ASSESSMENT' 
+                        AND activity_log.cost_to_replace &gt; 0
+                GROUP BY activity_log.project_id, activity_log.bl_id, actscns.proj_scenario_id
+    
+                UNION
+    
+                SELECT (RTRIM(activity_log.project_id) ${sql.concat} '-' ${sql.concat} RTRIM(actscns.proj_scenario_id) ${sql.concat} '-' ${sql.concat} RTRIM(activity_log.bl_id)) ${sql.as} project_scenario_building,
+                        actscns.fiscal_year, SUM(activity_log.cost_to_replace) ${sql.as} funding_req
+                        FROM actscns 
+                        LEFT OUTER JOIN activity_log ON actscns.activity_log_id = activity_log.activity_log_id
+                        WHERE ${parameters['projRestriction']}
+                        AND ${parameters['scnRestriction']}
+                        AND ${parameters['blRestriction']}
+                        AND activity_log.activity_type='ASSESSMENT' 
+                        AND activity_log.cost_to_replace &gt; 0
+                        GROUP BY actscns.fiscal_year, activity_log.project_id, activity_log.bl_id, actscns.proj_scenario_id) ${sql.as} fiscal_years
+                              
+            LEFT OUTER JOIN 
+                                
+               (SELECT (RTRIM(activity_log.project_id) ${sql.concat} '-' ${sql.concat} RTRIM(actscns.proj_scenario_id) ${sql.concat} '-' ${sql.concat} RTRIM(activity_log.bl_id)) ${sql.as} project_scenario_building,
+                    actscns.fiscal_year, (${sql.getFormula('AbCapitalPlanningCA-FacilityConditionIndex')}) ${sql.as} fci
+                    FROM actscns
+                    LEFT OUTER JOIN activity_log ON actscns.activity_log_id = activity_log.activity_log_id 
+                    WHERE ${parameters['projRestriction']}
+                    AND ${parameters['scnRestriction']}
+                    AND ${parameters['blRestriction']}
+                    AND activity_log.activity_type='ASSESSMENT' 
+                    AND activity_log.cost_to_replace &gt; 0) ${sql.as} actscns_fci 
+            
+            ON (actscns_fci.fiscal_year &gt; fiscal_years.fiscal_year AND actscns_fci.project_scenario_building = fiscal_years.project_scenario_building) 
+            WHERE (fiscal_years.fiscal_year &gt;= ${parameters['fiscal_year_from']} AND fiscal_years.fiscal_year &lt;= ${parameters['fiscal_year_to']})
+            GROUP BY fiscal_years.fiscal_year, fiscal_years.project_scenario_building
+        </sql>
+        <sql dialect="oracle">
+            SELECT  fiscal_years.project_scenario_building, fiscal_years.fiscal_year, MIN(fiscal_years.funding_req) ${sql.as} funding_req,
+                    nvl(AVG(actscns_fci.fci),0) ${sql.as} avg_fci, nvl(MIN(actscns_fci.fci),0) ${sql.as} min_fci, nvl(MAX(actscns_fci.fci),0) ${sql.as} max_fci
+            
+            FROM
+
+                (SELECT (RTRIM(activity_log.project_id) ${sql.concat} '-' ${sql.concat} RTRIM(actscns.proj_scenario_id) ${sql.concat} '-' ${sql.concat} RTRIM(activity_log.bl_id)) ${sql.as} project_scenario_building,
+                        (MIN(actscns.fiscal_year)-1) ${sql.as} fiscal_year, 0 ${sql.as} funding_req
+                        FROM actscns, activity_log
+                        WHERE actscns.activity_log_id = activity_log.activity_log_id(+)
+                        AND ${parameters['projRestriction']}
+                        AND ${parameters['scnRestriction']}
+                        AND ${parameters['blRestriction']}
+                        AND activity_log.activity_type='ASSESSMENT' 
+                        AND activity_log.cost_to_replace &gt; 0
+                GROUP BY activity_log.project_id, activity_log.bl_id, actscns.proj_scenario_id
+    
+                UNION
+    
+                SELECT (RTRIM(activity_log.project_id) ${sql.concat} '-' ${sql.concat} RTRIM(actscns.proj_scenario_id) ${sql.concat} '-' ${sql.concat} RTRIM(activity_log.bl_id)) ${sql.as} project_scenario_building,
+                        actscns.fiscal_year, SUM(activity_log.cost_to_replace) ${sql.as} funding_req
+                        FROM actscns, activity_log
+                        WHERE actscns.activity_log_id = activity_log.activity_log_id(+)
+                        AND ${parameters['projRestriction']}
+                        AND ${parameters['scnRestriction']}
+                        AND ${parameters['blRestriction']}
+                        AND activity_log.activity_type='ASSESSMENT' 
+                        AND activity_log.cost_to_replace &gt; 0
+                        GROUP BY actscns.fiscal_year, activity_log.project_id, activity_log.bl_id, actscns.proj_scenario_id) ${sql.as} fiscal_years, 
+                                
+               (SELECT (RTRIM(activity_log.project_id) ${sql.concat} '-' ${sql.concat} RTRIM(actscns.proj_scenario_id) ${sql.concat} '-' ${sql.concat} RTRIM(activity_log.bl_id)) ${sql.as} project_scenario_building,
+                    actscns.fiscal_year, (${sql.getFormula('AbCapitalPlanningCA-FacilityConditionIndex')}) ${sql.as} fci
+                    FROM actscns, activity_log 
+                    WHERE actscns.activity_log_id = activity_log.activity_log_id(+)
+                    AND ${parameters['projRestriction']}
+                    AND ${parameters['scnRestriction']}
+                    AND ${parameters['blRestriction']}
+                    AND activity_log.activity_type='ASSESSMENT' 
+                    AND activity_log.cost_to_replace &gt; 0) ${sql.as} actscns_fci 
+            
+            WHERE (actscns_fci.fiscal_year(+) &gt; fiscal_years.fiscal_year AND actscns_fci.project_scenario_building(+) = fiscal_years.project_scenario_building) 
+            AND (fiscal_years.fiscal_year &gt;= ${parameters['fiscal_year_from']} AND fiscal_years.fiscal_year &lt;= ${parameters['fiscal_year_to']})
+            GROUP BY fiscal_years.fiscal_year, fiscal_years.project_scenario_building
+          </sql>
+        <field name="project_scenario_building" table="actscns" dataType="text" groupBy="true">
+            <title>Project-Scenario-Building</title>
+        </field>
+        <field name="fiscal_year" table="actscns" dataType="text" groupBy="true">
+            <title>Fiscal Year</title>
+        </field>
+        <field name="avg_fci" dataType="number" decimals="1">
+          <title>Avg Remaining FCI</title>
+          <sql dialect="generic">AVG(avg_fci)</sql>
+        </field>
+        <field name="min_fci" dataType="number" decimals="1">
+          <title>Min Remaining FCI</title>
+          <sql dialect="generic">MIN(min_fci)</sql>
+        </field>
+        <field name="max_fci" dataType="number" decimals="1">
+          <title>Max Remaining FCI</title>
+          <sql dialect="generic">MAX(max_fci)</sql>
+        </field>
+        <field name="funding_req" dataType="number" decimals="1">
+          <title>Funding Required</title>
+          <sql dialect="generic">SUM(funding_req)</sql>
+        </field>
+        <sortField name="project_scenario_building" table="actscns" ascending="true"/>
+        <sortField name="fiscal_year" table="actscns" ascending="true"/>
+    </dataSource>
+    
+    <panel id="capbudFciAnalyzeScenariosTable" type="crossTable" dataSource="capbudFciAnalyzeScenariosTableDs" showOnLoad="false" layout="nestedLayout_1" region="center">
+        <instructions>Click the Add Scenario button to add a Scenario to the Project.  [br/]Then select a Project Scenario in the table below to adjust the FCI.</instructions>
+        <title>Required Funding and Facility Condition's Index by Year</title>
+        <action id="capbudFciAnalyzeScenariosTable_addNew">
+        	<title>Add Scenario</title>
+        	<command type="openDialog" panelId="capbudFciAnalyzeAddScenarioForm" newRecord="true" width="600" height="250">
+                <title>Add Scenario to Project</title>
+            </command>
+        </action>
+        <event type="onClickItem">
+            <command type="callFunction" functionName="capbudFciAnalyzeScenariosTable_onClick"/>
+        </event>
+    </panel>
+    
+    <dataSource id="capbudFciAnalyzeAddScenarioFormDs">
+        <table name="actscns" role="main"/>
+        <table name="activity_log" role="standard"/>
+        <field name="project_id" table="activity_log"/>
+        <field name="proj_scenario_id" table="actscns"/>
+        <field name="fiscal_year" table="actscns"/>
+        <field name="activity_log_id" table="actscns"/>
+    </dataSource>
+    
+    <panel type="form" id="capbudFciAnalyzeAddScenarioForm" dataSource="capbudFciAnalyzeAddScenarioFormDs" showOnLoad="false" buttonsPosition="footer">
+        <action id="save">
+          <title>Save</title>
+          <command type="callFunction" functionName="saveScenario"/>
+          <command type="closeDialog"/>
+        </action> 
+        <action id="cancel">
+          <title>Cancel</title>
+          <command type="closeDialog"/>
+        </action>
+        <field name="project_id" table="activity_log" readOnly="false" required="true">
+            <action>
+                <title>...</title>
+                <command type="selectValue"
+                         fieldNames="activity_log.project_id"
+                         selectFieldNames="project.project_id"
+                         visibleFieldNames="project.project_id"
+                         restriction="project_type LIKE 'ASSESSMENT%'">
+                         <title>Condition Assessment Project</title>
+               </command>
+            </action>
+        </field>     
+        <field name="proj_scenario_id" table="actscns" required="true">
+            <title>New or Existing Scenario Name</title>
+        </field>
+        <field name="fiscal_year" table="actscns" required="true">
+            <title>Default Fiscal Year</title>
+        </field>
+    </panel>
+</view>

@@ -1,0 +1,386 @@
+<view version="2.0" showLoadProgress="true">
+    <title translatable="true">Meter Analytics Over Time</title>
+    <message name="inadequateDataToPlot" translatable="true">The query returned insufficient records to plot a line.  Please adjust the date range, Group By option, or meter selection.</message>
+        
+    <layout id="mainLayout">
+        <north initialSize="140" split="true" id="console"/>
+        <center />
+  	</layout>
+  	<layout id="nestedLayout_1" containingLayout="mainLayout" region="center">
+        <west initialSize="400" split="true" id="tree"/>
+        <center id="chart"/>
+  	</layout>
+  	<js file="ab-energy-bas-time.js"/>
+    
+    <style type="text/css">
+        span.ygtvlabel_pk, span.ygtvlabel {padding:0 0 0 5px;}
+    </style>
+    
+    <!-- Note on Area Normalization: In joined table, group data points by locDtl
+    to get total area for each locDtl grouping. -->
+         
+    <dataSource id="energyBasTimeValues_ds" applyVpaRestrictions="false">
+        <table name="bas_data_time_norm_num" />
+        <sql dialect="generic">
+            SELECT TOP 2147483647
+            bas_data_time_norm_num.locDtl, bas_data_time_norm_num.dateTime_measured, 
+            (CASE 
+                    WHEN (${parameters['selectedNormByArea']} = '1')                                 
+                    THEN (CASE WHEN point.area = 0 THEN 0 ELSE (value_common/point.area) END)                                 
+                    ELSE value_common END) ${sql.as} value_common
+            FROM (
+                SELECT   
+                    ${parameters['locDtl']} ${sql.as} locDtl, 
+                    ${parameters['dateGroupGeneric']} ${sql.as} dateTime_measured,                                 
+                    (CASE WHEN SUM(value_common) IS NULL THEN 0 ELSE ${parameters['sum.max']}(value_common) END) / ${parameters['conversion.factor']} ${sql.as} value_common
+                FROM bas_data_time_norm_num            
+                LEFT OUTER JOIN bas_data_point ON bas_data_point.data_point_id = bas_data_time_norm_num.data_point_id
+                LEFT OUTER JOIN bill_unit ON bill_unit.bill_type_id = bas_data_point.bill_type_id AND bill_unit.bill_unit_id = bas_data_point.bill_unit_id
+                LEFT OUTER JOIN bas_measurement_scope ON bas_measurement_scope.data_point_id = bas_data_time_norm_num.data_point_id
+                LEFT OUTER JOIN bl ON bl.bl_id = bas_measurement_scope.bl_id
+                LEFT OUTER JOIN site ON site.site_id = bas_measurement_scope.site_id
+                WHERE ${parameters['consoleRestriction']} AND bas_data_time_norm_num.interval = ${parameters['interval']}
+                GROUP BY ${parameters['dateGroupGeneric']}, ${parameters['locDtl']} ) ${sql.as} bas_data_time_norm_num                     
+            LEFT OUTER JOIN (
+                SELECT   
+                    ${parameters['locDtl']} ${sql.as} locDtl,                                    
+                    SUM(CASE WHEN bas_data_point.area=0 THEN bas_data_point.area_manual ELSE bas_data_point.area END) ${sql.as} area
+                FROM bas_data_point
+                LEFT OUTER JOIN bill_unit ON bill_unit.bill_type_id = bas_data_point.bill_type_id AND bill_unit.bill_unit_id = bas_data_point.bill_unit_id
+                LEFT OUTER JOIN bas_measurement_scope ON bas_measurement_scope.data_point_id = bas_data_point.data_point_id
+                LEFT OUTER JOIN bl ON bl.bl_id = bas_measurement_scope.bl_id
+                LEFT OUTER JOIN site ON site.site_id = bas_measurement_scope.site_id
+                WHERE ${parameters['pointRestriction']}
+                GROUP BY ${parameters['locDtl']}) ${sql.as} point
+            ON point.locDtl = bas_data_time_norm_num.locDtl
+        </sql>
+        <sql dialect="sqlserver">
+            SELECT TOP 2147483647
+            bas_data_time_norm_num.locDtl, bas_data_time_norm_num.dateTime_measured, 
+            (CASE 
+                    WHEN (${parameters['selectedNormByArea']} = '1')                                 
+                    THEN (CASE WHEN point.area = 0 THEN 0 ELSE (value_common/point.area) END)                                 
+                    ELSE value_common END) ${sql.as} value_common
+            FROM (
+                SELECT   
+                    ${parameters['locDtl']} ${sql.as} locDtl, 
+                    ${parameters['dateGroupSqlServer']} ${sql.as} dateTime_measured,                                 
+                    (CASE WHEN SUM(value_common) IS NULL THEN 0 ELSE ${parameters['sum.max']}(value_common) END) / ${parameters['conversion.factor']} ${sql.as} value_common
+                FROM bas_data_time_norm_num            
+                LEFT OUTER JOIN bas_data_point ON bas_data_point.data_point_id = bas_data_time_norm_num.data_point_id
+                LEFT OUTER JOIN bill_unit ON bill_unit.bill_type_id = bas_data_point.bill_type_id AND bill_unit.bill_unit_id = bas_data_point.bill_unit_id
+                LEFT OUTER JOIN bas_measurement_scope ON bas_measurement_scope.data_point_id = bas_data_time_norm_num.data_point_id
+                LEFT OUTER JOIN bl ON bl.bl_id = bas_measurement_scope.bl_id
+                LEFT OUTER JOIN site ON site.site_id = bas_measurement_scope.site_id
+                WHERE ${parameters['consoleRestriction']} AND bas_data_time_norm_num.interval = ${parameters['interval']}
+                GROUP BY ${parameters['dateGroupSqlServer']}, ${parameters['locDtl']} ) ${sql.as} bas_data_time_norm_num                     
+            LEFT OUTER JOIN (
+                SELECT   
+                    ${parameters['locDtl']} ${sql.as} locDtl,                                    
+                    SUM(CASE WHEN bas_data_point.area=0 THEN bas_data_point.area_manual ELSE bas_data_point.area END) ${sql.as} area
+                FROM bas_data_point
+                LEFT OUTER JOIN bill_unit ON bill_unit.bill_type_id = bas_data_point.bill_type_id AND bill_unit.bill_unit_id = bas_data_point.bill_unit_id
+                LEFT OUTER JOIN bas_measurement_scope ON bas_measurement_scope.data_point_id = bas_data_point.data_point_id
+                LEFT OUTER JOIN bl ON bl.bl_id = bas_measurement_scope.bl_id
+                LEFT OUTER JOIN site ON site.site_id = bas_measurement_scope.site_id
+                WHERE ${parameters['pointRestriction']}
+                GROUP BY ${parameters['locDtl']}) ${sql.as} point
+            ON point.locDtl = bas_data_time_norm_num.locDtl
+        </sql>
+        <sql dialect="oracle">
+            SELECT bas_data_time_norm_num.locDtl, bas_data_time_norm_num.dateTime_measured, 
+            (CASE 
+                    WHEN (${parameters['selectedNormByArea']} = '1')                                 
+                    THEN (CASE WHEN point.area = 0 THEN 0 ELSE (value_common/point.area) END)                                 
+                    ELSE value_common END) ${sql.as} value_common
+            FROM (
+                SELECT   
+                    ${parameters['locDtl']} ${sql.as} locDtl, 
+                    ${parameters['dateGroupOracle']} ${sql.as} dateTime_measured,                                  
+                    (CASE WHEN SUM(value_common) IS NULL THEN 0 ELSE ${parameters['sum.max']}(value_common) END) / ${parameters['conversion.factor']} ${sql.as} value_common
+                FROM bas_data_time_norm_num            
+                LEFT OUTER JOIN bas_data_point ON bas_data_point.data_point_id = bas_data_time_norm_num.data_point_id
+                LEFT OUTER JOIN bill_unit ON bill_unit.bill_type_id = bas_data_point.bill_type_id AND bill_unit.bill_unit_id = bas_data_point.bill_unit_id
+                LEFT OUTER JOIN bas_measurement_scope ON bas_measurement_scope.data_point_id = bas_data_time_norm_num.data_point_id
+                LEFT OUTER JOIN bl ON bl.bl_id = bas_measurement_scope.bl_id
+                LEFT OUTER JOIN site ON site.site_id = bas_measurement_scope.site_id
+                WHERE ${parameters['consoleRestriction']} AND bas_data_time_norm_num.interval = ${parameters['interval']}
+                GROUP BY ${parameters['dateGroupOracle']}, ${parameters['locDtl']}) ${sql.as} bas_data_time_norm_num                     
+            LEFT OUTER JOIN (
+                SELECT   
+                    ${parameters['locDtl']} ${sql.as} locDtl,                                    
+                    SUM(CASE WHEN bas_data_point.area=0 THEN bas_data_point.area_manual ELSE bas_data_point.area END) ${sql.as} area
+                FROM bas_data_point
+                LEFT OUTER JOIN bill_unit ON bill_unit.bill_type_id = bas_data_point.bill_type_id AND bill_unit.bill_unit_id = bas_data_point.bill_unit_id
+                LEFT OUTER JOIN bas_measurement_scope ON bas_measurement_scope.data_point_id = bas_data_point.data_point_id
+                LEFT OUTER JOIN bl ON bl.bl_id = bas_measurement_scope.bl_id
+                LEFT OUTER JOIN site ON site.site_id = bas_measurement_scope.site_id
+                WHERE ${parameters['pointRestriction']}
+                GROUP BY ${parameters['locDtl']}) ${sql.as} point
+            ON point.locDtl = bas_data_time_norm_num.locDtl                        
+        </sql>        
+        <field table="bas_data_time_norm_num" name="value_common" dataType="number" decimals="6" />    
+        <field table="bas_data_time_norm_num" name="dateTime_measured" dataType="text" />
+        <field table="bas_data_time_norm_num" name="locDtl" dataType="text" />
+        <sortField table="bas_data_time_norm_num" name="dateTime_measured" ascending="true"/>
+        <parameter name="consoleRestriction" dataType="verbatim" value=" 1=1 "/>
+        <parameter name="pointRestriction" dataType="verbatim" value=" 1=1 "/>
+        <parameter name="conversion.factor" dataType="verbatim" value="1"/>
+        <parameter name="sum.max" dataType="verbatim" value=" SUM "/>
+        <parameter name="selectedNormByArea" dataType="text" value="1"/>
+        <parameter name="selectedGroupBy" dataType="text" value="MONTH"/>
+        <parameter name="interval" dataType="text" value="MONTH"/>
+        <parameter name="noCity" dataType="text" value="None"/>
+        <parameter name="noSite" dataType="text" value="None"/>
+        <parameter name="noBuilding" dataType="text" value="None"/>
+        <parameter name="locDtl" dataType="verbatim" value=" (CASE WHEN (bas_measurement_scope.site_id IS NULL AND bas_measurement_scope.bl_id IS NULL) 
+                    THEN ${parameters['noSite']} ${sql.concat} '-' ${sql.concat} ${parameters['noBuilding']}
+                    WHEN (bas_measurement_scope.site_id IS NOT NULL AND bas_measurement_scope.bl_id IS NULL) 
+                    THEN RTRIM(bas_measurement_scope.site_id) ${sql.concat} '-' ${sql.concat} ${parameters['noBuilding']}
+                    ELSE RTRIM(bl.site_id) ${sql.concat} '-' ${sql.concat} RTRIM(bl.bl_id) END) "/>
+        <parameter name="dateGroupGeneric" dataType="verbatim" value=""/>
+        <parameter name="dateGroupSqlServer" dataType="verbatim" value=""/>
+        <parameter name="dateGroupOracle" dataType="verbatim" value=""/>
+    </dataSource>
+       
+    <dataSource id="energyBasTime_dsConsole" applyVpaRestrictions="false">
+        <table name="bl" />
+        <field table="bl" name="bl_id" />
+        <field name="date_start" dataType="date">
+                <sql dialect="generic">2014-01-01</sql>
+        </field>
+        <field name="date_end" dataType="date">
+                <sql dialect="generic">2014-01-01</sql>
+        </field>
+        <field name="construction_type"/>
+        <field name="use1"/>
+    </dataSource>
+    
+    <panel type="tree" id="energyBasTime_ctryTree" dataSource="energyBasCommon_dsCtry" layoutRegion="tree">
+      <title>Meter by Location</title>
+      <action type="menu" id="energyBasTime_selectOptionsMenu">
+        	<title>Select Options</title>
+        	<action id="expandAll">
+		      		<title>Expand All</title>
+		      		<command type="callFunction" functionName="onTreeExpandAll('energyBasTime_ctryTree', true)"/>
+		      </action>
+		      <action id="collapseAll">
+		      		<title>Collapse All</title>
+		      		<command type="callFunction" functionName="onTreeExpandAll('energyBasTime_ctryTree', false)"/>
+		      </action>
+		      <action id="selectAll">
+		      		<title>Select All</title>
+		      		<command type="callFunction" functionName="onTreeSelectAll('energyBasTime_ctryTree', true)"/>
+		      </action>
+		      <action id="unselectAll">
+		      		<title>Unselect All</title>
+		      		<command type="callFunction" functionName="onTreeSelectAll('energyBasTime_ctryTree', false)"/>
+		      </action>
+		  </action>
+      <action id="showSelected">
+      		<title>Show Selected</title>
+      </action>
+	    <panel type="tree" id="energyBasTime_cityTree" dataSource="energyBasCommon_dsCity">
+	        <title>Cities</title>
+	    </panel>
+	    <panel type="tree" id="energyBasTime_siteTree" dataSource="energyBasCommon_dsSite">
+	        <title>Sites</title>
+	    </panel>
+	    <panel type="tree" id="energyBasTime_blTree" dataSource="energyBasCommon_dsBl">
+	        <title>Buildings</title>
+	    </panel>
+	    <panel type="tree" id="energyBasTime_meterTree" dataSource="energyBasCommon_dsMeter">
+	        <title>Meter</title>
+	        <event type="onClickNode">
+			        <command type="callFunction" functionName="onClickTreeNode('energyBasTime_ctryTree')"/>
+			    </event>
+	    </panel>
+    </panel>
+    
+    <panel id="energyBasTime_console" layoutRegion="console" type="console" dataSource="energyBasTime_dsConsole" columns="4">
+    		<title>Filter</title>
+    		<action id="show">
+    				<title>Show</title>
+    		</action>
+    		<action id="clear">
+    				<title>Clear</title>
+    		</action>
+    		<field id="energyBasTime_analysis" colspan="4">
+		    		<title>Predefined Analysis</title>
+		        		<html>
+		                    <select id="energyBasTime_analysisSelect" class="inputField_box" onchange="setAnalysis();">
+		                    		<option id="energyBasTime_analysisSelect_none" value="none">
+		                            <span translatable="true"></span>
+		                        </option>
+		                    		<option id="energyBasTime_analysisSelect_demo1" value="analysis1" selected="1">
+		                            <span translatable="true">Five-year building energy intensity comparison by month</span>
+		                        </option>
+		                        <option id="energyBasTime_analysisSelect_demo2" value="analysis2">
+		                            <span translatable="true">Facility start-up analysis – hourly</span>
+		                        </option>
+		                        <option id="energyBasTime_analysisSelect_demo3" value="analysis3">
+		                            <span translatable="true">Facility utilization analysis – daily</span>
+		                        </option>
+		                        <option id="energyBasTime_analysisSelect_4" value="analysis4">
+		                            <span translatable="true">Consumption anomalies</span>
+		                        </option>
+		                        <option id="energyBasTime_analysisSelect_4prod" value="analysis4prod">
+		                            <span translatable="true">Recent consumption anomalies</span>
+		                        </option>
+		                    </select>
+		             </html>
+		     </field>
+             <field>
+                <title>Bill Type</title>    
+                <html>
+                    <select id="energyBasTime_billTypeSelect" class="inputField_box" onchange="changeUnits();">
+                                <option id="energyBasTime_billTypeSelect_electricConsumption" value="electricC" selected ="1">
+                                    <span translatable="true">Electric Consumption</span>
+                                </option>
+                                    <option id="energyBasTime_billTypeSelect_electricDemand" value="electricD">
+                                    <span translatable="true">Electric Demand</span>
+                                </option>
+                                    <option id="energyBasTime_billTypeSelect_gasNatural" value="gasNatural">
+                                    <span translatable="true">Gas - Natural</span>
+                                </option>
+                                    <option id="energyBasTime_billTypeSelect_gasPropane" value="gasPropane">
+                                    <span translatable="true">Gas - Propane</span>
+                                </option>
+                                <option id="energyBasTime_billTypeSelect_oil" value="oil">
+                                    <span translatable="true">Fuel Oil 1</span>
+                                </option>
+                                <option id="energyBasTime_billTypeSelect_oil2" value="oil2">
+                                    <span translatable="true">Fuel Oil 2</span>
+                                </option>
+                                <option id="energyBasTime_billTypeSelect_water" value="water" >
+                                    <span translatable="true">Water</span>
+                                </option>
+                                <option id="energyBasTime_billTypeSelect_sewer" value="sewer" >
+                                    <span translatable="true">Sewer</span>
+                                </option>
+                    </select>
+                </html>
+            </field>
+    		<field name="construction_type"  onchange="setTreeRefresh();"/>
+        <field name="use1"  onchange="setTreeRefresh();"/>
+        <field id="energyBasTime_locDtl">
+		    		<title>Location Detail</title>
+		        		<html>
+		                    <select id="energyBasTime_locDtlSelect" class="inputField_box">
+		                    		<option id="energyBasTime_locDtlSelect_city" value="byCity">
+		                            <span translatable="true">City</span>
+		                        </option>
+		                    		<option id="energyBasTime_locDtlSelect_site" value="bySite">
+		                            <span translatable="true">Site</span>
+		                        </option>
+		                        <option id="energyBasTime_locDtlSelect_bl" value="byBuilding" selected="1">
+		                            <span translatable="true">Building</span>
+		                        </option>
+		                        <option id="energyBasTime_locDtlSelect_meter" value="byMeter">
+		                            <span translatable="true">Meter</span>
+		                        </option>
+		                    </select>
+		             </html>
+		     </field>
+    		<field>
+		          <title>Date Range - Last</title>
+		          <html>
+	              	<select id="energyBasTime_dateRangeSelect" class="inputField_box" >
+		                    	<option id="energyBasTime_dateRangeSelect_none" value="none">
+		                            <span translatable="true"></span>
+		                        </option>
+		                    		<option id="energyBasTime_dateRangeSelect_5year" value="5year">
+		                            <span translatable="true">5 Years</span>
+		                        </option>
+		                    		<option id="energyBasTime_dateRangeSelect_year" value="year" selected="1">
+		                            <span translatable="true">Year</span>
+		                        </option>
+		                    		<option id="energyBasTime_dateRangeSelect_qtr" value="qtr">
+		                            <span translatable="true">Quarter</span>
+		                        </option>
+		                        <option id="energyBasTime_dateRangeSelect_month" value="month">
+		                            <span translatable="true">Month</span>
+		                        </option>
+		                        <option id="energyBasTime_dateRangeSelect_week" value="week" >
+		                            <span translatable="true">Week</span>
+		                        </option>
+		                        <option id="energyBasTime_dateRangeSelect_day" value="day" >
+		                            <span translatable="true">Day</span>
+		                        </option>
+		                    </select>
+		                </html>
+		        </field>
+                <field name="date_start" dataType="date" required="true" >
+                        <title>From Date</title>
+                </field>
+                <field name="date_end" dataType="date" required="true" >
+                        <title>To Date</title>
+                </field>
+                <field/>
+                <field>
+                    <title>Display Units</title>    
+                    <html>
+                        <select id="energyBasTime_billUnitsSelect" class="inputField_box">
+                        </select>
+                    </html>
+                </field>
+                <field id="energyBasTime_groupBy">
+                        <title>Group By</title>
+                        <html>
+                            <select id="energyBasTime_groupBySelect" class="inputField_box">
+                                    <option id="energyBasTime_groupBySelect_year" value="YEAR">
+                                    <span translatable="true">Year</span>
+                                </option>
+                                    <option id="energyBasTime_groupBySelect_qtr" value="QUARTER">
+                                    <span translatable="true">Quarter</span>
+                                </option>
+                                <option id="energyBasTime_groupBySelect_month" value="MONTH" selected="1">
+                                    <span translatable="true">Month</span>
+                                </option>
+                                <option id="energyBasTime_groupBySelect_week" value="WEEK" >
+                                    <span translatable="true">Week</span>
+                                </option>
+                                <option id="energyBasTime_groupBySelect_day" value="DAY">
+                                    <span translatable="true">Day</span>
+                                </option>
+                                <option id="energyBasTime_groupBySelect_hour" value="HOUR" >
+                                    <span translatable="true">Hour</span>
+                                </option>
+                                 <option id="energyBasTime_groupBySelect_min" value="15MIN" >
+                                    <span translatable="true">15-minute</span>
+                                </option>
+                            </select>
+                        </html>
+                </field>
+                <field id="energyBasTime_normArea">
+                    <title>Normalize by Area</title>
+                    <html>
+                        <input id="energyBasTime_normAreaCheck" type="checkbox" value="" checked="true" name="energyBasTime_normAreaCheck"/>
+                    </html>
+                </field>
+    </panel>
+
+     <panel id="energyBasTime_chart" 
+            type="html" 
+            dataSource="energyBasTimeValues_ds"
+            layoutRegion="chart">
+        <title translatable="true">Consumption by Date</title>
+        <action type="menu" id="energyBasTime_toolsMenu" imageName="/schema/ab-core/graphics/icons/view/export.png">
+        		<title>Export</title>
+	            <tooltip>Tools</tooltip>
+	            <action id="exportDOCX">
+	                <title>Export to DOCX</title>
+	                <command type="exportPanel" outputType="docx" orientation="landscape" panelId="energyBasTime_chart"/>
+	            </action>
+	            <action id="exportPDF">
+	                <title>Export to PDF</title>
+	                <command type="exportPanel" outputType="pdf" orientation="landscape" panelId="energyBasTime_chart"/>
+	            </action>
+	    </action>
+        <html>
+            <div id="chartdiv" style="width:100%; height:800px;"></div> 
+        </html>
+    </panel>
+
+		<panel type="view" file="ab-energy-bas-common.axvw" id="energyBasTime_commonView"/>
+</view>

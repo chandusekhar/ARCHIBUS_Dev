@@ -1,0 +1,42 @@
+<view version="2.0">
+    <dataSource id="abEqMaintHistChlineGroupingAxisDS" type="grouping">
+        <table name="hwr" />
+        <field name="month" groupBy="true" dataType="text" formula="month" baseField="hwr.date_completed">
+            <title translatable="true">Date</title>
+        </field>
+        <sortField table="hwr" name="date_completed" ascending="true" />
+    </dataSource>
+    
+    <dataSource id="abEqMaintHistChlineDataAxisDS" type="grouping">
+        <sql dialect="generic">
+            (SELECT 
+                  hwr.eq_id ${sql.as} eq_id,
+                  case when hwr.cost_total &lt;=0 then 0 else SUM(hwr.cost_total) end ${sql.as} month_value
+                  FROM hwr join eq on hwr.eq_id=eq.eq_id 
+                  WHERE   ${sql.yearMonthOf("hwr.date_completed")}=${parameters['summaryValueForThisGroup']} AND hwr.status NOT IN ('Rej','Can') ${parameters['parentRestriction']}  
+                     group by hwr.eq_id ,hwr.cost_total 
+                ) 
+        </sql>  
+        <table name="hwr" role="main"/>
+        <field name="eq_id"  dataType="verbatim" groupBy="true"  />
+        <field name="month_value" dataType="number" groupBy="true" />
+        
+        <parameter name="summaryValueForThisGroup" dataType="text" value="" />
+        <parameter name="parentRestriction" dataType="verbatim" value="" />
+        
+        <sortField name="eq_id" table="hwr" ascending="false"/>
+    </dataSource>
+
+    <panel id="abEqMaintHistChlineByMonthChart" type="chart" controlType="lineChart" legendLocation="right" showOnLoad="true"  >
+        <title translatable="true">Actual Costs by Month</title>
+        <groupingAxis table="hwr" field="month" dataSource="abEqMaintHistChlineGroupingAxisDS">
+            <title translatable="true">Date</title>
+        </groupingAxis>
+        <secondaryGroupingAxis table="hwr" field="eq_id" dataSource="abEqMaintHistChlineDataAxisDS" />
+        <dataAxis table="hwr" field="month_value" dataSource="abEqMaintHistChlineDataAxisDS">
+            <title translatable="true"></title>
+        </dataAxis>
+    </panel>    
+    
+    <js file="ab-pm-rpt-eq-maint-hist-chline.js"/>
+</view>

@@ -1,0 +1,128 @@
+<view version="2.0">
+    <js file="ab-bldgops-report-purchase-orders-dialog-add-to-existsing-multiple.js"/>
+    <message name="storageLocationNameNotSameMsg" translatable="true">To Storage Location cannot be the same as From Storage Location</message>
+    <message name="storageLocationToNotEmptyMsg" translatable="true">To Storage Location must not be empty.</message>
+    <message name="transactionQuantityGreaterThanZeroMsg" translatable="true">Quantity to Transfer must be a integer value greater than 0</message> 
+    <message name="unitCostGreaterThanZeroMsg" translatable="true">Unit Cost must be a numeric value greater than 0</message> 
+    <message name="mustSelectARowMsg" translatable="true">Select a purchase order</message>
+    <message name="noMoreRecordToDisplayMsg" translatable="true">There are no existing purchase orders available for this storage location and vendor.</message>
+    <layout type="borderLayout" id="mainLayout">
+        <north initialSize="50%" split="false"/>
+        <center/>
+    </layout>
+    <dataSource id="createMultiPurchaseOrderDs">
+        <table name="po" role="main"/>
+        <field table="po" name="po_id"/>
+        <field table="po" name="po_number"/>
+        <field table="po" name="ac_id"/>
+        <field table="po" name="em_id"/>
+        <field table="po" name="vn_id"/>
+        <field table="po" name="receiving_location"/>
+        <field table="po" name="status"/>
+        <field table="po" name="date_request"/>
+        <field name="orderValue" dataType="number" decimals="2" currency="${project.budgetCurrency.code}">
+            <sql dialect="generic">
+                (select sum(quantity*unit_cost) from po_line where po_line.po_id=po.po_id)
+            </sql>
+        </field>
+        <field table="po" name="status"/>
+        <field table="po" name="comments"/>
+        <parameter name="vnParamemter" dataType="verbatim" value="1=1"/>
+        <parameter name="receivingLocationRes" dataType="verbatim" value="1=1"/>
+        <restriction type="sql" sql="po.status in ('Requested', 'Approved', 'Rejected') and (${parameters['vnParamemter']}) and ${parameters['receivingLocationRes']}"/>
+    </dataSource>
+    
+    <dataSource id="poLineDs">
+        <table name="po_line" role="main"/>
+        <field table="po_line" name="po_id"/>
+        <field table="po_line" name="po_line_id"/>
+        <field table="po_line" name="quantity"/>
+    </dataSource>
+    
+    <dataSource id="createMultiSupplyRequisitionDs">
+        <table name="supply_req" role="main"/>
+        <field table="supply_req" name="supply_req_id"/>
+        <field table="supply_req" name="status"/>
+        <field table="supply_req" name="date_created"/>
+        <field table="supply_req" name="time_created"/>
+        <field table="supply_req" name="last_updated_by"/>
+        <field table="supply_req" name="comments"/>
+    </dataSource>
+    
+    <dataSource id="createMultiSupplyReqPartLocDs">
+        <table name="pt_store_loc_pt" role="main"/>
+        <table name="pt" role="standard"/>
+        <field table="pt_store_loc_pt" name="pt_store_loc_id"/>
+        <field table="pt_store_loc_pt" name="part_id"/>
+        <field table="pt" name="description"/>
+        <field table="pt_store_loc_pt" name="qty_on_hand"/>
+        <field table="pt_store_loc_pt" name="qty_to_order"/>
+        <field table="pt_store_loc_pt" name="cost_unit_std"/>
+    </dataSource>
+    
+    <dataSource id="createMultiSupplyReqStorageDs">
+        <table name="pt_store_loc" role="main"/>
+        <field table="pt_store_loc" name="pt_store_loc_id"/>
+        <field table="pt_store_loc" name="pt_store_loc_name"/>
+        <field table="pt_store_loc" name="pt_store_loc_desc"/>
+        <field table="pt_store_loc" name="bl_id"/>
+        <field table="pt_store_loc" name="fl_id"/>
+        <field table="pt_store_loc" name="rm_id"/>
+    </dataSource>
+    
+    <dataSource id="vnDs">
+        <sql dialect="generic">
+            select distinct pv.vn_id as vnId from pv where ${parameters['pvRes']}
+        </sql>
+        <table name="pv" role="main"/>
+        <field name="vnId" dataType="text"/>
+        <parameter name="pvRes" dataType="verbatim" value="1=1"/>
+    </dataSource>
+    
+    <panel type="grid" controlType="reportGrid" id="existsPurchaseOrdersList" dataSource="createMultiPurchaseOrderDs" layout="mainLayout" region="north">
+        
+        <field id="poCheckRadio" name="poCheckRadio" controlType="radiobutton"/>
+        <field table="po" name="po_id" hidden="true"/>
+        <field table="po" name="vn_id"/>
+        <field table="po" name="receiving_location"/>
+        <field table="po" name="status"/>
+        <field table="po" name="date_request"/>
+        <field name="orderValue" dataType="number" decimals="2">
+            <title translatable="true">Order Value</title>
+        </field>
+        <field table="po" name="po_number"/>
+        <field table="po" name="ac_id"/>
+        <field table="po" name="comments"/>
+    </panel>
+    
+    <panel type="grid" controlType="reportGrid" id="inventoryTransactionSelectedPartsPanel" dataSource="createMultiSupplyReqPartLocDs" showOnLoad="false" layout="mainLayout" region="center">
+        <instructions>WARNING: adding parts to an approved Purchase Order will cause the status to revert to Requested if the Purchase Order was approved by another user.</instructions>
+        <action id="btnCancel">
+            <title translatable="true">Cancel</title>
+        </action>
+        <action id="btnSubmit">
+            <title translatable="true">Submit</title>
+        </action>
+        
+        <field table="pt_store_loc_pt" name="pt_store_loc_id" hidden="true"/>
+        <field table="pt_store_loc_pt" name="part_id"/>
+        <field table="pt" name="description"/>
+        <field name="catLocNum" dataType="text">
+            <title translatable="true">Catalog Number</title>
+        </field>
+        <field table="pt_store_loc_pt" name="qty_to_order"/>
+        <field name="qtyTrasaction">
+            <title translatable="true">Quantity to Purchase</title>
+        </field>
+        <field name="unitCost">
+            <title translatable="true">Unit Cost</title>
+        </field>
+        
+        <field name="LineItemCost">
+            <title translatable="true">Line Item Cost</title>
+        </field>
+        <field name="description">
+            <title translatable="true">Description</title>
+        </field>
+    </panel>
+</view>

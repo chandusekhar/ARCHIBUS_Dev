@@ -1,0 +1,276 @@
+<view version="2.0">
+	<!-- title translatable="false">&#160;</title -->
+    <js file="ab-query-parameters-utility.js"/>
+	<js file="ab-rplm-cost-mgmt-costs-wiz-ls-bl-pr.js"/>
+	<style type="text/css">
+	.selectRow { background-color:#99C5EB; color:#000000; font-family:Arial; font-size:11px; font-weight:bold; line-height:1.9; margin-left:6px; } 
+	</style>
+  	<message name="label_select_type" translatable="true">Cost Wizard For:</message>
+	<message name="option_select_type_one" translatable="true">Leases, Building, Properties</message>
+	<message name="option_select_type_two" translatable="true">Accounts</message>
+    <message name="param_parcel" translatable="true">Parcel</message>
+	<message name="param_building" translatable="true">Building</message>
+	<message name="param_structure" translatable="true">Structure</message>
+	<message name="param_land" translatable="true">Land</message>
+	<message name="param_landlord" translatable="true">Landlord</message>
+	<message name="param_tenant" translatable="true">Tenant</message>
+	<layout type="borderLayout" id="mainLayout">
+		<west id="west" autoScroll="true" split="true" initialSize="300" minSize="300"/>
+		<center id="center" autoScroll="false"/>
+	</layout>
+    <layout type="borderLayout" id="westLayout" containingLayout="mainLayout" region="west">
+        <north id="northWest" initialSize="40" minSize="40"/>
+        <center id="centerWest" autoScroll="true"/> 
+    </layout>
+    
+	<panel type="html" id="htmlSelectType" layoutRegion="northWest">
+		<html>
+			<table width="100%">
+				<tr>
+					<td class="selectRow" align="center" noWrap="true">
+						<span id="labelSelectType">&#160;</span>
+						<select id="selectType" class="inputField_box" onChange="changeWizard();">
+							<option id="selectTypeOptionOne" value="properties" translatable="false">&#160;</option>
+							<option id="selectTypeOptionTwo" value="account" translatable="false">&#160;</option>
+						</select>
+					</td>
+				</tr>
+			</table>
+		</html>
+	</panel>
+	<dataSource id="dsCountry" applyVpaRestrictions="false">
+		<sql dialect="generic">
+			SELECT 
+				ctry.ctry_id AS ctry_id,
+				ctry.name AS name
+			FROM ctry
+			WHERE
+				EXISTS(SELECT 1 FROM bl WHERE ${sql.getVpaRestrictionForTable('bl')} AND bl.ctry_id = ctry.ctry_id ${parameters['subquery_ctry_bl']}) OR
+    			EXISTS(SELECT 1 FROM property WHERE ${sql.getVpaRestrictionForTable('property')} AND  property.ctry_id = ctry.ctry_id ${parameters['subquery_ctry_pr']})
+		</sql>
+		<table name="ctry" role="main"/>
+        <table name="property" role="standard"/>
+        <table name="bl" role="standard"/>
+		<field table="ctry" name="ctry_id"/>
+		<parameter name="subquery_ctry_bl" dataType="verbatim" value=""/>
+		<parameter name="subquery_ctry_pr" dataType="verbatim" value=""/>
+        <sortField table="ctry" name="ctry_id" ascending="true"/>
+	</dataSource>
+	<dataSource id="dsCity" applyVpaRestrictions="false">
+		<sql dialect="generic">
+			select 
+				city.ctry_id as ctry_id,
+				city.city_id as city_id,
+				city.state_id as state_id	
+			from city
+			where 
+				EXISTS(SELECT 1 FROM bl WHERE ${sql.getVpaRestrictionForTable('bl')} AND bl.state_id = city.state_id AND bl.city_id = city.city_id ${parameters['subquery_city_bl']}) OR
+    			EXISTS(SELECT 1 FROM property WHERE ${sql.getVpaRestrictionForTable('property')} AND property.state_id = city.state_id AND property.city_id = city.city_id ${parameters['subquery_city_pr']})
+		</sql>
+		<table name="city" role="main"/>
+        <table name="property" role="standard"/>
+        <table name="bl" role="standard"/>
+		<field table="city" name="state_id"/>
+		<field table="city" name="city_id"/>
+		<parameter name="subquery_city_bl" dataType="verbatim" value=""/>
+		<parameter name="subquery_city_pr" dataType="verbatim" value=""/>
+        <sortField table="city" name="state_id" ascending="true"/>
+        <sortField table="city" name="city_id" ascending="true"/>
+	</dataSource>
+	<dataSource id="dsProperty" applyVpaRestrictions="false">
+		<sql dialect="generic">
+			SELECT 	property.pr_id as pr_id, 
+					(case when property.property_type = 'Structure' 
+							then ${parameters['param_structure']} 
+						else ${parameters['param_land']} 
+					end) as name, 
+					property.state_id as state_id, 
+					property.city_id as city_id, 
+					property.site_id as site_id,
+					(case when property.property_type = 'Land' then 3 else 2 end) as field_type
+			FROM property
+			WHERE ${sql.vpaRestriction} ${parameters['subquery_property_pr']}
+			UNION
+			SELECT bl.bl_id as pr_id, 
+					${parameters['param_building']} as name, 
+					bl.state_id as state_id, 
+					bl.city_id as city_id, 
+					bl.site_id as site_id,
+					1 as field_type
+			FROM bl 		
+			WHERE ${sql.getVpaRestrictionForTable('bl')} AND bl.pr_id IS NULL ${parameters['subquery_property_bl']}	
+		</sql>
+		<table name="property" role="main"/>
+        <table name="bl" role="standard"/>
+		<field table="property" name="pr_id" dataType="text"/>
+		<field table="property" name="name" dataType="text"/>
+		<field table="property" name="field_type" dataType="number" decimals="0"/>
+		<parameter name="param_building" dataType="text" value=""/>
+		<parameter name="param_structure" dataType="text" value=""/>
+		<parameter name="param_land" dataType="text" value=""/>
+		<parameter name="subquery_property_pr" dataType="verbatim" value=""/>
+		<parameter name="subquery_property_bl" dataType="verbatim" value=""/>
+        <sortField table="property" name="pr_id" ascending="true"/>
+	</dataSource>
+	<dataSource id="dsBuilding" applyVpaRestrictions="false">
+		<sql dialect="generic">
+            SELECT 
+                parcel.parcel_id as bl_id, 
+                ${parameters['param_parcel']} as name, 
+                parcel.pr_id as pr_id,
+                6 as field_type
+            FROM parcel         
+            WHERE parcel.pr_id IS NOT NULL ${parameters['subquery_property_parcel']}
+            UNION
+			SELECT 
+				ls.ls_id as bl_id,
+				(case when ls.landlord_tenant = 'LANDLORD' 
+						then ${parameters['param_landlord']}
+					else ${parameters['param_tenant']}
+				end) as name,
+				(CASE WHEN ls.pr_id IS NULL THEN ls.bl_id ELSE ls.pr_id END) as pr_id,
+				4 as field_type
+			FROM ls
+			WHERE ${sql.getVpaRestrictionForTable('ls')} AND (ls.ls_parent_id is null) ${parameters['subquery_bl_ls']}
+			UNION
+			SELECT 
+				bl.bl_id as bl_id, 
+				${parameters['param_building']} as name, 
+				bl.pr_id as pr_id,
+				1 as field_type
+			FROM bl 		
+			WHERE ${sql.vpaRestriction} AND bl.pr_id IS NOT NULL ${parameters['subquery_bl_bl']}
+		</sql>
+		<table name="bl" role="main"/>
+        <table name="ls" role="standard"/>
+		<field table="bl" name="bl_id" dataType="text"/>
+		<field table="bl" name="name" dataType="text"/>
+		<field table="bl" name="field_type" dataType="number" decimals="0"/>
+        <parameter name="param_parcel" dataType="text" value=""/>
+		<parameter name="param_building" dataType="text" value=""/>
+		<parameter name="param_landlord" dataType="text" value=""/>
+		<parameter name="param_tenant" dataType="text" value=""/>
+		<parameter name="subquery_property_parcel" dataType="verbatim" value=""/>
+		<parameter name="subquery_bl_ls" dataType="verbatim" value=""/>
+		<parameter name="subquery_bl_bl" dataType="verbatim" value=""/>
+        <sortField table="bl" name="bl_id" ascending="true"/>
+	</dataSource>
+	<dataSource id="dsLease" applyVpaRestrictions="false">
+		<sql dialect="generic">
+			SELECT 
+				ls.ls_id as ls_id,
+				(case when ls.landlord_tenant = 'LANDLORD' 
+						then ${parameters['param_landlord']}
+					else ${parameters['param_tenant']}
+				end) as description,
+				(CASE WHEN ls.pr_id IS NULL THEN ls.bl_id ELSE ls.pr_id END) as bl_id,
+				'' as pr_id,
+				4 as field_type
+			FROM ls
+			WHERE ${sql.vpaRestriction} AND (ls.ls_parent_id is null and ls.use_as_template = 0) ${parameters['subquery_ls_lease']}
+			UNION
+			SELECT 
+				ls.ls_id as ls_id,
+				(case when ls.landlord_tenant = 'LANDLORD' 
+						then ${parameters['param_landlord']}
+					else ${parameters['param_tenant']}
+				end) as description,
+				ls.ls_parent_id as bl_id,
+				ls.ls_parent_id as pr_id,
+				5 as field_type
+			FROM ls
+			WHERE ${sql.vpaRestriction} AND ls.ls_parent_id is not null and ls.use_as_template = 0 ${parameters['subquery_ls_sublease']}
+		</sql>
+		<table name="ls" role="main"/>
+		<field table="ls" name="ls_id" dataType="text"/>
+		<field table="ls" name="pr_id" dataType="text"/>
+		<field table="ls" name="description" dataType="text"/>
+		<field table="ls" name="field_type" dataType="number" decimals="0"/>
+		<parameter name="param_landlord" dataType="text" value=""/>
+		<parameter name="param_tenant" dataType="text" value=""/>
+		<parameter name="subquery_ls_lease" dataType="verbatim" value=""/>
+		<parameter name="subquery_ls_sublease" dataType="verbatim" value=""/>
+        <sortField table="ls" name="ls_id" ascending="true"/>
+	</dataSource>
+	<dataSource id="dsSubLease" applyVpaRestrictions="false">
+		<sql dialect="generic">
+			SELECT 
+				ls.ls_id as su_id,
+				(case when ls.landlord_tenant = 'LANDLORD' 
+						then ${parameters['param_landlord']}
+					else ${parameters['param_tenant']}
+				end) as description,
+				ls.ls_parent_id as ls_id,
+				(CASE WHEN ls.pr_id IS NULL THEN ls.bl_id ELSE ls.pr_id END) as bl_id,
+				5 as field_type
+			FROM ls
+			WHERE ${sql.getVpaRestrictionForTable('ls')} AND ls.ls_parent_id is not null and ls.use_as_template = 0
+			${parameters['subquery_sublease_ls']}
+		</sql>
+		<table name="su" role="main"/>
+        <table name="ls" role="standard"/>
+		<field table="su" name="su_id" dataType="text"/>
+		<field table="su" name="ls_id" dataType="text"/>
+		<field table="su" name="description" dataType="text"/>
+		<field table="su" name="field_type" dataType="number" decimals="0"/>
+		<parameter name="param_landlord" dataType="text" value=""/>
+		<parameter name="param_tenant" dataType="text" value=""/>
+		<parameter name="subquery_sublease_ls" dataType="verbatim" value=""/>
+        <sortField table="su" name="su_id" ascending="true"/>
+	</dataSource>
+	<panel type="tree" id="treeCtry" layoutRegion="centerWest" dataSource="dsCountry">
+		<action id="search">
+			<title translatable="true">Search</title>
+			<command type="openDialog" panelId="consoleSearch" width="350" height="200"/>
+		</action>
+		<action id="showAll" enabled="false">
+			<title translatable="true">Show All</title>
+		</action>
+		<panel type="tree" id="treeCity" dataSource="dsCity"/>
+		<panel type="tree" id="treeProperty" dataSource="dsProperty">
+			<event type="onClickNode">
+				<command type="callFunction" functionName="showDetails"/>
+			</event>
+		</panel>
+		<panel type="tree" id="treeBuilding" dataSource="dsBuilding">
+			<event type="onClickNode">
+				<command type="callFunction" functionName="showDetails"/>
+			</event>
+		</panel>
+		<panel type="tree" id="treeLease" dataSource="dsLease">
+			<event type="onClickNode">
+				<command type="callFunction" functionName="showDetails"/>
+			</event>
+		</panel>
+		<panel type="tree" id="treeSubLease" dataSource="dsSubLease">
+			<event type="onClickNode">
+				<command type="callFunction" functionName="showDetails"/>
+			</event>
+		</panel>
+	</panel>
+	
+	<dataSource id="dsSearch">
+		<table name="ls" role="main"/>
+		<table name="bl" role="standard"/>
+		<table name="property" role="standard"/>
+		<field table="ls" name="ls_id"/>
+		<field table="bl" name="bl_id"/>
+		<field table="property" name="pr_id"/>
+	</dataSource>
+	
+	<panel type="console" id="consoleSearch" dataSource="dsSearch" hidden="true" showOnLoad="false" layoutRegion="west">
+		<action id="search">
+			<title translatable="true">Search</title>
+			<command type="closeDialog"/>
+		</action>
+		<action id="cancel">
+			<title translatable="true">Cancel</title>
+			<command type="closeDialog"/>
+		</action>
+		<field table="ls" name="ls_id" onchange="focusLease();"/>
+		<field table="bl" name="bl_id" onchange="focusBuilding();"/>
+		<field table="property" name="pr_id" onchange="focusProperty();"/>
+	</panel>
+	
+	<panel type="view" id="viewWizardDetails" file="ab-rplm-cost-mgmt-costs-wiz-details.axvw"  useFrame="true" layoutRegion="center"/>
+</view>

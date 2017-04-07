@@ -1,0 +1,535 @@
+<!-- Change Log -->
+<!-- 2010/03/31 - JJYCHAN - ISSUE 30: Made account code description visible -->
+<!-- 2010/03/31 - JJYCHAN - ISSUE 34: Hid paginated report action button -->
+<!-- 2010/04/06 - JJYCHAN - ISSUE 35: changed the Enabled for Create-Subrequest to a binding expr -->
+<!-- 2010/04/07 - EWONG - Added page security javascript. -->
+<!-- 2010/04/07 - EWONG - ISSUE 29: Added onchange event for tr_id and required messages. -->
+<!-- 2010/04/08 - JJYCHAN - ISSUE 67: Added Requestor Info button and dataSources -->
+<!-- 2010/04/13 - JJYCHAN - ISSUE 84: Priority label changed from "Work Request Priority" to "Priority" -->
+<!-- 2010/04/13 - JJYCHAN - ISSUE 85: "Work Request Code" label changed to "Work Request #" -->
+<!-- 2010/04/13 - JJYCHAN - ISSUE 95: Changed "Equipment Code" to "Equipment Barcode" -->
+<!-- 2010/04/15 - EWONG - ISSUE 29: Added a listener for the Select Value to call the onchange event. -->
+<!-- 2010/04/15 - JJYCHAN - ISSUE 59: Added fields for the capture of error reports -->
+<!-- 2010/04/19 - EWONG - ISSUE 83: Added id to the "Auto Select Account" button to allow for enable/disable. -->
+<!-- 2010/05/10 - EWONG - ISSUE:153: Calls the updateAcctDesc function on change of any of the account code fields. -->
+<!-- 2010/05/20 - JJYCHAN - Changed Affiliate to Activity -->
+<!-- 2010/06/01 - JJYCHAN - Added error Account 99 -->
+<!-- 2010/06/18 - JJYCHAN - Date requested made Read Only -->
+<!-- 2010/07/07 - EWONG - ISSUE 231: Added Equipment Information Popup. -->
+<!-- 2010/07/13 - EWONG - ISSUE 240: Fixed a formatting issue when ac description is overly long. -->
+<!-- 2010/08/12 - EWONG - Added 'Create New Request' button (enabled for UC-CSC). -->
+<!-- 2010/08/17 - EWONG - ISSUE 258: Fixed a formatting issue when ac description is overly long. Used a different method -->
+<!--                       the previous method causes unintention formatting side-effects. -->
+<!-- 2010/11/24 - EWONG - 18.2 Upgrade: Removed spaces from the visibleFieldNames in the custom selectValue (causing only first field displayed). -->
+<!-- 2011/01/06 - JJYCHAN - Added Action "Create Records Request" -->
+<!-- 2014/06/02 - EWONG - Status change and prompt on change of work team instead of primary trade. -->
+<!-- 2016/01/14 - MSHUSSAI - WR358933 - Changed the name of the javascript file in order to enable emails on FWC. -->
+<!-- 2016/01/28 - MSHUSSAI - WR358933 - Updated the Datasource to select using a select statement to add FWC Count and Total WR Count. -->
+<!-- 2016/06/27 - MSHUSSAI - Added new function called sendEmailOnHP() in the javascript in order to handle emailing On Hold for Parts -->
+
+<view version="2.0">
+
+	<js file="uc-common-functions-ui.js" />
+	<js file="uc-common-functions-data.js" />
+	<js file="uc-page-security.js"/>
+	<js file="uc-wr-manager-details-1-info_7.js" />
+	<js file="brg-common.js"/>
+    <js file="brg-common-ui.js"/>
+	<script type="text/javascript" src="/resource/uc-psAccountCode.js"></script>
+	<script type="text/javascript" src="/resource/uc-email.js"></script>
+
+	<message name="wrArchivedMessage">The Work Requested has been Archived.</message>
+	<message name="error_invalidAccount">The Account Code entered is invalid. </message>
+	<message name="error_Account1">The Account Business Unit code entered is invalid.</message>
+	<message name="error_Account2">The Account Fund code entered is invalid.</message>
+	<message name="error_Account3">The Account Department Code entered is invalid.</message>
+	<message name="error_Account4">The Account Code Acct entered is invalid.</message>
+	<message name="error_Account5">The Account Program Code entered is invalid.</message>
+	<message name="error_Account6">The Account Internal Code entered is invalid.</message>
+	<message name="error_Account7">The Account Project Code entered is invalid.</message>
+	<message name="error_Account8">The Account Activity Code entered is invalid.</message>
+	<message name="subReqCreated">A sub-request has been successfully created.</message>
+	<message name="error_Account99">There was a problem validating the account code. Please try saving again.</message>
+
+
+	<message name="error_zeroCosts">This Work Request cannot be Completed until all Labor/Material costs are entered or fulfilled.</message>
+	<message name="error_noParts">This Request can not be put on hold for parts if there are no parts requested.</message>
+	<message name="workTeamId_changed">Work Request Status will be reset to Requested due to Work Team change.</message>
+	<message name="workTeamId_status_invalid">The Work Team cannot be changed at this Work Request status (%1).</message>
+	<message name="noDateToPerformForPriority">Date to Perform must be specified when setting Priority to Date Specific.</message>
+
+	<dataSource id="ds_ac_check">
+		<table name="ac" role="main" />
+		<field table="ac" name="ac_id" />
+	</dataSource>
+
+	<!-- DataSource for Auditing any WR changes -->
+	<dataSource id="ds_audit_log">
+		<table name="audit_log" role="main"/>
+		<field table="audit_log" name="table_name"/>
+		<field table="audit_log" name="modified_by_username"/>
+		<field table="audit_log" name="modified_on_date"/>
+		<field table="audit_log" name="modified_at_time"/>
+		<field table="audit_log" name="modification_type"/>
+		<field table="audit_log" name="description"/>
+	</dataSource>
+
+	<!-- NOTE!!!!! DO NOT CHANGE THE NAME OF THIS DS WITHOUT CHANGING THE REF IN THE JS FILE -->
+	<dataSource id="ds_wr_details19">
+	
+		<!-- FWC, Com, Rej, Exp, Can, Clo, IN, IR -->
+		<query>
+			<sql dialect="generic">	
+				select wr.wr_id, wr.wo_id, wr.activity_log_id, wr.status, wr.requestor, wr.prob_type, wr.location, wr.description, wr.date_requested, wr.date_assigned, wr.bl_id, wr.fl_id, wr.rm_id, wr.eq_id, wr.ac_id, wr.priority, wr.cf_notes,
+				wr.tr_id, wr.charge_type, wr.block_id, wr.unit_id, wr.cf_id, bl.zone_id, ac.description as acdesc, wo.qty_open_wr, eq.eq_std, wr.dispatcher, wr.cause_type, wr.repair_type, wr.towing, wr.date_est_completion,
+				wr.date_dropoff, wr.time_dropoff, wr.date_pickup, wr.time_pickup, wr.shop_id, wr.budget_owner, wr.po, wr.po_doc, wr.cost_est_total, wr.cost_total, wr.incident_doc, wr.incident_no, wr.ins_no, wr.ins_doc, wr.driver, wr.work_team_id, wr.time_requested, wr.confined_space,
+				(select count(wr_id) from wr wr1 where wr1.wo_id=wr.wo_id and status IN ('FWC', 'Com', 'Rej', 'Exp', 'Can', 'Clo', 'IR', 'IN')) as fwc_count, (select count(wr_id) from wr wr3 where wr3.wo_id=wr.wo_id) as total_count,
+                (SELECT COUNT(*) FROM uc_env_hazard_by_room haz WHERE wr.bl_id = haz.bl_id AND wr.fl_id = haz.fl_id AND wr.rm_id = haz.rm_id) AS hazard_count
+				from wr
+					left join bl on wr.bl_id=bl.bl_id
+					left join ac on wr.ac_id=ac.ac_id
+					left join wo on wr.wo_id=wo.wo_id
+					left join eq on wr.eq_id=eq.eq_id
+					
+			</sql>
+		</query>
+		
+		<table name="wr" role="main" />
+		<table name="bl" role="standard"/>
+		<table name="ac" role="standard"/>
+		<table name="wo" role="standard"/>
+		<table name="eq" role="standard"/>
+		<field table="wr" name="wr_id" />
+		<field table="wr" name="wo_id" />
+
+		<field table="wr" name="activity_log_id" />
+		<field table="wr" name="status" />
+		<field table="wr" name="requestor" />
+		<field table="wr" name="prob_type" />
+		<field table="wr" name="location"/>
+		<field table="wr" name="description" />
+		<field table="wr" name="date_requested" />
+		<field table="wr" name="date_assigned"/>
+		<field table="wr" name="bl_id" />
+		<field table="wr" name="fl_id" />
+		<field table="wr" name="rm_id" />
+		<field table="wr" name="eq_id" />
+		<field table="wr" name="ac_id" />
+		<field table="wr" name="priority" />
+		<field table="wr" name="cf_notes" />
+		<field table="wr" name="tr_id"/>
+		<field table="wr" name="charge_type"/>
+		<field table="wr" name="block_id"/>
+		<field table="wr" name="unit_id"/>
+		<field table="wr" name="cf_id"/>
+		<field table="bl" name="zone_id"/>
+		<field table="ac" name="acdesc" dataType="text"/>
+		<field table="wo" name="qty_open_wr"/>
+		<field table="eq" name="eq_std"/>
+		<field table="wr" name="dispatcher" />
+		<field table="wr" name="cause_type"/>
+		<field table="wr" name="repair_type"/>
+		<field table="wr" name="towing"/>
+		<field table="wr" name="date_est_completion"/>
+		<field table="wr" name="date_dropoff"/>
+		<field table="wr" name="time_dropoff"/>
+		<field table="wr" name="date_pickup"/>
+		<field table="wr" name="time_pickup"/>
+		<field table="wr" name="shop_id"/>
+		<field table="wr" name="budget_owner"/>
+		<field table="wr" name="po"/>
+		<field table="wr" name="po_doc"/>
+		<field table="wr" name="cost_est_total"/>
+		<field table="wr" name="cost_total"/>
+		<field table="wr" name="incident_no"/>
+		<field table="wr" name="incident_doc"/>
+		<field table="wr" name="ins_no"/>
+		<field table="wr" name="ins_doc"/>
+		<field table="wr" name="driver"/>
+		<field table="wr" name="work_team_id" />
+		<field table="wr" name="time_requested"/>
+		<field table="wr" name="fwc_count" dataType="number" decimals="0" size="10"/>
+		<field table="wr" name="total_count" dataType="number" decimals="0" size="10"/>
+        <field table="wr" name="hazard_count" dataType="number" decimals="0" size="10"/>
+        <field table="wr" name="confined_space"/>
+	</dataSource>
+
+	<panel type="form" id="nav_details_info" dataSource="ds_wr_details19" columns="3" showOnLoad="false" labelsPosition="top">
+		<title translatable="true">Work Request</title>
+
+		<action id="createRecordsReq" hidden="${infoTabController.enableCreateRecordsReqBtn()}">
+			<title>Create Records WR</title>
+			<command type="openDialog" viewName="uc-wr-create-records-req.axvw" applyParentRestriction="false" newRecord="true" closeButton="false"/>
+		</action>
+
+		<action id="createNewReq" hidden="${infoTabController.enableCreateNewReqBtn()}">
+			<title>Create New WR</title>
+			<command type="openDialog" viewName="uc-request-dash.axvw" applyParentRestriction="false"/>
+		</action>
+
+		<action id="pageReport" hidden="true">
+			<title>Paginated Report</title>
+			<command type="callFunction" functionName="infoTabController.openPaginatedReport()" />
+		</action>
+
+		<!--action id="emailWr" >
+			<title>Email WR</title>
+			<command type="callFunction" functionName="emailRequest"/>
+		</action-->
+
+		<!-- Print the Request for Craftspeople -->
+		<action id="printCF">
+			<title>Print WR</title>
+			<command type="callFunction" functionName="openPrintWindow"/>
+		</action>
+
+		<action id="createSubReq" enabled="${infoTabController.refreshCreateSubReqBtn()}">
+			<title>Create Sub WR</title>
+			<command type="callFunction" functionName="infoTabController.createSubReq()" />
+		</action>
+
+		<action id="reportError">
+			<title>Report Error</title>
+			<!--command type="openDialog" panelId="errorReportPanel" applyParentRestriction="true" newRecord="true" closeButton="false"/-->
+			<!--command type="callFunction" functionName="fillErrorInfo" /-->
+			<command type="openDialog" viewName="uc-wr-error-report.axvw" applyParentRestriction="false" newRecord="true" closeButton="false"/>
+		</action>
+
+		<action id="save" imageName="/schema/ab-core/graphics/save.gif">
+			<title>Save</title>
+			<tooltip>Save Changes</tooltip>
+			<command type="callFunction" functionName="infoTabController.checkAcctAndSave()" />
+			<!--command type="saveForm"/-->
+			<!--command type="callFunction" functionName="afterSaveWorkflow" /-->
+		</action>
+
+		<!--Row1-->
+		<field table="wr" name="wr_id" ><title>Work Request #</title></field>
+		<field table="bl" name="zone_id" alias="bl.zone_id.display" required="false" readOnly="true" />
+		<field table="wr" name="work_team_id" onchange="infoTabController.onWorkTeamChanged()" >
+			<action id="wrkTeamSelVal">
+				<title>...</title>
+				<tooltip>Select Value</tooltip>
+				<command type="selectValue"
+					fieldNames="wr.work_team_id"
+					selectFieldNames="work_team.work_team_id"
+					visibleFieldNames="work_team.work_team_id,work_team.description"
+					actionListener="onWorkTeamSelect"/>
+			</action>
+        </field>
+
+		<!--Row2-->
+		<field table="wr" name="status" hidden="true" ><title>STATUS</title></field>
+		<field table="wr" name="status" alias="wr.status.display" />
+		<field table="wr" name="bl_id" required="true" />
+		<field table="wr" name="tr_id" >
+			<action id="wrkUnitSelVal">
+				<title>...</title>
+				<tooltip>Select Value</tooltip>
+				<command type="selectValue"
+					fieldNames="wr.tr_id"
+					selectFieldNames="tr.tr_id"
+					visibleFieldNames="tr.tr_id,tr.description"
+                />
+			</action>
+		</field>
+
+		<!--Row3-->
+		<!--field table="wr" name="fwc_count" ><title>FWC COUNT</title></field>
+		<field table="wr" name="total_count" ><title>TOTAL COUNT</title></field-->
+		
+		<field table="wr" name="requestor">
+			<action id="selectReq">
+				<title>...</title>
+				<tooltip>Select Requestor</tooltip>
+				<command type="selectValue"
+					fieldNames="wr.requestor"
+					selectFieldNames="em.em_id"
+					visibleFieldNames="em.em_id,em.name_last,em.name_first,em.phone,em.email" />
+			</action>
+			<action>
+				<title>Info</title>
+				<command type="openDialog" panelId="requestorInfo" closeButton="true" height="400"/>
+			</action>
+		</field>
+		<field table="wr" name="fl_id" />
+		<field table="wr" name="prob_type" required="true">
+            <action id="selectProbType">
+                <title>...</title>
+                <tooltip>Select Problem Type</tooltip>
+                <command type="selectValue"
+                    fieldNames="wr.prob_type"
+                    selectFieldNames="probtype.prob_type"
+                    visibleFieldNames="probtype.prob_type, probtype.description"
+                    selectValueType="grid" />
+            </action>
+        </field>
+
+		<!--Row4-->
+		<field table="wr" name="date_requested" readOnly="true" hidden="true"><title>Date Requested</title></field>
+		<field table="wr" name="time_requested" readOnly="true" hidden="true"><title>Time Requested</title></field>
+		<field table="wr" name="location" alias="wr.date_requested.display" readOnly="true"><title>Date Requested</title></field>
+		<field table="wr" name="rm_id"  >
+			<action onclick="selectRooms">
+				<title>...</title>
+				<tooltip>Select Room1</tooltip>
+			</action>
+			<action>
+				<title>Info</title>
+				<command type="callFunction" functionName="infoTabController.openRmInfo();"/>
+			</action>
+		</field>
+		<field table="wr" name="priority"><title>Priority</title>
+			<action>
+				<title>Info</title>
+				<command type="openDialog" panelId="priorityInfo" closeButton="true" width="390" height="255"/>
+			</action>
+		</field>
+
+		<!--Row5-->
+		<field table="wr" name="date_assigned"/>
+		<field table="wr" name="block_id" />
+		<field table="wr" name="eq_id" >
+			<title>Equipment Barcode</title>
+			<action>
+				<title>...</title>
+				<tooltip>Select Equipment</tooltip>
+				<command type="selectValue"
+					fieldNames="wr.eq_id, eq.eq_std.display"
+					selectFieldNames="eq.eq_id, eq.eq_std"
+					visibleFieldNames="eq.eq_id,eq.eq_std" />
+			</action>
+			<action>
+				<title>Info</title>
+				<command type="callFunction" functionName="infoTabController.openEqInfo();"/>
+			</action>
+		</field>
+
+
+		<!--Row6-->
+		<field table="wr" name="charge_type" onchange="charge_type_change()"/>
+		<field table="wr" name="unit_id" />
+		<field table="wr" name="dispatcher" />
+        <field table="wr" name="confined_space"/>
+		
+		<!-- Row6.5 -->
+		<field />
+		<field id="hazard_icon">
+			<title>Room Hazards</title>
+			<html>
+				<input id="hazard_icon" type="image" alt="" title="" hspace="1" border="0"
+					   src="/archibus/schema/ab-system/graphics/warning.png" onclick="showHazardsByRoom(); return false;" />
+			</html>
+		</field>
+		<field />
+
+		<!--Row7-->
+		<field colspan="3" hidden="false">
+			<html>
+				<body>
+					<input type="button" id="autoSelAcctBtn" value="Auto-select Account" onclick="infoTabController.openAccountSelect()"/>
+				</body>
+			</html>
+		</field>
+
+		<field alias="account_code_fld" colspan="3">
+			<title>Account Code</title>
+			<html>
+				<table border="0" style="margin-left:-4" cellpadding="0" cellspacing="0">
+					<tr>
+						<td>Bus. Unit<br/><input type="text" name="ac_id_part1" id="ac_id_part1" maxlength="5" size="4" onChange="afm_form_values_changed=true;infoTabController.updateAcctDesc();"/></td>
+						<td>Fund<br/><input type="text" id="ac_id_part2" maxlength="2" size="2" onChange="afm_form_values_changed=true;infoTabController.updateAcctDesc();"/></td>
+						<td>Dept<br/><input type="text" id="ac_id_part3" maxlength="5" size="4" onChange="afm_form_values_changed=true;infoTabController.updateAcctDesc();"/></td>
+						<td>Acct<br/><input type="text" id="ac_id_part4" maxlength="8" size="8" onChange="afm_form_values_changed=true;infoTabController.updateAcctDesc();"/></td>
+						<td>Program<br/><input type="text" id="ac_id_part5" maxlength="8" size="8" onChange="afm_form_values_changed=true;infoTabController.updateAcctDesc();"/></td>
+						<td>Internal<br/><input type="text" id="ac_id_part6" maxlength="10" size="10" onChange="afm_form_values_changed=true;infoTabController.updateAcctDesc();"/></td>
+						<td>Proj<br/><input type="text" id="ac_id_part7" maxlength="10" size="10" onChange="afm_form_values_changed=true;infoTabController.updateAcctDesc();"/></td>
+						<td>Activity<br/><input type="text" id="ac_id_part8" maxlength="8" size="8" onChange="afm_form_values_changed=true;infoTabController.updateAcctDesc();"/></td>
+					</tr>
+				</table>
+			</html>
+		</field>
+
+		<field table="wr" name="ac_id" hidden="true" readOnly="false" showLabel="false" colspan="3" style="border: 0"><title>Account Code (to be hidden):</title></field>
+		<field table="ac" name="acdesc" required="false" colspan="3" rowspan="1" showSelectValueAction="false" readOnly="true" hidden="false" style="border: 0;"/>
+		<!--field alias="account_code_fld" colspan="3">
+			<title>Account Description</title>
+			<html>
+				<table border="0" style="margin-left:-4;width:98%;" cellpadding="0" cellspacing="0">
+					<tr>
+					<input id= "ac_desc_value" name="ac_desc_value" readOnly="true" value="" class="defaulteditform_textareaabdata_readonly" style="width:98%;height:auto;border: 0;background-color:transparent;overflow:scroll;" />
+					</tr>
+				</table>
+			</html>
+		</field-->
+
+		<!--field table="ac" name="description" required="false" colspan="5" showSelectValueAction="false" readOnly="true" style="border: 0;background-color:transparent;"/-->
+		<!--field table="ac" name="description" required="false" colspan="3" showSelectValueAction="false" readOnly="false" style="border: 0;background-color:transparent;"/-->
+
+
+		<!--field table="wr" name="description" colspan="3"  rowspan="3" readOnly="${1==1}"/-->
+		<field table="wr" name="description" colspan="3" rowspan="3" style="width:98%;height:200" readOnly="true" />
+
+		<field colspan="3" />
+        
+		<field colspan="3" />
+		<field table="wr" name="cf_notes" alias="wr.cf_notes.new" colspan="1" rowspan="3" >
+			<title>Add additional Craftsperson Notes</title>
+		</field>
+		<field table="wr" name="cf_notes" colspan="2" rowspan="3" style="display:block;width:100.1%;" readOnly="true" />
+
+		<field table="wr" name="wo_id" hidden="true"/>
+		<field colspan="3"/>
+
+	</panel>
+
+
+	<!-- ******************************************************** -->
+	<!-- Report Equipment Error                                   -->
+	<!-- ******************************************************** -->
+
+	<dataSource id="errorDs1">
+		<table name="uc_eq_error_report" role="main"/>
+		<field table="uc_eq_error_report" name="wr_id"/>
+		<!--field table="uc_eq_error_report" name="eq_id"/-->
+		<field table="uc_eq_error_report" name="error_type"/>
+		<field table="uc_eq_error_report" name="description"/>
+		<field table="uc_eq_error_report" name="user_name"/>
+		<field table="uc_eq_error_report" name="date_reported"/>
+
+	</dataSource>
+
+	<panel type="form" id="errorReportPanel" dataSource="errorDs1" labelsPosition="top" showOnLoad="false">
+		<title>Report Data Error</title>
+		<action id="save" imageName="/schema/ab-core/graphics/save.gif">
+			<title>Send</title>
+			<tooltip>Send Error</tooltip>
+			<command type="saveForm"/>
+
+			<command type="closeDialog"/>
+		</action>
+		<action id="errorCancel">
+			<title>Cancel</title>
+			<tooltip>Cancel Changes</tooltip>
+			<command type="closeDialog" />
+		</action>
+
+		<field table="uc_eq_error_report" name="wr_id"/>
+		<!--field table="uc_eq_error_report" name="eq_id" readOnly="true"/-->
+		<field table="uc_eq_error_report" name="error_type"/>
+		<field table="uc_eq_error_report" name="description" rowspan="3"/>
+		<field table="uc_eq_error_report" name="user_name" hidden="true"/>
+		<field table="uc_eq_error_report" name="date_reported" hidden="true"/>
+	</panel>
+
+	<!-- ****************************************************** -->
+	<!-- Show Requestor Information								-->
+	<!-- ****************************************************** -->
+
+	<dataSource id="reqInfo_ds">
+		<table name="wr" role="main"/>
+
+		<field table="wr" name="requestor"/>
+		<field table="wr" name="phone"/>
+	</dataSource>
+	<dataSource id="em_ds">
+		<table name="em" role="main"/>
+		<table name="dv" role="standard"/>
+		<table name="dp" role="standard"/>
+		<field table="em" name="em_id"/>
+		<field table="em" name="name_first"/>
+		<field table="em" name="name_last"/>
+		<field table="em" name="email"/>
+		<field table="em" name="phone"/>
+		<field table="em" name="dp_id"/>
+		<field table="em" name="dv_id"/>
+		<field table="dp" name="name"/>
+		<field table="dv" name="name"/>
+	</dataSource>
+
+	<panel type="form" id="requestorInfo" dataSource="reqInfo_ds" showOnLoad="false">
+		<title>Requestor Info</title>
+
+		<field table="wr" name="requestor" readOnly="true"/>
+
+
+		<field alias="name_first" ><title>First Name:</title></field>
+		<field alias="name_last" ><title>Last Name:</title></field>
+		<field alias="email" ><title>Email:</title></field>
+		<field table="wr" name="phone" readOnly="true"><title>Phone:</title></field>
+		<field alias="dv_id" ><title>Division:</title></field>
+		<field alias="dp_id" ><title>Department:</title></field>
+
+
+
+	</panel>
+
+	<!-- ****************************************************** -->
+	<!-- Show Equipment Information		              						-->
+	<!-- ****************************************************** -->
+
+	<dataSource id="equipInfo_ds1">
+		<table name="eq" role="main"/>
+		<field table="eq" name="eq_id"/>
+		<field table="eq" name="eq_std"/>
+		<field table="eq" name="use1"/>
+		<field table="eq" name="condition"/>
+		<field table="eq" name="bl_id"/>
+		<field table="eq" name="fl_id"/>
+		<field table="eq" name="rm_id"/>
+		<field table="eq" name="doc1"/>
+		<field table="eq" name="comments"/>
+	</dataSource>
+
+	<panel type="form" id="eqInfo" dataSource="equipInfo_ds1" showOnLoad="false">
+		<title>Equipment Info</title>
+
+		<field table="eq" name="eq_id" readOnly="true" required="false"/>
+		<field table="eq" name="eq_std" readOnly="true" required="false"/>
+		<field table="eq" name="use1" readOnly="true" required="false"/>
+		<field table="eq" name="condition" readOnly="true" required="false"/>
+		<field table="eq" name="bl_id" readOnly="true" required="false"/>
+		<field table="eq" name="fl_id" readOnly="true" required="false"/>
+		<field table="eq" name="rm_id" readOnly="true" required="false"/>
+		<field table="eq" name="doc1" readOnly="true"/>
+		<field table="eq" name="comments" readOnly="true" required="false"/>
+	</panel>
+	
+	<!-- ****************************************************** -->
+	<!-- Show Priority Information								-->
+	<!-- ****************************************************** -->
+
+	<panel type="html" id="priorityInfo" showOnLoad="false">
+		<title>Priority SLA Details</title>
+		<html>
+		<h6 align="left"><span style="font-weight:normal">1-Emergency/Safety - Immediate / Same day Response</span></h6>
+		<h6 align="left"><span style="font-weight:normal">2-High - Up to 48 Hours Response</span></h6>
+		<h6 align="left"><span style="font-weight:normal">3-Medium - Up to 10 Days Response</span></h6>
+		<h6 align="left"><span style="font-weight:normal">4-Low - Up to 30 Days Response</span></h6>
+		<h6 align="left"><span style="font-weight:normal">5-Scheduled - Date Sensitive</span></h6>
+		</html>
+	</panel>
+	
+	<!--<dataSource id="ds_wr_openreqFWC">
+		<query>
+			<sql dialect="generic">
+				select
+					wr.wr_id, wr.wo_id, wr.activity_log_id, wr.status, wr.requestor, wr.prob_type, wr.location,
+					wr.description,wr.comments_mgr, wr.date_requested, wr.date_assigned, wr.bl_id, wr.fl_id,
+					wr.rm_id, wr.eq_id, wr.ac_id, wr.priority, wr.cf_notes, wr.tr_id, wr.charge_type, wr.block_id,
+					wr.unit_id, wr.cf_id, bl.zone_id, ac.description, vehicle.vehicle_id eq_std, wr.cause_type, wr.repair_type,
+					wr.towing, wr.date_est_completion, wr.date_dropoff, wr.time_dropoff, wr.date_pickup,
+					wr.time_pickup, wr.shop_id, wr.budget_owner, wr.po, wr.po_doc, wr.cost_est_total, wr.cost_total,
+					wr.incident_no, wr.incident_doc, wr.ins_no, wr.ins_doc, wr.driver, wr.comments_risk, wr.work_team_id
+				from wr left join bl on wr.bl_id=bl.bl_id
+					left join ac on wr.ac_id=ac.ac_id
+					inner join vehicle on wr.eq_id=vehicle.eq_id
+			</sql>
+		</query>
+				
+	</dataSource>
+
+	<panel type="form" id="nav_details_info" dataSource="ds_wr_openreqFWC" showOnLoad="false">
+	</panel>
+-->	
+</view>

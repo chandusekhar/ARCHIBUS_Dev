@@ -1,0 +1,109 @@
+<view version="2.0">
+    <message name="occupForAreatype" translatable="true">Employee Occupancy</message>
+    <message name="maxOccupForAreatype" translatable="true">Vacancy</message>
+    <dataSource id="grouprmbyDS" type="grouping"  applyVpaRestrictions="false">
+        <sql dialect="generic">
+            SELECT distinct
+                 ${parameters['groupby']} ${sql.as} groupby
+            FROM fl left join bl on bl.bl_id=fl.bl_id WHERE ${sql.vpaRestriction} and  fl.${parameters['blId']} 
+        </sql>
+        <table name="fl" role="main"/>
+        <field table="fl" name="groupby" dataType="text" groupBy="true">
+        </field>
+        <parameter name="groupby" dataType="verbatim" value="fl.bl_id"/>
+        <parameter name="blId" dataType="verbatim" value="bl_id is not null"/>
+    </dataSource>
+    
+    <dataSource id="occupancyAndCapicityStackedBarDS" type="grouping" applyVpaRestrictions="false">
+        <sql dialect="generic">
+            SELECT 
+                 ${parameters['occupForAreatype']} ${sql.as} areatype,
+                (
+                    ( SELECT COUNT(em_id) FROM rmpct 
+                            WHERE rmpct.bl_id = fl.bl_id AND rmpct.fl_id = fl.fl_id  
+                              AND rmpct.em_id IS NOT NULL AND 
+                                (rmpct.date_start is NULL or rmpct.date_start &lt;= ${sql.currentDate} )  AND 
+                                (rmpct.date_end is null or rmpct.date_end &gt;= ${sql.currentDate} )   
+                                  AND rmpct.status = 1 AND rmpct.day_part = 0 AND ${parameters['dvdpParam']} 
+                    ) 
+                    + 
+                     ( 0.5* ( 
+                     SELECT COUNT(em_id) FROM rmpct 
+                                      WHERE rmpct.bl_id = fl.bl_id AND rmpct.fl_id = fl.fl_id 
+                                            AND rmpct.em_id IS NOT NULL 
+                                            AND (rmpct.date_start is null or rmpct.date_start &lt;= ${sql.currentDate} ) 
+                                            AND (rmpct.date_end is null or rmpct.date_end &gt;= ${sql.currentDate} )  
+                                            AND rmpct.status = 1 AND rmpct.day_part != 0 AND ${parameters['dvdpParam']} 
+                            ) 
+                    ) 
+                )  
+                ${sql.as} count
+            FROM fl left join bl on fl.bl_id=bl.bl_id WHERE ${sql.vpaRestriction} and  fl.${parameters['blId']} and ${parameters['groupby']}= ${parameters['summaryValueForThisGroup']} 
+            union all
+            SELECT 
+                  ${parameters['maxOccupForAreatype']} ${sql.as} areatype,
+                  ((select sum(rm.cap_em) from rm where rm.bl_id=fl.bl_id and rm.fl_id=fl.fl_id AND ${parameters['dvdpForRmParam']} )
+                  -
+                          (
+                            ( SELECT COUNT(em_id) FROM rmpct 
+                                    WHERE rmpct.bl_id = fl.bl_id AND rmpct.fl_id = fl.fl_id  
+                                      AND rmpct.em_id IS NOT NULL AND 
+                                        (rmpct.date_start is NULL or rmpct.date_start &lt;= ${sql.currentDate} )  AND 
+                                        (rmpct.date_end is null or rmpct.date_end &gt;= ${sql.currentDate} )   
+                                          AND rmpct.status = 1 AND rmpct.day_part = 0 AND ${parameters['dvdpParam']} 
+                            ) 
+                            + 
+                             ( 0.5* ( 
+                             SELECT COUNT(em_id) FROM rmpct 
+                                              WHERE rmpct.bl_id = fl.bl_id AND rmpct.fl_id = fl.fl_id 
+                                                    AND rmpct.em_id IS NOT NULL 
+                                                    AND (rmpct.date_start is null or rmpct.date_start &lt;= ${sql.currentDate} ) 
+                                                    AND (rmpct.date_end is null or rmpct.date_end &gt;= ${sql.currentDate} )  
+                                                    AND rmpct.status = 1 AND rmpct.day_part != 0 AND ${parameters['dvdpParam']} 
+                                    ) 
+                            ) 
+                        )  
+                   )${sql.as} count
+            FROM  fl left join bl on fl.bl_id=bl.bl_id WHERE ${sql.vpaRestriction} and  fl.${parameters['blId']} and ${parameters['groupby']}= ${parameters['summaryValueForThisGroup']} 
+        </sql>
+        <table name="fl" role="main"/>
+        <field table="fl" name="areatype" dataType="text" groupBy="true">
+        </field>
+        <field table="fl" name="sum_count" formula="sum" baseField="fl.count"  dataType="number" decimals="0" >
+        </field>
+        <parameter name="summaryValueForThisGroup" dataType="text" value=""/>
+        <parameter name="blId" dataType="verbatim" value="bl_id is not null"/>
+        <parameter name="occupForAreatype" dataType="text" value="countOccup"/>
+        <parameter name="maxOccupForAreatype" dataType="text" value="countmaxoccup"/>
+        <parameter name="groupby" dataType="verbatim" value="fl.bl_id"/>
+        <parameter name="dvdpParam" dataType="verbatim" value="1=1"/>
+        <parameter name="dvdpForRmParam" dataType="verbatim" value="1=1"/>
+    </dataSource>
+    
+    <panel id="occupancyAndCapicityStackedBar"
+        type="chart"
+        controlType="stackedBarChart"
+        dataSource="occupancyAndCapicityStackedBarDS"
+        showLegendOnLoad="true"
+        showLegendAsPopUp="false"
+        legendLocation="right"
+        showDataTips="true"
+        fillColor="0x4BACC6,0xF79646,0x8064A2,0x9BBB59,0xC0504D,0x4F81BD,0x1F497D,0x938953,0x000000,0x7F7F7F,0x974806,0x205867,0x3F3151,0x4F6128,0x5E1C1B,0x244061,0x0F243E,0x1D1B10,0x0C0C0C,0x7F7F7F"
+        fillType="solid"
+        showOnLoad="false"
+        >
+        <title translatable="true">Occupancy/Capacity</title>
+        <groupingAxis dataSource="grouprmbyDS" table="fl" field="groupby">
+        </groupingAxis>
+        
+        <secondaryGroupingAxis dataSource="occupancyAndCapicityStackedBarDS" table="fl" field="areatype">
+        </secondaryGroupingAxis>
+        <dataAxis dataSource="occupancyAndCapicityStackedBarDS" table="fl" field="sum_count" displayAxis="false" labelPosition="inside">
+            <title translatable="true">Employee Occupancy/Vacancy</title>
+        </dataAxis>
+       
+    </panel> 
+	<js file="ab-sp-mgm-dash-common.js"/>
+    <js file="ab-sp-mgm-occup-cap-stack-bar-chart.js"/>
+    <js file="ab-sp-common.js"/>
+</view>

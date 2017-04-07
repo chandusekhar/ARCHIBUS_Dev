@@ -1,0 +1,117 @@
+<view version="2.0">
+    <js file="ab-bldgops-report-purchase-orders-dialog-add-to-existsing.js"/>
+    <message name="storageLocationNameNotSameMsg" translatable="true">To Storage Location cannot be the same as From Storage Location</message>
+    <message name="storageLocationToNotEmptyMsg" translatable="true">To Storage Location must not be empty.</message>
+    <message name="transactionQuantityGreaterThanZeroMsg" translatable="true">Transaction Quantity must be greater than 0.</message> 
+    <message name="unitCostGreaterThanZeroMsg" translatable="true">Unit Cost must be greater than 0.</message> 
+    <message name="qtyTransferMustBeNumberTypeMsg" translatable="true">Transaction Quantity must be a numeric value.</message>
+    <message name="mustSelectARowMsg" translatable="true">Select a purchase order</message>
+    <message name="noMoreRecordToDisplayMsg" translatable="true">There are no existing purchase orders available for this storage location and vendor.</message>
+    <layout type="borderLayout" id="mainLayout">
+        <north initialSize="40%" split="false"/>
+        <center/>
+    </layout>
+    <dataSource id="createPurchaseOrderDs">
+        <table name="po" role="main"/>
+        <field table="po" name="po_id"/>
+        <field table="po" name="po_number"/>
+        <field table="po" name="ac_id"/>
+        <field table="po" name="vn_id"/>
+        <field table="po" name="receiving_location"/>
+        <field table="po" name="status"/>
+        <field table="po" name="date_request"/>
+        <field name="orderValue" dataType="number" decimals="2" currency="${project.budgetCurrency.code}">
+            <sql dialect="generic">
+                (select sum(quantity*unit_cost) from po_line where po_line.po_id=po.po_id)
+            </sql>
+        </field>
+        <field table="po" name="status"/>
+        <field table="po" name="comments"/>
+        <parameter name="poRes" dataType="verbatim" value="1=1"/>
+        <restriction type="sql" sql="po.status in ('Requested', 'Approved','Rejected') and ${parameters['poRes']}"/>
+    </dataSource>
+    <dataSource id="dialogCreatePurchaseOrderItDS">
+        <table name="po_line" role="main"/>
+        <table name="po" role="standard"/>
+        <field table="po_line" name="po_id"/>
+        <field table="po_line" name="po_line_id"/>
+        <field table="po_line" name="catno"/>
+        <field table="po_line" name="quantity"/>
+        <field table="po_line" name="unit_cost"/>
+        <field table="po" name="vn_id"/>
+        <field table="po" name="receiving_location"/>
+        <field table="po" name="comments"/>
+    </dataSource>
+    <dataSource id="dialogCreatePurchaseOrderStorageLocationDs">
+        <table name="pt_store_loc" role="main"/>
+        <field table="pt_store_loc" name="pt_store_loc_id"/>
+        <field table="pt_store_loc" name="pt_store_loc_name"/>
+        <field table="pt_store_loc" name="pt_store_loc_desc"/>
+        <field table="pt_store_loc" name="bl_id"/>
+        <field table="pt_store_loc" name="fl_id"/>
+        <field table="pt_store_loc" name="rm_id"/>
+    </dataSource>
+    <dataSource id="dialogCreatePurchaseOrderPtDS">
+        <table name="pt_store_loc_pt" role="main"/>
+        <table name="pt" role="standard"/>
+        <field table="pt_store_loc_pt" name="pt_store_loc_id"/>
+        <field table="pt_store_loc_pt" name="part_id"/>
+        <field table="pt" name="description"/>
+        <field table="pt_store_loc_pt" name="qty_on_hand"/>
+        <field table="pt_store_loc_pt" name="qty_to_order"/>
+        <field table="pt_store_loc_pt" name="cost_unit_std"/>
+    </dataSource>
+   
+    <panel type="grid" controlType="reportGrid" id="existsPurchaseOrdersList" dataSource="createPurchaseOrderDs" layout="mainLayout" region="north">
+        
+        <field id="poCheckRadio" name="poCheckRadio" controlType="radiobutton"/>
+        <field table="po" name="po_id" hidden="true"/>
+        <field table="po" name="vn_id"/>
+        <field table="po" name="receiving_location"/>
+        <field table="po" name="status"/>
+        <field table="po" name="date_request"/>
+        <field name="orderValue" dataType="number" decimals="2">
+            <title translatable="true">Order Value</title>
+        </field>
+        <field table="po" name="po_number"/>
+        <field table="po" name="ac_id"/>
+        <field table="po" name="comments"/>
+    </panel>
+    <panel type="form"  id="PurchaseOrderCreateForm"  dataSource="dialogCreatePurchaseOrderItDS" columns="2" layout="mainLayout" region="center">
+        <instructions>WARNING: adding parts to an approved Purchase Order will cause the status to revert to Requested if the Purchase Order was approved by another user.</instructions>
+        <action id="btnSubmit">
+            <title translatable="true">Submit</title>
+        </action>
+        <action id="btnCancel">
+            <title translatable="true">Cancel</title>
+        </action>
+        
+        <field name="partCode" dataType="text" readOnly="true" size="40">
+            <title translatable="true">Part Code</title>
+        </field>
+        <field/>
+        <field name="partDescription" dataType="text" colspan="2" readOnly="true">
+            <title translatable="true">Part Description</title>
+        </field>
+        
+        <field table="po_line" name="catno" colspan="2" readOnly="true" required="true"/>
+        
+        <field name="qtyUnderstocked" dataType="number" decimals="2" readOnly="true">
+            <title translatable="true">Quantity Understocked</title>
+        </field>
+        <field/>
+        <field table="po_line" name="quantity" required="true" onchange="calculateTotalCost()"/>
+        <field/>
+        <field table="po_line" name="unit_cost" required="true" onchange="calculateTotalCost()"/>
+        <field/>
+        <field name="totalCost" dataType="number" decimals="2" readOnly="true">
+            <title translatable="true">Total Additional Cost</title>
+        </field>
+        <field/>
+        <field name="updatedtotalCost" dataType="number" decimals="2" readOnly="true">
+            <title translatable="true">Updated Order Value</title>
+        </field>
+        <field/>
+        <field table="po" name="comments" colspan="2"/>
+    </panel>
+</view>

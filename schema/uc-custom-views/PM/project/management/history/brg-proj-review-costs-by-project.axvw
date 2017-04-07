@@ -1,0 +1,151 @@
+<view version="2.0">
+    <layout file="ab-proj-console-details.axvw"/>
+    <title>Review Costs by Project</title>
+    <js file="brg-proj-review-costs-by-project.js"/>
+
+    <panel type="view" id="projReviewCostsByProjectConsole" file="brg-proj-view-restriction-console-actions.axvw" layout="mainLayout" region="north"/>
+
+    <dataSource id="projReviewCostsByProjectDs0" type="grouping" applyVpaRestrictions="false">
+        <table name="activity_log" role="main"/>
+        <field name="project_id" table="activity_log" groupBy="true"/>
+        <field name="baseline_costs" baseField="activity_log.baseline_costs" formula="sum" dataType="number" decimals="2">
+            <title>Baseline Costs</title>
+        </field>
+        <field name="design_estimated_costs" baseField="activity_log.design_estimated_costs" formula="sum" dataType="number" decimals="2">
+            <title>Design Estimated Costs</title>
+        </field>
+        <field name="contracted_cost" baseField="activity_log.contracted_cost" formula="max" dataType="number" decimals="2">
+            <title>Contracted Cost</title>
+        </field>
+        <!--field name="actual_costs" baseField="activity_log.actual_costs" formula="sum" dataType="number" decimals="2">
+            <title>Actual Costs</title>
+        </field-->
+        <field name="change_costs" baseField="activity_log.change_costs" formula="sum" dataType="number" decimals="2">
+            <title>Change Order Estimated Costs</title>
+        </field>
+        <field name="total_cost_committed" dataType="number" decimals="2">
+            <title>Total Commited Cost</title>
+            <sql dialect="generic">SUM(change_costs + contracted_cost)</sql>
+        </field>
+        <field name="wr_costs" baseField="activity_log.wr_costs" formula="sum" dataType="number" decimals="2">
+            <title>Work Request Costs</title>
+        </field>
+        <field name="cost_invoice" baseField="activity_log.cost_invoice" formula="sum" dataType="number" decimals="2">
+            <title>Costs Invoices to Date</title>
+        </field>
+        <field name="wr_count" baseField="activity_log.wr_count" formula="sum" dataType="number" decimals="0">
+            <title>Count of Work Requests</title>
+        </field>
+        <field name="owner_count" baseField="activity_log.owner_count" formula="sum" dataType="number" decimals="0">
+            <title>Count of Change Orders by Owner</title>
+        </field>
+        <field name="vendor_count" baseField="activity_log.vendor_count" formula="sum" dataType="number" decimals="0">
+            <title>Count of Change Orders by Vendor</title>
+        </field>
+        <field name="variance_design_baseline" baseField="activity_log.variance_design_baseline" formula="sum" dataType="number" decimals="2">
+            <title>Variance: Design to Baseline</title>
+        </field>
+        <field name="variance_design_total" baseField="activity_log.variance_design_total" formula="sum" dataType="number" decimals="2">
+            <title>Variance: Design to Total</title>
+            <sql dialect="generic">SUM(design_estimated_costs - change_costs - contracted_cost)</sql>
+        </field>
+        <sql dialect="sqlserver">
+            SELECT activity_log_id, activity_log.project_id,
+            (CASE WHEN activity_type = 'PROJECT - CHANGE ORDER' THEN 0 ELSE (cost_est_cap + cost_estimated) END) ${sql.as} baseline_costs,
+            (cost_est_design_cap + cost_est_design_exp) ${sql.as} design_estimated_costs,
+            (cost_act_cap + cost_actual) ${sql.as} actual_costs,
+            (CASE WHEN activity_type = 'PROJECT - CHANGE ORDER' THEN (cost_est_cap + cost_estimated) ELSE 0 END) AS change_costs,
+            (cost_est_design_cap + cost_est_design_exp - (CASE WHEN activity_type = 'PROJECT - CHANGE ORDER' THEN 0 ELSE (cost_est_cap + cost_estimated) END)) ${sql.as} variance_design_baseline,
+            (cost_act_cap + cost_actual - cost_est_design_cap - cost_est_design_exp) ${sql.as} variance_actual_design,
+            ISNULL((SELECT SUM(amount_tot_invoice) FROM invoice WHERE invoice.project_id = activity_log.project_id)
+              / (SELECT CAST(NULLIF(COUNT(1),0) AS NUMERIC) FROM activity_log alog WHERE activity_log.project_id = alog.project_id),0.0) ${sql.as} cost_invoice,
+            ISNULL((SELECT SUM(cost_contract) FROM work_pkg_bids WHERE work_pkg_bids.project_id = activity_log.project_id AND work_pkg_bids.status IN ('Approved', 'Contract Signed','In Process','In   Process-On Hold', 'Completed','Completed and Verified' , 'Paid in Full'))
+              / (SELECT CAST(NULLIF(COUNT(1),0) AS NUMERIC) FROM activity_log alog WHERE activity_log.project_id = alog.project_id),0.0) ${sql.as} contracted_cost,
+            ISNULL((SELECT COUNT(*) from activity_log ${sql.as} actlog_inner WHERE actlog_inner.activity_type = 'PROJECT - CHANGE ORDER' AND actlog_inner.requestor_type = 'Owner' AND actlog_inner.project_id = activity_log.project_id)
+              / (SELECT CAST(NULLIF(COUNT(1),0) AS NUMERIC) FROM activity_log alog WHERE activity_log.project_id = alog.project_id),0.0) ${sql.as} owner_count,
+            ISNULL((SELECT COUNT(*) from activity_log ${sql.as} actlog_inner WHERE actlog_inner.activity_type = 'PROJECT - CHANGE ORDER' AND actlog_inner.requestor_type = 'Vendor' AND actlog_inner.project_id = activity_log.project_id)
+              / (SELECT CAST(NULLIF(COUNT(1),0) AS NUMERIC) FROM activity_log alog WHERE activity_log.project_id = alog.project_id),0.0) ${sql.as} vendor_count,
+            (SELECT COUNT(1) from activity_log ${sql.as} actlog_inner WHERE actlog_inner.assessment_id = activity_log.activity_log_id) ${sql.as} wr_count,
+            ISNULL((SELECT SUM(cost_actual) from activity_log ${sql.as} actlog_inner WHERE actlog_inner.assessment_id = activity_log.activity_log_id),0.0) ${sql.as} wr_costs
+            FROM activity_log WHERE ${sql.vpaRestriction}
+        </sql>
+        <sortField name="project_id" table="activity_log" ascending="true"/>
+    </dataSource>
+
+    <panel type="crossTable" id="selectProjectReport" dataSource="projReviewCostsByProjectDs0" layout="mainlayout" region="center">
+        <title>Costs by Project</title>
+        <event type="onClickItem">
+            <command type="callFunction" functionName="selectProjectReport_onclick"/>
+        </event>
+    </panel>
+
+    <dataSource id="projReviewCostsByProjectDs1">
+        <table name="brg_project_view" role="main"/>
+        <field table="brg_project_view" name="project_id"/>
+        <field table="brg_project_view" name="program_id"/>
+
+        <field table="brg_project_view" name="requestor"/>
+        <field table="brg_project_view" name="phone_req"/>
+        <field table="brg_project_view" name="dept_contact"/>
+        <field table="brg_project_view" name="phone_dept_contact"/>
+        <field table="brg_project_view" name="site_id"/>
+        <field table="brg_project_view" name="bl_id"/>
+        <field table="brg_project_view" name="dv_id"/>
+        <field table="brg_project_view" name="dp_id"/>
+        <field table="brg_project_view" name="cost_budget"/>
+        <field table="brg_project_view" name="ac_id"/>
+        <field table="brg_project_view" name="area_affected"/>
+        <field table="brg_project_view" name="emp_affected"/>
+
+        <field table="brg_project_view" name="date_start"/>
+        <field table="brg_project_view" name="date_end"/>
+        <field table="brg_project_view" name="days_per_week"/>
+        <field table="brg_project_view" name="status"/>
+        <field table="brg_project_view" name="doc"/>
+        <field table="brg_project_view" name="date_created"/>
+        <field table="brg_project_view" name="summary" />
+        <field table="brg_project_view" name="benefit" />
+        <field table="brg_project_view" name="scope" />
+        <field table="brg_project_view" name="description" />
+
+        <field table="brg_project_view" name="int_num"/>
+    </dataSource>
+
+    <panel type="form" id="projReviewCostsByProjectColumnReport" dataSource="projReviewCostsByProjectDs1" columns="2" showOnLoad="false">
+        <title>Project Details</title>
+        <field table="brg_project_view" name="project_id" readOnly="true"/>
+        <field table="brg_project_view" name="program_id" readOnly="true"/>
+
+        <field table="brg_project_view" name="int_num" readOnly="true"/>
+        <field/>
+
+        <field table="brg_project_view" name="requestor" readOnly="true"/>
+        <field table="brg_project_view" name="phone_req" readOnly="true"/>
+        <field table="brg_project_view" name="dept_contact" readOnly="true"/>
+        <field table="brg_project_view" name="phone_dept_contact" readOnly="true"/>
+        <field table="brg_project_view" name="site_id" readOnly="true"/>
+        <field table="brg_project_view" name="bl_id" readOnly="true"/>
+        <field table="brg_project_view" name="dv_id" readOnly="true"/>
+        <field table="brg_project_view" name="dp_id" readOnly="true"/>
+        <field table="brg_project_view" name="cost_budget" readOnly="true"/>
+        <field table="brg_project_view" name="ac_id" readOnly="true"/>
+        <field table="brg_project_view" name="area_affected" readOnly="true"/>
+        <field table="brg_project_view" name="emp_affected" readOnly="true"/>
+
+        <field table="brg_project_view" name="date_start" readOnly="true"/>
+        <field table="brg_project_view" name="date_end" readOnly="true"/>
+        <field table="brg_project_view" name="days_per_week" readOnly="true"/>
+        <field table="brg_project_view" name="status" readOnly="true"/>
+        <field table="brg_project_view" name="doc" readOnly="true"/>
+        <field table="brg_project_view" name="date_created" readOnly="true"/>
+        <field table="brg_project_view" name="summary" colspan="2" readOnly="true"/>
+        <field table="brg_project_view" name="benefit" colspan="2" readOnly="true"/>
+        <field table="brg_project_view" name="scope" colspan="2" readOnly="true"/>
+        <field table="brg_project_view" name="description" colspan="2" readOnly="true"/>
+    </panel>
+</view>
+
+
+
+
+

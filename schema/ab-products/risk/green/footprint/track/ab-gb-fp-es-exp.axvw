@@ -1,0 +1,1021 @@
+<view version="2.0">
+    <layout type="borderLayout" id="mainLayout">
+        <north initialSize="100" split="true"/>
+        <center/>
+    </layout>
+    
+    <title translatable="true">Export Energy Star Data</title>
+    
+    <message name="noRecordSelected" translatable="true">Please make selection first.</message>
+    
+    <js file="ab-gb-fp-es-exp.js"/>
+    <js file="ab-gb-report-common.js"/>
+    
+    <dataSource id="abGbFpEsExpConsoleDS">
+        <table name="gb_fp_setup" role="main"/>
+        <table name="bl" role="standard"/>
+        <field table="gb_fp_setup" name="calc_year"/>
+        <field table="bl" name="site_id"/>
+        <field table="gb_fp_setup" name="bl_id"/>
+        <field table="gb_fp_setup" name="scenario_id"/>
+    </dataSource>
+    
+    <panel type="console" id="abGbFpEsExpConsole" dataSource="abGbFpEsExpConsoleDS"
+     columns="2" layout="mainLayout" region="north">
+        <title translatable="true">Filter</title>
+        <action id="show">
+            <title translatable="true">Show</title>
+            <command type="showPanel" panelId="abGbFpEsExpGrid"/>
+        </action>
+        <action id="clear">
+            <title translatable="true">Clear</title>
+            <command type="clearPanel" panelId="abGbFpEsExpConsole"/>
+            <command type="showPanel" panelId="abGbFpEsExpGrid" show="false"/>
+        </action>
+        <field id="gb_fp_setup.calc_year" dataType="text" required="false">
+            <title translatable="true">Year</title>
+            <action>
+                <command type="callFunction" functionName="selectYear"/>
+            </action>
+        </field>
+        <field table="bl" name="site_id" required="false">
+            <action>
+                <command type="callFunction" functionName="selectSite"/>
+            </action>
+        </field>
+        <field table="gb_fp_setup" name="scenario_id" required="false">
+            <action>
+                <title translatable="false">...</title>
+                <tooltip translatable="true">Select Value</tooltip>
+                <command type="selectValue"
+                    selectValueType="multiple" 
+                    fieldNames="gb_fp_setup.scenario_id"
+                    selectFieldNames="scenario.proj_scenario_id"
+                    visibleFieldNames="scenario.proj_scenario_id, scenario.description"
+                    restriction="scenario.scenario_type = 'GB-CARBON'"/>
+            </action>
+        </field>
+        <field table="gb_fp_setup" name="bl_id" required="false">
+            <action>
+                <command type="callFunction" functionName="selectBl"/>
+            </action>
+        </field>
+    </panel>
+    
+    <dataSource id="abGbFpEsExpGridDS">
+        <table name="gb_fp_setup" role="main"/>
+        <table name="bl" role="standard"/>
+        <field table="gb_fp_setup" name="calc_year"/>
+        <field table="gb_fp_setup" name="scenario_id"/>
+        <field table="bl" name="site_id"/>
+        <field table="gb_fp_setup" name="bl_id"/>
+        
+        <field table="bl" name="use1"/>
+        <field table="gb_fp_setup" name="area_gross_ext"/>
+        <field table="gb_fp_setup" name="count_occup"/>
+        <field table="bl" name="name"/>
+        <field table="bl" name="address1"/>
+        <field table="bl" name="address2"/>
+        <field table="bl" name="city_id"/>
+        <field table="bl" name="state_id"/>
+        <field name="countyCode" dataType="text">
+            <title translatable="true">County Code</title>
+            <sql dialect="generic">(select county_id from property where property.pr_id = bl.pr_id)</sql>
+        </field>
+        <field table="bl" name="zip"/>
+        <field table="bl" name="ctry_id"/>
+        <field name="year_bl" dataType="text">
+            <title translatable="true">Year Built</title>
+            <sql dialect="generic">${sql.yearOf('bl.date_bl')}</sql>
+        </field>
+        <sortField table="bl" name="use1" ascending="true"/>
+    </dataSource>
+    
+    <panel type="grid" id="abGbFpEsExpGrid" dataSource="abGbFpEsExpGridDS"
+     layout="mainLayout" region="center" showOnLoad="false" multipleSelectionEnabled="true">
+        <title translatable="true">Select Building Footprints to Export</title>
+        <action id="exportXls">
+            <title translatable="true">Export to XLS</title>
+        </action>
+        <action id="exportAction" hidden="true">
+            <command type="exportPanel" outputType="xls" panelId="abGbFpEsExpOfficeGrid"/>
+        </action>
+    </panel>
+    
+    <dataSource id="abGbFpEsExpFacilitiesDS">
+        <title translatable="true">Facilities</title>
+        <table name="gb_fp_setup" role="main"/>
+        <table name="bl" role="standard"/>
+        <field table="bl" name="name">
+            <title translatable="true">Facility Name</title>
+        </field>
+        <field name="address" dataType="text">
+            <title translatable="true">Street Address</title>
+            <sql dialect="generic">RTRIM(bl.address1)${sql.concat}' '${sql.concat}RTRIM(bl.address2)</sql>
+        </field>
+        <field table="bl" name="city_id">
+            <title translatable="true">City</title>
+        </field>
+        <field table="bl" name="state_id">
+            <title translatable="true">State</title>
+        </field>
+        <field name="countyCode" dataType="text">
+            <title translatable="true">County</title>
+            <sql dialect="generic">(select county_id from property where property.pr_id = bl.pr_id)</sql>
+        </field>
+        <field table="bl" name="zip">
+            <title translatable="true">ZIP Code</title>
+        </field>
+        <field name="year_bl" dataType="text">
+            <title translatable="true">Year Built</title>
+            <sql dialect="generic">${sql.yearOf('bl.date_bl')}</sql>
+        </field>
+        <field name="propertyType" dataType="text">
+            <title translatable="true">Property Type</title>
+            <sql dialect="generic">'A single facility with more than 90% ownership/management'</sql>
+        </field>
+        <field table="bl" name="ctry_id">
+            <title translatable="true">Country</title>
+        </field>
+        <field name="nearestCity" dataType="text">
+            <title translatable="true">Nearest City</title>
+            <sql dialect="generic">''</sql>
+        </field>
+        <parameter name="blUse" dataType="text" value=""/>
+    </dataSource>
+    
+    <dataSource id="abGbFpEsExpOfficeSpaceDS">
+        <title translatable="true">Office Space</title>
+        <table name="gb_fp_setup" role="main"/>
+        <table name="bl" role="standard"/>
+        <field table="bl" name="name">
+            <title translatable="true">Facility Name</title>
+        </field>
+        <field table="bl" name="bl_id">
+            <title translatable="true">Space Name</title>
+        </field>
+        <field name="area_gross_ext" dataType="text">
+            <title translatable="true">Gross Floor Area</title>
+            <sql dialect="generic">gb_fp_setup.area_gross_ext</sql>
+        </field>
+        <field name="weeklyOpHours" dataType="text">
+            <title translatable="true">Weekly Operating Hours</title>
+            <sql dialect="generic">'50'</sql>
+        </field>
+        <field table="gb_fp_setup" name="count_occup">
+            <title translatable="true">Workers on Main Shift</title>
+        </field>
+        <field name="numberOfPCs" dataType="text">
+            <title translatable="true">Number Of PCs</title>
+            <sql dialect="generic">''</sql>
+        </field>
+        <field name="percentHeated" dataType="text">
+            <title translatable="true">Percent Heated</title>
+            <sql dialect="generic">'50% or more'</sql>
+        </field>
+        <field name="PercentAirConditioned" dataType="text">
+            <title translatable="true">Percent Air-Conditioned</title>
+            <sql dialect="generic">'50% or more'</sql>
+        </field>
+        <parameter name="blUse" dataType="text" value=""/>
+    </dataSource>
+    
+    <dataSource id="abGbFpEsExpBankSpaceDS">
+        <title translatable="true">Bank Space</title>
+        <table name="gb_fp_setup" role="main"/>
+        <table name="bl" role="standard"/>
+        <field table="bl" name="name">
+            <title translatable="true">Facility Name</title>
+        </field>
+        <field table="bl" name="bl_id">
+            <title translatable="true">Space Name</title>
+        </field>
+        <field name="area_gross_ext" dataType="text">
+            <title translatable="true">Gross Floor Area</title>
+            <sql dialect="generic">gb_fp_setup.area_gross_ext</sql>
+        </field>
+        <field name="weeklyOpHours" dataType="text">
+            <title translatable="true">Weekly Operating Hours</title>
+            <sql dialect="generic">'65'</sql>
+        </field>
+        <field table="gb_fp_setup" name="count_occup">
+            <title translatable="true">Workers on Main Shift</title>
+        </field>
+        <field name="numberOfPCs" dataType="text">
+            <title translatable="true">Number Of PCs</title>
+            <sql dialect="generic">''</sql>
+        </field>
+        <field name="percentHeated" dataType="text">
+            <title translatable="true">Percent Heated</title>
+            <sql dialect="generic">'50% or more'</sql>
+        </field>
+        <field name="PercentAirConditioned" dataType="text">
+            <title translatable="true">Percent Air-Conditioned</title>
+            <sql dialect="generic">'50% or more'</sql>
+        </field>
+        <parameter name="blUse" dataType="text" value=""/>
+    </dataSource>
+    
+    <dataSource id="abGbFpEsExpCourthouseSpaceDS">
+        <title translatable="true">Courthouse Space</title>
+        <table name="gb_fp_setup" role="main"/>
+        <table name="bl" role="standard"/>
+        <field table="bl" name="name">
+            <title translatable="true">Facility Name</title>
+        </field>
+        <field table="bl" name="bl_id">
+            <title translatable="true">Space Name</title>
+        </field>
+        <field name="area_gross_ext" dataType="text">
+            <title translatable="true">Gross Floor Area</title>
+            <sql dialect="generic">gb_fp_setup.area_gross_ext</sql>
+        </field>
+        <field name="weeklyOpHours" dataType="text">
+            <title translatable="true">Weekly Operating Hours</title>
+            <sql dialect="generic">'65'</sql>
+        </field>
+        <field table="gb_fp_setup" name="count_occup">
+            <title translatable="true">Workers on Main Shift</title>
+        </field>
+        <field name="numberOfPCs" dataType="text">
+            <title translatable="true">Number Of PCs</title>
+            <sql dialect="generic">''</sql>
+        </field>
+        <field name="percentHeated" dataType="text">
+            <title translatable="true">Percent Heated</title>
+            <sql dialect="generic">'50% or more'</sql>
+        </field>
+        <field name="PercentAirConditioned" dataType="text">
+            <title translatable="true">Percent Air-Conditioned</title>
+            <sql dialect="generic">'50% or more'</sql>
+        </field>
+        <parameter name="blUse" dataType="text" value=""/>
+    </dataSource>
+    
+    <dataSource id="abGbFpEsExpDataCenterSpaceDS">
+        <title translatable="true">Data Center Space</title>
+        <table name="gb_fp_setup" role="main"/>
+        <table name="bl" role="standard"/>
+        <field table="bl" name="name">
+            <title translatable="true">Facility Name</title>
+        </field>
+        <field table="bl" name="bl_id">
+            <title translatable="true">Space Name</title>
+        </field>
+        <field name="area_gross_ext" dataType="text">
+            <title translatable="true">Gross Floor Area</title>
+            <sql dialect="generic">gb_fp_setup.area_gross_ext</sql>
+        </field>
+        <field name="itEnergyConfig" dataType="text">
+            <title translatable="true">IT Energy Configuration</title>
+            <sql dialect="generic">'Facility has no UPS.'</sql>
+        </field>
+        <field name="upSSystemRedundancy" dataType="text">
+            <title translatable="true">UPS System Redundancy</title>
+            <sql dialect="generic">'N+1'</sql>
+        </field>
+        <field name="CoolingSystemRedundancy" dataType="text">
+            <title translatable="true">Cooling Equipment Redundancy</title>
+            <sql dialect="generic">'N'</sql>
+        </field>
+        <parameter name="blUse" dataType="text" value=""/>
+    </dataSource>
+    
+    <dataSource id="abGbFpEsExpDormitorySpaceDS">
+        <title translatable="true">Dormitory Space</title>
+        <table name="gb_fp_setup" role="main"/>
+        <table name="bl" role="standard"/>
+        <field table="bl" name="name">
+            <title translatable="true">Facility Name</title>
+        </field>
+        <field table="bl" name="bl_id">
+            <title translatable="true">Space Name</title>
+        </field>
+        <field name="area_gross_ext" dataType="text">
+            <title translatable="true">Gross Floor Area</title>
+            <sql dialect="generic">gb_fp_setup.area_gross_ext</sql>
+        </field>
+        <field name="count_rm" dataType="text">
+            <title translatable="true">Number of Rooms</title>
+            <sql dialect="generic">(select count(*) from rm where rm.bl_id = bl.bl_id)</sql>
+        </field>
+        <field name="perc_ac" dataType="text">
+            <title translatable="true">% AC</title>
+            <sql dialect="generic">'100'</sql>
+        </field>
+        <field name="perc_heated" dataType="text">
+            <title translatable="true">% Heated</title>
+            <sql dialect="generic">'100'</sql>
+        </field>
+        <field name="isDormitoryComputerLab" dataType="text">
+            <title translatable="true">Dormitory Computer Lab?</title>
+            <sql dialect="generic">'No'</sql>
+        </field>
+        <field name="isDormitoryDiningHall" dataType="text">
+            <title translatable="true">Dormitory Dining Hall?</title>
+            <sql dialect="generic">'No'</sql>
+        </field>
+        <parameter name="blUse" dataType="text" value=""/>
+    </dataSource>
+    
+    <dataSource id="abGbFpEsExpHospitalSpaceDS">
+        <title translatable="true">Hospital Space</title>
+        <table name="gb_fp_setup" role="main"/>
+        <table name="bl" role="standard"/>
+        <field table="bl" name="name">
+            <title translatable="true">Facility Name</title>
+        </field>
+        <field table="bl" name="bl_id">
+            <title translatable="true">Space Name</title>
+        </field>
+        <field name="area_gross_ext" dataType="text">
+            <title translatable="true">Gross Floor Area</title>
+            <sql dialect="generic">gb_fp_setup.area_gross_ext</sql>
+        </field>
+        <field name="count_beds" dataType="text">
+            <title translatable="true">Number Of Licensed Beds</title>
+            <sql dialect="generic">''</sql>
+        </field>
+        <field name="count_bl" dataType="text">
+            <title translatable="true">Number Of Buildings</title>
+            <sql dialect="generic">'1'</sql>
+        </field>
+        <field name="max_count_fl" dataType="text">
+            <title translatable="true">Max Number Of Floors</title>
+            <sql dialect="generic">'5'</sql>
+        </field>
+        <field name="OwnershipStatus" dataType="text">
+            <title translatable="true">Ownership Status</title>
+            <sql dialect="generic">'Non Profit'</sql>
+        </field>
+        <field name="TertiaryCare" dataType="text">
+            <title translatable="true">Tertiary Care</title>
+            <sql dialect="generic">'Yes'</sql>
+        </field>
+        <field name="Laboratory" dataType="text">
+            <title translatable="true">Laboratory</title>
+            <sql dialect="generic">'Yes'</sql>
+        </field>
+        <field name="LaundryOnSite" dataType="text">
+            <title translatable="true">Laundry On Site</title>
+            <sql dialect="generic">'Yes'</sql>
+        </field>
+        <parameter name="blUse" dataType="text" value=""/>
+    </dataSource>
+    
+    <dataSource id="abGbFpEsExpHotelSpaceDS">
+        <title translatable="true">Hotel Space</title>
+        <table name="gb_fp_setup" role="main"/>
+        <table name="bl" role="standard"/>
+        <field table="bl" name="name">
+            <title translatable="true">Facility Name</title>
+        </field>
+        <field table="bl" name="bl_id">
+            <title translatable="true">Space Name</title>
+        </field>
+        <field name="count_rm" dataType="text">
+            <title translatable="true">No. Of Rooms</title>
+            <sql dialect="generic">(select count(*) from rm where rm.bl_id = bl.bl_id)</sql>
+        </field>
+        <field name="area_gross_ext" dataType="text">
+            <title translatable="true">Gross Floor Area</title>
+            <sql dialect="generic">gb_fp_setup.area_gross_ext</sql>
+        </field>
+        <field table="gb_fp_setup" name="count_occup">
+            <title translatable="true">Workers on Main Shift</title>
+        </field>
+        <field name="CookingFacilities" dataType="text">
+            <title translatable="true">Cooking Facilities</title>
+            <sql dialect="generic">'No'</sql>
+        </field>
+        <field name="count_freezer" dataType="text">
+            <title translatable="true">No. of Commercial Refrigeration/Freezer Units</title>
+            <sql dialect="generic">''</sql>
+        </field>
+        <field name="percHeated" dataType="text">
+            <title translatable="true">% Heated</title>
+            <sql dialect="generic">'100'</sql>
+        </field>
+        <field name="percCooled" dataType="text">
+            <title translatable="true">% Cooled</title>
+            <sql dialect="generic">'100'</sql>
+        </field>
+        <field name="LaundryOnSite" dataType="text">
+            <title translatable="true">Laundry On-Site</title>
+            <sql dialect="generic">''</sql>
+        </field>
+        <field name="AverageOccupancy" dataType="text">
+            <title translatable="true">Average Occupancy</title>
+            <sql dialect="generic">''</sql>
+        </field>
+        <field name="hours_onsite" dataType="text">
+            <title translatable="true">How many hours per day are guests on-site?</title>
+            <sql dialect="generic">''</sql>
+        </field>
+        <field name="count_guest" dataType="text">
+            <title translatable="true">Number of guest meals served per year</title>
+            <sql dialect="generic">''</sql>
+        </field>
+        <field name="total_serv_area" dataType="text">
+            <title translatable="true">Total area of full-service spas</title>
+            <sql dialect="generic">''</sql>
+        </field>
+        <field name="total_gym_area" dataType="text">
+            <title translatable="true">Total area of gym/fitness center</title>
+            <sql dialect="generic">''</sql>
+        </field>
+        <field name="quantity_laundry" dataType="text">
+            <title translatable="true">Quantity of laundry processed on-site annually</title>
+            <sql dialect="generic">''</sql>
+        </field>
+        <parameter name="blUse" dataType="text" value=""/>
+    </dataSource>
+    
+    <dataSource id="abGbFpEsExpMedicalOfficeSpaceDS">
+        <title translatable="true">Medical Office Space</title>
+        <table name="gb_fp_setup" role="main"/>
+        <table name="bl" role="standard"/>
+        <field table="bl" name="name">
+            <title translatable="true">Facility Name</title>
+        </field>
+        <field table="bl" name="bl_id">
+            <title translatable="true">Space Name</title>
+        </field>
+        <field name="area_gross_ext" dataType="text">
+            <title translatable="true">Gross Floor Area</title>
+            <sql dialect="generic">gb_fp_setup.area_gross_ext</sql>
+        </field>
+        <field name="perc_ac" dataType="text">
+            <title translatable="true">% AC</title>
+            <sql dialect="generic">'100'</sql>
+        </field>
+        <field name="perc_heated" dataType="text">
+            <title translatable="true">% Heated</title>
+            <sql dialect="generic">'100'</sql>
+        </field>
+        <field table="gb_fp_setup" name="count_occup">
+            <title translatable="true">Number of Workers</title>
+        </field>
+        <field name="weeklyOpHours" dataType="text">
+            <title translatable="true">Weekly Operating Hours</title>
+            <sql dialect="generic">'65'</sql>
+        </field>
+        <parameter name="blUse" dataType="text" value=""/>
+    </dataSource>
+    
+    <dataSource id="abGbFpEsExpMultifamilySpaceDS">
+        <title translatable="true">Multifamily Space</title>
+        <table name="gb_fp_setup" role="main"/>
+        <table name="bl" role="standard"/>
+        <field table="bl" name="name">
+            <title translatable="true">Facility Name</title>
+        </field>
+        <field table="bl" name="bl_id">
+            <title translatable="true">Space Name</title>
+        </field>
+        <field name="area_gross_ext" dataType="text">
+            <title translatable="true">Gross Floor Area</title>
+            <sql dialect="generic">gb_fp_setup.area_gross_ext</sql>
+        </field>
+        <field name="count_apart" dataType="text">
+            <title translatable="true">Total number of occupied and unoccupied apartment units in the building</title>
+            <sql dialect="generic">''</sql>
+        </field>
+        <field name="count_beds" dataType="text">
+            <title translatable="true">Total number of bedrooms in the building</title>
+            <sql dialect="generic">''</sql>
+        </field>
+        <field name="max_fl" dataType="text">
+            <title translatable="true">Maximum number of floors</title>
+            <sql dialect="generic">''</sql>
+        </field>
+        <field name="percHeated" dataType="text">
+            <title translatable="true">% Heated</title>
+            <sql dialect="generic">''</sql>
+        </field>
+        <field name="percCooled" dataType="text">
+            <title translatable="true">% Cooled</title>
+            <sql dialect="generic">''</sql>
+        </field>
+        <field name="perc_gross_area" dataType="text">
+            <title translatable="true">Percent of gross floor area that is common space only</title>
+            <sql dialect="generic">''</sql>
+        </field>
+        <field name="LaundryInUnit" dataType="text">
+            <title translatable="true">Laundry in each unit</title>
+            <sql dialect="generic">''</sql>
+        </field>
+        <field name="LaundryInCommArea" dataType="text">
+            <title translatable="true">Laundry in common area</title>
+            <sql dialect="generic">''</sql>
+        </field>
+        <field name="DishwashersInUnit" dataType="text">
+            <title translatable="true">Dishwashers in each unit</title>
+            <sql dialect="generic">''</sql>
+        </field>
+        <field name="marketRate" dataType="text">
+            <title translatable="true">Market Rate or Affordable Housing</title>
+            <sql dialect="generic">''</sql>
+        </field>
+        
+        <parameter name="blUse" dataType="text" value=""/>
+    </dataSource>
+    
+    <dataSource id="abGbFpEsExpOtherSpaceTypeDS">
+        <title translatable="true">Other Space Type</title>
+        <table name="gb_fp_setup" role="main"/>
+        <table name="bl" role="standard"/>
+        <field table="bl" name="name">
+            <title translatable="true">Facility Name</title>
+        </field>
+        <field table="bl" name="bl_id">
+            <title translatable="true">Space Name</title>
+        </field>
+        <field name="OtherCategory" dataType="text">
+            <title translatable="true">Other Category</title>
+            <sql dialect="generic">'Convenience Store (with or without gas station)'</sql>
+        </field>
+        <field name="area_gross_ext" dataType="text">
+            <title translatable="true">Gross Floor Area</title>
+            <sql dialect="generic">gb_fp_setup.area_gross_ext</sql>
+        </field>
+        <field name="OperatingHours" dataType="text">
+            <title translatable="true">Operating Hours/Week</title>
+            <sql dialect="generic">'65'</sql>
+        </field>
+        <field table="gb_fp_setup" name="count_occup">
+            <title translatable="true">Workers on Main Shift</title>
+        </field>
+        <field name="numberOfPCs" dataType="text">
+            <title translatable="true">Number Of PCs</title>
+            <sql dialect="generic">''</sql>
+        </field>
+        <parameter name="blUse" dataType="text" value=""/>
+    </dataSource>
+    
+    <dataSource id="abGbFpEsExpRefrigeratedWarehouseSpaceDS">
+        <title translatable="true">Refrigerated Warehouse Space</title>
+        <table name="gb_fp_setup" role="main"/>
+        <table name="bl" role="standard"/>
+        <field table="bl" name="name">
+            <title translatable="true">Facility Name</title>
+        </field>
+        <field table="bl" name="bl_id">
+            <title translatable="true">Space Name</title>
+        </field>
+        <field name="area_gross_ext" dataType="text">
+            <title translatable="true">Gross Floor Area</title>
+            <sql dialect="generic">gb_fp_setup.area_gross_ext</sql>
+        </field>
+        <field name="OperatingHours" dataType="text">
+            <title translatable="true">Weekly Operating Hours</title>
+            <sql dialect="generic">'60'</sql>
+        </field>
+        <field table="gb_fp_setup" name="count_occup">
+            <title translatable="true">Workers on Main Shift</title>
+        </field>
+        <parameter name="blUse" dataType="text" value=""/>
+    </dataSource>
+    
+    <dataSource id="abGbFpEsExpRetailSpaceDS">
+        <title translatable="true">Retail Space</title>
+        <table name="gb_fp_setup" role="main"/>
+        <table name="bl" role="standard"/>
+        <field table="bl" name="name">
+            <title translatable="true">Facility Name</title>
+        </field>
+        <field table="bl" name="bl_id">
+            <title translatable="true">Space Name</title>
+        </field>
+        <field name="area_gross_ext" dataType="text">
+            <title translatable="true">Gross Floor Area</title>
+            <sql dialect="generic">gb_fp_setup.area_gross_ext</sql>
+        </field>
+        <field name="OperatingHours" dataType="text">
+            <title translatable="true">Weekly Operating Hours</title>
+            <sql dialect="generic">'65'</sql>
+        </field>
+        <field table="gb_fp_setup" name="count_occup">
+            <title translatable="true">Workers on Main Shift</title>
+        </field>
+        <field name="numberOfPCs" dataType="text">
+            <title translatable="true">Number Of PCs</title>
+            <sql dialect="generic">''</sql>
+        </field>
+        <field name="percentHeated" dataType="text">
+            <title translatable="true">Percent Heated</title>
+            <sql dialect="generic">'100'</sql>
+        </field>
+        <field name="PercentAirConditioned" dataType="text">
+            <title translatable="true">Percent Air-Conditioned</title>
+            <sql dialect="generic">'100'</sql>
+        </field>
+        <field name="NumberofCashRegisters" dataType="text">
+            <title translatable="true">Number of Cash Registers</title>
+            <sql dialect="generic">''</sql>
+        </field>
+        <field name="freezerUnits" dataType="text">
+            <title translatable="true">Walk-in Refrigeration/Freezer Units</title>
+            <sql dialect="generic">'0'</sql>
+        </field>
+        <field name="freezerCases" dataType="text">
+            <title translatable="true">Open and Closed Refrigeration/Freezer Cases</title>
+            <sql dialect="generic">'0'</sql>
+        </field>
+        <field name="ExteriorEntrance" dataType="text">
+            <title translatable="true">Exterior Entrance to the Public</title>
+            <sql dialect="generic">'Yes'</sql>
+        </field>
+        <parameter name="blUse" dataType="text" value=""/>
+    </dataSource>
+    
+    <dataSource id="abGbFpEsExpSchoolSpaceDS">
+        <title translatable="true">School Space</title>
+        <table name="gb_fp_setup" role="main"/>
+        <table name="bl" role="standard"/>
+        <field table="bl" name="name">
+            <title translatable="true">Facility Name</title>
+        </field>
+        <field table="bl" name="bl_id">
+            <title translatable="true">Space Name</title>
+        </field>
+        <field name="area_gross_ext" dataType="text">
+            <title translatable="true">Gross Floor Area</title>
+            <sql dialect="generic">gb_fp_setup.area_gross_ext</sql>
+        </field>
+        <field name="OpenWeekends" dataType="text">
+            <title translatable="true">Open Weekends</title>
+            <sql dialect="generic">'No'</sql>
+        </field>
+        <field name="NofreezerUnits" dataType="text">
+            <title translatable="true">No. of walk-in refrigeration/freezer units</title>
+            <sql dialect="generic">'12'</sql>
+        </field>
+        <field name="isCookingFacilities" dataType="text">
+            <title translatable="true">Cooking Facilities?</title>
+            <sql dialect="generic">'Yes'</sql>
+        </field>
+        <field name="percAC" dataType="text">
+            <title translatable="true">% AC</title>
+            <sql dialect="generic">'100'</sql>
+        </field>
+        <field name="percHeated" dataType="text">
+            <title translatable="true">% Heated</title>
+            <sql dialect="generic">'100'</sql>
+        </field>
+        <field name="isHighSchool" dataType="text">
+            <title translatable="true">High School</title>
+            <sql dialect="generic">'No'</sql>
+        </field>
+        <field name="count_pc" dataType="text">
+            <title translatable="true">Number of PCs</title>
+            <sql dialect="generic">''</sql>
+        </field>
+        <field name="SchoolDistrict" dataType="text">
+            <title translatable="true">School District</title>
+            <sql dialect="generic">''</sql>
+        </field>
+        <field name="MonthsInUse" dataType="text">
+            <title translatable="true">Months in Use</title>
+            <sql dialect="generic">'12'</sql>
+        </field>
+        <parameter name="blUse" dataType="text" value=""/>
+    </dataSource>
+    
+    <dataSource id="abGbFpEsExpSeniorCareSpaceDS">
+        <title translatable="true">Senior Care Space</title>
+        <table name="gb_fp_setup" role="main"/>
+        <table name="bl" role="standard"/>
+        <field table="bl" name="name">
+            <title translatable="true">Facility Name</title>
+        </field>
+        <field table="bl" name="bl_id">
+            <title translatable="true">Space Name</title>
+        </field>
+        <field name="area_gross_ext" dataType="text">
+            <title translatable="true">Gross Floor Area</title>
+            <sql dialect="generic">gb_fp_setup.area_gross_ext</sql>
+        </field>
+        <field name="TotalNumberofUnits" dataType="text">
+            <title translatable="true">Total Number of Units</title>
+            <sql dialect="generic">'65'</sql>
+        </field>
+        <field name="AverageNumberofResidents" dataType="text">
+            <title translatable="true">Average Number of Residents</title>
+            <sql dialect="generic">'56'</sql>
+        </field>
+        <field name="TotalResidentCapacity" dataType="text">
+            <title translatable="true">Total Resident Capacity</title>
+            <sql dialect="generic">'11'</sql>
+        </field>
+        <field table="gb_fp_setup" name="count_occup">
+            <title translatable="true">Workers on Main Shift</title>
+        </field>
+        <field name="NumberofPCs" dataType="text">
+            <title translatable="true">Number of PCs</title>
+            <sql dialect="generic">''</sql>
+        </field>
+        <field name="NumberofFreezerUnits" dataType="text">
+            <title translatable="true">Number of Commercial Refrigeration/Freezer Units</title>
+            <sql dialect="generic">''</sql>
+        </field>
+        <field name="CommercialWashingMach" dataType="text">
+            <title translatable="true">Number of Commercial Washing Machines</title>
+            <sql dialect="generic">''</sql>
+        </field>
+        <field name="ResidentialWashingMach" dataType="text">
+            <title translatable="true">Number of Residential Washing Machines</title>
+            <sql dialect="generic">''</sql>
+        </field>
+        <field name="ElectronicLift" dataType="text">
+            <title translatable="true">Number of Residential Electronic Lift Systems</title>
+            <sql dialect="generic">''</sql>
+        </field>
+        <field name="HeatedFloorArea" dataType="text">
+            <title translatable="true">Percent of Gross Floor Area that is Heated</title>
+            <sql dialect="generic">'100'</sql>
+        </field>
+        <field name="CooledFloorArea" dataType="text">
+            <title translatable="true">Percent of the Gross Floor Area that is Cooled</title>
+            <sql dialect="generic">'100'</sql>
+        </field>
+        <parameter name="blUse" dataType="text" value=""/>
+    </dataSource>
+    
+    <dataSource id="abGbFpEsExpSupermarketSpaceDS">
+        <title translatable="true">Supermarket Space</title>
+        <table name="gb_fp_setup" role="main"/>
+        <table name="bl" role="standard"/>
+        <field table="bl" name="name">
+            <title translatable="true">Facility Name</title>
+        </field>
+        <field table="bl" name="bl_id">
+            <title translatable="true">Space Name</title>
+        </field>
+        <field name="area_gross_ext" dataType="text">
+            <title translatable="true">Gross Floor Area</title>
+            <sql dialect="generic">gb_fp_setup.area_gross_ext</sql>
+        </field>
+        <field name="OperatingHours" dataType="text">
+            <title translatable="true">Weekly Operating Hours</title>
+            <sql dialect="generic">'105'</sql>
+        </field>
+        <field table="gb_fp_setup" name="count_occup">
+            <title translatable="true">Workers on Main Shift</title>
+        </field>
+        <field name="NumberFreezerUnits" dataType="text">
+            <title translatable="true">Number of Walk-in Refrigeration/Freezer Units</title>
+            <sql dialect="generic">''</sql>
+        </field>
+        <field name="PresenceofCookingFacilities" dataType="text">
+            <title translatable="true">Presence of Cooking Facilities</title>
+            <sql dialect="generic">'Yes'</sql>
+        </field>
+        <field name="percHeated" dataType="text">
+            <title translatable="true">Percent of Space Heated</title>
+            <sql dialect="generic">''</sql>
+        </field>
+        <field name="percCooled" dataType="text">
+            <title translatable="true">Percent of Space Cooled</title>
+            <sql dialect="generic">''</sql>
+        </field>
+        <field name="NumberofRegisters" dataType="text">
+            <title translatable="true">Number of Registers and/or PCs</title>
+            <sql dialect="generic">''</sql>
+        </field>
+        <field name="FreezerCases" dataType="text">
+            <title translatable="true">Number of Open and Closed Refrigeration/Freezer Cases</title>
+            <sql dialect="generic">''</sql>
+        </field>
+        <parameter name="blUse" dataType="text" value=""/>
+    </dataSource>
+    
+    <dataSource id="abGbFpEsExpUnrefrigeratedWarehouseSpaceDS">
+        <title translatable="true">Unrefrigerated Warehouse Space</title>
+        <table name="gb_fp_setup" role="main"/>
+        <table name="bl" role="standard"/>
+        <field table="bl" name="name">
+            <title translatable="true">Facility Name</title>
+        </field>
+        <field table="bl" name="bl_id">
+            <title translatable="true">Space Name</title>
+        </field>
+        <field name="area_gross_ext" dataType="text">
+            <title translatable="true">Gross Floor Area</title>
+            <sql dialect="generic">gb_fp_setup.area_gross_ext</sql>
+        </field>
+        <field name="OperatingHours" dataType="text">
+            <title translatable="true">Weekly Operating Hours</title>
+            <sql dialect="generic">'60'</sql>
+        </field>
+        <field table="gb_fp_setup" name="count_occup">
+            <title translatable="true">Workers on Main Shift</title>
+        </field>
+        <field name="NumberFreezerUnits" dataType="text">
+            <title translatable="true">Walk-In Refrigeration/Freezer Units</title>
+            <sql dialect="generic">'0'</sql>
+        </field>
+        <field name="perctAC" dataType="text">
+            <title translatable="true">% AC</title>
+            <sql dialect="generic">'20'</sql>
+        </field>
+        <field name="percHeated" dataType="text">
+            <title translatable="true">% Heated</title>
+            <sql dialect="generic">'50'</sql>
+        </field>
+        <field name="DistributionCenter" dataType="text">
+            <title translatable="true">Distribution Center</title>
+            <sql dialect="generic">''</sql>
+        </field>
+        <parameter name="blUse" dataType="text" value=""/>
+    </dataSource>
+    
+    <dataSource id="abGbFpEsExpWastewaterSpaceDS">
+        <title translatable="true">Wastewater Space</title>
+        <table name="gb_fp_setup" role="main"/>
+        <table name="bl" role="standard"/>
+        <field table="bl" name="name">
+            <title translatable="true">Facility Name</title>
+        </field>
+        <field table="bl" name="bl_id">
+            <title translatable="true">Space Name</title>
+        </field>
+        <field name="InfluentBiologicalDemand" dataType="text">
+            <title translatable="true">Average Influent Biological Demand (milligrams per liter)</title>
+            <sql dialect="generic">''</sql>
+        </field>
+        <field name="EffluentBiologicalDemand" dataType="text">
+            <title translatable="true">Average Effluent Biological Demand (milligrams per liter)</title>
+            <sql dialect="generic">''</sql>
+        </field>
+        <field name="DesignflowRate" dataType="text">
+            <title translatable="true">Plant Design Flow rate (millions gallons per day)</title>
+            <sql dialect="generic">''</sql>
+        </field>
+        <field name="FixedFilm" dataType="text">
+            <title translatable="true">Fixed Film Trickle Process</title>
+            <sql dialect="generic">'Yes'</sql>
+        </field>
+		 <field name="NutrientRemoval" dataType="text">
+            <title translatable="true">Nutrient Removal</title>
+            <sql dialect="generic">'No'</sql>
+        </field>
+        <parameter name="blUse" dataType="text" value=""/>
+    </dataSource>
+    <dataSource id="abGbFpEsExpWorshipSpaceDS">
+        <title translatable="true">Worship Space</title>
+        <table name="gb_fp_setup" role="main"/>
+        <table name="bl" role="standard"/>
+        <field table="bl" name="name">
+            <title translatable="true">Facility Name</title>
+        </field>
+        <field table="bl" name="bl_id">
+            <title translatable="true">Space Name</title>
+        </field>
+        <field name="area_gross_ext" dataType="text">
+            <title translatable="true">Gross Floor Area</title>
+            <sql dialect="generic">gb_fp_setup.area_gross_ext</sql>
+        </field>
+        <field name="SeatingCapacity" dataType="text">
+            <title translatable="true">Seating Capacity</title>
+            <sql dialect="generic">''</sql>
+        </field>
+        <field name="WeekdayOperation" dataType="text">
+            <title translatable="true">Weekday Operation</title>
+            <sql dialect="generic">'3'</sql>
+        </field>
+        <field name="OperatingHours" dataType="text">
+            <title translatable="true">Weekly Operating Hours</title>
+            <sql dialect="generic">'33'</sql>
+        </field>
+        <field name="NoOfPcs" dataType="text">
+            <title translatable="true">No. of PCs</title>
+            <sql dialect="generic">''</sql>
+        </field>
+        <field name="CookingFacilities" dataType="text">
+            <title translatable="true">Cooking Facilities</title>
+            <sql dialect="generic">'No'</sql>
+        </field>
+        <field name="CommercialFreezerUnits" dataType="text">
+            <title translatable="true">No. of Commercial Refrigeration/Freezer Units</title>
+            <sql dialect="generic">''</sql>
+        </field>
+        <parameter name="blUse" dataType="text" value=""/>
+    </dataSource>
+    
+    <dataSource id="abGbFpEsExpEnergyUseDS">
+        <title translatable="true">Energy Use</title>
+		<sql dialect="generic">
+			SELECT bl.name  ${sql.as} blName,
+			 'Scope2-'${sql.concat}RTRIM(gb_fp_s2_purch_e.source_id) ${sql.as} EnergyMeterID,
+			'Electricity - Grid Purchase'  ${sql.as} EnergyType,
+			 'kWh'  ${sql.as} EnergyUnit, 
+			'1/1/'${sql.concat}RTRIM(gb_fp_s2_purch_e.calc_year)  ${sql.as} StartDate,
+			'12/31/'${sql.concat}RTRIM(gb_fp_s2_purch_e.calc_year)  ${sql.as} EndDate,
+			gb_fp_s2_purch_e.consumption  ${sql.as} EnergyConsumption,
+			''  ${sql.as} EnergyCost,
+			gb_fp_setup.bl_id, 
+			gb_fp_setup.calc_year,
+			gb_fp_setup.scenario_id
+			FROM gb_fp_s2_purch_e LEFT OUTER JOIN gb_fp_setup 
+			ON gb_fp_s2_purch_e.bl_id=gb_fp_setup.bl_id 
+			AND gb_fp_s2_purch_e.calc_year=gb_fp_setup.calc_year 
+			AND gb_fp_s2_purch_e.scenario_id=gb_fp_setup.scenario_id 
+			LEFT OUTER JOIN bl ON gb_fp_s2_purch_e.bl_id=bl.bl_id
+			UNION
+			SELECT bl.name  ${sql.as} blName,
+			gb_fp_s1_fuel_comb.source_name${sql.concat}'-'${sql.concat}RTRIM(gb_fp_s1_fuel_comb.source_id) ${sql.as} EnergyMeterID,
+			gb_fp_fuels.fuel_es  ${sql.as} EnergyType,
+			 'cubic meters'  ${sql.as} EnergyUnit, 
+			'1/1/'${sql.concat}RTRIM(gb_fp_s1_fuel_comb.calc_year)  ${sql.as} StartDate,
+			'12/31/'${sql.concat}RTRIM(gb_fp_s1_fuel_comb.calc_year)  ${sql.as} EndDate,
+			gb_fp_s1_fuel_comb.fuel_consumed  ${sql.as} EnergyConsumption,
+			''  ${sql.as} EnergyCost,
+			gb_fp_setup.bl_id, 
+			gb_fp_setup.calc_year,
+			gb_fp_setup.scenario_id
+			FROM gb_fp_s1_fuel_comb LEFT OUTER JOIN gb_fp_setup 
+			ON gb_fp_s1_fuel_comb.bl_id=gb_fp_setup.bl_id 
+			AND gb_fp_s1_fuel_comb.calc_year=gb_fp_setup.calc_year 
+			AND gb_fp_s1_fuel_comb.scenario_id=gb_fp_setup.scenario_id
+			LEFT OUTER JOIN gb_fp_fuels ON gb_fp_s1_fuel_comb.fuel_base_code=gb_fp_fuels.fuel_base_code
+			AND gb_fp_s1_fuel_comb.fuel_mode=gb_fp_fuels.fuel_mode
+			AND gb_fp_s1_fuel_comb.fuel_name=gb_fp_fuels.fuel_name
+			LEFT OUTER JOIN bl ON gb_fp_s1_fuel_comb.bl_id=bl.bl_id
+			WHERE gb_fp_fuels.fuel_es IS NOT NULL AND  gb_fp_fuels.fuel_es != 'N/A'
+		</sql>
+        <table name="gb_fp_setup" role="main"/>
+		<field table="gb_fp_setup" name="calc_year" hidden="true"/>
+        <field table="gb_fp_setup" name="scenario_id" hidden="true"/>
+        <field table="gb_fp_setup" name="bl_id" hidden="true"/>
+        <field name="blName" dataType="text">
+            <title translatable="true">Facility Name</title>
+        </field>
+        <field name="EnergyMeterID" dataType="text">
+            <title translatable="true">Energy Meter ID</title>
+        </field>
+        <field name="EnergyType" dataType="text">
+            <title translatable="true">Energy Type</title>
+        </field>
+        <field name="EnergyUnit" dataType="text">
+            <title translatable="true">Energy Unit</title>
+        </field>
+        <field name="StartDate" dataType="text">
+            <title translatable="true">Start Date</title>
+        </field>
+        <field name="EndDate" dataType="text">
+            <title translatable="true">End Date</title>
+        </field>
+        <field name="EnergyConsumption" dataType="text">
+            <title translatable="true">Energy Consumption</title>
+        </field>
+        <field name="EnergyCost" dataType="text">
+            <title translatable="true">Energy Cost</title>
+        </field>
+        <parameter name="blUse" dataType="text" value=""/>
+    </dataSource>
+    
+    <dataSource id="abGbFpEsExpWaterUseDS">
+        <title translatable="true">Water Use</title>
+        <table name="gb_fp_s3_waste_liq" role="main"/>
+        <table name="bl" role="standard"/>
+        <table name="gb_fp_setup" role="standard"/>
+        <field table="gb_fp_setup" name="bl_id" hidden="true"/>
+        <field table="bl" name="name">
+            <title translatable="true">Facility Name</title>
+        </field>
+        <field name="WaterMeterID" dataType="text">
+            <title translatable="true">Water Meter ID</title>
+            <sql dialect="generic">RTRIM(gb_fp_s3_waste_liq.treatment_id)${sql.concat}'-'${sql.concat}RTRIM(gb_fp_s3_waste_liq.source_id)</sql>
+        </field>
+        <field name="WaterType" dataType="text">
+            <title translatable="true">Water Type</title>
+            <sql dialect="generic">'Wastewater/Sewer'</sql>
+        </field>
+        <field name="otherWaterType" dataType="text">
+            <title translatable="true">Other Water Type</title>
+            <sql dialect="generic">''</sql>
+        </field>
+        <field name="WaterUnit" dataType="text">
+            <title translatable="true">Water Unit</title>
+            <sql dialect="generic">'gal'</sql>
+        </field>
+        <field name="StartDate" dataType="text">
+            <title translatable="true">Start Date</title>
+            <sql dialect="generic">'1/1/'${sql.concat}RTRIM(gb_fp_s3_waste_liq.calc_year)</sql>
+        </field>
+        <field name="EndDate" dataType="text">
+            <title translatable="true">End Date</title>
+            <sql dialect="generic">'12/31/'${sql.concat}RTRIM(gb_fp_s3_waste_liq.calc_year)</sql>
+        </field>
+        <field name="WaterConsumption" dataType="text">
+            <title translatable="true">Water Consumption</title>
+            <sql dialect="generic">gb_fp_s3_waste_liq.qty_treated</sql>
+        </field>
+        <field name="WaterCost" dataType="text">
+            <title translatable="true">Water Cost</title>
+            <sql dialect="generic">''</sql>
+        </field>
+        <parameter name="blUse" dataType="text" value=""/>
+    </dataSource>
+</view>

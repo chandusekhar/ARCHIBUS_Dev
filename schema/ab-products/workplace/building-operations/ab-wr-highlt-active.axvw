@@ -1,0 +1,113 @@
+<view version="2.0">
+    <designInfo type="summary" pattern="ab-viewdef-summary-report-drilldown" isAlterable="false"/>
+    <message name="summaryGridTitle" translatable="true">Select Floor:</message>
+    <message name="drawingPanelTitle1" translatable="true">Highlight Rooms With Active Work :</message>
+    
+    <layout type="borderLayout" id="mainLayout">
+        <west id="top" initialSize="20%" split="true"/>
+        <center id="center" autoScroll="true"/>
+    </layout>
+    
+    <layout id="nested_center" containingLayout="main" region="center">
+        <center id="dwgPosition"/>
+        <south id="legentPosition" initialSize="20%" split="true"/>
+    </layout>
+    
+    <title translatable="true">Highlight Rooms With Active Work</title>
+    
+    <dataSource id="ab-wr-highlt-active-select-floor" distinct="true">
+        <table name="rm" role="main"/>
+        <table name="bl" role="standard"/>
+        <field name="blid_name_flid" dataType="text" groupBy="true" baseField="bl.name">
+            <sql dialect="generic">RTRIM(CASE WHEN(rm.bl_id IS NULL) THEN '' ELSE rm.bl_id END)${sql.concat}'-'${sql.concat}RTRIM(CASE WHEN(bl.name IS NULL) THEN '' ELSE bl.name END)${sql.concat}'-'${sql.concat}RTRIM(CASE WHEN(rm.fl_id IS NULL) THEN '' ELSE rm.fl_id END)</sql>
+        </field>
+        <field name="bl_id" table="rm" hidden="true"/>
+        <field name="name" table="bl" hidden="true"/>
+        <field name="fl_id" table="rm" hidden="true"/>
+		<field name="dwgname" table="rm" hidden="true"/>
+        <restriction type="sql" sql="rm.dwgname is NOT NULL and EXISTS (select 1 from wr where wr.bl_id=rm.bl_id and wr.fl_id=rm.fl_id and wr.rm_id=rm.rm_id and date_completed IS NULL AND wr.status IN ('I','HP','HA','HL'))"/>
+    </dataSource>
+    
+    <dataSource id="ds_ab-sp-hl-rm-by-rmstd_drawing_rmHighlight" type="DrawingControlHighlight">
+        <table name="rm" role="main"/>
+        <field table="rm" name="bl_id" legendKey="true"/>
+        <field table="rm" name="fl_id"/>
+        <field table="rm" name="rm_id"/>
+        <restriction type="sql" sql="rm.dwgname is NOT NULL and EXISTS(SELECT wr.rm_id FROM wr WHERE wr.status IN ('I','HP','HA','HL') AND rm.bl_id = wr.bl_id AND rm.fl_id = wr.fl_id AND rm.rm_id = wr.rm_id and date_completed IS NULL)"/>
+        
+    </dataSource>
+    
+    <dataSource id="ds_ab-sp-hl-rm-by-rmstd_drawing_rmLabel">
+        <table name="rm" role="main"/>
+        <field name="bl_id" hidden="true"/>
+        <field name="fl_id" hidden="true"/>
+        <field name="rm_id"/>
+        <field name="area"/>
+    </dataSource>
+    
+    <dataSource id="ab-wr-highlt-active-grid_rm" type="grouping">
+        <table name="rm" role="main"/>
+        <field name="bl_id" table="rm" groupBy="true"/>
+        <field name="fl_id" table="rm" groupBy="true"/>
+        <field name="total_count" formula="count" baseField="rm.rm_id" dataType="number" decimals="0"/>
+        <field name="total_area" formula="sum" baseField="rm.area" dataType="number" decimals="2"/>
+        <restriction type="sql" sql="rm.dwgname is NOT NULL and EXISTS(SELECT wr.rm_id FROM wr WHERE wr.status IN ('I','HP','HA','HL') AND rm.bl_id = wr.bl_id AND rm.fl_id = wr.fl_id AND rm.rm_id = wr.rm_id and date_completed IS NULL)"/>
+    </dataSource>
+    
+    <dataSource id="ab-wr-highlt-active_rm_columnReport">
+        <table name="wr" role="main"/>
+		<field table="wr" name="wr_id"/>
+		<field table="wr" name="prob_type"/>
+		<field table="wr" name="status"/>
+        <field table="wr" name="bl_id"/>
+        <field table="wr" name="fl_id"/>
+        <field table="wr" name="rm_id"/>
+		<field table="wr" name="date_requested"/>
+		<field table="wr" name="date_est_completion"/>
+        <field table="wr" name="description"/>
+     <restriction type="sql" sql="wr.date_completed IS NULL AND status IN ('I','HP','HA','HL')" />
+    </dataSource>
+    
+    
+    <panel type="drawing" id="abWrHighltActive_DrawingPanel" layoutRegion="dwgPosition" multiple="false"
+     highlightDataSource="ds_ab-sp-hl-rm-by-rmstd_drawing_rmHighlight"
+     labelsDataSource="ds_ab-sp-hl-rm-by-rmstd_drawing_rmLabel">
+        <title></title>
+    </panel>
+    
+    <panel type="grid" id="ab-wr-highlt-active-select-floor" columns="1" dataSource="ab-wr-highlt-active-select-floor" layoutRegion="top">
+        <title translatable="true"> Select a Floor</title>
+        
+        <field name="blid_name_flid" table="rm" controlType="link">
+            <command type="callFunction" functionName="showDrawing"/>
+        </field>
+        
+    </panel>
+    
+    <panel type="grid" id="abWrHighltActive_rmGrid" dataSource="ab-wr-highlt-active-grid_rm" showOnLoad="false" layoutRegion="legentPosition">
+        <title translatable="true">Summary</title>
+        <field name="bl_id" table="rm" groupBy="true"/>
+        <field name="fl_id" table="rm" groupBy="true"/>
+        <field name="total_count" formula="count" baseField="rm.rm_id" dataType="number" decimals="0">
+            <title translatable="true">Total Count</title>
+        </field>
+        <field name="total_area" formula="sum" baseField="rm.area" dataType="number" decimals="2">
+            <title translatable="true">Total Area</title>
+        </field>
+    </panel>
+    
+    <panel type="grid" id="abWrHighltActive_rmDetailPanel" columns="2" dataSource="ab-wr-highlt-active_rm_columnReport" showOnLoad="false" hidden="true" layoutRegion="dwgPosition">
+        <title translatable="true">Request Details In The Room</title>
+		<field table="wr" name="wr_id"/>
+		<field table="wr" name="prob_type"/>
+		<field table="wr" name="status"/>
+        <field table="wr" name="bl_id"/>
+        <field table="wr" name="fl_id"/>
+        <field table="wr" name="rm_id"/>
+		<field table="wr" name="date_requested"/>
+		<field table="wr" name="date_est_completion"/>
+        <field table="wr" name="description"/>
+    </panel>
+    
+    <js file="ab-wr-highlt-active.js"/>
+</view>

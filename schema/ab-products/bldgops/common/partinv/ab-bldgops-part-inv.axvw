@@ -1,0 +1,240 @@
+<!-- This view lists out all parts that exist in work request part estimations.  It will be added to both the On Demand and Preventative Maintenance applications, it will be available to Supervisors only. -->
+<!-- Purpose: allow the supervisors to reserve parts that have recently been added to the inventory.  The view can show them all the part estimations that are not yet reserved, as well as those that are already reserved or are not in stock.  The supervisor can also shift reserved parts between work requests in order to balance priorities. -->
+
+<view version="2.0">
+	<title>Reserve New Part Inventory</title>
+    <js file="ab-bldgops-part-inv.js"/>
+  <layout type="borderLayout" id="mainLayout">
+    <north initialSize="88" split="true"/>
+    <center autoScroll="true"/>
+    <south initialSize="200" split="true"/>
+  </layout>
+
+    <message name="availQty">Quantity Available</message>
+    <message name="reserveQty">Quantity On Reserve</message>
+    <message name="pendQty">Pending Part Quantities</message>
+    <message name="reserve">Reserve</message>
+    <message name="editEstimation">Edit Part Quantity Estimate</message>
+    <message name="editWithPending">Editing a part estimate will remove your pending part reservations.  Do you wish to continue?</message>
+    <message name="deleteWithPending">Delete a part estimate will remove your pending part reservations.  Do you wish to continue?</message>
+    <message name="noSchemaChange">The required schema change for this view has not been executed.</message>
+
+    <panel type="console" id="filter" dataSource="none" columns="20"  region="north" style="align:left">
+		<title>Filter</title>
+		<!-- Custom field, displayed as a set of checkboxes. -->
+            <!-- Status -->
+            <field>
+                <html>
+                    <table style="align:left" >
+                        <tbody>
+                            <tr>
+                                <td  align="left">
+                                    <span  translatable="true">Part Estimation Status: </span>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td>
+                                    <input name="filter_statusCheckbox" value="NR" type="checkbox" checked="true"><span translatable="true">In Stock, Not Reserved</span></input>
+                                    <input name="filter_statusCheckbox" value="NI" type="checkbox" checked="true"><span translatable="true">Not In Stock</span></input>
+                                    <input name="filter_statusCheckbox" value="R" type="checkbox"><span translatable="true">Reserved</span></input>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </html>
+            </field>
+            <field>
+            </field>
+            <field>
+            </field>
+            <field>
+            </field>
+            <field>
+            </field>
+            <field>
+            </field>
+            <field>
+            </field>
+            <field>
+            </field>
+            <field>
+            </field>
+            <field>
+            </field>
+            <field>
+            </field>
+            <field>
+            </field>
+            <field>
+            </field>
+            <field>
+            </field>
+            <field>
+            </field>
+            <field>
+            </field>
+            <field>
+            </field>
+            <field>
+            </field>
+            <field>
+            </field>
+            <field>
+            </field>
+    </panel>
+
+    <dataSource id="partDS">
+        <table name="pt" role="main"/>
+        <field name="part_id"/>
+        <field name="description"/>
+        <field name="class"/>
+		<field name="units_issue"/>
+        <field name="qty_on_reserve"/>
+        <field name="qty_on_hand"/>
+        <field name="qty_min_hand"/>
+        <field name="qty_to_order"/>
+        <field name="estimated_not_reserved" dataType="number">
+			<title>Estimated and Not Reserved</title>
+			<sql dialect="generic">
+				${sql.isNull ( "( select sum(wrpt.qty_estimated) from wrpt where wrpt.status IN('NI', 'NR') and wrpt.part_id=pt.part_id)", "0")}
+			</sql>
+        </field>
+        <restriction type="sql" sql=" EXISTS ( SELECT 1 FROM wrpt 
+																				WHERE wrpt.part_id = pt.part_id  AND 	 ${parameters['statusRestriction']} 
+																							  and exists ( select 1 from wr 
+																													where wr.wr_id=wrpt.wr_id 
+																																and	( 
+																																			( wr.supervisor IS NULL AND wr.work_team_id IS NULL) 
+																																			OR ( 
+																																					wr.supervisor =${sql.literal(user.employee.id)}
+																																					OR ( wr.supervisor IS NULL AND NOT wr.work_team_id IS NULL
+																																							AND ( 
+																																										wr.work_team_id IN ( SELECT cf_work_team.work_team_id FROM cf_work_team, cf WHERE cf_work_team.cf_id = cf.cf_id and cf.email = ${sql.literal(user.email)} AND cf.is_supervisor = 1 )
+                                                                                                                                                                        OR wr.work_team_id IN (SELECT cf_work_team.work_team_id FROM cf_work_team, cf WHERE cf_work_team.cf_id = cf.cf_id  AND email IN ( SELECT email FROM em WHERE em_id${sql.concat}'supervisor' IN (${parameters['emWorkflowSubstitutes']})))
+																																								)
+																																					)
+																																					OR wr.supervisor${sql.concat}'supervisor' IN 
+																																						( ${parameters['emWorkflowSubstitutes']}
+																																					)
+																																			)
+																																)																										
+																										)
+															) "/>
+        <parameter name="statusRestriction" dataType="verbatim" value=" 1=0 "/>
+        <parameter name="emWorkflowSubstitutes" dataType="verbatim" value="''"/>
+    </dataSource>
+
+    <panel id="partGrid" type="grid" dataSource="partDS" showOnLoad="false" region="center">
+        <title>Parts</title>
+        <event type="onClickItem">
+            <tooltip>Click to view Estimated Parts.</tooltip>
+            <command type="callFunction" functionName="partInventoryDiffCtrl.onSelectPartRow()"/>
+            <command type="showPanel" panelId="estimatedPartGrid" show="true"/>
+        </event>
+    </panel>
+
+	<dataSource id="wrptDS">
+        <table name="wrpt" role="main"/>
+        <table name="wr" role="standard"/>
+        <table name="pt" role="standard"/>
+        <field table="wrpt" name="status"/>
+        <field table="wrpt" name="status_order" dataType="integer" hidden="true">
+			<sql dialect="generic">
+				case	when wrpt.status='NR' then 1
+							when wrpt.status='NI' then 2
+							when wrpt.status='R' then 3
+				end
+			</sql>
+		</field>
+        <field table="wrpt" name="qty_estimated"/>
+        <field table="wrpt" name="cost_estimated" hidden="true"/>
+        <field table="wrpt" name="wr_id"/>
+        <field table="wr" name="status"/>
+        <field table="wr" name="date_escalation_completion">
+			<title>Due Date</title>
+		</field>
+        <field table="wr" name="prob_type"/>
+        <field table="wr" name="loc" dataType="text">
+			<title>Location</title>
+			<sql dialect="generic">
+				RTRIM(wr.bl_id)${sql.concat}'-'${sql.concat}RTRIM(wr.fl_id)${sql.concat}'-'${sql.concat}RTRIM(wr.rm_id)
+			</sql>
+		</field>
+        <field table="wr" name="date_requested">
+			<title>Requested Date</title>
+		</field>
+        <field table="wrpt" name="date_time" dataType="text">
+			<title>Date and Time Part Assigned</title>
+		</field>
+        <field table="wrpt" name="date_assigned" hidden="true"/>
+        <field table="wrpt" name="time_assigned" hidden="true"/>
+        <field table="wr" name="description"/>
+        <field table="wrpt" name="part_id" hidden="true"/>
+        <field table="pt" name="cost_unit_avg" hidden="true"/>
+        
+        <parameter name="emWorkflowSubstitutes" dataType="verbatim" value="''"/>
+        
+        <restriction type="sql" sql=" (wr.supervisor IS NULL AND wr.work_team_id IS NULL) 
+           OR (wr.supervisor =${sql.literal(user.employee.id)}) 
+           OR ( wr.supervisor IS NULL AND NOT wr.work_team_id IS NULL AND ( wr.work_team_id IN (SELECT cf_work_team.work_team_id FROM cf_work_team, cf WHERE cf_work_team.cf_id = cf.cf_id and cf.email = ${sql.literal(user.email)} AND cf.is_supervisor = 1)
+                        OR wr.work_team_id IN (SELECT cf_work_team.work_team_id FROM cf_work_team, cf WHERE cf_work_team.cf_id = cf.cf_id  AND email IN ( SELECT email FROM em WHERE em_id${sql.concat}'supervisor' IN (${parameters['emWorkflowSubstitutes']})))))
+           OR (wr.supervisor${sql.concat}'supervisor' IN ( ${parameters['emWorkflowSubstitutes']}))"/>
+           
+		<sortField table="wrpt" name="status_order"/>
+    </dataSource>
+
+    <panel id="estimatedPartGrid" type="grid" controlType="reportGrid" dataSource="wrptDS" region="south" showOnLoad="false">
+        <title>Part Estimations For:</title>
+		<action id="commit">
+			<title>Commit</title>
+		</action>
+		<action id="cancel">
+			<title>Cancel</title>
+		</action>
+        <field id="reserve"  controlType="button" enabled="${record['wrpt.status.raw'] =='NR' }">
+          <title translatable="true">Reserve</title>
+        </field>
+        <field id="edit"  controlType="image" imageName="pencil.png"  enabled="${record['wr.status.raw']  != 'I'  &amp;&amp;  record['wr.status.raw']  != 'HP'  &amp;&amp;  record['wr.status.raw']  != 'HA'  &amp;&amp;  record['wr.status.raw']  != 'HL'  &amp;&amp;  record['wr.status.raw']  != 'S'  &amp;&amp;  record['wr.status.raw']  != 'Can' &amp;&amp;  record['wr.status.raw']  != 'Com' &amp;&amp;  record['wr.status.raw']  != 'Clo' }" >
+			<title>Edit</title>
+        </field>
+        <field id="delete" controlType="image"  imageName="delete.gif"  enabled="${record['wr.status.raw']  != 'I'  &amp;&amp;  record['wr.status.raw']  != 'HP'  &amp;&amp;  record['wr.status.raw']  != 'HA'  &amp;&amp;  record['wr.status.raw']  != 'HL'  &amp;&amp;  record['wr.status.raw']  != 'S'  &amp;&amp;  record['wr.status.raw']  != 'Can' &amp;&amp;  record['wr.status.raw']  != 'Com' &amp;&amp;  record['wr.status.raw']  != 'Clo' }">
+			<title>Delete</title>
+        </field>
+    </panel>
+
+    <panel id="estimatedPartForm" type="form" dataSource="wrptDS" showOnLoad="false">
+        <title>Edit Part Quantity Estimate</title>
+		<action id="save">
+			<title>Save</title>
+		</action>
+        <field table="wrpt" name="wr_id" readOnly="true"/>
+        <field table="wrpt" name="part_id" readOnly="true"/>
+        <field table="wrpt" name="date_assigned" hidden="true"/>
+        <field table="wrpt" name="time_assigned" hidden="true"/>
+        <field table="pt" name="cost_unit_avg" hidden="true"/>
+        <field table="wrpt" name="status" hidden="true"/>
+        <field table="wrpt" name="qty_estimated"/>
+        <field table="wrpt" name="cost_estimated" readOnly="true"/>
+    </panel>
+
+    <dataSource id="updatePartDS">
+        <table name="pt" role="main"/>
+        <field name="part_id"/>
+        <field name="qty_on_reserve"/>
+        <field name="qty_on_hand"/>
+    </dataSource>
+
+    <dataSource id="schemaFieldDS">
+        <table name="afm_flds" role="main"/>
+        <field name="table_name"/>
+        <field name="field_name"/>
+        <field name="enum_list"/>
+    </dataSource>
+
+    <dataSource id="workflowRuleDS">
+        <table name="afm_wf_rules" role="main"/>
+        <field name="activity_id"/>
+        <field name="rule_id"/>
+        <field name="is_active"/>
+    </dataSource>
+</view>

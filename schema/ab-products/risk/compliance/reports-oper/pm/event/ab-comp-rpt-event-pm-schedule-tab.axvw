@@ -1,0 +1,161 @@
+<view version="2.0">    
+	<js file="ab-comp-rpt-event-pm-schedule-tab.js"/>	   
+	<js file="ab-comp-common.js"/>	   
+						
+	<layout id="main">
+        <north split="true"/>
+        <center/>
+    </layout>
+
+    <panel type="view" id="abCompRptPmsLicenseCheck" file="ab-comp-rpt-work-history-license-check.axvw"/>
+
+	<dataSource id="abCompRptPmsConsoleDS">
+		<table name="pms" role="main"/>
+		<table name="pmp" role="standard"/>
+  		<table name="eq" role="standard"/>
+		<table name="eqstd" role="standard"/>
+ 		<table name="wr" role="standard"/>
+
+		<field table="pms" name="site_id"/>
+		<field table="eqstd" name="category"/>
+		<field table="pms" name="pmp_id"/>
+
+		<field table="pms" name="bl_id"/>
+		<field table="eq" name="eq_std"/>
+		<field table="pmp" name="pmp_type"/>
+
+		<field table="pms" name="fl_id"/>
+		<field table="pms" name="eq_id"/>
+		<field table="pms" name="pm_group"/>
+
+		<field table="pms" name="rm_id"/>
+		<field table="pms" name="dv_id"/>
+		<field table="pms" name="date_last_completed"/>
+
+		<field table="wr" name="status"/>
+		<field table="pms" name="dp_id"/>
+	</dataSource>
+
+	<panel type="console" columns="3" id="abCompRptPmsConsole" dataSource="abCompRptPmsConsoleDS" layout="main" region="north">
+		<title translatable="true">Filter</title>
+
+		<action id="show">
+			<title translatable="true">Show</title>
+		</action>
+		<action id="clear">
+			<title translatable="true">Clear</title>
+			<command type="clearPanel" panelId="abCompRptPmsConsole"/>
+		</action>
+
+		<field table="pms" name="site_id" selectValueType="multiple"/>
+		<field table="eqstd" name="category" selectValueType="multiple"/>
+		<field table="pms" name="pmp_id" selectValueType="multiple"/>
+
+		<field table="pms" name="bl_id" selectValueType="multiple"/>
+		<field table="eq" name="eq_std" selectValueType="multiple"/>
+		<field table="pmp" name="pmp_type" selectValueType="multiple"/>
+
+		<field table="pms" name="fl_id" selectValueType="multiple"/>
+		<field table="pms" name="eq_id" selectValueType="multiple"/>
+		<field table="pms" name="pm_group" selectValueType="multiple"/>
+
+		<field table="pms" name="rm_id" selectValueType="multiple"/>
+		<field table="pms" name="dv_id" selectValueType="multiple"/>
+		<field table="pms" name="date_last_completed" alias="pms.date_requested.from">
+			<title translatable="true">Date From</title>
+		</field>
+
+		<field table="wr" name="status" selectValueType="multiple"/>
+		<field table="pms" name="dp_id" selectValueType="multiple"/>
+		<field table="pms" name="date_last_completed" alias="pms.date_requested.to">
+			<title translatable="true">Date To</title>
+		</field>
+	</panel>
+
+	<dataSource id="abCompRptPmsGridDS">
+		<sql dialect="generic">
+				SELECT DISTINCT pms.pms_id, pms.eq_id, pms.site_id, pms.bl_id, pms.fl_id, pms.rm_id, pms.pmp_id, 
+				(SELECT COUNT(wr.wr_id) FROM wr WHERE wr.pms_id=pms.pms_id  AND wr.status NOT IN ('Com','Clo')) ${sql.as} nactive, pms.date_last_completed, pms.date_next_todo, pms.pm_group, 
+												eq.eq_std, eqstd.category	, rp.update_status 
+				FROM regreq_pmp ${sql.as} rp
+				JOIN pmp ON pmp.pmp_id = rp.pmp_id
+				JOIN pms ON pms.pmp_id = rp.pmp_id
+				JOIN activity_log act ON rp.regulation=act.regulation AND rp.reg_program=act.reg_program AND rp.reg_requirement=act.reg_requirement
+				LEFT JOIN regloc rl ON rp.regulation=rl.regulation AND rp.reg_program=rl.reg_program AND rp.reg_requirement=rl.reg_requirement
+				LEFT JOIN compliance_locations cl ON (act.location_id IS NOT NULL AND act.location_id = cl.location_id) 
+OR (act.location_id IS NULL AND rl.location_id = cl.location_id)
+				LEFT JOIN eq ON pms.eq_id = eq.eq_id
+				LEFT JOIN eqstd ON eqstd.eq_std = eq.eq_std
+				WHERE (pms.site_id=cl.site_id OR cl.site_id IS NULL)
+				AND (pms.bl_id=cl.bl_id OR cl.bl_id IS NULL)
+				AND (pms.fl_id=cl.fl_id OR cl.fl_id IS NULL)
+				AND (pms.rm_id=cl.rm_id OR cl.rm_id IS NULL)
+				AND (pms.eq_id=cl.eq_id OR cl.eq_id IS NULL)
+				AND (eq.eq_std=cl.eq_std OR cl.eq_std IS NULL)
+				AND act.activity_log_id=${parameters['eventId']}
+				AND ${parameters['resForPms']}
+		</sql>
+		
+		<table name="pms" role="main"/>
+ 
+		<field table="pms" name="pms_id"/>
+		<field table="pms" name="eq_id"/>
+		<field table="pms" name="bl_id"/>
+		<field table="pms" name="fl_id"/>
+ 		<field table="pms" name="rm_id"/>
+		<field table="pms" name="pmp_id"/>
+		<field table="pms" name="nactive"/>
+		<field table="pms" name="date_last_completed"/>
+		<field table="pms" name="date_next_todo"/>
+		<field table="pms" name="pm_group"/>
+		<field table="pms" name="site_id"/>
+
+		<parameter name="resForPms" dataType="verbatim" value=" 1=1 "/>
+		<parameter name="eventId" dataType="text" value=""/>
+	</dataSource>
+    
+    <panel type="grid" id="abCompRptPmsGrid" showOnLoad="true"  dataSource="abCompRptPmsGridDS"  layout="main" region="center">
+		<title>Select PM Schedules</title>
+        <action id="doc">
+            <title translatable="true">DOCX</title>
+            <command type="exportPanel" outputType="docx" panelId="abCompRptPmsGrid" orientation="landscape"/>
+        </action>
+        <action id="xls">
+            <title translatable="true">XLS</title>
+            <command type="exportPanel" outputType="xls" panelId="abCompRptPmsGrid"/>
+        </action>
+        <action id="xls">
+            <title translatable="true">PDF</title>
+            <command type="exportPanel" outputType="pdf" panelId="abCompRptPmsGrid" orientation="landscape"/>
+        </action>
+
+        <field controlType="button" id="viewPmsDetail"> 
+            <title translatable="true">View</title>
+            <command type="openDialog" viewName="ab-comp-rpt-pm-schedule-details.axvw"/>
+        </field>
+		
+		<field table="pms" name="pms_id"/>
+		<field table="pms" name="eq_id"/>
+		<field table="pms" name="bl_id"/>
+		<field table="pms" name="fl_id"/>
+ 		<field table="pms" name="rm_id"/>
+		<field table="pms" name="pmp_id"/>
+		<field table="pms" name="nactive">
+		  <title>Num. Open Work Requests</title>
+		</field>
+		<field table="pms" name="date_last_completed"/>
+		<field table="pms" name="date_next_todo"/>
+		<field table="pms" name="pm_group"/>
+		<field table="pms" name="eq_std" dataType="text">
+		  <title>Equipment Standard</title>
+		</field>
+		<field table="pms" name="category" dataType="text">
+		  <title>Equipment Category</title>
+		</field>
+		<field table="pms" name="site_id"/>
+		<field table="pms" name="update_status" dataType="integer">
+		  <title>Auto-Update Event Status?</title>
+		</field>
+		
+    </panel>  
+</view>

@@ -1,0 +1,188 @@
+<!--  HTML5 Stack Control example 
+    Raw sql (sybase):
+            
+    SELECT * FROM 
+    (
+        SELECT gp.bl_id,gp.fl_id,gp.sort_order,gp.dv_id,gp.dp_id,gp.gp_id,gp.allocation_type,gp.area_manual,gp.count_em,gp.planning_bu_id,gp.portfolio_scenario_id,gp.date_start,gp.date_end,dv.hpattern_acad,fl.sort_order AS fl_sort_order,fl.name 
+        FROM gp  
+        LEFT OUTER JOIN dv ON gp.dv_id=dv.dv_id LEFT OUTER JOIN fl ON gp.bl_id=fl.bl_id AND gp.fl_id=fl.fl_id 
+        WHERE allocation_type NOT IN ('Usable Area - Owned', 'Usable Area - Leased')  
+        
+        UNION   
+        
+        SELECT gp.bl_id, gp.fl_id, 9999 AS sort_order, NULL AS dv_id, NULL AS dp_id, 99999999 AS gp_id, 'Available - Remaining Area' AS allocation_type,  
+        ISNULL ( ( SELECT SUM(area_manual) FROM gp gp_inner WHERE gp_inner.bl_id = gp.bl_id AND gp_inner.fl_id = gp.fl_id AND gp_inner.allocation_type IN ('Usable Area - Owned', 'Usable Area - Leased') 
+            AND gp_inner.portfolio_scenario_id = 'Headquarters Baseline' AND (gp_inner.date_start <= '2020-03-04'  )AND( gp_inner.date_end >= '2020-03-04' OR gp_inner.date_end IS NULL ) 
+            ), 0) -   
+        ISNULL ( ( SELECT SUM(area_manual) FROM gp gp_inner WHERE gp_inner.bl_id = gp.bl_id AND gp_inner.fl_id = gp.fl_id AND gp_inner.allocation_type = 'Allocated Area' 
+            AND gp_inner.portfolio_scenario_id = 'Headquarters Baseline' AND (gp_inner.date_start <= '2020-03-04'  )AND( gp_inner.date_end >= '2020-03-04' OR gp_inner.date_end IS NULL ) 
+            ), 0 ) -   
+        ISNULL ( ( SELECT SUM(area_manual) FROM gp gp_inner WHERE gp_inner.bl_id = gp.bl_id AND gp_inner.fl_id = gp.fl_id AND gp_inner.allocation_type = 'Unavailable Area' 
+            AND gp_inner.portfolio_scenario_id = 'Headquarters Baseline' AND (gp_inner.date_start <= '2020-03-04'  )AND( gp_inner.date_end >= '2020-03-04' OR gp_inner.date_end IS NULL ) 
+            ), 0 ) AS area_manual, 
+        0 AS count_em, NULL AS planning_bu_id, 
+        'Headquarters Baseline' AS portfolio_scenario_id, '2020-03-04' AS date_start, NULL AS date_end, '0 7' AS hpattern_acad,  fl.sort_order AS fl_sort_order,  'AVAILABLE AREA' AS name   
+        FROM gp 
+        LEFT OUTER JOIN fl ON gp.bl_id=fl.bl_id AND gp.fl_id=fl.fl_id  
+        WHERE gp.portfolio_scenario_id = 'Headquarters Baseline' AND (gp.date_start <= '2020-03-04' )AND( gp.date_end > '2020-03-04' OR gp.date_end IS NULL )  
+        GROUP BY gp.bl_id, fl.sort_order, gp.fl_id        
+    ) gp 
+    WHERE  ((gp.bl_id = 'HQ' AND gp.portfolio_scenario_id = 'Headquarters Baseline' AND gp.date_start <= '2020-03-04' )AND( gp.date_end > '2020-03-04' OR gp.date_end IS NULL ))  
+    ORDER BY gp.bl_id, gp.fl_sort_order, gp.fl_id DESC, gp.sort_order
+-->
+
+
+<view version="2.0" showLoadProgress="true">
+    <title translatable="true">Stack</title>
+        
+    <!-- reusable .axvw file for the stack control that takes care of including all control resources: JS, CSS, localized strings in AXVW, libraries, etc. -->
+    <panel type="view" id="stackControl" file="ab-common-controls-stack.axvw"/>
+    
+    <!-- statistics -->
+    <panel type="view" id="statisticsFl" file="ab-ex-htmlstack-stats-fl.axvw"/>
+    <panel type="view" id="statisticsBl" file="ab-ex-htmlstack-stats-bl.axvw"/>
+            
+    <js file="ab-ex-htmlstack.js"/>
+    
+    <!-- datasource for the stack diagrams -->
+    <dataSource id="abExHtmlStackDs_gp">                       
+        <table name="gp" role="main"/>
+        <table name="fl" role="standard"/>
+        <table name="dv" role="standard"/>
+        <field table="gp" name="bl_id"/>
+        <field table="gp" name="fl_id"/>
+        <field table="fl" name="sort_order"/>
+        <field table="gp" name="sort_order"/>
+        <field table="fl" name="name"/>
+        <field table="gp" name="dv_id"/>
+        <field table="gp" name="dp_id"/>
+        <field table="dv" name="hpattern_acad" controlType="color"/>
+        <field table="gp" name="gp_id"/>
+        <field table="gp" name="allocation_type"/>
+        <field table="gp" name="area_manual"/>
+        <field table="gp" name="count_em"/>
+        <field table="gp" name="planning_bu_id"/>
+        
+        <sql dialect="generic">
+            SELECT gp.bl_id,gp.fl_id,gp.sort_order,gp.dv_id,gp.dp_id,gp.gp_id,gp.allocation_type,gp.area_manual,gp.count_em,gp.planning_bu_id,gp.portfolio_scenario_id,gp.date_start,gp.date_end,dv.hpattern_acad,fl.sort_order AS fl_sort_order,fl.name FROM gp 
+            LEFT OUTER JOIN dv ON gp.dv_id=dv.dv_id LEFT OUTER JOIN fl ON gp.bl_id=fl.bl_id AND gp.fl_id=fl.fl_id 
+            WHERE allocation_type NOT IN ('Usable Area - Owned', 'Usable Area - Leased')  
+            UNION              
+            SELECT gp.bl_id, gp.fl_id, 9999 AS sort_order, NULL AS dv_id, NULL AS dp_id, 99999999 AS gp_id, 'Available - Remaining Area' AS allocation_type, 
+                ${sql.isNull ( " ( SELECT SUM(area_manual) FROM gp gp_inner WHERE gp_inner.bl_id = gp.bl_id AND gp_inner.fl_id = gp.fl_id AND gp_inner.allocation_type IN ('Usable Area - Owned', 'Usable Area - Leased') 
+                        AND gp_inner.portfolio_scenario_id = 'Headquarters Baseline' AND (gp_inner.date_start &lt;= '2020-03-04'  )AND( gp_inner.date_end &gt;= '2020-03-04' OR gp_inner.date_end IS NULL ) 
+                        )", "0")} -   
+                ${sql.isNull ( " ( SELECT SUM(area_manual) FROM gp gp_inner WHERE gp_inner.bl_id = gp.bl_id AND gp_inner.fl_id = gp.fl_id AND gp_inner.allocation_type = 'Allocated Area' 
+                        AND gp_inner.portfolio_scenario_id = 'Headquarters Baseline' AND (gp_inner.date_start &lt;= '2020-03-04'  )AND( gp_inner.date_end &gt;= '2020-03-04' OR gp_inner.date_end IS NULL ) 
+                        )", "0")} -  
+                ${sql.isNull ( " ( SELECT SUM(area_manual) FROM gp gp_inner WHERE gp_inner.bl_id = gp.bl_id AND gp_inner.fl_id = gp.fl_id AND gp_inner.allocation_type = 'Unavailable Area'  
+                        AND gp_inner.portfolio_scenario_id = 'Headquarters Baseline' AND (gp_inner.date_start &lt;= '2020-03-04'  )AND( gp_inner.date_end &gt;= '2020-03-04' OR gp_inner.date_end IS NULL ) 
+                        )", "0")} AS area_manual, 
+                0 AS count_em, NULL AS planning_bu_id, 'Headquarters Baseline' AS portfolio_scenario_id, ${sql.date('2020-03-04')} AS date_start, NULL AS date_end, '0 7' AS hpattern_acad, 
+                fl.sort_order AS fl_sort_order, 
+                'AVAILABLE AREA' AS name  
+            FROM gp LEFT OUTER JOIN fl ON gp.bl_id=fl.bl_id AND gp.fl_id=fl.fl_id 
+            WHERE gp.portfolio_scenario_id = 'Headquarters Baseline' AND (gp.date_start &lt;= ${sql.date('2020-03-04')}  )AND( gp.date_end &gt;= ${sql.date('2020-03-04')} OR gp.date_end IS NULL ) 
+            GROUP BY gp.bl_id, fl.sort_order, gp.fl_id
+        </sql>  
+
+        <sql dialect="oracle">
+            SELECT gp.bl_id,gp.fl_id,gp.sort_order,gp.dv_id,gp.dp_id,gp.gp_id,gp.allocation_type,gp.area_manual,gp.count_em,gp.planning_bu_id,gp.portfolio_scenario_id,gp.date_start,gp.date_end,dv.hpattern_acad,fl.sort_order AS fl_sort_order,fl.name FROM gp 
+            LEFT OUTER JOIN dv ON gp.dv_id=dv.dv_id LEFT OUTER JOIN fl ON gp.bl_id=fl.bl_id AND gp.fl_id=fl.fl_id 
+            WHERE allocation_type NOT IN ('Usable Area - Owned', 'Usable Area - Leased')  
+            UNION              
+            SELECT gp.bl_id, gp.fl_id, 9999 AS sort_order, NULL AS dv_id, NULL AS dp_id, 99999999 AS gp_id, 'Available - Remaining Area' AS allocation_type, 
+                ${sql.isNull ( " ( SELECT SUM(area_manual) FROM gp gp_inner WHERE gp_inner.bl_id = gp.bl_id AND gp_inner.fl_id = gp.fl_id AND gp_inner.allocation_type IN ('Usable Area - Owned', 'Usable Area - Leased') 
+                        AND gp_inner.portfolio_scenario_id = 'Headquarters Baseline' AND (gp_inner.date_start &lt;= to_date('2020-03-04', 'YYYY-MM-DD'))  AND (gp_inner.date_end &gt;= to_date('2020-03-04', 'YYYY-MM-DD') OR gp_inner.date_end IS NULL) 
+                        )", "0")} -   
+                ${sql.isNull ( " ( SELECT SUM(area_manual) FROM gp gp_inner WHERE gp_inner.bl_id = gp.bl_id AND gp_inner.fl_id = gp.fl_id AND gp_inner.allocation_type = 'Allocated Area' 
+                        AND gp_inner.portfolio_scenario_id = 'Headquarters Baseline' AND (gp_inner.date_start &lt;= to_date('2020-03-04', 'YYYY-MM-DD'))  AND (gp_inner.date_end &gt;= to_date('2020-03-04', 'YYYY-MM-DD') OR gp_inner.date_end IS NULL) 
+                        )", "0")} -  
+                ${sql.isNull ( " ( SELECT SUM(area_manual) FROM gp gp_inner WHERE gp_inner.bl_id = gp.bl_id AND gp_inner.fl_id = gp.fl_id AND gp_inner.allocation_type = 'Unavailable Area'  
+                        AND gp_inner.portfolio_scenario_id = 'Headquarters Baseline' AND (gp_inner.date_start &lt;= to_date('2020-03-04', 'YYYY-MM-DD'))  AND (gp_inner.date_end &gt;= to_date('2020-03-04', 'YYYY-MM-DD') OR gp_inner.date_end IS NULL) 
+                        )", "0")} AS area_manual, 
+                0 AS count_em, NULL AS planning_bu_id, 'Headquarters Baseline' AS portfolio_scenario_id, ${sql.date('2020-03-04')} AS date_start, NULL AS date_end, '0 7' AS hpattern_acad, 
+                fl.sort_order AS fl_sort_order, 
+                'AVAILABLE AREA' AS name  
+            FROM gp LEFT OUTER JOIN fl ON gp.bl_id=fl.bl_id AND gp.fl_id=fl.fl_id 
+            WHERE gp.portfolio_scenario_id = 'Headquarters Baseline' AND (gp.date_start &lt;= ${sql.date('2020-03-04')}  )AND( gp.date_end &gt;= ${sql.date('2020-03-04')} OR gp.date_end IS NULL ) 
+            GROUP BY gp.bl_id, fl.sort_order, gp.fl_id
+        </sql>        
+                        
+        <!-- important to have the correct sort order, so that the groups are displayed correctly in the stack -->
+        <sortField name="bl_id" table="gp" ascending="true" />
+        <sortField name="fl_sort_order" table="gp" ascending="false" />
+        <sortField name="fl_id" table="gp" ascending="false" />
+        <sortField name="sort_order" table="gp" ascending="true" />   
+    </dataSource>
+   
+    <panel type="html" id="stackPanel" dataSource="none" region="center">             
+        <html>
+            <!--  console of toggles to demonstrate features (optional)  -->           
+            <div id="console">
+                <table>
+                    <tr>
+                        <td>
+                            <input name="orientation" type="radio" id="HORIZONTAL" onchange="stackController.build()" checked="true"></input>
+                            <label>Horizontal</label>
+                            <input name="orientation" type="radio" id="VERTICAL" onchange="stackController.build()"></input>
+                            <label>Vertical</label>
+                            <br/>                                                      
+                            <input type="checkbox" id="1" name="buildings" onchange="stackController.changeNumberOfBuildings(this)" value="DURTECH" checked="true"></input>
+                            <label>DURTECH</label>
+                            <input type="checkbox" id="2" name="buildings" onchange="stackController.changeNumberOfBuildings(this)" value="HQ" checked="true"></input>
+                            <label>HQ</label>
+                            <input type="checkbox" id="3" name="buildings" onchange="stackController.changeNumberOfBuildings(this)" value="UNALLOC" checked="true"></input>
+                            <label>Unallocated Space</label>
+                        </td>
+                        <td style="white-space: nowrap;">
+                            <label>Zoom (V)</label>
+                            <input type="button" id="zoomIn" onclick="stackController.zoomInV()" value="+"/>
+                            <input type="button" id="zoomOut" onclick="stackController.zoomOutV()" value="-"/>
+                            <br/>
+                            <label>Zoom (H)</label>
+                            <input type="button" id="zoomIn" onclick="stackController.zoomInH()" value="+"/>
+                            <input type="button" id="zoomOut" onclick="stackController.zoomOutH()" value="-"/>
+                            
+                            <input id="horizontalScale" type="input" onchange="stackController.build()" value="1" size="6" hidden="true"/> 
+                        </td> 
+                        <td>
+                            <label>Display Floor Height</label>
+                            <input id="displayFloorHeight" type="input" onchange="stackController.build()" value="14" size="2"/> 
+                        </td>
+                        <td>
+                            <label>Large Label Height</label>
+                            <input id="labelLargeTextHeight" type="input" onchange="stackController.build()" value="10" size="2"/> 
+                            <br/>                  
+                            <label>Small Label Height</label>
+                            <input id="labelSmallTextHeight" type="input" onchange="stackController.build()" value="8" size="2"/> 
+                        </td>
+                        <td>
+                            <input type="checkbox" id="showXAxis" onchange="stackController.build()"/>
+                            <label>Show X Axis</label>
+                        </td>                      
+                        <td>
+                            <input type="checkbox" id="showHighlightFloor" onchange="stackController.build()" checked="true"/>
+                            <label>Highlight Floor</label>
+                        </td>
+                        <td>
+                            <input type="checkbox" id="omitVertsAndServs" onchange="stackController.omitVertsAndServs()"/>
+                            <label>Omit Verts and Servs</label>
+                        </td> 
+                        <td>  
+                           <label>Generate:</label>                        
+                           <input type="button" id="ppt" onclick="stackController.generatePPT()" value="PPT"/>
+                        </td>                        
+                    </tr>
+                </table>                       
+            </div> 
+                        
+            <!--  div to hold the stack -->
+            <div id="stackContainer"></div>
+        </html>
+    </panel>
+    
+    <!-- panel type="grid" id="abExHtmlStackDs_grid" dataSource="abExHtmlStackDs_gp" showOnLoad="true">
+        <title translatable="true">Groups</title>
+    </panel -->
+</view>

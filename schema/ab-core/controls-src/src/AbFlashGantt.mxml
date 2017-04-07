@@ -1,0 +1,545 @@
+<?xml version="1.0" encoding="utf-8"?>
+<mx:Application xmlns:mx="http://www.adobe.com/2006/mxml" layout="absolute"
+	xmlns:ilog="http://www.ilog.com/2007/ilog/flex"
+	preinitialize="myPreInitialize()" initialize="myInitialize()" backgroundColor="#FFFFFF" xmlns:common="common.*">
+	
+	<mx:Script>
+		<![CDATA[
+			import mx.preloaders.Preloader;
+			import mx.preloaders.IPreloaderDisplay;
+			import mx.preloaders.DownloadProgressBar;
+			import com.adobe.utils.DateUtil;
+			import ilog.utils.TimeUnit;
+			import mx.utils.StringUtil;
+			import ilog.gantt.GanttDataGrid;
+			import mx.events.ListEvent;
+			import mx.events.CloseEvent;
+
+			import mx.collections.ArrayCollection;
+			import ilog.gantt.ConstraintInfo;
+			import ilog.gantt.ConstraintKind;
+			import ilog.gantt.ConstraintItem;
+			import ilog.gantt.TaskItemArea;
+			import ilog.gantt.TaskItem;
+			import ilog.core.DataItem;
+			import mx.controls.Alert;
+			import mx.events.FlexEvent;
+			import com.adobe.serialization.json.JSON;
+			import ilog.gantt.GanttSheetEvent;
+			import mx.collections.HierarchicalData;
+			import mx.graphics.codec.PNGEncoder;
+			
+			private var panelId:String = "";
+			[Bindable]
+			public var tasks:HierarchicalData;
+			[Bindable]
+			public var constraints:ArrayCollection;
+			
+			private var confirmItemChange:Boolean = false;
+			
+			private var confirmTitle:String = "Confirm";
+			private var dfltConfirmMessage:String = "Do you want to save these changes?";
+						
+			[Bindable]
+			private var showTitleColumn:Boolean = false;
+			
+			private var halfYearLabel:String = "H";
+			private var quarterLabel:String = "Q";
+			private var weekLabel:String = "W";
+
+			private function myPreInitialize():void{
+				mx.preloaders.DownloadProgressBar.initializingLabel = ExternalInterface.call("getLocalizedString_gantt_JS","z_MESSAGE_INITIALIZING");	
+			}	
+						
+			public function myInitialize():void{
+				ExternalInterface.addCallback("getImageBytes", getImageBytes);
+				ExternalInterface.addCallback("showData", showData);
+				ExternalInterface.addCallback("setControlProperty",setControlProperty);
+				ExternalInterface.addCallback("setStyleProperty",setStyleProperty);
+				ExternalInterface.addCallback("zoomGantt",zoomGantt);
+				ExternalInterface.addCallback("expandAll",expandAll);
+				ExternalInterface.addCallback("collapseAll",collapseAll);
+				ExternalInterface.addCallback("showConstraints",showConstraints);	
+				ExternalInterface.addCallback("getVisibleTimeRangeStart",getVisibleTimeRangeStart);
+				ExternalInterface.addCallback("getVisibleTimeRangeEnd",getVisibleTimeRangeEnd);
+				ExternalInterface.addCallback("setFirstDayOfWeek",setFirstDayOfWeek);
+				dateField.dayNames = ExternalInterface.call("getLocalizedDayNamesArray_JS");	
+				dateField.monthNames = ExternalInterface.call("getLocalizedMonthArray_JS");	
+				
+				panelId = Application.application.parameters.panelId;							
+				confirmItemChange = Application.application.parameters.confirmItemChange == "true";
+				if(Application.application.parameters.firstDayOfWeek != null){
+					setFirstDayOfWeek(Application.application.parameters.firstDayOfWeek);				
+				}
+				showTitleColumn = Application.application.parameters.showTitleColumn == "true";
+								
+				today.label = ExternalInterface.call("getLocalizedString_gantt_JS", "z_MESSAGE_TODAY");
+				zoomInBtn.label = ExternalInterface.call("getLocalizedString_gantt_JS", "z_MESSAGE_ZOOMIN");
+				zoomOutBtn.label = ExternalInterface.call("getLocalizedString_gantt_JS", "z_MESSAGE_ZOOMOUT");
+				taskCol.headerText = ExternalInterface.call("getLocalizedString_gantt_JS", "z_MESSAGE_TASK");
+				startCol.headerText = ExternalInterface.call("getLocalizedString_gantt_JS", "z_MESSAGE_START");
+				endCol.headerText = ExternalInterface.call("getLocalizedString_gantt_JS", "z_MESSAGE_END");
+				titleCol.headerText = ExternalInterface.call("getLocalizedString_gantt_JS", "z_MESSAGE_TITLE");
+				expandBtn.label = ExternalInterface.call("getLocalizedString_gantt_JS", "z_MESSAGE_EXPANDALL");
+				collapseBtn.label = ExternalInterface.call("getLocalizedString_gantt_JS", "z_MESSAGE_COLLAPSEALL");
+				setPredecessorBtn.label = ExternalInterface.call("getLocalizedString_gantt_JS", "z_MESSAGE_SETPREDECESSOR");
+				confirmTitle = ExternalInterface.call("getLocalizedString_gantt_JS","z_TITLE_CONFIRM");
+				dfltConfirmMessage = ExternalInterface.call("getLocalizedString_gantt_JS","z_MESSAGE_CONFIRM");
+				setPredecessorBtn.toolTip = ExternalInterface.call("getLocalizedString_gantt_JS","z_MESSAGE_SETPREDECESSOR_TOOLTIP");
+				
+				halfYearLabel = ExternalInterface.call("getLocalizedString_gantt_JS","z_MESSAGE_HALFYEARLABEL");
+				quarterLabel = ExternalInterface.call("getLocalizedString_gantt_JS","z_MESSAGE_QUARTERLABEL");
+				weekLabel = ExternalInterface.call("getLocalizedString_gantt_JS","z_MESSAGE_WEEKLABEL");
+				Alert.okLabel = ExternalInterface.call("getLocalizedString_gantt_JS","z_MESSAGE_OKLABEL");
+				Alert.cancelLabel = ExternalInterface.call("getLocalizedString_gantt_JS","z_MESSAGE_CANCELLABEL");
+				Alert.buttonWidth = Alert.buttonWidth * 3;
+			}
+			
+			public function setFirstDayOfWeek(day:int):void{
+				ganttSheet.calendar.firstDayOfWeek = day;
+			}
+
+			private function getImageBytes() : Array {
+				var chartCtrl:DisplayObject = null;
+				try{
+					chartCtrl = mx.core.Application.application.getChildAt(1);
+				}catch(error:Error){
+					return null;
+
+				}
+			
+				var width:int = chartCtrl.width;
+				var height:int = chartCtrl.height;
+		
+				var screenshotData:BitmapData = new BitmapData(width, height);
+				screenshotData.draw(chartCtrl);
+		
+				var pngBytes:flash.utils.ByteArray   = new PNGEncoder().encode(screenshotData);	
+			
+				var arr:Array = new Array();
+				for(var i:Number = 0;i<pngBytes.length;i++){
+					arr[i] = pngBytes[i];
+				}
+			
+				return arr;
+			}
+			
+			 /**
+	         * Sets control property specified by name.
+	         * Can be called from JS code to set properties not supported in AXVW format.
+	         */     
+	        public function setControlProperty(propertyName:String, propertyValue:Object):void {
+	            this.taskChart[propertyName] = propertyValue;
+	        }
+	        
+	        /**
+	         * Sets style property specified by name.
+	         * Can be called from JS code to set properties not supported in AXVW format.
+	         */  
+	        public function setStyleProperty(propertyName:String, propertyValue:Object):void {
+	        	this.taskChart.setStyle(propertyName,propertyValue);
+	        }
+        
+			protected function loadComplete(event:FlexEvent):void {
+  				if (ExternalInterface.available) {
+	    			ExternalInterface.call("loadComplete_JS", panelId);
+		  		} 
+			}
+			private function onWheel(e:MouseEvent):void {
+		        e.stopImmediatePropagation();
+		       (e.delta < 0) ? zoomOut() : zoomIn();
+			}
+			private function zoomOut():void {
+				var allowed:Boolean = (ganttSheet.visibleTimeRangeStart.time != ganttSheet.minVisibleTime.time ||
+				ganttSheet.visibleTimeRangeEnd.time != ganttSheet.maxVisibleTime.time);
+				if (allowed)          
+					ganttSheet.zoom(2, null, true);
+			}
+			  
+			private function zoomIn():void {
+				ganttSheet.zoom(0.5, null, true);
+			}  
+			  
+			private function DateFieldChangeCallback():void{
+				ganttSheet.zoom(0,dateField.selectedDate);
+			}
+			private function itemDoubleClick(event:GanttSheetEvent):void{
+				var taskItem:TaskItem = event.itemRenderer.data as TaskItem;				
+				ExternalInterface.call("itemClicked_JS",taskItem.data.level,taskItem.data.id);
+			}
+
+			public function showData(data:String):void{
+				var arrData:Array = (JSON.decode(data) as Array);
+				tasks = new HierarchicalData(arrData);
+			}
+			
+			public function showConstraints(constraints:String):void{
+				this.constraints = new ArrayCollection();
+				var arrData:Array = (JSON.decode(constraints) as Array);
+				for(var i:int=0;i<arrData.length;i++){
+					var toId:String = arrData[i]['toId'] as String;
+					var fromId:String = arrData[i]['fromId'] as String;
+					
+					if(toId.indexOf(",") > 0 || fromId.indexOf(",") > 0){
+						if(toId.indexOf(",") > 0){
+							var toIds:Array = toId.split(",");
+							
+							if(fromId.indexOf(",") > 0){
+								var fromIds:Array = fromId.split(",");
+								for(var k:int=0;k<toIds.length;k++){
+									for(var j:int=0;j<fromIds.length;j++){
+										var constraint:Object = new Object();
+										constraint.toId = StringUtil.trim(toIds[k]);
+										constraint.fromId = StringUtil.trim(fromIds[j]);
+										constraint.kind = arrData[i]['kind'];
+										this.constraints.addItem(constraint);
+									}
+								}
+							} else {							
+								for(var l:int = 0;l<toIds.length;l++){
+									constraint = new Object();
+									constraint.toId = StringUtil.trim(toIds[l]);
+									constraint.fromId = fromId;
+									constraint.kind = arrData[i]['kind'];
+									this.constraints.addItem(constraint);
+								}
+							}
+						}
+						
+						if(fromId.indexOf(",") > 0){
+							fromIds = fromId.split(",");
+							for(var m:int=0;m<fromIds.length;m++){
+								constraint = new Object();
+								constraint.toId = toId;
+								constraint.fromId = StringUtil.trim(fromIds[m]);
+								constraint.kind = arrData[i]['kind'];
+								this.constraints.addItem(constraint);
+							}
+						}
+					} else {
+						this.constraints.addItem(arrData[i]);
+					}					
+				}
+				this.constraints.refresh();
+				taskChart.taskDataProvider.refresh();
+			}
+			
+			public function showDataTip(item:Object):String{
+				if(item is TaskItem){
+					var task:TaskItem = item as TaskItem;
+					var startLabel:String = ExternalInterface.call("getLocalizedString_gantt_JS", "z_MESSAGE_START");
+					var endLabel:String = ExternalInterface.call("getLocalizedString_gantt_JS", "z_MESSAGE_END");
+					return task.label + " " + startLabel + ": " + dateFormatter.format(task.startTime) + " "+ endLabel+ ": " + dateFormatter.format(task.endTime);
+				}
+				if(item is ConstraintItem){
+					var constraint:ConstraintItem = item as ConstraintItem;
+					return constraint.fromTask.endTime + " " + constraint.kind + " " + constraint.toTask.startTime;
+				} 
+				return "";
+				
+			}
+
+			public function todayClickCallback():void {
+				dateField.selectedDate = new Date();
+				ganttSheet.zoom(0,dateField.selectedDate);
+			}
+			
+			public function zoomGantt(start:String,end:String):void {			
+				var startDateStr:String = start;
+                startDateStr = startDateStr.replace(/\-/g, "/");
+                startDateStr = startDateStr.replace("T", " ");
+                startDateStr = startDateStr.replace("Z", " GMT-0000");
+                
+				ganttSheet.visibleTimeRangeStart = new Date(Date.parse(startDateStr));
+				
+				var endDateStr:String = end;
+                endDateStr = endDateStr.replace(/\-/g, "/");
+                endDateStr = endDateStr.replace("T", " ");
+                endDateStr = endDateStr.replace("Z", " GMT-0000");
+				ganttSheet.visibleTimeRangeEnd = new Date(Date.parse(endDateStr));
+			}
+			
+			public function expandAll():void{
+				taskChart.dataGrid.expandAll();
+			}
+			
+			public function collapseAll():void{
+				taskChart.dataGrid.collapseAll()
+			}
+			
+			public function setAsPredecessor():void{
+				if(ganttSheet.selectedItems.length == 2){					
+					ExternalInterface.call("setAsPredecessor_JS",ganttSheet.selectedItems[0]['id'],ganttSheet.selectedItems[1]['id']);
+				}	
+			}
+			
+			public function getVisibleTimeRangeStart():String{
+				return isoDateFormatter.format(ganttSheet.visibleTimeRangeStart);
+			}
+			public function getVisibleTimeRangeEnd():String{
+				return isoDateFormatter.format(ganttSheet.visibleTimeRangeEnd);
+			}
+			
+			public var nrOfCancels:int;
+			public var editedItemId:String;
+			
+			public var editedTaskItem:TaskItem;
+			public var initialStartTime:Date;
+			public var initialEndTime:Date;
+			public var itemEditArea:String;
+ 
+			public function itemEditBeginHandler(e:GanttSheetEvent):void {			
+			  	editedTaskItem = e.itemRenderer.data as TaskItem;
+			  	if(editedItemId == null || (editedItemId != null && editedItemId != editedTaskItem.data.id)){
+			  		editedItemId = editedTaskItem.data.id;
+			  		nrOfCancels = 0;
+			  	}			  	
+			  	initialStartTime = new Date(editedTaskItem.startTime.time); // Clone the Date
+				initialEndTime = new Date(editedTaskItem.endTime.time); // Clone the Date
+			}
+			
+			public function	itemEditEndHandler(e:GanttSheetEvent):void {
+				itemEditArea = e.itemArea;
+				if(confirmItemChange){
+					var tmp:TaskItem = e.itemRenderer.data as TaskItem;
+					var message:String = ExternalInterface.call("getConfirmMessage_JS",
+						editedTaskItem.data.level,editedTaskItem.data.id,
+						isoDateFormatter.format(editedTaskItem.startTime),isoDateFormatter.format(editedTaskItem.endTime));
+					if(message == "" || message == null){
+						message = dfltConfirmMessage;
+					}
+
+					Alert.show(message, confirmTitle, Alert.OK | Alert.CANCEL, this, alertHandler);
+				} else {
+					itemEditedHandler();
+				}
+			}
+			
+			public function alertHandler(e:CloseEvent):void {				
+				if (e.detail == Alert.CANCEL) {
+					e.preventDefault();
+					nrOfCancels++;
+					
+			    	editedTaskItem.startTime = new Date(initialStartTime.time);
+			    	editedTaskItem.endTime = new Date(initialEndTime.time);		
+			    		    	
+			    	ganttSheet.commitItem(editedTaskItem); 
+			    	taskChart.taskDataProvider.refresh();
+			    	if(nrOfCancels > 2){
+			    		//refresh the whole gantt
+			    		ExternalInterface.call("refreshData");
+			    		nrOfCancels = 0;
+			    	}
+			  	} else {
+			  		itemEditedHandler();
+			  	}
+			}
+			
+			private function itemEditedHandler():void{
+				var linkedTasks:Array = [];
+				
+				//get linked tasks to edit
+				var constraints:Array = taskChart.getToConstraints(editedTaskItem);
+				if(constraints != null){
+					for(var i:int = 0;i<constraints.length;i++){
+						var constraint:ConstraintItem = constraints[i];
+						if( (itemEditArea == TaskItemArea.START && (
+								constraint.kind == ConstraintKind.END_TO_START || constraint.kind == ConstraintKind.START_TO_START))
+							||
+							(itemEditArea == TaskItemArea.END && (						
+								constraint.kind == ConstraintKind.START_TO_END || constraint.kind == ConstraintKind.END_TO_END))
+							|| itemEditArea == TaskItemArea.BAR){
+							var temp:Object = new Object();
+							temp.kind = constraint.kind;
+							temp.id = constraint.fromId;
+							linkedTasks.push(temp);
+						}
+					}
+				}
+				constraints = taskChart.getFromConstraints(editedTaskItem);
+				if(constraints != null){
+					for(var j:int = 0;i<constraints.length;i++){
+						var fromConstraint:ConstraintItem = constraints[j];
+						if( (itemEditArea == TaskItemArea.START && (
+								fromConstraint.kind == ConstraintKind.END_TO_START || fromConstraint.kind == ConstraintKind.START_TO_START))
+							||
+							(itemEditArea == TaskItemArea.END && (						
+								fromConstraint.kind == ConstraintKind.START_TO_END || fromConstraint.kind == ConstraintKind.END_TO_END))
+							|| itemEditArea == TaskItemArea.BAR){
+							var tmp:Object = new Object();
+							tmp.kind = fromConstraint.kind;
+							tmp.id = fromConstraint.fromId;
+							linkedTasks.push(tmp);
+						}
+					}
+				}
+				ExternalInterface.call("itemResized_JS",editedTaskItem.data.level,editedTaskItem.data.id,
+					isoDateFormatter.format(editedTaskItem.startTime),isoDateFormatter.format(editedTaskItem.endTime),
+					itemEditArea,linkedTasks);
+			}
+			
+			public function itemClicked(event:ListEvent):void{
+				ExternalInterface.call("itemClicked_JS",event.itemRenderer.data.level,event.itemRenderer.data.id);
+			}
+			
+			private var _dateFormatter:DateFormatter = new DateFormatter();
+			
+			private var monthNames:Array = [
+	        	"z_MESSAGE_JANUARY",
+	        	"z_MESSAGE_FEBRUARY",
+	        	"z_MESSAGE_MARCH",
+	        	"z_MESSAGE_APRIL",
+	        	"z_MESSAGE_MAY",
+	        	"z_MESSAGE_JUNE",
+	        	"z_MESSAGE_JULY",
+	        	"z_MESSAGE_AUGUST",
+	        	"z_MESSAGE_SEPTEMBER",
+	        	"z_MESSAGE_OCTOBER",
+	        	"z_MESSAGE_NOVEMBER",
+	        	"z_MESSAGE_DECEMBER"
+        	];
+	        private var dayOfWeekNames:Array = [
+	        	"z_MESSAGE_SUNDAY",
+	        	"z_MESSAGE_MONDAY",
+	        	"z_MESSAGE_TUESDAY",
+	        	"z_MESSAGE_WEDNESDAY",
+	        	"z_MESSAGE_THURSDAY",
+	        	"z_MESSAGE_FRIDAY",
+	        	"z_MESSAGE_SATURDAY"
+         	];
+			
+			private function getMonthString(month:int):String {
+	        	var ret:String = monthNames[month];
+	         	ret = ExternalInterface.call("getLocalizedString_gantt_JS", monthNames[month]);
+	        	return ret;
+	        }
+	        
+	        private function getDayOfWeekString(day:int):String {
+	        	var ret:String = dayOfWeekNames[day];
+	        	ret = ExternalInterface.call("getLocalizedString_gantt_JS", dayOfWeekNames[day]);
+	        	return ret;
+	        }
+        
+			
+			public function showTimeScaleMinorLabel(time:Date,
+                                               timeFormat:String,
+                                               timeUnit:TimeUnit,
+                                               timeUnitSteps:Number):String{
+				if(timeUnit == TimeUnit.MONTH){
+					return getMonthString(time.month);
+				} else if(timeUnit == TimeUnit.WEEK){
+					return weekLabel + getWeekNumber(time);
+				}
+				_dateFormatter.formatString = timeFormat;
+          		return _dateFormatter.format(time);				
+			}
+			
+			public function showTimeScaleMajorLabel(time:Date,
+                                               timeFormat:String,
+                                               timeUnit:TimeUnit,
+                                               timeUnitSteps:Number):String{
+                                               	
+				if(timeUnit == TimeUnit.HALFYEAR){
+					if(time.getMonth() < 6){
+						return halfYearLabel+"1, " + time.fullYear;
+					} else {
+						return halfYearLabel+"2, " + time.fullYear;
+					}
+				} else if (timeUnit == TimeUnit.QUARTER){
+					var calendarQuarter:int = 1 + int(time.month / 3);
+        			
+			        // Create the string
+			        return quarterLabel + calendarQuarter +", "+time.fullYear;
+			        
+				} else if(timeUnit == TimeUnit.MONTH){
+					return getMonthString(time.month)+ " " + time.fullYear;
+				}
+				
+				_dateFormatter.formatString = timeFormat;
+          		return _dateFormatter.format(time);                                               			                                               	
+			}
+			
+			private function getWeekNumber(time:Date):Number{
+				var days:Array = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]; 
+				var year:Number = time.fullYearUTC;
+				var isLeap:Boolean = (year % 4 == 0) && (year % 100 != 0)
+				                       || (year % 100 == 0) && (year % 400 == 0); 
+				if(isLeap){
+					days[1]++;
+				}
+				var d:int = 0;
+				//month is conveniently 0 indexed.
+				for(var i:int = 0; i < time.month; i++){
+					d += days[i];
+				}
+				d += time.dateUTC;
+				
+				var temp:Date = new Date(year, 0, 1);
+				var jan1:Number = temp.dayUTC;
+				 /**
+				   * If Jan 1st is a Friday (as in 2010), does Mon, 4th Jan 
+				   * fall in the first week or the second one? 
+				   *
+				   * Comment the next line to make it in first week
+				   * This will effectively make the week start on Friday 
+				   * or whatever day Jan 1st of that year is.
+				   **/
+				d += jan1;
+				
+				return int(d / 7);
+			}
+			
+			// function called by visibleTimeRangeChange to get a full-date string
+			private function getFullDateString(date:Date): String {
+				return getDayOfWeekString(date.getDay()) + ", " + 
+					getMonthString(date.getMonth()) + " " + date.getDate() + ", " + 
+					date.getFullYear();
+			}
+
+		]]>
+	</mx:Script>
+	
+	<mx:HBox>	
+    	<mx:Button id="today" label="today" click="todayClickCallback()" />
+    	<mx:DateField id="dateField" editable="true" change="DateFieldChangeCallback()" width="111"/>
+    	<mx:Button id="zoomInBtn" label="zoomIn" click="zoomIn()"/>
+    	<mx:Button id="zoomOutBtn" label="zoomOut" click="zoomOut()"/>
+    	<mx:Button id="expandBtn" label="expandAll" click="expandAll()"/>
+    	<mx:Button id="collapseBtn" label="collapseAll" click="collapseAll()"/>
+    	<mx:Button id="setPredecessorBtn" label="setAsPredecessor" click="setAsPredecessor()"/>
+    </mx:HBox>
+    <mx:DateFormatter id="isoDateFormatter" formatString="YYYY/MM/DD"/>	
+	<common:FullDateStringFormatter id="dateFormatter"/>
+	
+	<ilog:TaskChart id="taskChart" width="100%" height="100%" y="{dateField.height}"
+		taskDataProvider="{tasks}" creationComplete="loadComplete(event)"
+		constraintDataProvider="{constraints}">
+		<ilog:dataGrid>
+      		<ilog:GanttDataGrid id="ganttDataGrid" indentation="2" width="300" itemClick="itemClicked(event)">
+		        <ilog:columns>
+		        	<mx:AdvancedDataGridColumn id="taskCol" dataField="id" headerText="task" width="100" sortable="false"/>
+		        	<mx:AdvancedDataGridColumn id="titleCol" dataField="name" headerText="title" width="100" sortable="true" visible="{showTitleColumn}"/>
+		          	<mx:AdvancedDataGridColumn id="startCol" dataField="startTime" headerText="start" width="100" formatter="{dateFormatter}"/>
+		          	<mx:AdvancedDataGridColumn id="endCol" dataField="endTime" headerText="end" width="100" formatter="{dateFormatter}"/>
+		        </ilog:columns>
+	      </ilog:GanttDataGrid>
+	    </ilog:dataGrid>   
+    	<ilog:ganttSheet>
+     		<ilog:GanttSheet id="ganttSheet" allowMultipleSelection="true"
+     				selectable="true"
+                       nonWorkingAlpha="0.1" nonWorkingColor="#807E7E" 
+                       mouseWheel="onWheel(event)" minZoomFactor="1728000"
+                       itemDoubleClick="itemDoubleClick(event)" 
+                       itemEditEnd="itemEditEndHandler(event)"
+                       itemEditBegin="itemEditBeginHandler(event)"
+                       dataTipFunction="showDataTip" showDataTips="true"
+                       showCurrentTimeIndicator="true"
+                       nonWorkingDays="[0,6]"
+                     />   
+		</ilog:ganttSheet>
+    	<ilog:timeScale>
+    		<ilog:TimeScale mouseWheel="onWheel(event)" minorLabelFunction="showTimeScaleMinorLabel" majorLabelFunction="showTimeScaleMajorLabel"/>
+    	</ilog:timeScale> 
+	</ilog:TaskChart>
+	
+</mx:Application>

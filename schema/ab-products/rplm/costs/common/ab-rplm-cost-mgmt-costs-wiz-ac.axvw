@@ -1,0 +1,93 @@
+<view version="2.0">
+	<title translatable="false">&#160;</title>
+	<js file="ab-rplm-cost-mgmt-costs-wiz-ac.js"/>
+	<style type="text/css">
+	.selectRow { background-color:#99C5EB; color:#000000; font-family:Arial; font-size:11px; font-weight:bold; line-height:1.9; margin-left:6px; } 
+	</style>
+  	<message name="label_select_type" translatable="true">Cost Wizard For:</message>
+	<message name="option_select_type_one" translatable="true">Leases, Building, Properties</message>
+	<message name="option_select_type_two" translatable="true">Accounts</message>
+	<layout type="borderLayout" id="mainLayout">
+		<west id="west" autoScroll="true" split="true" initialSize="300" minSize="300"/>
+		<center id="center" autoScroll="false"/>
+	</layout>
+    <layout type="borderLayout" id="westLayout" containingLayout="mainLayout" region="west">
+        <north id="northWest" initialSize="30" minSize="30"/>
+        <center id="centerWest" autoScroll="true"/> 
+    </layout>
+	<panel type="html" id="htmlSelectType" layoutRegion="northWest">
+		<html>
+			<table width="100%">
+				<tr>
+					<td class="selectRow" align="center" noWrap="true">
+						<span id="labelSelectType">&#160;</span>
+						<select id="selectType" class="inputField_box" onChange="changeWizard();">
+							<option id="selectTypeOptionOne" value="properties" translatable="false">&#160;</option>
+							<option id="selectTypeOptionTwo" value="account" translatable="false">&#160;</option>
+						</select>
+					</td>
+				</tr>
+			</table>
+		</html>
+	</panel>
+
+    <dataSource id="dsTreeAccounts">
+    	<sql dialect="generic">
+    		SELECT 
+				ac.ac_id as ac_id,
+				SUBSTRING(ac.description, 0, 40) as description,
+				hierarchy_ids as hierarchy_ids
+			FROM ac
+			WHERE 
+				EXISTS(SELECT 1 FROM ac x WHERE ${parameters['subquery']} and x.hierarchy_ids like '%'+LTRIM(RTRIM(ac.ac_id))+'%' )
+    	</sql>
+		<sql dialect="oracle">
+    		SELECT 
+				ac.ac_id as ac_id,
+				SUBSTR(ac.description, 0, 40) as description,
+				hierarchy_ids as hierarchy_ids
+			FROM ac
+			WHERE 
+				EXISTS(SELECT 1 FROM ac x WHERE ${parameters['subquery']} and x.hierarchy_ids like '%'||ac.ac_id||'%' )
+		</sql>
+        <table name="ac" role="main"/>
+        <field table="ac" name="ac_id" dataType="text"/>
+        <field table="ac" name="description" dataType="text"/>
+        <field table="ac" name="hierarchy_ids" dataType="text"/>
+		<parameter name="subquery" dataType="verbatim" value=" 1 = 1 "/>
+    </dataSource>
+
+    <panel type="hierTree" id="treeAccounts" dataSource="dsTreeAccounts" layoutRegion="centerWest">
+		<action id="search">
+			<title translatable="true">Search</title>
+			<command type="openDialog" panelId="consoleSearch" width="300" height="200"/>
+		</action>
+		<action id="showAll" enabled="false">
+			<title translatable="true">Show All</title>
+		</action>
+        <event type="onClickNode">
+            <command type="callFunction" functionName="showDetails"/>
+        </event>
+        <field table="ac" name="ac_id" dataType="text"/>
+        <field table="ac" name="description" dataType="text"/>
+    </panel>
+
+	<dataSource id="dsSearch">
+		<table name="ac" role="main"/>
+		<field table="ac" name="ac_id"/>
+	</dataSource>
+	
+	<panel type="console" id="consoleSearch" dataSource="dsSearch" hidden="true" showOnLoad="false" layoutRegion="west">
+		<action id="save">
+			<title translatable="true">Search</title>
+			<command type="closeDialog"/>
+		</action>
+		<action id="cancel">
+			<title translatable="true">Cancel</title>
+			<command type="closeDialog"/>
+		</action>
+		<field table="ac" name="ac_id"/>
+	</panel>
+	
+	<panel type="view" id="viewWizardDetails" file="ab-rplm-cost-mgmt-costs-wiz-details.axvw"  useFrame="true" layoutRegion="center"/>
+</view>

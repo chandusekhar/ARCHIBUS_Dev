@@ -1,0 +1,313 @@
+<view version="2.0">
+    <title>View Capital Projects Budget vs Spend</title>
+    <js file="ab-capbud-bud-vs-sp.js"/>
+    <message name="progressMessage">Retrieving data</message>
+    <message name="year">Year</message>
+    <message name="quarter">Quarter</message>
+    <message name="month">Month</message>
+    
+    <layout id="main">
+        <north id="console" initialSize="170" split="true" />
+        <center id="data" />
+    </layout>
+    
+    <dataSource id="capbudBudVsSpDs0">        
+        <table name="project" role="main"/>
+        <table name="bl" role="standard"/>
+        <table name="ctry" role="standard"/>
+        <table name="program" role="standard"/>
+        <field name="project_id" table="project"/>
+        <field name="project_name" table="project"/>
+        <field name="date_start" table="project"/>
+        <field name="date_end" table="project"/>
+        <field name="status" table="project"/>
+        <field name="date_completed" table="project"/>
+        <field name="program_id" table="project"/>
+        <field name="program_type" table="program"/>
+        <field name="project_type" table="project"/>        
+        <field name="cost_budget" table="project"/>
+        <field name="cost_paid" table="project"/>
+        <field name="project_num" table="project"/>
+        <field name="contact_id" table="project"/>
+        <field name="site_id" table="project"/>
+        <field name="geo_region_id" table="ctry"/>
+        <field name="bl_id" table="project"/>
+        <field name="ctry_id" table="bl"/>
+    </dataSource>
+    
+    <dataSource id="capbudBudVsSpDs1">
+        <sql dialect="generic">
+            SELECT ${parameters['dateSql']} ${sql.as} date_field, 
+               0 ${sql.as} costs_base, 
+               0 ${sql.as} cumcosts_base,  
+               0 ${sql.as} costs_act, 
+               0 ${sql.as} cumcosts_act 
+            FROM afm_cal_dates 
+            WHERE (afm_cal_dates.cal_date &gt;= ${parameters['fromDate']} 
+               AND afm_cal_dates.cal_date &lt;= ${parameters['toDate']})
+            GROUP BY date_field 
+            ORDER BY date_field
+        </sql>
+        <table name="afm_cal_dates"/>
+        <field name="date_field" dataType="text" >
+            <title>${View.groupBy}</title>
+        </field>
+        <field name="costs_base" dataType="number" decimals="0" size="18" >
+            <title>Budget</title>
+        </field>
+        <field name="cumcosts_base" dataType="number" decimals="0" size="18" >
+            <title>Cumulative Budget</title>
+        </field>
+        <field name="costs_act" dataType="number" decimals="0" size="18" >
+            <title>Spend</title>
+        </field>
+        <field name="cumcosts_act" dataType="number" decimals="0" size="18" >
+            <title>Cumulative Spend</title>
+        </field>
+        <parameter name="consoleRestriction" dataType="verbatim" value=" 1=1 "/>
+        <parameter name="fromDate" dataType="date" value="2005-01-01"/>
+        <parameter name="toDate" dataType="date" value="2020-12-31"/>
+        <parameter name="minDate" dataType="date" value="2005-01-01"/>
+        <parameter name="groupBy" dataType="text" value="month"/>
+        <parameter name="budgetFrom" dataType="text" value="projects"/>
+        <parameter name="dateSql" dataType="verbatim" value="afm_cal_dates.cal_date"/>
+        <sortField name="date_field"/>
+    </dataSource>
+    
+    <dataSource id="capbudBudVsSpDsMinMax" applyVpaRestrictions="false">
+        <table name="invoice"/>
+        <sql dialect="generic">
+            SELECT MIN(min_date) ${sql.as} min_date, MAX(max_date) ${sql.as} max_date FROM
+						((SELECT MIN(invoice.date_sent) ${sql.as} min_date,
+						            MAX(invoice.date_sent) ${sql.as} max_date 
+						            FROM invoice 
+						            LEFT OUTER JOIN project ON invoice.project_id = project.project_id
+						            LEFT OUTER JOIN program ON program.program_id = project.program_id
+						            LEFT OUTER JOIN bl ON bl.bl_id = project.bl_id
+						            LEFT OUTER JOIN site on site.site_id = project.site_id
+						            LEFT OUTER JOIN ctry ON ctry.ctry_id = bl.ctry_id
+						            WHERE invoice.status IN ('ISSUED','SENT','CLOSED') AND ${parameters['consoleRestriction']}) 
+						UNION (
+						SELECT MIN(project.date_start) ${sql.as} min_date,
+						            MAX(project.date_end) ${sql.as} max_date
+						            FROM project 
+						            LEFT OUTER JOIN program ON program.program_id = project.program_id
+						            LEFT OUTER JOIN bl ON bl.bl_id = project.bl_id
+						            LEFT OUTER JOIN site on site.site_id = project.site_id
+						            LEFT OUTER JOIN ctry ON ctry.ctry_id = bl.ctry_id
+						            WHERE ${parameters['consoleRestriction']}						
+						)
+						UNION (
+						SELECT MIN(activity_log.date_planned_for) ${sql.as} min_date,
+						            MAX(activity_log.date_planned_end) ${sql.as} max_date
+						            FROM activity_log
+						            LEFT OUTER JOIN project ON activity_log.project_id = project.project_id
+						            LEFT OUTER JOIN program ON program.program_id = project.program_id
+						            LEFT OUTER JOIN bl ON bl.bl_id = project.bl_id
+						            LEFT OUTER JOIN site on site.site_id = project.site_id
+						            LEFT OUTER JOIN ctry ON ctry.ctry_id = bl.ctry_id
+						            WHERE ${parameters['consoleRestriction']}
+						)) ${sql.as} invoice
+				</sql>
+        <field name="min_date" dataType="date"/>
+        <field name="max_date" dataType="date"/>
+        <parameter name="consoleRestriction" dataType="verbatim" value=" 1=1 "/>
+        <sortField name="min_date"/>
+    </dataSource> 
+    
+    <panel id="capbudBudVsSpConsole" layoutRegion="console" type="console" columns="3"
+        dataSource="capbudBudVsSpDs0">
+        <title>Filter</title>
+        <action id="show" mainAction="true">
+            <title>Show</title>
+        </action>
+        <action id="clear">
+            <title>Clear</title>
+        </action>
+        <field>
+            <title>Display</title>
+               <html>
+                  <select class="inputField_box" id="display" name="display">
+                      <option value="baselineActual" selected="1"><span translatable="true">Budget vs Spend</span></option>
+                      <option value="cumBaselineActual" ><span translatable="true">Cumulative Budget vs Spend</span></option>
+                      <option value="baseline" ><span translatable="true">Cumulative Budget</span></option>
+                      <option value="actual"><span translatable="true">Cumulative Spend</span></option>
+                  </select>
+               </html>
+        </field>
+        <field name="program_type" table="program"/>
+        <field name="program_id" table="project">
+            <action id="projectEdit_selValProg">
+                <title>...</title>
+                <command type="selectValue"
+                    fieldNames="project.program_id, program.program_type"
+                    selectFieldNames="program.program_id, program.program_type"
+                    visibleFieldNames="program.program_id, program.summary">
+                    <title>Program Name</title>  
+                </command>         
+            </action>
+        </field>
+   			<field>
+            <title>Total by</title>
+               <html>
+                  <select class="inputField_box" id="groupBy" name="groupBy">
+                  		<option value="year"><span translatable="true">Year</span></option>
+                  		<option value="quarter"><span translatable="true">Quarter</span></option>
+                      <option value="month" selected="1"><span translatable="true">Month</span></option>
+                  </select>
+               </html>
+         </field> 
+        <field name="project_type" table="project"/>
+        <field name="project_id" table="project" selectValueType="grid">
+            <action id="projectEdit_selValProj">
+                <title>...</title>
+                <command type="selectValue"
+                    fieldNames="project.project_id, project.project_type"
+                    selectFieldNames="project.project_id, project.project_type"
+                    visibleFieldNames="project.project_id, project.project_name, project.summary">
+                    <title>Project Code</title>  
+                </command>         
+            </action>
+        </field> 
+        <field>
+   					<title translatable="false"><input id="approvedOnly" type="checkbox" value="" checked="true" name="approvedOnly"/></title>
+        		<html>            		
+                <span id="approvedOnly" translatable="true" class="label">Approved Only?</span>
+            </html>
+        </field>
+          
+        <field name="geo_region_id" table="ctry"/>
+        <field name="ctry_id" table="bl">
+            <action id="capbudBudVsSp_selValCtry">
+                <title>...</title>
+                <command type="selectValue"
+                    fieldNames="bl.ctry_id, ctry.geo_region_id"
+                    selectFieldNames="ctry.ctry_id, ctry.geo_region_id"
+                    visibleFieldNames="ctry.ctry_id, ctry.name">
+                    <title>Country Code</title>  
+                </command>         
+            </action>
+        </field> 
+        <field/>       
+        <field name="site_id" table="project" />                   
+        <field name="bl_id" table="project">
+            <action id="capbudBudVsSp_selValBl">
+                <title>...</title>
+                <command type="selectValue"
+                    fieldNames="project.bl_id, project.site_id"
+                    selectFieldNames="bl.bl_id, bl.site_id"
+                    visibleFieldNames="bl.bl_id, bl.name">
+                    <title>Building Code</title>  
+                </command>         
+            </action>
+        </field> 
+        <field>
+            <title translatable="true">Year</title>
+            <html>
+                <select class="inputField_box" id="year" name="year" onchange="yearListener()">
+                    <option value="All" selected="1"><span translatable="false"></span></option>
+                </select>
+            </html>
+        </field>
+        <field name="date_start" table="project" onchange="dateListener()">
+            <title>From Date</title>
+        </field>
+        <field name="date_end" table="project" onchange="dateListener()">
+            <title>To Date</title>
+        </field>
+    </panel>
+    
+    <!-- Panel Type 'Column Line Chart' -->
+    
+    <panel id="capbudBudVsSpColumnLineCostsBase" type="chart" controlType="columnLineChart" layoutRegion="data" 
+        dataSource="capbudBudVsSpDs1" showLegendAsPopUp="false" showOnLoad="false"
+         refreshWorkflowRuleId="AbProjectManagement-ProjectCostsService-getChartData">
+        <title>Cumulative Budget </title>
+        <action imageName="/schema/ab-system/graphics/ab-icon-helpview.gif" id="capbudBudVsSpColumnLineCostsBase_help">
+            <tooltip>Help</tooltip>
+            <command type="openDialog" viewName="ab-capbud-bud-vs-sp-info.axvw" height="310" width="500"/>
+        </action>
+        <event type="onClickItem">                 
+            <command type="callFunction" functionName="openDetailsBud"/>
+        </event>
+        <groupingAxis table="afm_cal_dates" field="date_field" showLabel="true" labelRotation="45">
+            <title>${View.groupBy}</title> 
+        </groupingAxis>
+        <dataAxis table="afm_cal_dates" field="costs_base" displayAxis="true">
+            <title>Budget</title>
+        </dataAxis>
+        <dataAxis table="afm_cal_dates" field="cumcosts_base" type="line" displayAxis="true">
+           <title>Cumulative Budget</title>
+        </dataAxis>
+    </panel>
+    
+    <panel id="capbudBudVsSpColumnLineCostsAct" type="chart" controlType="columnLineChart" layoutRegion="data" 
+        dataSource="capbudBudVsSpDs1" showLegendAsPopUp="false" showOnLoad="false"
+         refreshWorkflowRuleId="AbProjectManagement-ProjectCostsService-getChartData">
+        <title>Cumulative Spend </title>
+        <action imageName="/schema/ab-system/graphics/ab-icon-helpview.gif" id="capbudBudVsSpColumnLineCostsAct_help">
+            <tooltip>Help</tooltip>
+            <command type="openDialog" viewName="ab-capbud-bud-vs-sp-info.axvw" height="310" width="500"/>
+        </action>
+        <event type="onClickItem">                 
+            <command type="callFunction" functionName="openDetailsSp"/>
+        </event>
+        <groupingAxis table="afm_cal_dates" field="date_field" showLabel="true" labelRotation="45">
+            <title>${View.groupBy}</title> 
+        </groupingAxis>
+        <dataAxis table="afm_cal_dates" field="costs_act" displayAxis="true">
+            <title>Spend</title>
+        </dataAxis>
+        <dataAxis table="afm_cal_dates" field="cumcosts_act" type="line" displayAxis="true">
+           <title>Cumulative Spend</title>
+        </dataAxis>
+    </panel>
+    
+    <!-- Panel Type 'Line Chart' -->
+    
+    <panel id="capbudBudVsSpLineCostsBaseAct" type="chart" controlType="lineChart" layoutRegion="data"
+        dataSource="capbudBudVsSpDs1" showLegendAsPopUp="false" showOnLoad="false"
+         refreshWorkflowRuleId="AbProjectManagement-ProjectCostsService-getChartData">
+        <title>Cumulative Budget vs Spend </title>
+        <action imageName="/schema/ab-system/graphics/ab-icon-helpview.gif" id="capbudBudVsSpLineCostsBaseAct_help">
+            <tooltip>Help</tooltip>
+            <command type="openDialog" viewName="ab-capbud-bud-vs-sp-info.axvw" height="310" width="500"/>
+        </action>
+        <event type="onClickItem">                 
+            <command type="callFunction" functionName="openDetailsBudSp"/>
+        </event>
+        <groupingAxis table="afm_cal_dates" field="date_field" showLabel="true" labelRotation="45">
+            <title>${View.groupBy}</title> 
+        </groupingAxis>
+        <dataAxis table="afm_cal_dates" field="cumcosts_base" displayAxis="false">
+           <title>Cumulative Budget</title>
+        </dataAxis>
+        <dataAxis table="afm_cal_dates" field="cumcosts_act" displayAxis="false">
+           <title>Cumulative Spend</title>
+        </dataAxis>
+    </panel>
+    
+    <!-- Panel Type 'Column Chart' -->
+    
+    <panel id="capbudBudVsSpColumnCostsBaseAct" type="chart" controlType="columnChart" layoutRegion="data"
+        dataSource="capbudBudVsSpDs1" showLegendAsPopUp="false" showOnLoad="false"
+         refreshWorkflowRuleId="AbProjectManagement-ProjectCostsService-getChartData">
+        <title>Budget vs Spend </title>
+        <action imageName="/schema/ab-system/graphics/ab-icon-helpview.gif" id="capbudBudVsSpColumnCostsBaseAct_help">
+            <tooltip>Help</tooltip>
+            <command type="openDialog" viewName="ab-capbud-bud-vs-sp-info.axvw" height="310" width="500"/>
+        </action>
+        <event type="onClickItem">                 
+            <command type="callFunction" functionName="openDetailsBudSp"/>
+        </event>
+        <groupingAxis table="afm_cal_dates" field="date_field" showLabel="true" labelRotation="45">
+            <title>${View.groupBy}</title> 
+        </groupingAxis>
+        <dataAxis table="afm_cal_dates" field="costs_base" displayAxis="false">
+           <title>Budget</title>
+        </dataAxis>
+        <dataAxis table="afm_cal_dates" field="costs_act" displayAxis="false">
+           <title>Spend</title>
+        </dataAxis>
+    </panel>
+</view>

@@ -1,0 +1,115 @@
+<view version="2.0">
+    <title translatable="true">View Rooms Utilization by Departments</title>
+    <layout type="borderLayout" id="mainLayout">
+        <north split="true" initialSize="92"/>
+        <center/>
+    </layout>
+
+    <dataSource id="rmFilter_ds">
+        <table name="rm" role="main"/>
+        <field name="dv_id"/> 
+        <field name="dp_id"/> 
+    </dataSource>
+
+    <panel id="rmFilterConsole" type="console"  columns="2" dataSource="rmFilter_ds"  layout="mainLayout" region="north">
+        <title translatable="true">Filter</title>
+	<action>
+            <title translatable="true">Update Area Totals</title>
+			<command type="openDialog" viewName="ab-sp-upd-area-tots-space-time.axvw" applyParentRestriction="false"/>
+        </action>
+        <action id="search">
+            <title translatable="true">Show</title>
+        </action>
+        <action id="clear">
+            <title translatable="true">Clear</title>
+        </action>
+        <field table="rm" name="dv_id"/>
+        <field table="rm" name="dp_id"/>
+        <field>
+            <title translatable="true">Include Null Department</title>
+            <html>
+                <div>
+                    <input type="checkbox" name="includeNullDp" value="0" id="includeNullDp"/>
+                </div>
+            </html>
+        </field>
+        <field>
+            <title translatable="true">Hotelable Rooms Only</title>
+            <html>
+                <div>
+                    <input type="checkbox" name="hotelableOnly" value="0" id="hotelableOnly"/>
+                </div>
+            </html>
+        </field>
+  </panel>
+    
+  <dataSource id="rm1dBar_ds" type="grouping">
+        <table name="rm" role="main"/>
+        <field table="rm" name="dv_dp" dataType="text" groupBy="true">
+            <title translatable="true">Departments</title>
+            <sql dialect="generic">RTRIM(rm.dv_id)${sql.concat}'-'${sql.concat}RTRIM(rm.dp_id)</sql>
+        </field>
+        <field name="rm_id"/>
+       <field name="hotelable"/>
+        <field name="utilizeRate" formula="sum" baseField="rm.area_rm" dataType="number" size="6" decimals="2">
+           <title translatable="true">Utilization Rate</title>
+           <sql dialect="generic">
+               CASE WHEN SUM(rm.area)&lt;=0 THEN 0 ELSE  SUM(rm.area_alloc)/SUM(rm.area)  END
+            </sql>
+       </field> 
+    </dataSource>
+    
+   <panel 	id="rmUtilizationByDpChartGrid" 
+    		type="chart" 
+    		showOnLoad="false" 
+    		controlType="columnChart" 
+    		dataSource="rm1dBar_ds" 
+    		showLegendOnLoad="true"
+    		showLegendAsPopUp="false" 
+    		legendLocation="right"
+    		showDataTips="true" 
+    		backgroundColor="0xc6e2ff" 
+    		fillColor="0xff0000"
+    		fillType="solid">
+        <title translatable="true">Rooms Utilization Bar Chart by Departments</title>
+	<event type="onClickItem">                 
+		<command type="callFunction" functionName="onBarChartClick"/>
+        </event>
+        <groupingAxis table="rm" field="dv_dp" dataSource="rm1dBar_ds" showLabel="true" labelRotation="45">
+            <title translatable="true">Departments</title>
+        </groupingAxis>
+        <dataAxis table="rm" field="utilizeRate" dataSource="rm1dBar_ds" showLabel="true">
+            <title translatable="true">Utilization Rate</title>
+        </dataAxis>
+    </panel>
+
+    <dataSource id="rmGrid_ds">
+        <sql dialect="generic">
+            SELECT
+		RTRIM(rm.dv_id)${sql.concat}'-'${sql.concat}RTRIM(rm.dp_id) ${sql.as} dv_dp,
+		rm.bl_id ${sql.as} bl_id,
+		rm.fl_id ${sql.as} fl_id,
+		rm.rm_id ${sql.as} rm_id,
+		rm.area  ${sql.as} area,
+		rm.area_alloc  ${sql.as} area_alloc,
+		rm.hotelable  ${sql.as} hotelable
+            FROM rm
+        </sql>
+        <table name="rm" role="main"/>
+        <field name="dv_dp" dataType="text" hidden="true"/>
+        <field name="bl_id" dataType="text"/>
+        <field name="fl_id" dataType="text"/>
+        <field name="rm_id" dataType="text"/>
+        <field name="area" dataType="number" decimals="2"/>
+        <field name="area_alloc" dataType="number" decimals="2"/>
+        <field name="hotelable" dataType="number" decimals="0"/>
+        <parameter name="dvAndDp" dataType="verbatim" value=""/>
+        <parameter name="hotelable" dataType="verbatim" value=""/>
+        <restriction type="sql" sql=" hotelable ${parameters['hotelable']} AND dv_dp ${parameters['dvAndDp']} "/>
+    </dataSource>
+    <panel id="rmGrid" type="grid" showOnLoad="false" dataSource="rmGrid_ds">
+        <title translatable="true">Rooms</title>
+    </panel>
+
+    <js file="ab-ht-rpt-ovrall-util-by-dp.js"/>
+</view>

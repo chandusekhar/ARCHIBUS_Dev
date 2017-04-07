@@ -1,0 +1,66 @@
+<view version="2.0">
+	<panel type="view" file="ab-bldgops-report-bl-cost-by-area-occ-console.axvw" id="blCostByOccConsole"/>
+	<dataSource id="costByTime_ds0" type="grouping" applyVpaRestrictions="false">
+		 <sql dialect="generic">
+            select * from (
+			SELECT 	wrhwr.*, ${sql.yearMonthOf('wrhwr.date_completed')} as month
+			FROM wrhwr join bl on wrhwr.bl_id=bl.bl_id
+			WHERE   wrhwr.bl_id is not null AND bl.area_gross_int>0
+				AND wrhwr.status IN ('Com','Clo') 
+				AND ${parameters['wrhwrRes']} ) wr where 1=1 
+                AND (${sql.vpaRestriction})
+		</sql>  
+		<table name="wr" role="main"/>
+		<field name="month" dataType="text"  groupBy="true"/>
+		<parameter name="wrhwrRes" dataType="verbatim" value=" 1=1 "/>
+	</dataSource>
+        <dataSource id="costByTime_ds" type="grouping" applyVpaRestrictions="false">
+         <sql dialect="generic">
+          select * from (
+            SELECT 
+                wrhwr.*, 
+                ${sql.yearMonthOf('wrhwr.date_completed')} as month,
+                wrhwr.cost_total/ bl.area_gross_int as cost_of_area
+            FROM wrhwr join bl on wrhwr.bl_id=bl.bl_id
+            WHERE   wrhwr.bl_id is not null AND bl.area_gross_int>0
+                AND wrhwr.status IN ('Com','Clo') 
+                AND ${parameters['wrhwrRes']}
+                AND ${sql.yearMonthOf('wrhwr.date_completed')} = ${parameters['summaryValueForThisGroup']}) wr where 1=1 
+                AND (${sql.vpaRestriction})
+        </sql>  
+        <table name="wr" role="main"/>
+        <field name="bl_id" dataType="text"  groupBy="true"/>
+        <field name="costOfArea" formula="sum" baseField="wr.cost_of_area" dataType="number" size="8" decimals="3"/>
+        <parameter name="wrhwrRes" dataType="verbatim" value=" 1=1 "/>
+        <parameter name="summaryValueForThisGroup" dataType="text" value=""/>
+    </dataSource>
+	<panel id="costByTimeChart"
+		type="chart"
+		controlType="lineChart"
+		dataSource="costByTime_ds"
+		showLegendOnLoad="true"
+		showLegendAsPopUp="false"
+		legendLocation="right"
+		showDataTips="true"
+		fillType="linearGradient"
+		percentGradientChange="0.5"
+		percentTransparency="1.0"
+		showOnLoad="true">
+		<title translatable="true">Maintenance Costs by Area and Time</title>
+		<event type="onClickItem">                 
+			<command type="callFunction" functionName="onChartClick"/>
+		</event>
+		<groupingAxis dataSource="costByTime_ds0" table="wr" field="month">
+			<title translatable="true">Month</title>
+		</groupingAxis>
+		<secondaryGroupingAxis dataSource="costByTime_ds" table="wr" field="bl_id">
+			<title translatable="true">Building Code</title>
+		</secondaryGroupingAxis>
+		<dataAxis dataSource="costByTime_ds" table="wr" field="costOfArea" displayAxis="false" labelPosition="inside">
+		    <title translatable="true">Average cost of area</title>
+		</dataAxis>
+	</panel>
+
+	<js file="ab-bldgops-report-bl-cost-by-area-occ-bytime.js" />
+
+</view>

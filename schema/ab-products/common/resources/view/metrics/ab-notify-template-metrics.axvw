@@ -1,0 +1,326 @@
+<view version="2.0">
+    <title>Manage Notification Templates for Metrics</title>
+    <js file="ab-notify-template-metrics.js"/>
+    <js file="ab-sql-helper-functions.js"/>
+    
+    <!-- Translatable -->
+    <message name="errNoSelection" translatable="true">You must make a selection first.</message>
+    <message name="limit_high_warning" translatable="true">&gt;= Report Limit High Warning</message>
+    <message name="limit_high_critical" translatable="true">&gt;= Report Limit High Critical</message>
+    <message name="limit_low_warning" translatable="true">&lt;= Report Limit Low Warning</message>
+    <message name="limit_low_critical" translatable="true">&lt;=  Report Limit Low Critical</message>
+    <message name="limit_low_high_warning" translatable="true">&lt;= Report Limit Low Warning OR &gt;= Report Limit High Warning</message>
+    <message name="limit_low_high_critical" translatable="true">&lt;= Report Limit Low Critical OR &gt;= Report Limit High Critical</message>
+    <message name="limit_low_target" translatable="true">&lt;= Report Limit Target</message>
+    <message name="limit_high_target" translatable="true">&gt;= Report Limit Target</message>
+    <message name="onlyOneSubject">You must enter a Subject Line or a Subject ID, but not both.</message>    
+    
+    <dataSource id="abNotifyTemplate_ds">
+        <table name="notify_templates"/>
+        <field name="template_id"/>
+        <field name="activity_id"/>
+        <field name="notify_cat"/>
+        <field name="description"/>
+        <field name="notify_subject"/>
+        <field name="notify_subject_id"/>
+        <field name="notify_message_id"/>
+        <field name="notify_recipients"/>
+        <field name="trigger_date_field"/>
+        <field name="trigger_condition_to"/>
+        <field name="notify_recurrence"/>
+        <field name="total_recurrence"/>
+        <field name="metric_collect_group_by"/>
+        <field name="notify_subject_refby"/>
+        <field name="notify_message_refby"/>
+        
+        <field name="count_assigned_metrics" dataType="number" decimals="0">
+            <title>Assigned Metric Count</title>
+            <sql dialect="generic">
+                (SELECT COUNT(afm_metric_notify.metric_name) FROM afm_metric_notify WHERE afm_metric_notify.template_id = notify_templates.template_id)
+            </sql>
+        </field>
+        <parameter name="sqlRestriction" dataType="verbatim" value="1=1"/>
+        <restriction type="sql" sql="${parameters['sqlRestriction']}"/>
+    </dataSource>
+    
+    <dataSource id="abMetricDefinitions_ds">
+        <table name="afm_metric_definitions"/>
+        <field name="metric_name"/>
+        <field name="metric_title"/>
+        <field name="description"/>
+    </dataSource>
+    
+    
+    
+    <tabs id="abNotifyTemplateTabs" tabRefreshPolicy="refreshOnLoad">
+        <tab name="abNotifyTemplateTabs_select" selected="true">
+            <title>Select Notification Template</title>
+            <!-- Filter -->        
+            <dataSource id="abNotifyTemplateFilter_ds">
+                <table name="notify_templates" role="main"/>
+                <table name="afm_metric_notify" role="standard"/>
+                <field table="notify_templates" name="template_id"/>
+                <field table="notify_templates" name="notify_cat"/>
+                <field table="notify_templates" name="notify_recipients"/>
+                <field table="afm_metric_notify" name="metric_name"/>
+            </dataSource>
+            <panel type="console" id="abNotifyTemplateFilter_console" dataSource="abNotifyTemplateFilter_ds" columns="2">
+                <title>Console</title>
+                <action id="filter">
+                    <title>Show</title>
+                </action>
+                <action id="clear">
+                    <title>Clear</title>
+                    <command type="clearPanel"/>
+                </action>
+                <field table="notify_templates" name="template_id">
+                    <action>
+                        <title translatable="false">...</title>
+                        <tooltip>Select Value</tooltip>
+                        <command type="selectValue"
+                            selectValueType="multiple"
+                            fieldNames="notify_templates.template_id"
+                            selectFieldNames="notify_templates.template_id"
+                            visibleFieldNames="notify_templates.template_id,notify_templates.description"
+                            restriction="EXISTS(SELECT notifycat.notify_cat FROM notifycat WHERE notify_templates.notify_cat = notifycat.notify_cat AND notifycat.activity_id = 'AbSystemAdministration')"/>
+                    </action>
+                </field>
+                <field table="afm_metric_notify" name="metric_name">
+                    <action>
+                        <title translatable="false">...</title>
+                        <tooltip>Select Value</tooltip>
+                        <command type="selectValue"
+                            selectValueType="multiple"
+                            fieldNames="afm_metric_notify.metric_name"
+                            selectFieldNames="afm_metric_definitions.metric_name"
+                            visibleFieldNames="afm_metric_definitions.metric_name, afm_metric_definitions.metric_title,afm_metric_definitions.description"
+                            restriction="afm_metric_definitions.collect_formula &lt;&gt; 'CollectSpaceTrendingMetrics' AND calc_type = 'Tracking Metrics'"/>
+                    </action>
+                </field>
+                <field table="notify_templates" name="notify_cat">
+                    <action>
+                        <title translatable="false">...</title>
+                        <tooltip>Select Value</tooltip>
+                        <command type="selectValue"
+                            selectValueType="multiple"
+                            fieldNames="notify_templates.notify_cat"
+                            selectFieldNames="notifycat.notify_cat"
+                            visibleFieldNames="notifycat.activity_id, notifycat.notify_cat,notifycat.description"
+                            restriction="notifycat.activity_id = 'AbSystemAdministration'"/>
+                    </action>
+                </field>
+                <field table="notify_templates" name="notify_recipients_email" dataType="text" height="20" cssClass="inputField">
+                    <title>Recipients Email Addresses</title>
+<!--                     <action>
+                        <title translatable="false">...</title>
+                        <tooltip>Select Value</tooltip>
+                        <command type="selectValue"
+                            selectValueType="multiple"
+                            fieldNames="notify_templates.notify_recipients_email"
+                            selectFieldNames="em.email"
+                            visibleFieldNames="em.em_id, em.email,em.em_std, em.dv_id,em.dp_id"
+                            restriction="em.email IS NOT NULL"/>
+                    </action>
+ -->                
+                </field>
+            </panel>
+            
+            <panel type="grid" id="abNotifyTemplate_list" dataSource="abNotifyTemplate_ds" showOnLoad="false" multipleSelectionEnabled="true">
+                <sortField table="notify_templates" name="notify_cat"/>
+                <sortField table="notify_templates" name="template_id"/>
+                <title>Select Notification Template to Manage</title>
+                <action id="addNew">
+                    <title>Add New</title>
+                </action>
+                <action id="assign">
+                    <title>Assign to Metrics</title>
+                </action>
+                <action id="export_DOC">
+                    <title>DOC</title>
+                    <command type="exportPanel" panelId="abNotifyTemplate_list" outputType="docx"/>
+                </action>
+                <action id="export_XLS">
+                    <title>XLS</title>
+                    <command type="exportPanel" panelId="abNotifyTemplate_list" outputType="xls"/>
+                </action>
+                
+                <field id="select" controlType="button" onclick="onSelectTemplate">
+                    <title>Select</title>
+                </field>
+                <field name="notify_cat"/>
+                <field name="template_id"/>
+                <field name="description"/>
+                <field name="trigger_condition_to"/>
+                <field name="count_assigned_metrics" dataType="number" decimals="0">
+                    <title>Assigned Metric Count</title>
+                </field>
+            </panel>
+        </tab>
+        <tab name="abNotifyTemplateTabs_define">
+            <title>Define Notification Template</title>
+            <panel type="form" id="abNotifyTemplate_form" dataSource="abNotifyTemplate_ds" showOnLoad="false" columns="2">
+                <title>Define Notification Template</title>
+                <action id="assign" enabled="${!panel.newRecord}">
+                    <title>Assign to Metrics</title>
+                </action>
+                <action id="saveAndNew">
+                    <title>Save and Add New</title>
+                </action>
+                <action id="copy" enabled="${!panel.newRecord}">
+                    <title>Copy As New</title>
+                </action>
+                <action id="save">
+                    <title>Save</title>
+                </action>
+                <action id="delete" enabled="${!panel.newRecord}">
+                    <title>Delete</title>
+                    <command type="deleteRecord" formId="abNotifyTemplate_form"/>
+                    <command type="callFunction" functionName="afterDeleteTemplate"/>
+                </action>
+                <action id="Cancel">
+                    <title>Cancel</title>
+                    <command type="showPanel" panelId="abNotifyTemplate_form"/>
+                </action>
+
+                <field name="template_id"/>
+                <field name="notify_cat">
+                    <action>
+                        <title translatable="false">...</title>
+                        <tooltip>Select Value</tooltip>
+                        <command type="selectValue"
+                            fieldNames="notify_templates.notify_cat,notify_templates.activity_id"
+                            selectFieldNames="notifycat.notify_cat,notifycat.activity_id"
+                            visibleFieldNames="notifycat.activity_id,notifycat.notify_cat,notifycat.description"
+                            restriction="notifycat.activity_id = 'AbSystemAdministration'"/>
+                    </action>
+                </field>
+                <field name="description" colspan="2"/>
+                
+                <field id="label_content" colspan="2">
+                    <html>
+                        <span translatable="true" style="font-weight: bold;">Notification Content</span>
+                    </html>
+                </field>
+                <field name="notify_subject" colspan="2"/>
+                <field name="notify_subject_id">
+                    <action>
+                        <title translatable="false">...</title>
+                        <tooltip>Select Value</tooltip>
+                        <command type="selectValue"
+                            selectValueType="grid"
+                            fieldNames="notify_templates.notify_subject_id, notify_templates.notify_subject_refby"
+                            selectFieldNames="messages.message_id, messages.referenced_by"
+                            visibleFieldNames="messages.activity_id, messages.referenced_by, messages.message_id"
+                            restriction="messages.activity_id = 'AbSystemAdministration' AND messages.referenced_by = 'NOTIFY_TEMPLATE_SUBJECT_METRICS'"/>
+                    </action>
+                </field>
+                <field name="notify_message_id" required="true">
+                    <action>
+                        <title translatable="false">...</title>
+                        <tooltip>Select Value</tooltip>
+                        <command type="selectValue"
+                            selectValueType="grid"
+                            fieldNames="notify_templates.notify_message_id, notify_templates.notify_message_refby"
+                            selectFieldNames="messages.message_id, messages.referenced_by"
+                            visibleFieldNames="messages.activity_id, messages.referenced_by, messages.message_id"
+                            restriction="messages.activity_id = 'AbSystemAdministration' AND messages.referenced_by = 'NOTIFY_TEMPLATE_BODY_METRICS'"/>
+                    </action>
+                </field>
+                
+                <field id="label_recipient" colspan="2">
+                    <html>
+                        <span translatable="true" style="font-weight: bold;">Notification Recipients</span>
+                    </html>
+                </field>
+                <field name="notify_recipients" colspan="2">
+                    <action id="addEmails">
+                        <title>Add Employees</title>
+                        <command type="selectValue"
+                            selectValueType="multiple"
+                            fieldNames="notify_templates.notify_recipients"
+                            selectFieldNames="em.email"
+                            visibleFieldNames="em.em_id, em.email,em.em_std, em.dv_id,em.dp_id"
+                            restriction="em.email IS NOT NULL"/>
+                    </action>
+                </field>
+
+                <field id="label_condition" colspan="2">
+                    <html>
+                        <span translatable="true" style="font-weight: bold;">Notification Condition and Recurrence</span>
+                    </html>
+                </field>
+                <field name="trigger_date_field" readOnly="true"/>
+                <field id="notify_condition" controlType="comboBox" size="50">
+                    <title>Notify if Metric Value is</title>
+                    <option value="limit_high_warning">&gt;= Report Limit High Warning</option>
+                    <option value="limit_high_critical">&gt;= Report Limit High Critical</option>
+                    <option value="limit_low_warning">&lt;= Report Limit Low Warning</option>
+                    <option value="limit_low_critical">&lt;=  Report Limit Low Critical</option>
+                    <option value="limit_low_high_warning">&lt;= Report Limit Low Warning OR &gt;= Report Limit High Warning</option>
+                    <option value="limit_low_high_critical">&lt;= Report Limit Low Critical OR &gt;= Report Limit High Critical</option>
+                    <option value="limit_low_target">&lt;= Report Limit Target</option>
+                    <option value="limit_high_target">&gt;= Report Limit Target</option>
+                </field>
+                <field name="metric_collect_group_by" rowspan="2">
+                    <action id="addGranularity">
+                        <title>Add Granularity</title>
+                        <tooltip></tooltip>
+                        <command type="selectValue"
+                            selectValueType="multiple"
+                            fieldNames="notify_templates.metric_collect_group_by"
+                            selectFieldNames="afm_metric_gran_defs.collect_group_by"
+                            visibleFieldNames="afm_metric_gran_defs.collect_group_by, afm_metric_gran_defs.granularity_title"/>
+                    </action>
+                </field>
+                <field name="notify_recurrence"/>
+                <field name="total_recurrence"/>
+
+                <field name="trigger_condition_to" hidden="true"/>
+                <field name="notify_subject_refby" hidden="true"/>
+                <field name="notify_message_refby" hidden="true"/>
+                <field name="activity_id" hidden="true" value="AbSystemAdministration"/>
+            </panel>
+        </tab>
+        <tab name="abNotifyTemplateTabs_assign">
+            <title>Assigned Metrics</title>
+            <panel type="grid" id="abAssignedMetrics_list" dataSource="abMetricDefinitions_ds" showOnLoad="false">
+                <title>Metrics Assigned to Notification Template</title>
+                <action id="export_XLS">
+                    <title>XLS</title>
+                    <command type="exportPanel" panelId="abAssignedMetrics_list" outputType="xls"/>
+                </action>
+                
+                <field id="unassign" controlType="button" onclick="onUnassignMetric">
+                    <title>Unassign</title>
+                </field>
+                <field name="metric_name"/>
+                <field name="metric_title"/>
+                <field name="description"/>
+            </panel>             
+        </tab>
+    </tabs>
+    
+    
+    <panel type="grid" id="abMetric_list" dataSource="abMetricDefinitions_ds" multipleSelectionEnabled="true" showOnLoad="false" hidden="true">
+        <indexField table="afm_metric_definitions" name="metric_name"/>
+        <title>Select Available Metrics</title>
+        <action id="save">
+            <title>Save</title>
+        </action>
+        <action id="cancel">
+            <title>Cancel</title>
+            <command type="closeDialog"/>
+        </action>
+        <field name="metric_name"/>
+        <field name="metric_title"/>
+        <field name="description"/>
+    </panel>
+    
+    
+    <dataSource id="abMetricNotify_ds">
+        <table name="afm_metric_notify"/>
+        <field name="metric_name"/>
+        <field name="template_id"/>
+    </dataSource>
+
+</view>

@@ -1,0 +1,59 @@
+<view version="2.0">
+    <title translatable="true">Column Chart</title>
+    <message name="crossTablePanelTitle">by {0}</message>
+    <message name="site">Site</message>
+    <message name="building">Building</message>
+    <message name="floor">Floor</message>
+    <message name="zone">Zone</message>
+    <message name="meter">Meter</message>
+    <js file="ab-energy-bill-prorate-column.js"/>
+    
+    <dataSource id="energyBillProrateColumn_ds2" type="grouping">
+        <table name="bas_data_point" role="main"/>
+        <sql dialect="generic">
+            SELECT ${parameters['group_field']} ${sql.as} group_field,
+            0 ${sql.as} qty_measured, 0 ${sql.as} proration_factor, 10 ${sql.as} amount_prorated,
+            bas_data_point.site_id, bas_data_point.bl_id, bas_data_point.fl_id, bas_data_point.zone_id, 
+            bas_data_point.data_point_id, bas_data_point.name             
+            FROM (SELECT bas_measurement_scope.site_id, bas_measurement_scope.bl_id, bas_measurement_scope.fl_id, bas_measurement_scope.zone_id, 
+            bas_data_point.data_point_id, bas_data_point.name FROM bas_data_point
+            LEFT OUTER JOIN bas_measurement_scope 
+            ON bas_measurement_scope.data_point_id = bas_data_point.data_point_id
+            LEFT OUTER JOIN bill_unit ON (bill_unit.bill_unit_id = bas_data_point.bill_unit_id AND bill_unit.bill_type_id = bas_data_point.bill_type_id)
+            WHERE bill_unit.rollup_type = 'Energy'
+            AND EXISTS (
+                SELECT 1 FROM bill_archive 
+                WHERE bill_archive.vn_id = bas_data_point.vn_id 
+                AND bill_archive.vn_ac_id = bas_data_point.vn_ac_id 
+                AND bill_archive.vn_id LIKE ${parameters['vn_id']}
+                AND bill_archive.bill_id LIKE ${parameters['bill_id']})) ${sql.as} bas_data_point
+        </sql>
+        <field name="group_field" table="bas_data_point" groupBy="true" dataType="text">
+            <title>${View.groupBy}</title>
+        </field>
+        <field name="qty_measured" table="bas_data_point" baseField="bas_data_point.qty_measured" formula="sum" dataType="number" decimals="2">
+            <title>Measured Consumption</title>
+        </field>
+        <field name="proration_factor" table="bas_data_point" baseField="bas_data_point.proration_factor" formula="sum" dataType="number" decimals="3">
+            <title>Proration Factor</title>
+        </field>   
+        <field name="amount_prorated" table="bas_data_point" baseField="bas_data_point.amount_prorated" formula="sum" dataType="number" decimals="2">
+            <title>Amount Expense - Prorated</title>
+        </field>
+        <sortField name="group_field" ascending="true"/>
+        <parameter name="group_field" value="RTRIM(bas_data_point.data_point_id) ${sql.concat} ' - ' ${sql.concat} RTRIM(bas_data_point.name)" dataType="verbatim"/>
+        <parameter name="vn_id" value="%" dataType="text"/>
+        <parameter name="bill_id" value="%" dataType="text"/>
+    </dataSource>
+
+    <panel id="energyBillProrateColumn_chart" type="chart" controlType="columnChart" dataSource="energyBillProrateColumn_ds2" refreshWorkflowRuleId="AbRiskEnergyManagement-BillProrationService-getBillProrationRecordsForChart" showOnLoad="false" legendLocation="right" showLegendAsPopUp="false">
+        <title>Prorate Utility Bill</title>
+        <groupingAxis table="bas_data_point" field="group_field" labelRotation="45">
+            <title>${View.groupBy}</title> 
+        </groupingAxis>
+        <dataAxis  table="bas_data_point" field="amount_prorated" labelPosition="insideWithCallout" calloutGap="3" autoCalculateTickSizeInterval="false" tickSizeInterval="150" displayAxis="true">
+             <title>Amount Expense - Prorated</title>
+        </dataAxis>
+    </panel>
+    
+</view>

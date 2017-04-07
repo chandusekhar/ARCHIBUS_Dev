@@ -1,0 +1,161 @@
+
+<!-- 
+	Added for 23.1: Highlight and label datasources used for team assign mode.
+-->
+
+<view version="2.0">
+
+	<!-- Teams Occupancy Highlight-->
+	<dataSource id="highlightTeamOccupancyDs"  type="DrawingControlHighlight">
+		<title>Teams Occupancy</title>
+		<table name="rm" role="main"/>
+		<table name="dv" role="standard"/>
+		<table name="rmcat" role="standard"/>
+		<field table="rm" name = "bl_id"/>
+		<field table="rm" name = "fl_id"/>
+		<field table="rm" name = "rm_id"/>
+		<field table="rm" name = "teamOccupancy" dataType="integer" legendKey="true">
+		 <sql dialect="generic">
+			  CASE
+			   
+				WHEN 
+						exists (select 1 from rm_team where rm_team.bl_id=rm.bl_id and rm_team.fl_id=rm.fl_id and rm_team.rm_id=rm.rm_id 
+																			and ( rm_team.date_end is null or ${sql.yearMonthDayOf('rm_team.date_end')} &gt;= ${parameters['selectDateStart']}) and ${sql.yearMonthDayOf('rm_team.date_start')} &lt;= ${parameters['selectDateEnd']} )
+						or exists (select 1 from rmcat where rmcat.rm_cat = rm.rm_cat AND rmcat.occupiable = 0) 
+				THEN 0
+				
+				WHEN 
+					exists (select 1 from rmcat where rmcat.rm_cat = rm.rm_cat AND rmcat.occupiable = 1) AND rm.cap_em > 0 
+						AND 0 = (SELECT COUNT(1) FROM em WHERE em.bl_id = rm.bl_id AND em.fl_id = rm.fl_id AND em.rm_id = rm.rm_id)
+				THEN 1 
+				
+				WHEN 
+					 exists (select 1 from rmcat where rmcat.rm_cat = rm.rm_cat AND rmcat.occupiable = 1) AND rm.cap_em > 0 
+						AND rm.cap_em &gt; (SELECT COUNT(1) FROM em WHERE em.bl_id = rm.bl_id AND em.fl_id = rm.fl_id AND em.rm_id = rm.rm_id)
+				THEN 2
+				 
+				WHEN 
+					exists (select 1 from rmcat where rmcat.rm_cat = rm.rm_cat AND rmcat.occupiable = 1) AND(  rm.cap_em=0 or rm.cap_em > 0 
+					AND rm.cap_em = (SELECT COUNT(1) FROM em WHERE em.bl_id = rm.bl_id AND em.fl_id = rm.fl_id AND em.rm_id = rm.rm_id) )
+				THEN 3
+				 
+				WHEN 
+				   exists (select 1 from rmcat where rmcat.rm_cat = rm.rm_cat AND rmcat.occupiable = 1) AND rm.cap_em > 0 
+					   AND rm.cap_em &lt; (SELECT COUNT(1) FROM em WHERE em.bl_id = rm.bl_id AND em.fl_id = rm.fl_id AND em.rm_id = rm.rm_id)
+				THEN 4
+			  END 
+			</sql>
+		</field>
+
+		<field name="hpattern_acad" dataType="text">
+			<sql dialect="generic">
+				CASE 
+				   WHEN 
+						exists (select 1 from rm_team where rm_team.bl_id=rm.bl_id and rm_team.fl_id=rm.fl_id and rm_team.rm_id=rm.rm_id 
+																			and ( rm_team.date_end is null or ${sql.yearMonthDayOf('rm_team.date_end')} &gt;= ${parameters['selectDateStart']}) and ${sql.yearMonthDayOf('rm_team.date_start')} &lt;= ${parameters['selectDateEnd']} )
+						or exists (select 1 from rmcat where rmcat.rm_cat = rm.rm_cat AND rmcat.occupiable = 0) 
+				   THEN '14 0 7 13421772'
+				   
+				   WHEN 
+						exists (select 1 from rmcat where rmcat.rm_cat = rm.rm_cat AND rmcat.occupiable = 1) AND rm.cap_em > 0 
+						AND 0 = (SELECT COUNT(1) FROM em WHERE em.bl_id = rm.bl_id AND em.fl_id = rm.fl_id AND em.rm_id = rm.rm_id)
+				   THEN '14 0 3 65280'
+				   
+				   WHEN 
+						exists (select 1 from rmcat where rmcat.rm_cat = rm.rm_cat AND rmcat.occupiable = 1) AND rm.cap_em > 0 
+						AND rm.cap_em &gt; (SELECT COUNT(1) FROM em WHERE em.bl_id = rm.bl_id AND em.fl_id = rm.fl_id AND em.rm_id = rm.rm_id)
+				   THEN '14 0 5 255'
+				  
+				   WHEN 
+						exists (select 1 from rmcat where rmcat.rm_cat = rm.rm_cat AND rmcat.occupiable = 1) AND(  rm.cap_em=0 or rm.cap_em > 0 
+						AND rm.cap_em = (SELECT COUNT(1) FROM em WHERE em.bl_id = rm.bl_id AND em.fl_id = rm.fl_id AND em.rm_id = rm.rm_id) )
+				   THEN '14 0 2 16776960'
+					
+				   WHEN 
+					   exists (select 1 from rmcat where rmcat.rm_cat = rm.rm_cat AND rmcat.occupiable = 1) AND rm.cap_em > 0 
+					   AND rm.cap_em &lt; (SELECT COUNT(1) FROM em WHERE em.bl_id = rm.bl_id AND em.fl_id = rm.fl_id AND em.rm_id = rm.rm_id)
+				   THEN '14 0 1 16711680'
+			   END 
+			</sql>
+		</field>    
+		<restriction type="sql" sql="
+		   ( (${parameters['dp_id']} AND ${parameters['dv_id']} ) AND (${parameters['organizationUnassigned']})
+				)
+			AND ${parameters['bl_id']}
+			AND ${parameters['fl_id']}
+			AND ${parameters['rm_id']}
+			AND
+			 (
+			   (${parameters['rm_cat']} AND ${parameters['rm_type']} ) AND (${parameters['typeUnassigned']})
+			)
+			AND ${parameters['occupancy']} AND ${parameters['rm_std']} AND ${parameters['excludedHotalableRm']} 
+		"/> 
+
+		<parameter name="dv_id" dataType="verbatim" value="1=1"/>
+		<parameter name="dp_id" dataType="verbatim" value="1=1"/>
+		<parameter name="bl_id" dataType="verbatim" value="1=1"/>
+		<parameter name="fl_id" dataType="verbatim" value="1=1"/>
+		<parameter name="rm_id" dataType="verbatim" value="1=1"/>
+		<parameter name="rm_cat" dataType="verbatim" value="1=1"/>
+		<parameter name="rm_type" dataType="verbatim" value="1=1"/>
+		<parameter name="occupancy" dataType="verbatim" value="1=1"/>
+		<parameter name="rm_std" dataType="verbatim" value="1=1"/>
+		<parameter name="organizationUnassigned" dataType="verbatim" value="1=1"/>
+		<parameter name="typeUnassigned" dataType="verbatim" value="1=1"/>
+		<parameter name="excludedHotalableRm" dataType="verbatim" value="5=5"/>
+		<parameter name="selectDateStart" dataType="text" value="1900-01-01"/>
+		<parameter name="selectDateEnd" dataType="text" value="2900-01-01"/>
+  </dataSource>
+
+	<!-- Labels for Team assign mode -->
+	<dataSource id="labelTeamsAssignDs" type="DrawingControlLabels">
+		<title>Teams Assignment</title>
+		<table name="rm" role="main"/>
+		<table name="dv" role="standard"/>
+		<table name="dp" role="standard"/>
+		<table name="rmcat" role="standard"/>
+
+		<field table="rm" name="bl_id" hidden="true"/>
+		<field table="rm" name="fl_id" hidden="true"/>
+		<field table="rm" name="dv_id" hidden="true"/>
+		<field table="rm" name="dp_id" hidden="true"/>
+
+		<field table="rm" name="rm_id"/>
+		<field table="rm" name="teamId" dataType="text">
+			<sql dialect="generic">
+				( CASE WHEN EXISTS ( SELECT (team_properties.team_id) FROM rm_team, team_properties 
+												  WHERE  rm_team.bl_id=rm.bl_id and rm_team.fl_id=rm.fl_id and rm_team.rm_id=rm.rm_id 
+															and ( rm_team.date_end is null or ${sql.yearMonthDayOf('rm_team.date_end')} &gt;=${parameters['selectDateStart']}) 
+															and ( ${parameters['selectDateEnd']} is null or  ${sql.yearMonthDayOf('rm_team.date_start')} &lt;= ${parameters['selectDateEnd']} )
+															 AND rm_team.team_id=team_properties.team_id and team_properties.needs_team_space=1 ) 
+				THEN		( select MAX(team_properties.team_id) FROM rm_team, team_properties 
+														where  rm_team.bl_id=rm.bl_id and rm_team.fl_id=rm.fl_id and rm_team.rm_id=rm.rm_id 
+															and ( rm_team.date_end is null or ${sql.yearMonthDayOf('rm_team.date_end')} &gt;=${parameters['selectDateStart']}) 
+															and ( ${parameters['selectDateEnd']} is null or  ${sql.yearMonthDayOf('rm_team.date_start')} &lt;= ${parameters['selectDateEnd']} )
+														and rm_team.team_id=team_properties.team_id and team_properties.needs_team_space=1 )
+				ELSE ''   
+				END)
+			</sql>
+		</field>    
+		<field table="rm" name="dateRange" dataType="text">
+			<sql dialect="generic">
+				( CASE WHEN EXISTS ( SELECT (team_properties.team_id) FROM rm_team, team_properties 
+												  WHERE  rm_team.bl_id=rm.bl_id and rm_team.fl_id=rm.fl_id and rm_team.rm_id=rm.rm_id 
+															and ( rm_team.date_end is null or ${sql.yearMonthDayOf('rm_team.date_end')} &gt;=${parameters['selectDateStart']}) 
+															and ( ${parameters['selectDateEnd']} is null or  ${sql.yearMonthDayOf('rm_team.date_start')} &lt;= ${parameters['selectDateEnd']} )
+															 AND rm_team.team_id=team_properties.team_id and team_properties.needs_team_space=1 ) 
+				THEN		( select MAX(${sql.yearMonthDayOf('rm_team.date_start')}${sql.concat} '-' ${sql.concat}( CASE WHEN rm_team.date_end is null then '' else ${sql.yearMonthDayOf('rm_team.date_end')} end))	
+									FROM rm_team, team_properties 
+									where  rm_team.bl_id=rm.bl_id and rm_team.fl_id=rm.fl_id and rm_team.rm_id=rm.rm_id 
+												and ( rm_team.date_end is null or ${sql.yearMonthDayOf('rm_team.date_end')} &gt;=${parameters['selectDateStart']}) 
+												and ( ${parameters['selectDateEnd']} is null or  ${sql.yearMonthDayOf('rm_team.date_start')} &lt;= ${parameters['selectDateEnd']} )
+												and rm_team.team_id=team_properties.team_id and team_properties.needs_team_space=1 )
+				ELSE ''   
+				END)
+			</sql>
+		</field>    
+		<parameter name="selectDateStart" dataType="text" value="1900-01-01"/>
+		<parameter name="selectDateEnd" dataType="text" value="2900-01-01"/>
+	</dataSource>
+
+</view>

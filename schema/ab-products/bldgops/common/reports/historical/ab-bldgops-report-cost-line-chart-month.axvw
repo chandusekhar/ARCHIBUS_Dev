@@ -1,0 +1,60 @@
+<view version="2.0">
+	<message name="perventive" translatable="true">PREVENTIVE MAINT</message>
+	<message name="maint_corrective" translatable="true">MAINT - CORRECTIVE EXPENSE</message>
+	<message name="maint_preventive" translatable="true">MAINT - PREVENTIVE EXPENSE</message>
+
+	<title translatable="true">Actual Costs by Month</title>
+	
+	<dataSource id="abBldgopsReportArchivedWrCostByMonthChartGroupingAxisDS" type="grouping">
+		<table name="wrhwr" />
+		<field name="month" groupBy="true" dataType="text" formula="month" baseField="wrhwr.date_completed">
+			<title translatable="true">Date</title>
+		</field>
+		<restriction type="sql" 
+			sql="${sql.yearMonthOf('wrhwr.date_completed')} &gt;= ${parameters['monthStart']} AND ${sql.yearMonthOf('wrhwr.date_completed')} &lt;= ${parameters['monthEnd']}" />
+		<parameter name="monthStart" dataType="text" value="2010-01" />
+		<parameter name="monthEnd" dataType="text" value="2010-12" />
+		<sortField table="wrhwr" name="month" ascending="true" />
+	</dataSource>
+	
+	<dataSource id="abBldgopsReportArchivedWrCostByMonthDataAxisDS" type="grouping" applyVpaRestrictions="false">
+		<!--Get cost value by month of summaryValueForThisGroup ,the value was caculated by four causes as below -->
+		<sql dialect="generic">
+          select * from (
+			SELECT 
+                  wrhwr.*,
+				  ${parameters['groupTypeParam']} ${sql.as} group_type,
+				 wrhwr.cost_total ${sql.as} month_value
+			  FROM wrhwr LEFT JOIN eq ON wrhwr.eq_id=eq.eq_id 
+			  WHERE wrhwr.status IN ('Com','Clo') 
+					AND ${parameters['otherRes']} 
+					AND ${sql.yearMonthOf("wrhwr.date_completed")}=${parameters['summaryValueForThisGroup']}) wr where 1=1 
+                    AND (${sql.vpaRestriction})  
+		</sql>	
+		<table name="wr" role="main"/>
+		<field name="group_type"  dataType="verbatim" groupBy="true"  />
+		<field name="month_value_total" formula="sum" baseField="wr.month_value" dataType="number"/>
+		
+		<parameter name="summaryValueForThisGroup" dataType="text" value="" />
+		<parameter name="groupTypeParam" dataType="verbatim" value="wrhwr.ac_id"/>
+		<parameter name="otherRes" dataType="verbatim" value="1=1"/>
+		<sortField name="group_type" table="wr" ascending="false"/>
+	</dataSource>
+
+	<panel id="abBldgopsReportArchivedWrCostByMonthChart" type="chart" controlType="lineChart" legendLocation="right" showOnLoad="true"  dataSource="abBldgopsReportArchivedWrCostByMonthDataAxisDS">
+		<title translatable="true">Total Actual Cost by Month</title>
+		<action id="exportDOCX">
+			<title translatable="true">DOC</title>
+			<command type="exportPanel" outputType="docx" panelId="abBldgopsReportArchivedWrCostByMonthChart"/>
+		</action>  
+		<groupingAxis table="wrhwr" field="month" dataSource="abBldgopsReportArchivedWrCostByMonthChartGroupingAxisDS">
+			<title translatable="true">Month</title>
+		</groupingAxis>
+		<secondaryGroupingAxis table="wr" field="group_type" dataSource="abBldgopsReportArchivedWrCostByMonthDataAxisDS" />
+		<dataAxis table="wr" field="month_value_total" dataSource="abBldgopsReportArchivedWrCostByMonthDataAxisDS">
+			<title translatable="true">Total Actual Cost</title>
+		</dataAxis>
+	</panel>
+	
+	<js file="ab-bldgops-report-cost-line-chart-month.js"/>
+</view>

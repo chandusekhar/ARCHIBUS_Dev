@@ -1,0 +1,182 @@
+<view version="2.0">
+    <!--
+    @summary
+    Supervisor - Review work request - Schedule<br />
+    This view allows the user to:
+    <ul>
+    <li>View lists of trades and resource assignments for the selected work request</li>
+    <li>Add, update and delete trades and resource assignments</li>
+    <li>Complete the schedule of the work request</li>
+    </ul>
+    @restriction (wr_id = ? AND step_log_id = ?)
+    Restriction from select tab
+    -->
+    <message name="noRecordSelected" translatable="true">Please make selection first</message>
+    <dataSource id="ds_ab-helpdesk-workrequest-schedule_form_wr">
+        <table name="wr" role="main"/>
+        <table name="wr_step_waiting" role="standard"/>
+        <field table="wr" name="wr_id"/>
+        <!-- <field name="wr_id" table="wr_step_waiting"/>-->
+        <field name="step_code" table="wr_step_waiting"/>
+        <field name="step_type" table="wr_step_waiting"/>
+        <field name="step_log_id" table="wr_step_waiting"/>
+        
+        <field name="user_name" table="wr_step_waiting"/>
+        <field name="requestor" table="wr"/>
+        <field name="date_requested" table="wr"/>
+        <field name="status" table="wr"/>
+        <field name="step_status" table="wr"/>
+        <field name="prob_type" table="wr"/>
+        <field name="description" table="wr"/>
+        
+        <parameter name="emWorkflowSubstitutes" dataType="verbatim" value="''"/>
+        
+        <restriction type="sql"
+			sql="(wr_step_waiting.user_name=${sql.literal(user.name)} OR wr_step_waiting.em_id ${sql.concat} wr_step_waiting.step_type IN (${parameters['emWorkflowSubstitutes']}))
+                AND wr_step_waiting.step_type='scheduling'" />
+    </dataSource>
+    
+    <panel type="form" columns="2" id="panel_schedule" dataSource="ds_ab-helpdesk-workrequest-schedule_form_wr">
+        <title translatable="true">Work Request Schedule</title>
+        <action type="javascript" onclick="completeScheduling('panel_schedule')">
+            <title translatable="true">Complete Scheduling</title>
+        </action>
+        <field name="wr_id" table="wr" readOnly="true"/>
+        <field name="requestor" table="wr" readOnly="true"/>
+        <field name="prob_type" table="wr" readOnly="true"/>
+        <field name="date_requested" table="wr" readOnly="true"/>
+        <field name="status" table="wr" readOnly="true"/>
+        <field name="step_status" table="wr" readOnly="true"/>
+        <field name="description" table="wr" colspan="2" readOnly="true" style="width:100%"/>
+        <field name="step_code" table="wr_step_waiting" hidden="true"/>
+        <field name="step_type" table="wr_step_waiting" hidden="true"/>
+        <field name="step_log_id" table="wr_step_waiting" hidden="true"/>
+        <field name="user_name" table="wr_step_waiting" hidden="true"/>
+    </panel>
+    
+    <dataSource id="ds_ab-helpdesk-workrequest-schedule_grid_wrtr">
+        <table name="wrtr" role="main"/>
+        <table name="wr" role="standard"/>
+        <field name="wr_id" table="wr"/>
+        <field name="wr_id" table="wrtr"/>
+        <field name="tr_id" table="wrtr"/>
+        <field name="hours_est" table="wrtr"/>
+        <field name="hours_sched" table="wrtr"/>
+        <field name="date_start" table="wrtr"/>
+        <field name="time_start" table="wrtr"/>
+        <field name="date_end" table="wrtr"/>
+        <field name="time_end" table="wrtr"/>
+        <field table="wrtr" name="work_type"/>
+     
+    </dataSource>
+    
+    <panel type="grid" id="tr_report" controlType="reportGrid" showOnLoad="false" dataSource="ds_ab-helpdesk-workrequest-schedule_grid_wrtr">
+        <title translatable="true">Trades Estimation and Schedules</title>
+		<sortField name="tr_id" table="wrtr" ascending="true"/>
+        <field name="tr_id" table="wrtr"/>
+        <field name="hours_est" table="wrtr"/>
+        <field name="hours_sched" table="wrtr"/>
+        <field name="date_start" table="wrtr"/>
+        <field name="time_start" table="wrtr"/>
+        <field table="wrtr" name="work_type"/>
+    </panel>
+    <panel type="html" id="schedule_space1">
+        <!-- add some space -->
+        <html>
+            <br/>
+        </html>
+    </panel>
+    
+    <dataSource id="ds_ab-helpdesk-workrequest-schedule_grid_wrcf">
+        <table name="wrcf" role="main"/>
+        <table name="wr" role="standard"/>
+        <table name="cf" role="standard"/>
+        <field name="tr_id" table="cf"/>
+		<field name="wr_id" table="wr"/>
+        <field name="wr_id" table="wrcf"/>
+        <field name="cf_id" table="wrcf"/>
+        <field name="date_assigned" table="wrcf"/>
+        <field name="time_assigned" table="wrcf"/>
+        <field name="date_start" table="wrcf"/>
+        <field name="time_start" table="wrcf"/>
+        <field name="time_end" table="wrcf"/>
+        <field name="hours_est" table="wrcf"/>
+        <field name="scheduled_from_tr_id" table="wrcf"/>
+        
+    </dataSource>
+    
+    <panel type="grid" id="cf_report" controlType="reportGrid" showOnLoad="false" dataSource="ds_ab-helpdesk-workrequest-schedule_grid_wrcf"
+     multipleSelectionEnabled="true">
+        <title translatable="true">Craftsperson Assignments</title>
+        <sortField name="tr_id" table="cf" ascending="true"/>
+		<action id="addCf">
+            <title translatable="true">Assign Craftsperson</title>
+			<command type="callFunction" functionName="addCfToWr"/>
+        </action>
+        <action type="javascript" onclick="ABODC_deleteItems('cf_report','wrcf')">
+            <title translatable="true">Delete Selected</title>
+        </action>
+        <field controlType="button">
+            <command type="openDialog" viewName="ab-helpdesk-workrequest-cf.axvw"/>
+            <title translatable="true">Edit</title>
+        </field>
+		<field name="wr_id" table="wrcf" hidden="true"/>
+        <field name="tr_id" table="cf"/>
+        <field name="cf_id" table="wrcf"/>
+        <field name="date_assigned" table="wrcf"/>
+        <field name="time_assigned" table="wrcf"/>
+        <field name="date_start" table="wrcf"/>
+        <field name="time_start" table="wrcf"/>
+        <field name="hours_est" table="wrcf">
+            <title translatable="true">Scheduled Hours</title>
+        </field>
+        <field name="scheduled_from_tr_id" table="wrcf" hidden="true"/>
+    </panel>
+	
+    <panel type="html" id="schedule_space2">
+        <!-- add some space -->
+        <html>
+            <br/>
+        </html>
+    </panel>
+    
+    <dataSource id="ds_ab-helpdesk-workrequest-schedule_grid_wrtl_wr">
+        <table name="wrtl" role="main"/>
+        <table name="wr" role="standard"/>
+		<field name="wr_id" table="wr"/>
+        <field name="wr_id" table="wrtl"/>
+        <field name="tool_id" table="wrtl"/>
+        <field name="date_assigned" table="wrtl"/>
+        <field name="time_assigned" table="wrtl"/>
+        <field name="date_start" table="wrtl"/>
+        <field name="time_start" table="wrtl"/>
+        <field name="time_end" table="wrtl"/>
+    </dataSource>
+    
+    <panel type="grid" id="tool_report" controlType="reportGrid" showOnLoad="false" dataSource="ds_ab-helpdesk-workrequest-schedule_grid_wrtl_wr"
+     multipleSelectionEnabled="true">
+        <title translatable="true">Tool Assignments</title>
+        <action id="addTl">
+            <title translatable="true">Assign Tool</title>
+			<command type="callFunction" functionName="addTool"/>
+        </action>
+        <action type="javascript" onclick="ABODC_deleteItems('tool_report','wrtl')">
+            <title translatable="true">Delete Selected</title>
+        </action>
+        <field controlType="button">
+            <command type="openDialog" viewName="ab-helpdesk-workrequest-tl.axvw"/>
+            <title translatable="true">Edit</title>
+        </field>
+		<field name="wr_id" table="wrtl" hidden="true"/>
+        <field name="tool_id" table="wrtl"/>
+        <field name="date_assigned" table="wrtl"/>
+        <field name="time_assigned" table="wrtl"/>
+        <field name="date_start" table="wrtl"/>
+        <field name="time_start" table="wrtl"/>
+        <field name="time_end" table="wrtl"/>
+    </panel>
+    
+    <js file="ab-helpdesk-workrequest-schedule.js"/>
+    <js file="ab-ondemand-common.js"/>
+    
+</view>

@@ -1,0 +1,165 @@
+<view version="2.0">
+    <title translatable="false">&#160;</title>
+    <js file="ab-rplm-lsadmin-leases-expiring-per-year-chart.js"/>
+    
+    <!-- Messages -->
+    <message name="titleLeaseExpiringPerYear" translatable="true">Number of Leases Expiring Per Year</message>
+    
+    <dataSource id="abRepmLsAdminLsExpireChartDataAxis_ds" type="grouping" applyVpaRestrictions="false">
+        <sql dialect="generic">
+            SELECT
+                ls.ls_id ${sql.as} ls_id,
+                ls.date_end ${sql.as} date_end,
+                ${sql.yearOf('ls.date_end')} ${sql.as} year,
+                (CASE WHEN ls.bl_id IS NOT NULL THEN bl.ctry_id ELSE property.ctry_id END) ${sql.as} ctry_id,
+                (CASE WHEN ls.bl_id IS NOT NULL THEN bl.regn_id ELSE property.regn_id END) ${sql.as} regn_id,
+                (CASE WHEN ls.bl_id IS NOT NULL THEN bl.state_id ELSE property.state_id END) ${sql.as} state_id,
+                (CASE WHEN ls.bl_id IS NOT NULL THEN bl.city_id ELSE property.city_id END) ${sql.as} city_id,
+                (CASE WHEN ls.bl_id IS NOT NULL THEN bl.site_id ELSE property.site_id END) ${sql.as} site_id,
+                (CASE WHEN ls.bl_id IS NOT NULL THEN bl.pr_id ELSE property.pr_id END) ${sql.as} pr_id,
+                ls.bl_id ${sql.as} bl_id,
+                ls.landlord_tenant ${sql.as} landlord_tenant
+            FROM ls
+                LEFT OUTER JOIN property ON ls.pr_id = property.pr_id AND ${sql.getVpaRestrictionForTable('property')}
+                LEFT OUTER JOIN bl ON ls.bl_id = bl.bl_id  AND ${sql.getVpaRestrictionForTable('bl')}
+            WHERE ls.use_as_template = 0 AND ${sql.vpaRestriction}
+        </sql>
+        <table name="ls" role="main"/>
+        <table name="bl" role="standard"/>
+        <table name="property" role="standard"/>
+        <field name="year" dataType="text" formula="year" baseField="ls.date_end" groupBy="true">
+            <title>Year</title>
+        </field>
+        <field name="vf_ls_count" dataType="number" size="16" decimals="0" formula="count" baseField="ls.ls_id">
+            <title>Number of Leases Expiring</title>
+        </field>
+        <restriction type="sql" sql="ls.year = ${parameters['summaryValueForThisGroup']} AND ${parameters['filter']}"/>
+        <parameter name="summaryValueForThisGroup" dataType="text" value=""/>  
+        <parameter name="filter" dataType="verbatim" value="1 = 1"/>
+        <sortField table="ls" name="year" ascending="true"/>
+    </dataSource>    
+    
+    <panel id="abRepmLsAdminLsExpireChart" type="chart" controlType="stackedBarChart" showOnLoad="false" showLegendOnLoad="false" dataSource="abRepmLsAdminLsExpireChartDataAxis_ds">
+        <title></title>
+        <event type="onClickItem">
+            <command type="callFunction" functionName="onDrillDown"/>                 
+        </event>
+
+        <action id="filter" imageName="/schema/ab-system/graphics/ab-filter-run.gif">
+            <tooltip>Filter</tooltip>
+        </action>
+        <action id="report" imageName="/schema/ab-system/graphics/ab-icon-report.gif">
+            <tooltip>Report</tooltip>      
+        </action>
+        <action id="export">
+            <title>DOC </title>
+            <command type="exportPanel" outputType="docx" panelId="abRepmLsAdminLsExpireChart" orientation="landscape"/>
+        </action>
+
+        <groupingAxis  table="afm_cal_dates" field="year"  dataSource="abRepmKpiYears_ds">
+            <title translatable="true">Year</title> 
+        </groupingAxis>
+        
+        <dataAxis table="ls" field="vf_ls_count" dataSource="abRepmLsAdminLsExpireChartDataAxis_ds">
+             <title translatable="true">Number of Leases Expiring</title>
+        </dataAxis>
+    </panel>
+    
+    <dataSource id="abRepmLsAdminLsExpireReport_ds" type="grouping" applyVpaRestrictions="false">
+        <sql dialect="generic">
+            SELECT
+                tmp_cal_dates.year ${sql.as} year, 
+                ls.ls_id ${sql.as} ls_id,
+                ls.date_end ${sql.as} date_end,
+                (CASE WHEN ls.bl_id IS NOT NULL THEN bl.ctry_id ELSE property.ctry_id END) ${sql.as} ctry_id,
+                (CASE WHEN ls.bl_id IS NOT NULL THEN bl.regn_id ELSE property.regn_id END) ${sql.as} regn_id,
+                (CASE WHEN ls.bl_id IS NOT NULL THEN bl.state_id ELSE property.state_id END) ${sql.as} state_id,
+                (CASE WHEN ls.bl_id IS NOT NULL THEN bl.city_id ELSE property.city_id END) ${sql.as} city_id,
+                (CASE WHEN ls.bl_id IS NOT NULL THEN bl.site_id ELSE property.site_id END) ${sql.as} site_id,
+                (CASE WHEN ls.bl_id IS NOT NULL THEN bl.pr_id ELSE property.pr_id END) ${sql.as} pr_id,
+                ls.bl_id ${sql.as} bl_id,
+                ls.landlord_tenant ${sql.as} landlord_tenant
+            FROM 
+                (SELECT DISTINCT ${sql.yearOf('afm_cal_dates.cal_date')} ${sql.as} year FROM afm_cal_dates WHERE ${parameters['customRestriction']}) ${sql.as} tmp_cal_dates
+                LEFT OUTER JOIN ls ON ${sql.yearOf('ls.date_end')} = tmp_cal_dates.year AND ls.use_as_template = 0 AND ${sql.vpaRestriction} AND (ls.bl_id IS NOT NULL OR ls.pr_id IS NOT NULL) 
+                LEFT OUTER JOIN property ON ls.pr_id = property.pr_id AND ${sql.getVpaRestrictionForTable('property')}
+                LEFT OUTER JOIN bl ON ls.bl_id = bl.bl_id  AND ${sql.getVpaRestrictionForTable('bl')}
+        </sql>
+        <table name="ls" role="main"/>
+        <table name="bl" role="standard"/>
+        <table name="property" role="standard"/>
+        <field table="ls" name="year" dataType="text" groupBy="true">
+            <title>Year</title>
+        </field>
+        <field name="vf_ls_count" dataType="number" size="16" decimals="0" formula="count" baseField="ls.ls_id">
+            <title>Number of Leases Expiring</title>
+        </field>
+        <restriction type="sql" sql="ls.year &lt;= ${(parameters['dateTo'])} AND ls.year &gt;= ${(parameters['dateFrom'])} AND ${parameters['filter']}"/>
+        <parameter name="filter" dataType="verbatim" value="1 = 1"/>
+        <parameter name="dateFrom" dataType="text" value=""/>
+        <parameter name="dateTo" dataType="text" value=""/>
+        <parameter name="customRestriction" dataType="verbatim" value="1 = 1"/>
+    </dataSource>
+
+    <panel type="grid" controlType="reportGrid" id="abRepmLsAdminLsExpireReport" dataSource="abRepmLsAdminLsExpireReport_ds" recordLimit="0" showOnLoad="false" hidden="true">
+        <sortField table="ls" name="year" ascending="true"/>
+        <action id="exportXlS">
+            <title translatable="true">XLS</title>
+            <command type="exportPanel" outputType="xls" panelId="abRepmLsAdminLsExpireReport" viewName="ab-rplm-lsadmin-leases-expiring-per-year-chart.axvw"/>
+        </action>
+        <field name="year" dataType="text">
+            <title translatable="true">Year</title>
+        </field>
+        <field name="vf_ls_count" dataType="number" size="16" decimals="0">
+            <title>Number of Leases Expiring</title>
+        </field>
+    </panel>
+    
+    <dataSource id="abRepmLsAdminLsExpireLeases_ds">
+        <sql dialect="generic">
+            SELECT
+                ls.ld_name,ls.ld_contact,ls.ls_id,ls.tn_name,ls.tn_contact,ls.lease_type,ls.signed,ls.floors,ls.area_rentable,
+                ls.area_usable,ls.owned,ls.date_start,ls.date_move,ls.date_end,ls.use_as_template, ls.bl_id, ls.landlord_tenant,
+                (CASE WHEN ls.bl_id IS NOT NULL THEN bl.ctry_id ELSE property.ctry_id END) ${sql.as} ctry_id,
+                (CASE WHEN ls.bl_id IS NOT NULL THEN bl.regn_id ELSE property.regn_id END) ${sql.as} regn_id,
+                (CASE WHEN ls.bl_id IS NOT NULL THEN bl.state_id ELSE property.state_id END) ${sql.as} state_id,
+                (CASE WHEN ls.bl_id IS NOT NULL THEN bl.city_id ELSE property.city_id END) ${sql.as} city_id,
+                (CASE WHEN ls.bl_id IS NOT NULL THEN bl.site_id ELSE property.site_id END) ${sql.as} site_id,
+                (CASE WHEN ls.bl_id IS NOT NULL THEN bl.pr_id ELSE property.pr_id END) ${sql.as} pr_id
+            FROM 
+                ls  
+                LEFT OUTER JOIN property ON ls.pr_id = property.pr_id AND ${sql.getVpaRestrictionForTable('property')}
+                LEFT OUTER JOIN bl ON ls.bl_id = bl.bl_id  AND ${sql.getVpaRestrictionForTable('bl')}
+        </sql>
+        <table name="ls" role="main"/>
+        <table name="bl" role="standard"/>
+        <table name="property" role="standard"/>
+        <field table="ls" name="ld_name" />
+        <field table="ls" name="ld_contact" />
+        <field table="ls" name="ls_id" />
+        <field table="ls" name="tn_name" />
+        <field table="ls" name="tn_contact" />
+        <field table="ls" name="lease_type" />
+        <field table="ls" name="signed" />
+        <field table="ls" name="floors" />
+        <field table="ls" name="area_rentable" numericFormat="area"/>
+        <field table="ls" name="area_usable" numericFormat="area"/>
+        <field table="ls" name="owned" />
+        <field table="ls" name="date_start" />
+        <field table="ls" name="date_move" />
+        <field table="ls" name="date_end" />
+        <restriction type="parsed">
+            <clause op="=" table="ls" name="use_as_template" value="0"/>
+        </restriction>
+        <parameter name="year" dataType="text" value="0"/>
+        <parameter name="filter" dataType="verbatim" value="1 = 1"/>
+        <restriction type="sql" sql="${sql.vpaRestriction} AND (ls.bl_id IS NOT NULL OR ls.pr_id IS NOT NULL) AND ${sql.yearOf('ls.date_end')}=${parameters['year']} AND ${parameters['filter']}"/>
+    </dataSource>
+
+    <panel type="grid" id="abRepmLsAdminLsExpireLeases" dataSource="abRepmLsAdminLsExpireLeases_ds" showOnLoad="false" hidden="true">
+        <title translatable="true">Leases Details</title>
+    </panel>
+    
+    
+    <panel type="view" id="abRepmBldgBookMarketVal_kpiCommon" file="ab-repm-kpi-common.axvw"/>
+</view>

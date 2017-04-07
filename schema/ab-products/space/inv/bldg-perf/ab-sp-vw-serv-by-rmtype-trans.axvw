@@ -1,0 +1,60 @@
+<view version="2.0">
+    <designInfo type="summary" pattern="ab-viewdef-summary-report" isAlterable="false"/>
+    
+    <title translatable="true">View Service Area Summary by Type</title>
+    
+    <dataSource id="ds_ab-sp-vw-serv-by-rmtype_crossTable_rm" type="grouping">
+        <table name="rmpct" role="main"/>
+        <field name="rm_type" groupBy="true"/>
+        
+        <field name="total_count" formula="count" dataType="number" decimals="0">
+         <title translatable="true">Total Count</title>
+            <sql dialect="generic"> count(distinct rmpct.bl_id${sql.concat}rmpct.fl_id${sql.concat}rmpct.rm_id)</sql>
+        </field>
+        <field name="total_area" formula="sum" baseField="rmpct.area_rm" dataType="number" decimals="2">
+            <title translatable="true">Total Area</title>
+        </field>
+        <field name="avg_area" formula="avg" baseField="rmpct.area_rm" dataType="number" decimals="2">
+            <title translatable="true">Average Area</title>
+        </field>
+        <restriction type="sql" sql="EXISTS (SELECT 1 FROM rmcat WHERE rmcat.supercat ='SERV' AND rmcat.rm_cat = rmpct.rm_cat) 
+                                       AND rmpct.area_rm>0  "/>
+        <sortField name="rm_type" table="rmpct" ascending="true"/>
+    </dataSource>
+    
+    <dataSource id="ds_ab-sp-vw-serv-by-rmtype_grid_rm" type="grouping">
+        <table name="rmpct" role="main"/>
+        <field name="rm_type"  groupBy="true"/>
+        <field name="bl_id"   groupBy="true" />
+        <field name="fl_id"  groupBy="true" />
+        <field name="rm_id"  groupBy="true" />
+        
+        <field name="area" formula="count" dataType="number" decimals="2">
+         
+            <sql dialect="generic"> (SELECT rm.area FROM rm WHERE rm.bl_id=rmpct.bl_id and rm.fl_id=rmpct.fl_id and rm.rm_id = rmpct.rm_id)</sql>
+        </field>
+        
+        <field name="area_rm" formula="sum" baseField="rmpct.area_rm" dataType="number" decimals="2"/>
+        
+        <restriction type="sql" sql=" rmpct.area_rm>0 
+                                       AND EXISTS (SELECT 1 FROM rmcat WHERE rmcat.supercat ='SERV' AND rmcat.rm_cat = rmpct.rm_cat)"/>
+    </dataSource>
+    
+    <panel type="crossTable" id="servByTypeGrid" showOnLoad="true" dataSource="ds_ab-sp-vw-serv-by-rmtype_crossTable_rm">
+        <event type="onClickItem">
+            <command type="openDialog" panelId="servRmDetailGrid" width="600" height="400"/>
+        </event>
+    </panel>
+    
+    <panel type="grid" id="servRmDetailGrid" showOnLoad="false" dataSource="ds_ab-sp-vw-serv-by-rmtype_grid_rm" hidden="true">
+        <field name="bl_id"/>
+        <field name="fl_id"/>
+        <field name="rm_id"/>
+        <field name="area">
+        <title translatable="true">Room Area</title>
+        </field>
+        <field name="area_rm"/>
+    </panel>
+    <panel type="view" id="abSyncRoomSharedDS" file="ab-sync-room-shared-ds.axvw"/>
+    <js file="ab-sync-room-common.js"/>
+</view>

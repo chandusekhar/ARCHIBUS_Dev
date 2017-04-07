@@ -1,0 +1,140 @@
+<view version="2.0">
+    <title translatable="true">Highlight Groups by Department</title>
+    
+    <layout id="main">
+        <north id="filterPosition" initialSize="13%" split="true"/>
+        <west initialSize="20%" split="true"/>
+        <center id="dwgPosition"/>
+    </layout>
+    
+    <layout id="nested_west" containingLayout="main" region="west">
+        <north id="dpTreePosition" initialSize="40%"/>
+        <center id="flTreePosition"/>
+    </layout>
+    
+    <message name="drawingPanelTitle" translatable="true">Highlight Groups by Department</message>
+    <message name="drawingPanelTitle1" translatable="true">Highlight Groups for Department: %s</message>
+    
+    <dataSource id="ds_ab-sp-hl-gp-by-dp_console_gp">
+        <table name="gp" role="main"/>
+		<field table="gp" name="bl_id"/>
+        <field table="gp" name="dv_id"/>
+        <field table="gp" name="dp_id"/>
+    </dataSource>
+    
+    <dataSource id="ds_ab-sp-hl-gp-by-dp_tree_dv">
+        <table name="dv" role="main"/>
+        <field table="dv" name="dv_id"/>
+        <parameter name="dvRes" dataType="verbatim" value=" IS NOT NULL"/>
+		<parameter name="dpRes" dataType="verbatim" value=" IS NOT NULL"/>
+        <restriction type="sql" sql="dv.dv_id ${parameters['dvRes']} 
+		AND EXISTS (SELECT 1 FROM dp WHERE dp.dv_id = dv.dv_id
+		AND dp.dp_id ${parameters['dpRes']})
+		AND EXISTS (SELECT 1 FROM gp WHERE gp.dv_id = dv.dv_id and gp.portfolio_scenario_id is null)"/>
+        <sortField table="dv" name="dv_id" ascending="true"/>
+    </dataSource>
+    
+    <dataSource id="ds_ab-sp-hl-gp-by-dp_tree_dp">
+        <table name="dp" role="main"/>
+        <field table="dp" name="dp_id"/>
+        <parameter name="dvRes" dataType="verbatim" value="IS NOT NULL"/>
+        <parameter name="dpRes" dataType="verbatim" value="IS NOT NULL"/>
+        <restriction type="sql" sql="dp.dv_id ${parameters['dvRes']} AND dp.dp_id ${parameters['dpRes']}
+		AND EXISTS (SELECT 1 FROM gp WHERE gp.dv_id = dp.dv_id AND gp.dp_id = dp.dp_id and gp.portfolio_scenario_id is null)"/>
+        <sortField table="dp" name="dp_id" ascending="true"/>
+    </dataSource>
+    
+    <dataSource id="ds_ab-sp-hl-gp-by-dp_grid_fl" type="grouping">
+        <table name="gp" role="main"/>
+        <field table="gp" name="bl_id" groupBy="true"/>
+    	<field table="gp" name="fl_id" groupBy="true"/>
+    	<field table="gp" name="dwgname" groupBy="true"/>
+        <parameter name="dvRes" dataType="verbatim" value=" IS NOT NULL"/>
+        <parameter name="dpRes" dataType="verbatim" value=" IS NOT NULL"/>
+		<parameter name="blRes" dataType="verbatim" value=" IS NOT NULL"/>
+        <restriction type="sql" sql="gp.portfolio_scenario_id is null and gp.dwgname IS NOT NULL
+         AND gp.dv_id${parameters['dvRes']}
+         AND gp.dp_id${parameters['dpRes']}
+		 AND gp.bl_id${parameters['blRes']}"/>
+    </dataSource>
+    
+    <dataSource id="ds_ab-sp-hl-gp-by-dp_drawing_gpHighlight" type="DrawingControlHighlight">
+        <table name="gp" role="main"/>
+        <table name="dp" role="standard"/>
+        <field table="gp" name="bl_id"/>
+        <field table="gp" name="fl_id"/>
+        <field table="gp" name="gp_id"/>
+        <field table="gp" name="gp_std"/>
+        <field table="gp" name="dp_id" legendKey="true"/>
+        <field table="dp" name="hpattern_acad"/>
+        <parameter name="gpDp" dataType="verbatim" value=""/>
+        <restriction type="sql" sql="${parameters['gpDp']} and gp.portfolio_scenario_id is null"/>
+    </dataSource>
+    
+    <dataSource id="ds_ab-sp-hl-gp-by-dp_drawing_gpLabel">
+        <table name="gp" role="main"/>
+        <field name="bl_id" hidden="true"/>
+        <field name="fl_id" hidden="true"/>
+        <field name="gp_id"/>
+        <field name="dv_id"/>
+        <field name="dp_id"/>
+        <field name="area"/>
+        <restriction type="sql" sql="gp.portfolio_scenario_id is null"/>
+    </dataSource>
+    
+    <dataSource id="ds_ab-sp-hl-gp-by-dp_columnReport_gp">
+        <table name="gp" role="main"/>
+        <table name="dp" role="standard"/>
+        <field table="gp" name="bl_id"/>
+        <field table="gp" name="fl_id"/>
+        <field table="gp" name="gp_id"/>
+        <field table="gp" name="gp_std"/>
+        <field table="dp" name="name"/>
+        <field table="gp" name="area"/>
+        <restriction type="sql" sql="gp.portfolio_scenario_id is null"/>
+    </dataSource>
+    
+    <panel type="console" id="abSpHlGpByDp_filterConsole" columns="3" dataSource="ds_ab-sp-hl-gp-by-dp_console_gp" layoutRegion="filterPosition">
+        <title translatable="true">Filter</title>
+        <action id="showDpGrid">
+            <title translatable="true">Show</title>
+        </action>
+		<action id="clear">
+            <title translatable="true">Clear</title>
+            <command type="clearPanel" panelId="abSpHlGpByDp_filterConsole"/>
+        </action>
+    </panel>
+    
+    <panel type="tree" id="abSpHlGpByDp_dvTree" dataSource="ds_ab-sp-hl-gp-by-dp_tree_dv" layoutRegion="dpTreePosition">
+        <title translatable="true">Select Division and Department</title>
+        <panel type="tree" id="abSpHlGpByDp_dpTree" dataSource="ds_ab-sp-hl-gp-by-dp_tree_dp">
+            <event type="onClickNode">
+                <command type="callFunction" functionName="onDpTreeClick"/>
+            </event>
+        </panel>
+    </panel>
+    
+    <panel type="grid" id="abSpHlGpByDp_flGrid" dataSource="ds_ab-sp-hl-gp-by-dp_grid_fl" multipleSelectionEnabled="true" layoutRegion="flTreePosition">
+        <title translatable="true">Select Floor</title>
+		<sortField table="gp" name="bl_id" ascending="true"/>
+        <sortField table="gp" name="fl_id" ascending="true"/>
+    </panel>
+    
+    <panel type="drawing" id="abSpHlGpByDp_DrawingPanel" layoutRegion="dwgPosition"
+     highlightDataSource="ds_ab-sp-hl-gp-by-dp_drawing_gpHighlight"
+     labelsDataSource="ds_ab-sp-hl-gp-by-dp_drawing_gpLabel"
+	 assetTypes="gp">
+	 	<action id="exportDOCX">
+			<title translatable="true">DOC</title>
+			<tooltip translatable="true">Export current view of drawing to Docx file.</tooltip>
+			<command type="exportPanel" outputType="docx" panelId="abSpHlGpByDp_DrawingPanel"/>
+		</action>
+        <title></title>
+    </panel>
+    
+    <panel type="columnReport" id="abSpHlGpByDp_GpDetailPanel" columns="2" dataSource="ds_ab-sp-hl-gp-by-dp_columnReport_gp" showOnLoad="false" hidden="true" layoutRegion="dwgPosition">
+        <title translatable="true">Group Details</title>
+    </panel>
+    
+    <js file="ab-sp-hl-gp-by-dp.js"/>
+</view>

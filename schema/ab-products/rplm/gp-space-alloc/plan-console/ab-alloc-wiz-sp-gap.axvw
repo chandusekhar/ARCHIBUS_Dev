@@ -1,0 +1,294 @@
+<view version="2.0">
+  	<layout id="gapMainLayout">
+        <west initialSize="250" split="true" id="spGapTree"/>
+        <center id="spGapChart" initialSize="600px"/>
+  	</layout>
+
+    <message name="wait">Please wait</message>
+  	<message name="showUtilizationLine">Show Allocation Rate Line</message>
+    <message name="closeUtilizationLine">Hide Allocation Rate Line</message>
+    <message name="z_MESSAGE_AREA">Area</message>
+    <message name="z_MESSAGE_ALLOCATED_AREA">Allocated Area</message>
+    <message name="z_MESSAGE_ALLOCATED">Allocated</message>
+    <message name="z_MESSAGE_CAPACITY">Capacity</message>
+    <message name="z_MESSAGE_ALLOCATION_RATE">Allocation Rate</message>
+    <message name="z_MESSAGE_WAIT">Please wait</message>
+    
+    <message name="toAreaView">Area View</message>
+    <message name="toOccupView">Occupancy View</message>
+
+    <message name="occupRate">Occupancy Rate</message>
+    <message name="seats">Seats</message>
+    <message name="occupiedSeats">Occupied Seats</message>
+    <message name="totalSeats">Total Seats</message>
+  	<message name="showOccupancyRateLine">Show Occupancy Rate Line</message>
+    <message name="closeOccupancyRateLine">Hide Occupancy Rate Line</message>
+
+	<js file="ab-alloc-wiz-sp-gap-common.js"/>
+	<js file="ab-alloc-wiz-sp-gap.js"/>
+    <js file="schema/ab-core/libraries/amcharts/amcharts.js"/>
+	<js file="ab-alloc-wiz-common.js"/>	
+    
+    <dataSource id="allocWizSpGap_yearTreeDs">
+        <sql dialect="generic">
+            SELECT DISTINCT ${sql.yearOf('gp.date_start')} ${sql.as} dv_id
+            FROM gp
+            LEFT OUTER JOIN bl on gp.bl_id = bl.bl_id
+            WHERE gp.date_start IS NOT NULL
+            AND ${parameters['siteIdRestriction']}
+            AND ${parameters['blIdRestriction']}
+            AND ${parameters['dateStartRestriction']}
+            AND ${parameters['scenarioIdRestriction']}
+            
+            UNION
+            
+            SELECT DISTINCT ${sql.yearOf('gp.date_end')} ${sql.as} dv_id
+            FROM gp
+            LEFT OUTER JOIN bl on gp.bl_id = bl.bl_id
+            WHERE gp.date_end IS NOT NULL
+            AND ${parameters['siteIdRestriction']}
+            AND ${parameters['blIdRestriction']}
+            AND ${parameters['dateEndRestriction']}
+            AND ${parameters['scenarioIdRestriction']}
+        </sql>
+        <table name="gp" role="main"/>
+        <field name="dv_id" dataType="text" table="gp"/>
+        <sortField table="gp" name="dv_id" ascending="true"/>
+        <parameter name="siteIdRestriction" dataType="verbatim" value="1=1"/>
+        <parameter name="blIdRestriction" dataType="verbatim" value="1=1"/>
+        <parameter name="dateStartRestriction" dataType="verbatim" value="1=1"/>
+        <parameter name="dateEndRestriction" dataType="verbatim" value="1=1"/>
+        <parameter name="scenarioIdRestriction" dataType="verbatim" value="1=1"/>
+    </dataSource>
+    
+    <dataSource id="allocWizSpGap_dateTreeDs">
+        <sql dialect="generic">
+            SELECT DISTINCT CASE WHEN gp.event_name IS NOT NULL THEN ${sql.yearMonthDayOf('gp.date_start')} ${sql.concat} '-' ${sql.concat} gp.event_name ELSE ${sql.yearMonthDayOf('gp.date_start')} END ${sql.as} event_name,
+            ${sql.yearOf('gp.date_start')} ${sql.as} dv_id
+            FROM gp
+            LEFT OUTER JOIN bl on gp.bl_id = bl.bl_id
+            WHERE gp.date_start IS NOT NULL
+            AND ${parameters['siteIdRestriction']}
+            AND ${parameters['blIdRestriction']}
+            AND ${parameters['dateStartRestriction']}
+            AND ${parameters['scenarioIdRestriction']}
+            
+            UNION 
+            
+            SELECT DISTINCT CASE WHEN gp.event_name IS NOT NULL THEN ${sql.yearMonthDayOf('gp.date_end')} ${sql.concat} '-' ${sql.concat} gp.event_name ${sql.concat} '-End' ELSE ${sql.yearMonthDayOf('gp.date_end')} ${sql.concat} '-End' END ${sql.as} event_name,
+            ${sql.yearOf('gp.date_end')} ${sql.as} dv_id
+            FROM gp
+            LEFT OUTER JOIN bl on gp.bl_id = bl.bl_id
+            WHERE gp.date_end IS NOT NULL
+            AND ${parameters['siteIdRestriction']}
+            AND ${parameters['blIdRestriction']}
+            AND ${parameters['dateEndRestriction']}
+            AND ${parameters['scenarioIdRestriction']}
+            AND gp.allocation_type IN ('Usable Area – Owned','Usable Area – Leased')
+            
+            UNION
+            
+            SELECT DISTINCT CASE WHEN gp.event_name IS NOT NULL THEN ${sql.yearMonthDayOf('gp.date_end')} ${sql.concat} '-' ${sql.concat} gp.event_name ${sql.concat} '-End' ELSE ${sql.yearMonthDayOf('gp.date_end')} ${sql.concat} '-End' END ${sql.as} event_name,
+            ${sql.yearOf('gp.date_end')} ${sql.as} dv_id
+            FROM gp
+            LEFT OUTER JOIN bl on gp.bl_id = bl.bl_id
+            WHERE gp.date_end IS NOT NULL
+            AND ${parameters['siteIdRestriction']}
+            AND ${parameters['blIdRestriction']}
+            AND ${parameters['dateEndRestriction']}
+            AND ${parameters['scenarioIdRestriction']}
+            AND NOT EXISTS (SELECT 1 FROM gp ${sql.as} sgp WHERE gp.gp_id = sgp.parent_group_id)
+        </sql>
+        <table name="gp" role="main"/>
+        <field name="event_name" dataType="text" table="gp"/>
+        <field name="dv_id" dataType="text" table="gp" hidden="true"/>
+        <sortfield name="event_name" table="gp" ascending="true"/>
+        <parameter name="siteIdRestriction" dataType="verbatim" value="1=1"/>
+        <parameter name="blIdRestriction" dataType="verbatim" value="1=1"/>
+        <parameter name="dateStartRestriction" dataType="verbatim" value="1=1"/>
+        <parameter name="dateEndRestriction" dataType="verbatim" value="1=1"/>
+        <parameter name="scenarioIdRestriction" dataType="verbatim" value="1=1"/>
+    </dataSource>
+    
+    <dataSource id="allocWizSpGap_groupTreeDs">
+        <sql dialect="generic">
+            SELECT DISTINCT gp.name ${sql.as} name, 
+            CASE WHEN gp.event_name IS NOT NULL THEN ${sql.yearMonthDayOf('gp.date_start')} ${sql.concat} '-' ${sql.concat} gp.event_name ELSE ${sql.yearMonthDayOf('gp.date_start')} END ${sql.as} event_name
+            FROM gp
+            LEFT OUTER JOIN bl on gp.bl_id = bl.bl_id
+            WHERE gp.date_start IS NOT NULL
+            AND ${parameters['siteIdRestriction']}
+            AND ${parameters['blIdRestriction']}
+            AND ${parameters['dateStartRestriction']}
+            AND ${parameters['scenarioIdRestriction']}
+            
+            UNION 
+            
+            SELECT DISTINCT gp.name ${sql.as} name,
+            CASE WHEN gp.event_name IS NOT NULL THEN ${sql.yearMonthDayOf('gp.date_end')} ${sql.concat} '-' ${sql.concat} gp.event_name ${sql.concat} '-End' ELSE ${sql.yearMonthDayOf('gp.date_end')} ${sql.concat} '-End' END ${sql.as} event_name
+            FROM gp
+            LEFT OUTER JOIN bl on gp.bl_id = bl.bl_id
+            WHERE gp.date_end IS NOT NULL
+            AND ${parameters['siteIdRestriction']}
+            AND ${parameters['blIdRestriction']}
+            AND ${parameters['dateEndRestriction']}
+            AND ${parameters['scenarioIdRestriction']}
+            AND gp.allocation_type IN ('Usable Area – Owned','Usable Area – Leased')
+            
+            UNION
+            
+            SELECT DISTINCT gp.name ${sql.as} name,
+            CASE WHEN gp.event_name IS NOT NULL THEN ${sql.yearMonthDayOf('gp.date_end')} ${sql.concat} '-' ${sql.concat} gp.event_name ${sql.concat} '-End' ELSE ${sql.yearMonthDayOf('gp.date_end')} ${sql.concat} '-End' END ${sql.as} event_name
+            FROM gp
+            LEFT OUTER JOIN bl on gp.bl_id = bl.bl_id
+            WHERE gp.date_end IS NOT NULL
+            AND ${parameters['siteIdRestriction']}
+            AND ${parameters['blIdRestriction']}
+            AND ${parameters['dateEndRestriction']}
+            AND ${parameters['scenarioIdRestriction']}
+            AND NOT EXISTS (SELECT 1 FROM gp ${sql.as} sgp WHERE gp.gp_id = sgp.parent_group_id)
+        </sql>
+        <table name="gp" role="main"/>
+        <field name="name" dataType="text" table="gp"/>
+        <field name="event_name" dataType="text" table="gp"/>
+        <parameter name="siteIdRestriction" dataType="verbatim" value="1=1"/>
+        <parameter name="blIdRestriction" dataType="verbatim" value="1=1"/>
+        <parameter name="dateStartRestriction" dataType="verbatim" value="1=1"/>
+        <parameter name="dateEndRestriction" dataType="verbatim" value="1=1"/>
+        <parameter name="scenarioIdRestriction" dataType="verbatim" value="1=1"/>
+    </dataSource>
+    
+    <dataSource id="allocWizSpGap_eventTreeDs">
+        <sql dialect="generic">
+            SELECT DISTINCT gp.bl_id ${sql.concat} ' ' ${sql.concat} gp.fl_id ${sql.concat} ' ' ${sql.concat} CAST((gp.area_manual * ${parameters['areaUnitsConversionFactor']}) AS DECIMAL(10, 2)) ${sql.concat} ' ' ${sql.concat} gp.description ${sql.as} description,
+            CASE WHEN gp.event_name IS NOT NULL THEN ${sql.yearMonthDayOf('gp.date_start')} ${sql.concat} '-' ${sql.concat} gp.event_name ELSE ${sql.yearMonthDayOf('gp.date_start')} END ${sql.as} event_name,
+            gp.name ${sql.as} name
+            FROM gp
+            LEFT OUTER JOIN bl on gp.bl_id = bl.bl_id
+            WHERE gp.date_start IS NOT NULL
+            AND ${parameters['siteIdRestriction']}
+            AND ${parameters['blIdRestriction']}
+            AND ${parameters['dateStartRestriction']}
+            AND ${parameters['scenarioIdRestriction']}
+            
+            UNION 
+            
+            SELECT DISTINCT gp.bl_id ${sql.concat} ' ' ${sql.concat} gp.fl_id ${sql.concat} ' ' ${sql.concat} CAST((gp.area_manual * ${parameters['areaUnitsConversionFactor']}) AS DECIMAL(10, 2)) ${sql.concat} ' ' ${sql.concat} gp.description ${sql.as} description,
+            CASE WHEN gp.event_name IS NOT NULL THEN ${sql.yearMonthDayOf('gp.date_end')} ${sql.concat} '-' ${sql.concat} gp.event_name ${sql.concat} '-End' ELSE ${sql.yearMonthDayOf('gp.date_end')} ${sql.concat} '-End' END ${sql.as} event_name,
+            gp.name ${sql.as} name
+            FROM gp
+            LEFT OUTER JOIN bl on gp.bl_id = bl.bl_id
+            WHERE gp.date_end IS NOT NULL
+            AND ${parameters['siteIdRestriction']}
+            AND ${parameters['blIdRestriction']}
+            AND ${parameters['dateEndRestriction']}
+            AND ${parameters['scenarioIdRestriction']}
+            AND gp.allocation_type IN ('Usable Area – Owned','Usable Area – Leased')
+            
+            UNION
+            
+            SELECT DISTINCT gp.bl_id ${sql.concat} ' ' ${sql.concat} gp.fl_id ${sql.concat} ' ' ${sql.concat} CAST((gp.area_manual * ${parameters['areaUnitsConversionFactor']}) AS DECIMAL(10, 2)) ${sql.concat} ' ' ${sql.concat} gp.description ${sql.as} description,
+            CASE WHEN gp.event_name IS NOT NULL THEN ${sql.yearMonthDayOf('gp.date_end')} ${sql.concat} '-' ${sql.concat} gp.event_name ${sql.concat} '-End' ELSE ${sql.yearMonthDayOf('gp.date_end')} ${sql.concat} '-End' END ${sql.as} event_name,
+            gp.name ${sql.as} name
+            FROM gp
+            LEFT OUTER JOIN bl on gp.bl_id = bl.bl_id
+            WHERE gp.date_end IS NOT NULL
+            AND ${parameters['siteIdRestriction']}
+            AND ${parameters['blIdRestriction']}
+            AND ${parameters['dateEndRestriction']}
+            AND ${parameters['scenarioIdRestriction']}
+            AND NOT EXISTS (SELECT 1 FROM gp ${sql.as} sgp WHERE gp.gp_id = sgp.parent_group_id)
+        </sql>
+        <sql dialect="sqlserver">
+            SELECT DISTINCT gp.bl_id ${sql.concat} ' ' ${sql.concat} gp.fl_id ${sql.concat} ' ' ${sql.concat} CONVERT(nvarchar(60), CAST((gp.area_manual * ${parameters['areaUnitsConversionFactor']}) AS DECIMAL(10, 2))) ${sql.concat} ' ' ${sql.concat} gp.description ${sql.as} description,
+            CASE WHEN gp.event_name IS NOT NULL THEN ${sql.yearMonthDayOf('gp.date_start')} ${sql.concat} '-' ${sql.concat} gp.event_name ELSE ${sql.yearMonthDayOf('gp.date_start')} END ${sql.as} event_name,
+            gp.name ${sql.as} name
+            FROM gp
+            LEFT OUTER JOIN bl on gp.bl_id = bl.bl_id
+            WHERE gp.date_start IS NOT NULL
+            AND ${parameters['siteIdRestriction']}
+            AND ${parameters['blIdRestriction']}
+            AND ${parameters['dateStartRestriction']}
+            AND ${parameters['scenarioIdRestriction']}
+            
+            UNION 
+            
+            SELECT DISTINCT gp.bl_id ${sql.concat} ' ' ${sql.concat} gp.fl_id ${sql.concat} ' ' ${sql.concat} CONVERT(nvarchar(60), CAST((gp.area_manual * ${parameters['areaUnitsConversionFactor']}) AS DECIMAL(10, 2))) ${sql.concat} ' ' ${sql.concat} gp.description ${sql.as} description,
+            CASE WHEN gp.event_name IS NOT NULL THEN ${sql.yearMonthDayOf('gp.date_end')} ${sql.concat} '-' ${sql.concat} gp.event_name ${sql.concat} '-End' ELSE ${sql.yearMonthDayOf('gp.date_end')} ${sql.concat} '-End' END ${sql.as} event_name,
+            gp.name ${sql.as} name
+            FROM gp
+            LEFT OUTER JOIN bl on gp.bl_id = bl.bl_id
+            WHERE gp.date_end IS NOT NULL
+            AND ${parameters['siteIdRestriction']}
+            AND ${parameters['blIdRestriction']}
+            AND ${parameters['dateEndRestriction']}
+            AND ${parameters['scenarioIdRestriction']}
+            AND gp.allocation_type IN ('Usable Area – Owned','Usable Area – Leased')
+            
+            UNION
+            
+            SELECT DISTINCT gp.bl_id ${sql.concat} ' ' ${sql.concat} gp.fl_id ${sql.concat} ' ' ${sql.concat} CONVERT(nvarchar(60), CAST((gp.area_manual * ${parameters['areaUnitsConversionFactor']}) AS DECIMAL(10, 2))) ${sql.concat} ' ' ${sql.concat} gp.description ${sql.as} description,
+            CASE WHEN gp.event_name IS NOT NULL THEN ${sql.yearMonthDayOf('gp.date_end')} ${sql.concat} '-' ${sql.concat} gp.event_name ${sql.concat} '-End' ELSE ${sql.yearMonthDayOf('gp.date_end')} ${sql.concat} '-End' END ${sql.as} event_name,
+            gp.name ${sql.as} name
+            FROM gp
+            LEFT OUTER JOIN bl on gp.bl_id = bl.bl_id
+            WHERE gp.date_end IS NOT NULL
+            AND ${parameters['siteIdRestriction']}
+            AND ${parameters['blIdRestriction']}
+            AND ${parameters['dateEndRestriction']}
+            AND ${parameters['scenarioIdRestriction']}
+            AND NOT EXISTS (SELECT 1 FROM gp ${sql.as} sgp WHERE gp.gp_id = sgp.parent_group_id)
+        </sql>
+        <table name="gp" role="main"/>
+        <field name="description" table="gp" dataType="text"/>
+        <field name="name" table="gp" dataType="text" hidden="true"/>
+        <parameter name="siteIdRestriction" dataType="verbatim" value="1=1"/>
+        <parameter name="blIdRestriction" dataType="verbatim" value="1=1"/>
+        <parameter name="dateStartRestriction" dataType="verbatim" value="1=1"/>
+        <parameter name="dateEndRestriction" dataType="verbatim" value="1=1"/>
+        <parameter name="scenarioIdRestriction" dataType="verbatim" value="1=1"/>
+        <parameter name="areaUnitsConversionFactor" dataType="verbatim" value="1"/>
+    </dataSource>
+	
+    <panel type="tree" id="allocWizSpGap_yearTree" dataSource="allocWizSpGap_yearTreeDs" showOnLoad="true" layoutRegion="spGapTree">
+		<title>Events</title>
+		<panel type="tree" id="allocWizSpGap_dateTree" dataSource="allocWizSpGap_dateTreeDs">
+            <field name="event_name" table="gp"/>
+            <field name="dv_id" table="gp" hidden="true"/>
+        </panel>
+        <panel type="tree" id="allocWizSpGap_groupTree" dataSource="allocWizSpGap_groupTreeDs">
+            <field name="name" table="gp"/>
+            <field name="event_name" table="gp" hidden="true"/>
+        </panel>
+        <panel type="tree" id="allocWizSpGap_eventTree" dataSource="allocWizSpGap_eventTreeDs">
+            <field name="description" table="gp"/>
+            <field name="name" table="gp" hidden="true"/>
+        </panel>
+        <field table="gp" name="dv_id" />
+	</panel>
+    
+   <panel type="view" id="gapDataSources" file="ab-alloc-wiz-sp-gap-common-ds.axvw"/>
+	<panel type="view" id="abCommonOracleDataSourceView" file="ab-alloc-wiz-common-oracle.axvw"/>
+        
+    <panel type="html" id="gapAnalysisChartPanel" layoutRegion="spGapChart">
+        <title>Gap Analysis Chart</title>
+        <action id="closeUtilization">
+            <title>Hide Allocation Rate Line</title>
+        </action>
+        <action id="closeOccupancyRate">
+            <title>Hide Occupancy Rate Line</title>
+        </action>
+        <action id="generateGapPPT">
+            <title>Generate Gap PPT</title>
+        </action>
+        <action id="switchToOccupancyView">
+            <title>Occupancy View</title>
+        </action>
+        <html>
+            <div id="gapAnalysisChartDiv" style="width:100%; height:100%; margin:auto;background-color:#FFFFFF"></div>
+            <div id="occupGapAnalysisChartDiv" style="display:none; width:100%; height:100%; margin:auto;background-color:#FFFFFF"></div>
+        </html>
+    </panel>
+
+
+</view>

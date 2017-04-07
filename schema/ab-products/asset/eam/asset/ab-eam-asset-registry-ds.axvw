@@ -1,0 +1,335 @@
+<view version="2.0">
+    <!-- Common datasource for asset registry -->
+    
+    <message name="asset_type_bl">Building</message>
+    <message name="asset_type_eq">Equipment</message>
+    <message name="asset_type_ta">Furniture</message>
+    <message name="asset_type_property">Property</message>
+    
+    <dataSource id="abEamAssetType_ds" applyVpaRestrictions="false">
+        <sql dialect="generic">
+            SELECT 'bl' ${sql.as} asset_type FROM bl
+            UNION 
+            SELECT 'eq' ${sql.as} asset_type FROM bl
+            UNION 
+            SELECT 'ta' ${sql.as} asset_type FROM bl
+            UNION 
+            SELECT 'property' ${sql.as} asset_type FROM bl
+        </sql>
+        <table name="bl"/>
+        <field name="asset_type" dataType="text">
+            <title>Asset Type</title>
+        </field> 
+    </dataSource>
+
+    
+    <dataSource id="abEamAssetRegistry_ds" applyVpaRestrictions="false">
+        <sql dialect="generic">
+            SELECT
+                bl.bl_id ${sql.as} asset_id,
+                'bl' ${sql.as} asset_type,
+                bl.status ${sql.as} asset_status,
+                NULL ${sql.as} asset_std,
+                NULL ${sql.as} date_purchased,
+                (SELECT ot.cost_purchase FROM ot WHERE ot.bl_id = bl.bl_id AND ot.status = 'Owned' AND ot.ot_id = (SELECT MAX(ot_int.ot_id) FROM ot ${sql.as} ot_int WHERE ot_int.bl_id = bl.bl_id AND ot_int.status = 'Owned')) ${sql.as} cost_purchase,
+                bl.name ${sql.as} description,
+                NULL ${sql.as} project_id,
+                (SELECT ctry.geo_region_id FROM ctry WHERE ctry.ctry_id = bl.ctry_id) ${sql.as} geo_region_id,   
+                bl.ctry_id ${sql.as} ctry_id,
+                bl.regn_id ${sql.as} regn_id,
+                bl.state_id ${sql.as} state_id,
+                bl.city_id ${sql.as} city_id,
+                bl.site_id ${sql.as} site_id,
+                bl.bl_id ${sql.as} bl_id,
+                bl.pr_id ${sql.as} pr_id,
+                NULL ${sql.as} fl_id,
+                NULL ${sql.as} rm_id,
+                NULL ${sql.as} bu_id,
+                NULL ${sql.as} dv_id,
+                NULL ${sql.as} dp_id,
+                bl.value_book ${sql.as} cost_dep_value,
+                bl.value_market ${sql.as} cost_val_market,
+                bl.disposal_type ${sql.as} disposal_type,
+                bl.date_disposal ${sql.as} date_disposal,
+                bl.comment_disposal ${sql.as} comment_disposal,
+                bl.pending_action ${sql.as} pending_action,
+                bl.value_market ${sql.as} cost_replace,
+                NULL ${sql.as} mfr,
+                NULL ${sql.as} modelno,
+                NULL ${sql.as} num_serial,
+                NULL ${sql.as} ta_lease_id,
+                NULL ${sql.as} qty_MTBF,
+                NULL ${sql.as} qty_MTTR,
+                NULL ${sql.as} subcomponent_of,
+                bl.criticality ${sql.as} criticality,
+                bl.condition ${sql.as} condition
+            FROM bl
+            WHERE ${parameters['blTypeRestriction']}
+            UNION 
+            SELECT 
+                eq.eq_id ${sql.as} asset_id,
+                'eq' ${sql.as} asset_type,
+                eq.status ${sql.as} asset_status,
+                eq.eq_std ${sql.as} asset_std,
+                eq.date_purchased ${sql.as} date_purchased,
+                eq.cost_purchase ${sql.as} cost_purchase,
+                NULL ${sql.as} description,
+                (CASE WHEN (SELECT count(distinct activity_log.project_id) FROM activity_log, project WHERE project.is_template = 0 AND activity_log.project_id = project.project_id 
+                                AND project.status NOT IN ('Closed', 'Completed', 'Canceled') AND activity_log.eq_id = eq.eq_id )  = 1
+                    THEN (SELECT DISTINCT activity_log.project_id FROM activity_log, project WHERE project.is_template = 0 AND activity_log.project_id = project.project_id 
+                                AND project.status NOT IN ('Closed', 'Completed', 'Canceled') AND activity_log.eq_id = eq.eq_id) 
+                 ELSE 'MULTIPLE' END) ${sql.as} project_id,
+                (SELECT ctry.geo_region_id FROM ctry, bl WHERE ctry.ctry_id = bl.ctry_id AND eq.bl_id = bl.bl_id) ${sql.as} geo_region_id,   
+                (SELECT bl.ctry_id FROM bl WHERE bl.bl_id = eq.bl_id) ${sql.as} ctry_id,
+                (SELECT bl.regn_id FROM bl WHERE bl.bl_id = eq.bl_id) ${sql.as} regn_id,
+                (SELECT bl.state_id FROM bl WHERE bl.bl_id = eq.bl_id) ${sql.as} state_id,
+                (SELECT bl.city_id FROM bl WHERE bl.bl_id = eq.bl_id) ${sql.as} city_id,
+                eq.site_id ${sql.as} site_id,
+                eq.bl_id ${sql.as} bl_id,
+                eq.pr_id ${sql.as} pr_id,
+                eq.fl_id ${sql.as} fl_id,
+                eq.rm_id ${sql.as} rm_id,
+                (SELECT dv.bu_id FROM dv WHERE dv.dv_id = eq.dv_id) ${sql.as} bu_id,
+                eq.dv_id ${sql.as} dv_id,
+                eq.dp_id ${sql.as} dp_id,
+                eq.cost_dep_value ${sql.as} cost_dep_value,
+                (SELECT eq_dep.value_current FROM  eq_dep WHERE eq_dep.eq_id = eq.eq_id 
+                    AND eq_dep.report_id = (SELECT dep_reports.report_id FROM dep_reports WHERE dep_reports.last_date = (SELECT MAX(dep_reports.last_date) FROM dep_reports))) ${sql.as} cost_val_market,
+                eq.disposal_type ${sql.as} disposal_type,
+                eq.date_disposal ${sql.as} date_disposal,
+                eq.comment_disposal ${sql.as} comment_disposal,
+                eq.pending_action ${sql.as} pending_action,
+                eq.cost_replace ${sql.as} cost_replace,
+                eq.mfr ${sql.as} mfr,
+                eq.modelno ${sql.as} modelno,
+                eq.num_serial ${sql.as} num_serial,
+                eq.ta_lease_id ${sql.as} ta_lease_id,
+                eq.qty_MTBF ${sql.as} qty_MTBF,
+                eq.qty_MTTR ${sql.as} qty_MTTR,
+                eq.subcomponent_of ${sql.as} subcomponent_of,
+                eq.criticality ${sql.as} criticality,
+                eq.condition ${sql.as} condition
+            FROM eq
+            WHERE ${parameters['eqTypeRestriction']}
+            UNION 
+            SELECT 
+                ta.ta_id ${sql.as} asset_id,
+                'ta' ${sql.as} asset_type,
+                ta.status ${sql.as} asset_status,
+                ta.fn_std ${sql.as} asset_std,
+                ta.date_sale ${sql.as} date_purchased,
+                ta.value_original ${sql.as} cost_purchase,
+                ta.use1 ${sql.as} description,
+                NULL ${sql.as} project_id,
+                (SELECT ctry.geo_region_id FROM ctry, bl WHERE ctry.ctry_id = bl.ctry_id AND ta.bl_id = bl.bl_id)  ${sql.as} geo_region_id,      
+                (SELECT bl.ctry_id FROM bl WHERE bl.bl_id = ta.bl_id) ${sql.as} ctry_id,
+                (SELECT bl.regn_id FROM bl WHERE bl.bl_id = ta.bl_id) ${sql.as} regn_id,
+                (SELECT bl.state_id FROM bl WHERE bl.bl_id = ta.bl_id) ${sql.as} state_id,
+                (SELECT bl.city_id FROM bl WHERE bl.bl_id = ta.bl_id) ${sql.as} city_id,
+                (SELECT bl.site_id FROM bl WHERE bl.bl_id = ta.bl_id) ${sql.as} site_id,
+                ta.bl_id ${sql.as} bl_id,
+                NULL ${sql.as} pr_id,
+                ta.fl_id ${sql.as} fl_id,
+                ta.rm_id ${sql.as} rm_id,
+                (SELECT dv.bu_id FROM dv WHERE dv.dv_id = ta.dv_id)  ${sql.as} bu_id,
+                ta.dv_id ${sql.as} dv_id,
+                ta.dp_id ${sql.as} dp_id,
+                ta.value_salvage ${sql.as} cost_dep_value,
+                ta.value_replace ${sql.as} cost_val_market,
+                ta.disposal_type ${sql.as} disposal_type,
+                ta.date_disposal ${sql.as} date_disposal,
+                ta.comment_disposal ${sql.as} comment_disposal,
+                ta.pending_action ${sql.as} pending_action,
+                ta.value_replace ${sql.as} cost_replace,
+                NULL ${sql.as} mfr,
+                NULL ${sql.as} modelno,
+                ta.serial_number ${sql.as} num_serial,
+                ta.ta_lease_id ${sql.as} ta_lease_id,
+                NULL ${sql.as} qty_MTBF,
+                NULL ${sql.as} qty_MTTR,
+                NULL ${sql.as} subcomponent_of,
+                ta.criticality ${sql.as} criticality,
+                ta.condition ${sql.as} condition
+            FROM ta
+            WHERE ${parameters['taTypeRestriction']}
+            UNION
+            SELECT
+                property.pr_id ${sql.as} asset_id,
+                'property' ${sql.as} asset_type,
+                property.status ${sql.as} asset_status,
+                NULL ${sql.as} asset_std,
+                NULL ${sql.as} date_purchased,
+                property.cost_purchase ${sql.as} cost_purchase,
+                property.name ${sql.as} description,
+                NULL ${sql.as} project_id,
+                (SELECT ctry.geo_region_id FROM ctry WHERE ctry.ctry_id = property.ctry_id) ${sql.as} geo_region_id,     
+                property.ctry_id ${sql.as} ctry_id,
+                property.regn_id ${sql.as} regn_id,
+                property.state_id ${sql.as} state_id,
+                property.city_id ${sql.as} city_id,
+                property.site_id ${sql.as} site_id,
+                NULL ${sql.as} bl_id,
+                property.pr_id ${sql.as} pr_id,
+                NULL ${sql.as} fl_id,
+                NULL ${sql.as} rm_id,
+                NULL ${sql.as} bu_id,
+                NULL ${sql.as} dv_id,
+                NULL ${sql.as} dp_id,
+                property.value_book ${sql.as} cost_dep_value,
+                property.value_market ${sql.as} cost_val_market,
+                property.disposal_type ${sql.as} disposal_type,
+                property.date_disposal ${sql.as} date_disposal,
+                property.comment_disposal ${sql.as} comment_disposal,
+                property.pending_action ${sql.as} pending_action,
+                property.value_market ${sql.as} cost_replace,
+                NULL ${sql.as} mfr,
+                NULL ${sql.as} modelno,
+                NULL ${sql.as} num_serial,
+                NULL ${sql.as} ta_lease_id,
+                NULL ${sql.as} qty_MTBF,
+                NULL ${sql.as} qty_MTTR,
+                NULL ${sql.as} subcomponent_of,
+                property.criticality ${sql.as} criticality,
+                property.condition ${sql.as} condition
+            FROM property
+            WHERE ${parameters['propertyTypeRestriction']}
+        </sql>
+        <table name="bl"/>
+        <field name="asset_id" dataType="text">
+            <title>Asset Code</title>
+        </field> 
+        <field name="asset_type" dataType="text">
+            <title>Asset Type</title>
+        </field> 
+        <field name="asset_status" dataType="text">
+            <title>Asset Status</title>
+        </field> 
+        <field name="asset_std" dataType="text">
+            <title>Asset Standard</title>
+        </field> 
+        <field name="date_purchased" dataType="date">
+            <title>Date Purchased</title>
+        </field> 
+        <field name="cost_purchase" dataType="number" size="12" decimals="2">
+            <title>Purchase Price</title>
+        </field> 
+        <field name="description" dataType="text">
+            <title>Title / Description</title>
+        </field>
+        <field name="project_id" dataType="text">
+            <title>Project ID</title>
+        </field>                
+        <field name="geo_region_id" dataType="text">
+            <title>Geo-Region ID</title>
+        </field>
+        <field name="ctry_id"/>                
+        <field name="regn_id"/>                
+        <field name="state_id"/>                
+        <field name="city_id"/>                
+        <field name="site_id"/>                
+        <field name="bl_id"/>                
+        <field name="pr_id"/>                
+        <field name="fl_id" dataType="text">
+            <title>Floor Code</title>
+        </field>
+        <field name="rm_id" dataType="text">
+            <title>Room Code</title>
+        </field>
+        <field name="bu_id" dataType="text">
+            <title>Business Unit</title>
+        </field>
+        <field name="dv_id" dataType="text">
+            <title>Division Code</title>
+        </field>
+        <field name="dp_id" dataType="text">
+            <title>Department Code</title>
+        </field>
+        <field name="cost_dep_value" dataType="number" size="12" decimals="2">
+            <title>Depreciated Value</title>
+        </field> 
+        <field name="cost_val_market" dataType="number" size="12" decimals="2">
+            <title>Value Market</title>
+        </field> 
+        <field name="disposal_type"/>
+        <field name="date_disposal"/>
+        <field name="comment_disposal"/>
+        <field name="pending_action"/>
+        <field name="cost_replace" dataType="number" size="12" decimals="2">
+            <title>Cost to Replace</title>
+        </field> 
+
+        <field name="mfr" dataType="text">
+            <title>Mfr</title>
+        </field>
+        <field name="modelno" dataType="text">
+            <title>Model #</title>
+        </field>
+        <field name="num_serial" dataType="text">
+            <title>Serial #</title>
+        </field>
+        <field name="ta_lease_id" dataType="text">
+            <title>Lease #</title>
+        </field>
+        <field name="qty_MTBF" dataType="number" size="9" decimals="2">
+            <title>Mean Time Between Failures</title>
+        </field> 
+        <field name="qty_MTTR" dataType="number" size="9" decimals="2">
+            <title>Mean Time to Repair (hrs)</title>
+        </field> 
+        <field name="subcomponent_of" dataType="text">
+            <title>Sub-Component Of</title>
+        </field> 
+        <field name="criticality" dataType="number" size="9" decimals="0">
+            <title>Criticality</title>
+        </field> 
+        <field name="condition" dataType="text">
+            <title>Condition</title>
+        </field> 
+
+        <restriction type="sql" sql="${parameters['sqlTypeRestriction']}"/>
+        <parameter name="sqlTypeRestriction" dataType="verbatim" value="1=1"/>
+        
+        <parameter name="blTypeRestriction" dataType="verbatim" value="1=1"/>
+        <parameter name="eqTypeRestriction" dataType="verbatim" value="1=1"/>
+        <parameter name="taTypeRestriction" dataType="verbatim" value="1=1"/>
+        <parameter name="propertyTypeRestriction" dataType="verbatim" value="1=1"/>
+    </dataSource>
+    
+    <!-- Helper data sources -->
+    <dataSource id="abAssetRegistryStatus_ds">
+        <table name="bl" role="main"/>
+        <table name="property" role="main"/>
+        <table name="eq" role="main"/>
+        <table name="ta" role="main"/>
+        <field table="bl" name="status"/>
+        <field table="property" name="status"/>
+        <field table="eq" name="status"/>
+        <field table="ta" name="status"/>
+    </dataSource>
+    
+    <dataSource id="abAssetRegistry_bl_ds">
+        <table name="bl"/>
+        <field name="bl_id"/>
+        <field name="pending_action"/>
+    </dataSource>
+    
+    <dataSource id="abAssetRegistry_property_ds">
+        <table name="property"/>
+        <field name="pr_id"/>
+        <field name="pending_action"/>
+    </dataSource>
+    
+    <dataSource id="abAssetRegistry_eq_ds">
+        <table name="eq"/>
+        <field name="eq_id"/>
+        <field name="pending_action"/>
+    </dataSource>
+    
+    <dataSource id="abAssetRegistry_ta_ds">
+        <table name="ta"/>
+        <field name="ta_id"/>
+        <field name="pending_action"/>
+    </dataSource>
+    
+    
+</view>

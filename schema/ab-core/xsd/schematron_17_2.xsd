@@ -1,0 +1,385 @@
+<?xml version="1.0" encoding="ISO-8859-1" ?>
+
+<sch:schema xmlns:sch="http://www.ascc.net/xml/schematron">
+
+    <sch:title>Yalta5 schematron validation</sch:title>
+    
+    
+
+    <!-- element existence -->
+
+    <sch:pattern name="Check the root element">
+        <sch:rule context="/">
+            <sch:assert test="name(*) = 'view'">The root element must be a &lt;view&gt; element.</sch:assert>
+        </sch:rule>
+    </sch:pattern>
+
+    
+
+    <!-- cardinality -->
+    
+    <!-- a datasource has exactly one table element with either role='main' or no role attribute (defaults to main) -->
+    <sch:pattern name="Check dataSource has main table">
+        <sch:rule context="dataSource">
+            <sch:assert test="(@id='none') or (count(table) - count(table[@role='standard']) = 1)">
+	        Each <sch:name /> with id &quot;<sch:value-of select="./@id"/>&quot; must have one and only one main table (either role='main' or no role attribute).
+	    </sch:assert>
+        </sch:rule>
+    </sch:pattern>
+
+    <sch:pattern name="A view contains 0 or 1 non-nested layouts (i.e., layout without layout/@containingLayout)">
+        <sch:rule context="view">
+            <sch:assert test="count(layout) &lt; 2 or (count(layout) - count(layout[@containingLayout])) = 1">
+	        Each <sch:name /> can have at most one non-nested layout. 
+	    </sch:assert>
+        </sch:rule>
+    </sch:pattern>
+
+
+    <sch:pattern name="Within a layout, there should be no duplicate regions (i.e., 0 or 1 layout/west, layout/east, etc.)">
+        <sch:rule context="layout">
+            <sch:assert test="(count(north) &lt; 2) and (count(south) &lt; 2) and (count(east) &lt; 2) and (count(west) &lt; 2) and (count(center) &lt; 2)">
+	        Each <sch:name /> can have zero or one of each region. Fails on <sch:name /> id &quot;<sch:value-of select="./@id"/>&quot;.
+	    </sch:assert>
+        </sch:rule>
+    </sch:pattern>
+
+    <!-- there is at most one dataSource without an id within a view -->
+    <sch:pattern name="Check for duplicate dataSource within viewb">
+        <sch:rule context="view">
+            <sch:assert test="count(dataSource[not(@id)]) &lt; 2">
+	        Each <sch:name /> can have at most one dataSource without an id.
+	    </sch:assert>
+        </sch:rule>
+    </sch:pattern>
+    
+    <!--   there is at most one dataSource without an id within a tab-->    
+    <sch:pattern name="Check for duplicate dataSource within tab">
+        <sch:rule context="tab">
+            <sch:assert test="count(dataSource[not(@id)]) &lt; 2">
+	        The <sch:name /> &quot;<sch:value-of select="./@name"/>&quot; has more than one dataSource without an id.
+	    </sch:assert>
+        </sch:rule>
+    </sch:pattern>
+    
+    <!-- there is at most one layout without an id within a view or tab -->
+    <sch:pattern name="Check for duplicate layout within view or tab">
+        <sch:rule context="view">
+            <sch:assert test="count(layout[not(@id)]) &lt; 2">
+	        Each <sch:name /> can have at most one dataSource without an id.
+	    </sch:assert>
+        </sch:rule>
+    </sch:pattern>
+
+    
+<!--  Check dataSource for duplicate fields as much as possible -->
+
+<!--  Check panel for duplicate fields as much as possible as long as not(field/@alias) -->
+
+
+
+
+    <!-- a panel may use either the optional attributes (layout + region) OR the optional attribute layoutRegion. If there's only one layout @region alone will suffice -->
+    <sch:pattern name="Within a panel, there should be either no layout/region/layoutRegion attribute, a layoutRegion attribute, OR (a layout AND a region attribute).">
+        <sch:rule context="panel">
+            <sch:assert test="(not(@layoutRegion) and not(@layout) and not(@region)) 
+				or (@layoutRegion and not(@layout) and not(@region)) 
+				or (not(@layoutRegion) and @layout and @region)
+				or (not(@layoutRegion) and not(@layout) and @region and count(/view/layout) = 1)"
+		>
+	        The <sch:name/> &quot;<sch:value-of select="./@id"/>&quot; must use either layoutRegion OR layout and region OR just region if there is only one layout OR none of these.
+	    </sch:assert>
+        </sch:rule>
+    </sch:pattern>
+
+
+
+    <!--	uniqueness	-->
+
+    <!-- any id attribute, if exists, must be unique within the context of the element's ancestor -->
+    <sch:pattern name="IDs unique within parent context.">	
+         <sch:rule context="*[@id and parent::node()/@id]">
+ 	    <sch:key name="anyElementID" path="concat(parent::node()/@id, '_', @id)" />
+            <sch:assert test="count(key('anyElementID', concat(parent::node()/@id, '_', @id))) = 1">
+	        The <sch:name /> element uses a duplicate id within its parent's direct children, &quot;<sch:value-of select="./@id"/>&quot;.
+	    </sch:assert>
+        </sch:rule>
+   </sch:pattern>
+
+    <!-- any id attribute, if exists, must be unique within the context of the element's ancestor -->
+    <sch:pattern name="IDs unique within parent context.">	
+         <sch:rule context="*[@id and not(parent::node()/@id) and parent::node()/@name]">
+ 	    <sch:key name="anyElementID" path="concat(parent::node()/@name, '_', @id)" />
+            <sch:assert test="count(key('anyElementID', concat(parent::node()/@name, '_', @id))) = 1">
+	        The <sch:name /> element uses a duplicate id within its parent's direct children, &quot;<sch:value-of select="./@id"/>&quot;.
+	    </sch:assert>
+        </sch:rule>
+   </sch:pattern>
+
+
+
+    <!-- -->    
+    <sch:pattern name="Check for duplicate dataSource within view or tab">
+        <sch:rule context="dataSource">
+ 	    <sch:key name="dataSourceId" path="@id" />
+            <sch:assert test="not(@id) or count(key('dataSourceId', @id)) = 1">
+	        The <sch:name /> uses a duplicated id &quot;<sch:value-of select="./@id"/>&quot;.
+	    </sch:assert>
+        </sch:rule>
+    </sch:pattern>
+
+
+    <!-- nested layouts use unique layout/@containingLayout + layout/@region attribute pairs, & if @containingLayout then @region exist-->
+    <sch:pattern name="Nested layouts must use unique layout/@containingLayout + layout/@region attribute pairs.">	
+         <sch:rule context="layout[@containingLayout]">
+ 	    <sch:key name="layoutAndRegionID" path="concat(@containingLayout, '_', @region)" />
+            <sch:assert test="@region">
+	        The nested layout &quot;<sch:value-of select="./@id"/>&quot; uses a containingLayout attribute so it must use aregion attribute.
+	    </sch:assert>
+            <sch:assert test="count(key('layoutAndRegionID', concat(@containingLayout, '_', @region))) = 1">
+	        Each nested layouts containingLayout and region attribute pair must be unique. Fails on <sch:name/> with id &quot;<sch:value-of select="./@id"/>&quot;.
+	    </sch:assert>
+        </sch:rule>
+   </sch:pattern>
+   
+   
+    
+
+
+
+   <!-- co-occurence constraints -->
+
+   <!-- a tab element MUST have either tab/@file or tab/panel children, but not both -->
+    <sch:pattern name="Each tab element must have either tab/@file or tab/panel children, but not both">
+        <sch:rule context="tab">
+            <sch:assert test="(@file and not(./panel)) or (not(@file) and ./panel)">
+	        The <sch:name /> &quot;<sch:value-of select="./@name"/>&quot; must have either a file attribute or a panel child but not both.
+	    </sch:assert>
+        </sch:rule>
+    </sch:pattern>
+
+
+    <!-- nested layouts' layout/@containingLayout requires layout/@region attribute -->
+    <sch:pattern name="Nested layouts must use layout/@containingLayout + layout/@region attribute pairs.">	
+         <sch:rule context="layout[@containingLayout]">
+            <sch:assert test="@region">
+	        The nested layout &quot;<sch:value-of select="./@id"/>&quot; uses a containingLayout attribute so it must use a region attribute.
+	    </sch:assert>
+        </sch:rule>
+   </sch:pattern>
+
+
+
+    <!--  referential integrity -->
+
+    <!-- a panel @dataSource must reference an existing dataSource by id -->
+    <sch:pattern name="Any panel/@dataSource must refer to a dataSource/@id.">	
+	<sch:rule context="panel[@dataSource]">
+	    <sch:key name="dataSourceID" path="/view/dataSource/@id" />
+            <sch:assert test="key('dataSourceID', @dataSource) ">
+	        The dataSource attribute of <sch:name /> with id &quot;<sch:value-of select="./@id"/>&quot; must refer to the id of a dataSource element.
+	    </sch:assert>
+        </sch:rule >
+    </sch:pattern >
+
+
+    <!-- when panel/@layout exists panel/@region must also exist and reference that layout's layout/region element -->
+    <sch:pattern name="Panel @layout matches a layout @id">
+        <sch:rule context="view/layout">
+	    <sch:key name="layoutID" path="@id" />
+        </sch:rule>
+        <sch:rule context="panel[@layout]">
+	    <!-- a panel with @layout also has @region (cooccurence) -->
+	    <sch:assert test="@region">
+	        The <sch:name /> &quot;<sch:value-of select="@id"/>&quot; has a layout, &quot;<sch:value-of select="@layout"/>&quot;, must also use a region attribute.
+	    </sch:assert>
+	    <!-- panel layout references a layout by @id -->
+	    <sch:assert test="key('layoutID', @layout)">
+	        The <sch:name /> &quot;<sch:value-of select="@id"/>&quot; refers to a layout, &quot;<sch:value-of select="@layout"/>&quot;, that doesn't exist in this view.
+	    </sch:assert>
+	    <!-- the referred layout has a child whose name matches the panel's @region -->
+	    <sch:assert test="key('layoutID', @layout)/*[name() = current()/@region]">
+	        The <sch:name /> &quot;<sch:value-of select="@id"/>&quot; uses a region attribute,  
+		&quot;<sch:value-of select="@region"/>&quot; that doesn't exist in the referred layout &quot;<sch:value-of select="key('layoutID', @layout)/@id"/>&quot;.
+	    </sch:assert>
+        </sch:rule>
+    </sch:pattern>
+    
+    
+    <!-- when panel/@layoutRegion exists it must reference an existing layout/region/@id value -->
+    <sch:pattern name="Check that each panel using layoutRegion attribute, refers to a layout region id.">	
+	<sch:rule context="panel[@layoutRegion]">
+	    <sch:key name="panelLayoutRegionID" path="/view/layout/*/@id" />
+            <sch:assert test="key('panelLayoutRegionID', @layoutRegion)">
+	        The layoutRegion attribute of <sch:name /> &quot;<sch:value-of select="./@id"/>&quot; must refer to the id of a layout child element.
+	    </sch:assert>
+        </sch:rule >
+    </sch:pattern >
+
+
+   <sch:pattern name="Check that each layout element using containingLayout attribute, refers to a layout elements id.">
+       <sch:rule context="layout">
+           <sch:key name="containingLayoutID" path="/view/layout/@id" />
+	   <sch:assert test="not(@containingLayout)  or key('containingLayoutID', @containingLayout)">
+	       Each <sch:name /> containingLayout attribute &quot;<sch:value-of select="@containingLayout"/>&quot;  must refer to the id of a layout element.
+	   </sch:assert>
+        </sch:rule >
+    </sch:pattern >
+    
+
+   
+    <sch:pattern name="Check that each tabs element using layout attribute, refers to a layout elements id.">	
+	<sch:rule context="tabs[@layout]">
+	    <sch:key name="tabsLayoutID" path="/view/layout/@id" />
+            <sch:assert test="not(@layout)  or key('tabsLayoutID', @layout)">
+	        Each <sch:name /> layout attribute &quot;<sch:value-of select="@layout"/>&quot; must refer to the id of a layout element.
+	    </sch:assert>
+        </sch:rule >
+    </sch:pattern >
+
+
+
+
+    
+<!-- required and optional attributes -->
+    
+    <!-- if panel type in {form, console, columnReport, grid} REQUIRED attributes are {id, type, dataSource} -->
+    <sch:pattern name="Required form attributes ">
+        <sch:rule context="panel[@type='form'] | panel[@type='console'] | panel[@type='columnReport'] | panel[@type='grid']">
+            <sch:assert test="@id and @type and (@dataSource or count(parent::tab/dataSource) = 1 or count(parent::view/dataSource) = 1)">
+	        Each <sch:value-of select="./@type"/> <sch:name /> needs attributes id, type and dataSource (if there's only one dataSource in the parent tab or view, dataSource is optional).
+	    </sch:assert>
+        </sch:rule>
+    </sch:pattern>
+    
+    <!-- if panel type in {form, console, columnReport} OPTIONAL attributes are {layout, region, layoutRegion, showOnLoad, labelsPosition, formLabelWidth, style, 
+	afterRefresh, beforeSave,refreshWorkflowRuleId, saveWorkflowRuleId, deleteWorkflowRuleId, clearWorkflowRuleId}
+    -->
+    <sch:pattern name="Optional form attributes">
+        <sch:rule context="panel[@type='form' | panel[@type='console'] | panel[@type='columnReport']">
+            <sch:assert test="not(@controlType) and not(@headerClass) and not(@selectionEnabled) and not(@multipleSelectionEnabled) 
+	    and not(@selectValueType) and not(@useFrame) and not(@file) and not(@level) ">
+	        Illegal optional attribute on form <sch:name /> element with id &quot;<sch:value-of select="./@id"/>&quot;.
+	    </sch:assert>
+        </sch:rule>
+    </sch:pattern>
+
+
+
+    <!-- if panel type in {grid} OPTIONAL attributes are {layout, region, layoutRegion, showOnLoad, controlType, headerClass, style, 
+	selectionEnabled, multipleSelectionEnabled, 
+	afterRefresh, refreshWorkflowRuleId, saveWorkflowRuleId, deleteWorkflowRuleId, clearWorkflowRuleId}
+    -->
+    <sch:pattern name="Optional grid attributes">
+        <sch:rule context="panel[@type='grid']">
+            <sch:assert test="not(@columns) and not(@labelsPosition) and not(@buttonsPosition) and not(@formLabelWidth) and not(@beforeSave) 
+	    and not(@selectValueType) and not(@useFrame) and not(@file) and not(@level) ">
+	        Illegal optional attribute on grid <sch:name /> .
+	    </sch:assert>
+        </sch:rule>
+    </sch:pattern>
+
+
+    <!-- if panel type in {html} REQUIRED attributes are {id, type} -->
+    <sch:pattern name="Required html attributes">
+        <sch:rule context="panel[@type='html']">
+            <sch:assert test="@id and @type">
+	        Each html <sch:name /> needs attributes id, type and dataSource.
+	    </sch:assert>
+        </sch:rule>
+    </sch:pattern>
+
+    <!-- if panel type in {html} OPTIONAL optional are {layout, region, layoutRegion, style} -->
+    <sch:pattern  name="Optional html attributes">
+        <sch:rule context="panel[@type='html']">
+            <sch:assert test="not(@controlType) and not(@columns) and not(@showOnLoad) and not(@headerClass) and not(@labelsPosition) and not(@buttonsPosition) 
+	    and not(@formLabelWidth) and not(@beforeSave) and not(@selectionEnabled) and not(@multipleSelectionEnabled)
+	    and not(@selectValueType) and not(@afterRefresh) and not(@beforeSave) and not(@useFrame) and not(@file) and not(@level) 
+    	    and not(@style) and not(@refreshWorkflowRuleId) and not(@saveWorkflowRuleId) and not(@deleteWorkflowRuleId) and not(@clearWorkflowRuleId)">
+	        Illegal optional attribute on html <sch:name /> .
+	    </sch:assert>
+        </sch:rule>
+    </sch:pattern>
+
+
+    <!-- if panel type in {view } REQUIRED attributes are {id, type, file} -->
+    <sch:pattern name="Required view attributes">
+        <sch:rule context="panel[@type='view']">
+            <sch:assert test="@id and @type and @file">
+	        Each html <sch:name /> needs attributes id, type and dataSource.
+	    </sch:assert>
+        </sch:rule>
+    </sch:pattern>
+
+     <!-- if panel type in {view} OPTIONAL optional are {layout, region, layoutRegion, style} -->
+    <sch:pattern name="Optional view attributes">
+        <sch:rule context="panel[@type='view']">
+            <sch:assert test="not(@controlType) and not(@columns) and not(@showOnLoad) and not(@headerClass) and not(@labelsPosition) and not(@buttonsPosition) 
+	    and not(@formLabelWidth) and not(@beforeSave) and not(@selectionEnabled) and not(@multipleSelectionEnabled)
+	    and not(@selectValueType) and not(@afterRefresh) and not(@beforeSave) and not(@level) 
+    	    and not(@style) and not(@refreshWorkflowRuleId) and not(@saveWorkflowRuleId) and not(@deleteWorkflowRuleId) and not(@clearWorkflowRuleId)">
+	        Illegal optional attribute on html <sch:name /> .
+	    </sch:assert>
+        </sch:rule>
+    </sch:pattern>
+
+
+   <!-- if panel type in {control} REQUIRED attributes are {id, type, controlType} -->
+    <sch:pattern name="Required control attributes">
+        <sch:rule context="panel[@type='control']">
+            <sch:assert test="@id and @type and @controlType">
+	        Each html <sch:name /> needs attributes id, type and dataSource.
+	    </sch:assert>
+        </sch:rule>
+    </sch:pattern>
+
+    <!-- if panel type in {control} OPTIONAL optional are {layout, region, layoutRegion, style} -->
+    <sch:pattern name="Optional view attributes">
+        <sch:rule context="panel[@type='control']">
+            <sch:assert test="not(@columns) and not(@showOnLoad) and not(@headerClass) and not(@labelsPosition) and not(@buttonsPosition) 
+	    and not(@formLabelWidth) and not(@beforeSave) and not(@selectionEnabled) and not(@multipleSelectionEnabled)
+	    and not(@selectValueType) and not(@afterRefresh) and not(@beforeSave) and not(@useFrame) and not(@file) and not(@level) 
+    	    and not(@style) and not(@refreshWorkflowRuleId) and not(@saveWorkflowRuleId) and not(@deleteWorkflowRuleId) and not(@clearWorkflowRuleId)">
+	        Illegal optional attribute on html <sch:name /> .
+	    </sch:assert>
+        </sch:rule>
+    </sch:pattern>
+
+
+    <!-- if panel type in {tree, hierTree} REQUIRED attributes are {id, type, dataSource} -->
+    <sch:pattern name="Required form attributes ">
+        <sch:rule context="panel[@type='tree'] | panel[@type='hierTree']">
+            <sch:assert test="@id and @type and @dataSource">
+	        Each form or grid <sch:name /> needs attributes id, type and dataSource.
+	    </sch:assert>
+        </sch:rule>
+    </sch:pattern>
+    
+    <!-- if panel type in {tree, hierTree} OPTIONAL attributes are {layout, region, layoutRegion, level}    -->
+    <sch:pattern name="Optional tree attributes">
+        <sch:rule context="panel[@type='tree'] | panel[@type='hierTree']">
+            <sch:assert test="not(@columns) and not(@controlType) and not(@showOnLoad) and not(@headerClass) and not(@labelsPosition) and not(@buttonsPosition) 
+	    and not(@formLabelWidth) and not(@beforeSave) and not(@selectionEnabled) and not(@multipleSelectionEnabled)
+	    and not(@selectValueType) and not(@afterRefresh) and not(@beforeSave) and not(@useFrame) and not(@file) and not(@style) 
+    	    and not(@style) and not(@refreshWorkflowRuleId) and not(@saveWorkflowRuleId) and not(@deleteWorkflowRuleId) and not(@clearWorkflowRuleId)">
+	        Illegal optional attribute on tree <sch:name /> .
+	    </sch:assert>
+        </sch:rule>
+    </sch:pattern>
+
+    <!-- if panel type in {tree, hierTree} and panel/@level is used, @layout, @region, and @layoutRegion are not allowed  -->
+    <sch:pattern name="Required tree attributes ">
+        <sch:rule context="panel[@type='tree'] | panel[@type='hierTree']">
+            <sch:assert test="not(panel/@level) or (not(panel/@layoutRegion) and not(panel/@layout) and not(panel/@region)) ">
+	        Each tree <sch:name /> using a level attribute cannot use layout layoutRegion or region attributes.
+	    </sch:assert>
+        </sch:rule>
+    </sch:pattern>
+    
+
+	<!-- 
+	if panel type in {tree, hierTree} and panel/@level is used, values must be contiguous starting at 0
+	-->
+
+
+</sch:schema >

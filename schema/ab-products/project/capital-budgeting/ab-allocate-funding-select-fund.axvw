@@ -1,0 +1,74 @@
+<view version="2.0">
+    <title>Funding Source</title>
+    <message name="noFunds">No funding sources are available.</message>
+    <js file="ab-allocate-funding-select-fund.js"/>
+
+    <dataSource id="allocateFundingSelectFundDs0" applyVpaRestrictions="false">
+        <table name="funding" role="main"/>
+        <restriction type="sql" sql="funding.amt_total &gt; (SELECT SUM(amount_cap+amount_exp) FROM projfunds WHERE projfunds.fund_id=funding.fund_id) OR (amt_total &gt; 0 AND fund_id NOT IN (SELECT DISTINCT fund_id FROM projfunds))"/>
+        <sql dialect="generic">
+              SELECT funding.fund_id, funding.program_id, funding.amt_total, funding.date_avail, funding.date_avail_end,
+                (CASE
+                   WHEN used_funds.allocated_total IS NULL THEN
+                     funding.amt_total
+                   ELSE 
+                     (funding.amt_total - used_funds.allocated_total)
+                END) funds_remain
+              FROM funding
+                LEFT OUTER JOIN
+                  (SELECT projfunds.fund_id,
+                    (CASE
+                      WHEN SUM(amount_cap + amount_exp) IS NULL THEN
+                        0
+                      ELSE
+                        SUM(amount_cap + amount_exp)
+                    END) as allocated_total 
+                  FROM projfunds 
+              GROUP BY projfunds.fund_id) used_funds
+                    ON funding.fund_id = used_funds.fund_id 
+        </sql>                    
+        <sql dialect="oracle">
+				SELECT funding.fund_id, funding.program_id, funding.amt_total, funding.date_avail, funding.date_avail_end,
+                (CASE
+                   WHEN used_funds.allocated_total IS NULL THEN
+                     funding.amt_total
+                   ELSE 
+                     (funding.amt_total - used_funds.allocated_total)
+                END) funds_remain
+              FROM funding, 
+					(SELECT projfunds.fund_id,
+						(CASE
+							WHEN SUM(amount_cap + amount_exp) IS NULL THEN
+							0
+						ELSE
+							SUM(amount_cap + amount_exp)
+						END) as allocated_total 
+					FROM projfunds 
+					GROUP BY projfunds.fund_id) used_funds
+             WHERE funding.fund_id = used_funds.fund_id(+)  
+        </sql>
+        <field name="fund_id" table="funding"/>
+        <field name="program_id" table="funding"/>
+        <field name="amt_total" table="funding"/>
+        <field name="date_avail" table="funding"/>
+        <field name="date_avail_end" table="funding"/>
+        <field name="funds_remain" table="funding" dataType="number"/>
+    </dataSource>
+
+    <panel type="grid" id="allocateFundingSelectFundGrid" dataSource="allocateFundingSelectFundDs0">
+        <title>Select Program Fund</title>
+        <sortField name="fund_id" table="funding" ascending="true"/>
+        <field controlType="button" id="selectFund">
+            <title>Select</title>
+        </field>
+        <field name="fund_id" table="funding"/>
+        <field name="program_id" table="funding"/>
+        <field name="date_avail" table="funding"/>
+        <field name="date_avail_end" table="funding"/>
+        <field name="amt_total" table="funding"/>
+        <field name="funds_remain" table="funding" dataType="number">
+            <title>Funds Available</title>
+        </field>
+    </panel>
+
+</view>

@@ -1,0 +1,269 @@
+<view version="2.0">
+    <js file="ab-repm-cost-ls-profile-cam.js"/>
+    <js file="ab-rplm-cost-mc-vat-common.js"/> 
+    <!-- Messages -->
+    <message name="titleCamCostHistory" translatable="true">CAM Costs History for lease {0}</message>
+    <message name="confirmDeleteCamProfile" translatable="true">Do you want to delete CAM profile for lease {0}?</message>
+    <message name="noRentCostForLease" translatable="true">Lease {0} doesn't have associated a recurring cost for rent. Please add a recurring cost for Cost Category {1} for this lease or select another lease.</message>
+    <message name="costForLease" translatable="true">Cost for the Lease</message>
+    <message name="smallCamFreq" translatable="true">Please set 'CAM Frequency' to a value >= Rent  Period!</message>
+    <message name="rentTitle" translatable="true">Rent (Base)</message>
+    <message name="camCostPctTitle" translatable="true">CAM Cost Percentage</message>
+    <message name="camCostPerArea" translatable="true">CAM Cost per Area</message>
+    <message name="camCostArea" translatable="true">CAM Cost - Area</message>
+    <message name="camCostFixed" translatable="true">CAM Cost - Fixed Estimate</message>
+    <message name="costType_recurring" translatable="true">Recurring</message>
+    <message name="costType_scheduled" translatable="true">Scheduled</message>
+    <message name="costType_actual" translatable="true">Actual</message>
+    <message name="confirm_delete" translatable="true">Are you sure you want to delete selected records?</message>
+    <message name="noItemSelected" translatable="true">You must make a selection first.</message>
+    
+    <dataSource id="abRepmCostLsProfileCamProfile_ds">
+        <table name="ls_cam_profile"/>
+        <field name="ls_id"/>
+        <field name="date_rent_last_update"/>
+        <field name="cam_rent"/>
+        <field name="cam_alloc_method"/>
+        <field name="cam_freq"/>
+        <field name="cam_year_type"/>
+        <field name="cam_cost_fixed"/>
+        <field name="cam_rent_pct"/>
+        <field name="cam_cost_rent_pct"/>
+        <field name="cam_area_negotiated"/>
+        <field name="cam_cost_per_area"/>
+        <field name="cam_cost_area"/>
+        <field name="cam_rec_report_no" dataType="number" decimals="0">
+            <sql dialect="generic">
+                (SELECT COUNT(ls_cam_rec_report.ls_cam_rec_report_id) FROM ls_cam_rec_report WHERE ls_cam_rec_report.ls_id = ls_cam_profile.ls_id)
+            </sql>
+        </field>
+    </dataSource>
+    
+    <panel type="form" id="abRepmCostLsProfileCamProfile" dataSource="abRepmCostLsProfileCamProfile_ds" showOnLoad="false" columns="2">
+        <action id="new">
+            <title>Generate Recurring Costs for Profile</title>
+        </action>
+        <!--action id="delete" enabled="${!panel.newRecord}">
+            <title>Delete</title>
+        </action-->
+        <field name="ls_id" readOnly="true"/>
+        <field/>
+        <field id="vf_cost_cat">
+            <title translatable="true">CAM Estimate Category</title>
+            <html>
+                <select name="vf_cost_cat_select" id="vf_cost_cat_select">
+                </select>
+            </html>
+        </field>
+        <field name="cam_cost_fixed" onchange="abRepmCostLsCAMProfileController.calculateForm();"/>
+        <field name="date_rent_last_update"/>
+        <field name="cam_rent_pct" onchange="abRepmCostLsCAMProfileController.calculateForm();"/>
+        <field name="cam_rent" required="false" readOnly="true"/>
+        <field name="cam_cost_rent_pct"/>
+        <field name="cam_alloc_method" onchange="abRepmCostLsCAMProfileController.onChangeAllocationMethod(false);"/>
+        <field name="cam_area_negotiated"/>
+        <field name="cam_freq" onchange="abRepmCostLsCAMProfileController.displayRentValue();"/>
+        <field name="cam_cost_per_area" onchange="abRepmCostLsCAMProfileController.calculateForm();"/>
+        <field>
+            <title>Reconcile Cost each</title>
+            <html>
+                <input type="radio" name="rad_year_type" id="rad_year_type_c" value="C" onclick="(this.checked?View.panels.get('abRepmCostLsProfileCamProfile').setFieldValue('ls_cam_profile.cam_year_type', this.value):'')"><span translatable="true">Calendar Year</span></input><br/>
+                <input type="radio" name="rad_year_type" id="rad_year_type_f" value="F" onclick="(this.checked?View.panels.get('abRepmCostLsProfileCamProfile').setFieldValue('ls_cam_profile.cam_year_type', this.value):'')"><span translatable="true">Fiscal Year</span></input>
+            </html>
+        </field>
+        <field name="cam_cost_area" readOnly="true"/>
+        <field name="cam_year_type" hidden="true"/>
+    </panel>
+    
+    <dataSource id="abRepmCostLsProfileCamCosts_ds" applyVpaRestrictions="false">
+        <sql dialect="generic">
+            SELECT
+                cost_tran_recur_id,
+                status_active,
+                date_start,
+                date_end,
+                yearly_factor,
+                period,
+                amount_income,
+                amount_income_base_payment,
+                amount_income_vat_payment,
+                amount_income_total_payment,
+                amount_expense,
+                amount_expense_base_payment,
+                amount_expense_vat_payment,
+                amount_expense_total_payment,
+                ls_id,
+                cost_cat_id,
+                currency_budget,
+                currency_payment,
+                date_trans_created,
+                cam_cost,
+                bl_id,
+                pr_id,
+                'recurring' ${sql.as} cost_type,
+                cost_tran_recur.cost_tran_recur_id ${sql.as} cost_id
+            FROM cost_tran_recur
+            WHERE ${sql.vpaRestriction} AND cost_tran_recur.cost_cat_id IN ${parameters['camEstimateRestriction']}
+            UNION
+            SELECT
+                cost_tran_sched.cost_tran_recur_id ${sql.as} cost_tran_recur_id,
+                -1 ${sql.as} status_active,
+                null ${sql.as} date_start,
+                null ${sql.as} date_end,
+                null ${sql.as} yearly_factor,
+                '' ${sql.as} period,
+                cost_tran_sched.amount_income ${sql.as} amount_income,
+                cost_tran_sched.amount_income_base_payment ${sql.as} amount_income_base_payment,
+                cost_tran_sched.amount_income_vat_payment ${sql.as} amount_income_vat_payment,
+                cost_tran_sched.amount_income_total_payment ${sql.as} amount_income_total_payment,
+                cost_tran_sched.amount_expense ${sql.as} amount_expense,
+                cost_tran_sched.amount_expense_base_payment ${sql.as} amount_expense_base_payment,
+                cost_tran_sched.amount_expense_vat_payment ${sql.as} amount_expense_vat_payment,
+                cost_tran_sched.amount_expense_total_payment ${sql.as} amount_expense_total_payment,
+                cost_tran_sched.ls_id ${sql.as} ls_id,
+                cost_tran_sched.cost_cat_id ${sql.as} cost_cat_id,
+                cost_tran_sched.currency_budget ${sql.as} currency_budget,
+                cost_tran_sched.currency_payment ${sql.as} currency_payment,
+                cost_tran_sched.date_trans_created ${sql.as} date_trans_created,
+                cost_tran_sched.cam_cost ${sql.as} cam_cost,
+                cost_tran_sched.bl_id ${sql.as} bl_id,
+                cost_tran_sched.pr_id ${sql.as} pr_id,
+                'scheduled' ${sql.as} cost_type,
+                cost_tran_sched.cost_tran_sched_id ${sql.as} cost_id
+            FROM cost_tran_sched
+            LEFT OUTER JOIN cost_tran_recur ON cost_tran_recur.cost_tran_recur_id = cost_tran_sched.cost_tran_recur_id
+            WHERE ${sql.getVpaRestrictionForTable('cost_tran_sched')} AND cost_tran_sched.cost_cat_id IN ${parameters['camEstimateRestriction']}
+            UNION
+            SELECT
+                cost_tran.cost_tran_recur_id ${sql.as} cost_tran_recur_id,
+                -1 ${sql.as} status_active,
+                null ${sql.as} date_start,
+                null ${sql.as} date_end,
+                null ${sql.as} yearly_factor,
+                '' ${sql.as} period,
+                cost_tran.amount_income ${sql.as} amount_income,
+                cost_tran.amount_income_base_payment ${sql.as} amount_income_base_payment,
+                cost_tran.amount_income_vat_payment ${sql.as} amount_income_vat_payment,
+                cost_tran.amount_income_total_payment ${sql.as} amount_income_total_payment,
+                cost_tran.amount_expense ${sql.as} amount_expense,
+                cost_tran.amount_expense_base_payment ${sql.as} amount_expense_base_payment,
+                cost_tran.amount_expense_vat_payment ${sql.as} amount_expense_vat_payment,
+                cost_tran.amount_expense_total_payment ${sql.as} amount_expense_total_payment,
+                cost_tran.ls_id ${sql.as} ls_id,
+                cost_tran.cost_cat_id ${sql.as} cost_cat_id,
+                cost_tran.currency_budget ${sql.as} currency_budget,
+                cost_tran.currency_payment ${sql.as} currency_payment,
+                cost_tran.date_trans_created ${sql.as} date_trans_created,
+                cost_tran.cam_cost ${sql.as} cam_cost,
+                cost_tran.bl_id ${sql.as} bl_id,
+                cost_tran.pr_id ${sql.as} pr_id,
+                'actual' ${sql.as} cost_type,
+                cost_tran.cost_tran_id ${sql.as} cost_id
+            FROM cost_tran
+            LEFT OUTER JOIN cost_tran_recur ON cost_tran_recur.cost_tran_recur_id = cost_tran.cost_tran_recur_id
+            WHERE ${sql.getVpaRestrictionForTable('cost_tran')} AND cost_tran.cost_cat_id IN ${parameters['camEstimateRestriction']}
+        </sql>
+        <table name="cost_tran_recur" role="main"/>
+        <table name="cost_tran_sched" role="standard"/>
+        <table name="cost_tran" role="standard"/>
+        <field name="cost_tran_recur_id"/>
+        <field name="status_active"/>
+        <field name="date_start"/>
+        <field name="date_end"/>
+        <field name="yearly_factor"/>
+        <field name="period"/>
+        <field name="amount_income"/>
+        <field name="amount_income_base_payment"/>
+        <field name="amount_income_vat_payment"/>
+        <field name="amount_income_total_payment"/>
+        <field name="amount_expense"/>
+        <field name="amount_expense_base_payment"/>
+        <field name="amount_expense_vat_payment"/>
+        <field name="amount_expense_total_payment"/>
+        <field name="ls_id"/>
+        <field name="cost_cat_id"/>
+        <field name="currency_budget"/>
+        <field name="currency_payment"/>
+        <field name="date_trans_created"/>
+        <field name="cam_cost"/>
+        <field name="cost_type" dataType="text"/>
+        <field name="cost_id" dataType="number" decimals="0"/>
+        <parameter name="camEstimateRestriction" dataType="verbatim" value="('RENT - CAM ESTIMATE')"/>
+    </dataSource>
+    
+    <panel type="grid" id="abRepmCostLsProfileCamCosts" dataSource="abRepmCostLsProfileCamCosts_ds" multipleSelectionEnabled="true" showOnLoad="false">
+        <title>&#160;</title>
+        <action id="delete">
+            <title>Delete</title>
+        </action>
+        <action id="exportXLS">
+            <title>XLS</title>
+            <command type="exportPanel" outputType="xls" panelId="abRepmCostLsProfileCamCosts"/>
+        </action>
+        <field controlType="button" id="edit">
+          <title>Edit</title>
+        </field>
+        <field name="cost_cat_id"/>
+        <field name="amount_income" hidden="${View.activityParameters['AbCommonResources-EnableVatAndMultiCurrency'] == 1}"/>
+        <field name="amount_income_base_payment" hidden="${View.activityParameters['AbCommonResources-EnableVatAndMultiCurrency'] == 0}"/>
+        <field name="amount_income_vat_payment" hidden="${View.activityParameters['AbCommonResources-EnableVatAndMultiCurrency'] == 0}"/>
+        <field name="amount_income_total_payment" hidden="${View.activityParameters['AbCommonResources-EnableVatAndMultiCurrency'] == 0}"/>
+        <field name="amount_expense" hidden="${View.activityParameters['AbCommonResources-EnableVatAndMultiCurrency'] == 1}"/>
+        <field name="amount_expense_base_payment" hidden="${View.activityParameters['AbCommonResources-EnableVatAndMultiCurrency'] == 0}"/>
+        <field name="amount_expense_vat_payment" hidden="${View.activityParameters['AbCommonResources-EnableVatAndMultiCurrency'] == 0}"/>
+        <field name="amount_expense_total_payment" hidden="${View.activityParameters['AbCommonResources-EnableVatAndMultiCurrency'] == 0}"/>
+        <field name="status_active"/>
+        <field name="date_start"/>
+        <field name="date_end"/>
+        <field name="yearly_factor"/>
+        <field name="period"/>
+        <field name="date_trans_created"/>
+        <field id="costType" dataType="text">
+            <title>Cost Type</title>
+        </field>    
+        <field name="cost_id" dataType="number" decimals="0">
+            <title>Cost Code</title>
+        </field>
+        <field name="cost_tran_recur_id" hidden="true"/>
+        <field name="ls_id" hidden="true"/>
+        <field name="currency_budget" hidden="true"/>
+        <field name="currency_payment" hidden="true"/>
+        <field name="cost_type" dataType="text" hidden="true"/>
+    </panel>
+    
+    <dataSource id="abRepmCostLsProfileCamProfile_costDs">
+        <table name="cost_tran_recur"/>
+        <field name="cost_tran_recur_id"/>
+        <field name="ls_id"/>
+        <field name="cost_cat_id"/>
+        <field name="description"/>
+        <field name="date_start"/>
+        <field name="date_end"/>
+        <field name="period"/>
+        <field name="cam_cost"/>
+        <field name="status_active"/>
+        <field name="yearly_factor"/>
+        <field name="date_trans_created"/>
+        <field name="amount_expense"/>
+        <field name="amount_income"/>
+        <field name="amount_expense_base_payment"/>
+        <field name="amount_expense_vat_payment"/>
+        <field name="amount_expense_total_payment"/>
+        <field name="amount_income_base_payment"/>
+        <field name="amount_income_vat_payment"/>
+        <field name="amount_income_total_payment"/>
+        <field name="currency_payment"/>
+        <field name="vat_percent_value"/>
+        <field name="ctry_id"/>
+    </dataSource>
+    
+    <!-- Helper data sources -->
+    <dataSource id="costTranRecur_ds">
+        <table name="cost_tran_recur"/>
+        <field name="cost_tran_recur_id"/>
+    </dataSource>
+    <dataSource id="costTranSched_ds">
+        <table name="cost_tran_sched"/>
+        <field name="cost_tran_sched_id"/>
+    </dataSource>
+</view>

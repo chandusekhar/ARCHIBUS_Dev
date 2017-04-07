@@ -1,0 +1,334 @@
+<view version="2.0">
+	<js file="uc-vehicle-edit-view-popup.js"/>
+	<js file="uc-common-functions-data.js" />
+	<js file="brg-common.js"/>
+	<js file="brg-common-ui.js"/>
+	
+	<title>Edit/View Reservations</title>
+	
+	<dataSource id="ds_reservations">
+		<table name="wr" role="main"/>
+		<table name="hwr" role="standard"/>
+		<field name="curr_meter_val" table="wr"/>
+		<field name="activity_log_id" table="wr"/>
+		<field name="wr_id" table="wr"/>
+		<field name="wo_id" table="wr"/>
+		<field name="status" table="wr"/>
+		<field name="requestor" table="wr"/>
+		<field name="driver" table="wr"/>
+		<field table="wr" name="vehicle_type_req"/>
+		<field table="wr" name="vehicle_type"/>
+		<field table="wr" name="free_km"/>
+		<field name="destination" table="wr"/>
+		<field name="description" table="wr"/>
+		<field name="dv_id" table="wr"/>
+		<field name="dp_id" table="wr"/>
+		<field name="prob_type" table="wr"/>
+		<field name="destination_type" table="wr"/>
+		<field name="distance_est" table="wr"/>
+		<field name="passenger_count" table="wr"/>
+		<!--field name="distance_act" table="wr"/-->
+		<field name="date_assigned" table="wr"/>
+		<field name="option1" table="hwr" dataType="text" size="36">
+			<sql dialect="generic">
+				(select left(rtrim(wr.date_pickup),12) + e.edesc  from afm.brg_enum('wr','time_pickup') e where e.eid=wr.time_pickup)
+			</sql>
+		</field>
+		<!--field name="distance_act" table="hwr" >
+	
+		</field-->
+		<field name="option2" table="hwr" dataType="text" size="36">
+			<sql dialect="generic">
+				(select left(rtrim(wr.date_dropoff),12) + e.edesc  from afm.brg_enum('wr','time_dropoff') e where e.eid=wr.time_dropoff)
+			</sql>
+		</field>
+		
+		<field name="location" table="hwr" dataType="text" size="36">
+			<sql dialect="generic">
+				(left(rtrim(wr.date_assigned),12) +  replace(replace(substring(convert(varchar,wr.time_assigned,0), 12,8),'AM',' AM'),'PM', ' PM'))
+			</sql>
+		</field>
+		<field name="phone" table="hwr" dataType="text" size="36">
+			<sql dialect="generic">
+				(left(rtrim(wr.date_completed),12) +  replace(replace(substring(convert(varchar,wr.time_completed,0), 12,8),'AM',' AM'),'PM', ' PM'))
+			</sql>
+		</field>
+		<field name="distance_est" table="hwr" dataType="text" size="36">
+			<sql dialect="generic">
+				case when isnull(wr.curr_meter_val,0)=0 or isnull(wr.meter_start,0)=0 then 0 else  wr.curr_meter_val-wr.meter_start end
+			</sql>
+		</field>
+		<!--field name="cost_est_total" table="hwr" dataType="number" decimals="2">
+			<sql dialect="generic">
+				(isnull((select sum(cost_estimated) from wr_other o where wr.wr_id=o.wr_id and not other_rs_type='VEHICLE-WORK'),0))
+			</sql>
+		</field-->
+		<!--field name="cost_total" table="hwr" dataType="number" decimals="2">
+			<sql dialect="generic">
+				(isnull((select sum(cost_total) from wr_other o where wr.wr_id=o.wr_id and not other_rs_type ='VEHICLE-WORK'),0))
+			</sql>
+		</field-->
+		<!--field name="cost_est_other" table="hwr" dataType="number" decimals="2">
+			<sql dialect="generic">
+				(
+					isnull((select sum(cost_estimated) from wr_other o where wr.wr_id=o.wr_id and other_rs_type='VEHICLE-WORK'),0)
+					+
+					isnull((select sum(cost_est_total) from wr s where s.wo_id=wr.wo_id and not s.wr_id=wr.wr_id),0)
+				)
+			</sql>
+		</field-->
+		<field name="cost_other" table="hwr" dataType="number" decimals="2">
+			<sql dialect="generic">
+				(
+					isnull((select sum(cost_total) from wr_other o where wr.wr_id=o.wr_id and other_rs_type='VEHICLE-WORK'),0)
+					+
+					isnull((select sum(cost_total) from wr s where s.wo_id=wr.wo_id and not s.wr_id=wr.wr_id),0)
+				)
+			</sql>
+		</field>
+		
+		
+		<field name="date_completed" table="wr"/>
+		<field name="time_assigned" table="wr"/>
+		
+		
+		<field name="time_completed" table="wr"/>
+		<field name="ac_id" table="wr"/>
+		<field name="budget_owner" table="wr"/>
+		<field name="eq_id" table="wr"/>
+		<field name="meter_start" table="wr"/>
+		<field name="gas_start" table="wr"/>
+		<field name="gas_end" table="wr"/>
+		<field name="cost_est_total" table="wr"/>
+		<field name="work_team_id" table="wr"/>
+		<field name="stat"  dataType="text" size="36">
+			<sql dialect="generic">
+				case wr.status when 'A' then 'Requested' when 'Rev' then 'Pending Approval' when 'AA' then 'Approved' when 'I' then 'Picked Up' when 'Rej' then 'Rejected' when 'Can' then 'Cancelled' when 'Com' then 'Completed' else wr.status end
+			</sql>
+		</field>
+		<!--restriction type="sql" sql="wr.prob_type = 'FLEET-RESERVE' and wr.status='I'"/-->
+	</dataSource>
+		
+	<panel type="form" id="reservations_form" columns="2" dataSource="ds_reservations" showOnLoad="true">
+		<title>View Reservations</title>
+		<!--action id="save" >
+            <title translatable="true">Save</title>
+        </action-->
+		<action id="cancel">
+            <title translatable="true">Cancel Request</title>
+        </action>
+	   <action id="close" >
+            <title translatable="true">Close</title>
+			<command type="closeDialog" />
+        </action>
+		<field name="work_team_id" table="wr"  hidden="true"/>
+		<field name="activity_log_id" table="wr" hidden="true"/>
+		<!--field name="distance_act" table="wr" hidden="true"/-->
+		
+		
+		<field name="requestor" table="wr" readOnly="true"/>
+		<field name="driver" table="wr" readOnly="true"/>
+		
+		<field name="wr_id" table="wr" readOnly="true"><title>Reservation Code</title></field>
+		<field name="budget_owner" table="wr" readOnly="true"/>
+		
+		<field table="wr" name="vehicle_type"  readOnly="true">
+			<title>Booked Vehicle Type</title>
+		</field>
+		<field table="wr" name="vehicle_type_req"  readOnly="true">
+			<title>Requested Vehicle Type</title>
+		</field>
+		
+		<field table="wr" name="eq_id"   readOnly="true" >
+			<title>Vehicle Number</title>
+		</field>
+		<field name="passenger_count" table="wr" readOnly="true" required="false"/>
+		
+		<field name="location" table="hwr"  required="false" readOnly="true"><title>Picked Up</title></field>
+		<field name="option1" table="hwr"   required="false" readOnly="true"><title>Requested Pickup</title></field>
+		
+		<field name="phone" table="hwr" required="false"><title>Date Dropped Off</title></field>
+		<field name="option2" table="hwr"  required="false" readOnly="true"><title>Requested Dropoff</title></field>
+		
+		<field name="stat" readOnly="true"><title>Status</title></field>
+		<field name="dv_id" table="wr" readOnly="true"/>
+		
+		<field name="meter_start" table="wr"  readOnly="true"/>
+		<field name="dp_id" table="wr" readOnly="true"/>
+		
+		<field name="curr_meter_val" table="wr"   readOnly="true"><title>Meter End</title></field>
+		<field name="destination_type" table="wr" readOnly="true"/>
+		
+		<field table="wr" name="free_km" readOnly="true" />
+		<field name="destination" table="wr" readOnly="true"><title>Destination</title></field>
+		
+		
+		<field name="distance_est" table="hwr" required="false"  readOnly="true"><title>Actual Travel Distance</title></field>
+       	<field name="distance_est" table="wr"  readOnly="true"/>
+		
+		<field name="gas_end" table="wr"  readOnly="true"><title>Gas Level End</title> </field>
+		<field name="gas_start" table="wr"  readOnly="true"><title>Gas Level Start</title> </field>
+
+		<!--field name="cost_total" table="hwr"><title>Total Cost</title></field>
+		<field name="cost_est_total" table="hwr"><title>Estimated Cost</title></field>
+		
+		<field name="cost_other" table="hwr"><title>Sub Work Total Cost</title></field>
+		<field name="cost_est_other" table="hwr"><title>Est. Sub Work Cost</title></field-->
+		
+		
+		<field name="ac_id" table="wr" readOnly="true"/>
+		<field/>
+		
+		
+		<field name="description" table="wr" colspan="2"  readOnly="true"/>
+		
+		
+		<field name="date_assigned" table="wr"  hidden="true"><title>Pickup Date</title> </field>
+		<field name="time_assigned" table="wr" hidden="true"/>
+		<field name="status" table="wr" hidden="true"/>
+		
+		<field name="time_completed" table="wr" hidden="true"/>
+		<field name="prob_type" table="wr" hidden="true"/>
+		<field name="wo_id" table="wr" hidden="true"/>
+
+	</panel>
+	
+	<dataSource id="ds_wr_other">
+		<sql dialect="generic">
+			select 1 seq1, 0 seq2, 'Reservation Costs' units_used, null qty_est1, rtrim(isnull(sum(cost_estimated),0)) cost_estimated1, null qty_used1, rtrim(isnull(sum(cost_total),0)) cost_total1,
+			null description, ${parameters['wrID']} wr_id, null date_used, null  other_rs_type, null status
+			from wr_other where other_rs_type='VEHICLE-RES' AND  wr_id=${parameters['wrID']}
+			union
+			select 1 seq1,case units_used when 'HRs' then 2 when 'DYs' then 3 when 'MNs' then 4 else 5 end seq2,
+			case units_used when 'HRs' then '.../Hour' when 'DYs' then '.../Day' when 'MNs' then '.../Month' else '.../KM' end units_used, rtrim(qty_est) qty_est, rtrim(cost_estimated) cost_estimated, rtrim(qty_used) qty_used, rtrim(cost_total) cost_total,
+			description, ${parameters['wrID']} wr_id, date_used, other_rs_type, null status 
+			from wr_other where other_rs_type='VEHICLE-RES' AND  wr_id=${parameters['wrID']}
+			union
+			select 2 seq1, 0 seq2, 'Miscellaneous Costs' units_used, null qty_est, rtrim(isnull(sum(cost_estimated),0)) cost_estimated, null qty_used, rtrim(isnull(sum(cost_total),0)) cost_total,null, ${parameters['wrID']}, null, null, null status 
+			from wr_other where other_rs_type='VEHICLE-MISC' AND  wr_id=${parameters['wrID']}
+			union
+			select 2 seq1,2 seq2,null units_used, rtrim(qty_est) qty_est, rtrim(cost_estimated), rtrim(qty_used) qty_used, rtrim(cost_total),
+			description, ${parameters['wrID']} wr_id, date_used, other_rs_type, null status 
+			from wr_other where other_rs_type='VEHICLE-MISC' AND  wr_id=${parameters['wrID']}
+			union 
+			select 3 seq1, 0 seq2, 'Sub Work Costs' units_used, null qty_est, rtrim(isnull(sum(cost_est_total),0)) cost_estimated, null qty_used, rtrim(isnull(sum(cost_total),0)) cost_total,null, ${parameters['wrID']}, null, null, null status 
+			from wr where wr.wo_Id=${parameters['woID']} and not wr.wr_id=${parameters['wrID']}
+			union 
+			select 0 seq1,0 seq2, 'Total Cost' units_used, null qty_est, 
+			rtrim(isnull(sum(cost_estimated),0) + isnull((select sum(wr.cost_est_total) from wr where wr.wo_Id=${parameters['woID']} and not wr.wr_id=${parameters['wrID']}),0)) cost_estimated, 
+			rtrim(null) qty_used, 
+			rtrim(isnull(sum(cost_total),0) + isnull((select sum(wr.cost_total) from wr where wr.wo_Id=${parameters['woID']} and not wr.wr_id=${parameters['wrID']}),0)) cost_total,
+			null description, ${parameters['wrID']} wr_id, null date_used, null rs_other_type, null status 
+			from wr_other where wr_id=${parameters['wrID']}
+		</sql>
+	<!--		union 
+			select 3 seq1,1 seq2, 'WR ID' units_used, 'Status' qty_est, 'Estimated Cost' cost_estimated, '' qty_used, 'Actual Cost' cost_total,'Description' description, ${parameters['wrID']} wr_id, null date_used, null rs_other_type, null status 
+			from wr_other where wr_id=${parameters['wrID']}
+			union
+			select 3 seq1,2 seq2, rtrim(wr_id) units_used, e.edesc qty_est, rtrim(cost_est_total) cost_estimated, null qty_used, rtrim(cost_total),description, ${parameters['wrID']} wr_id, null, null, status 
+			from wr 
+			inner join afm.brg_enum('wr','status') e on e.eid=wr.status
+			where  wr.wo_Id=${parameters['woID']} and not wr.wr_id=${parameters['wrID']}
+			
+	-->
+		
+		<table name="wr_other" role="main"/>
+		<field name="other_rs_type" table="wr_other"/>
+	    <field name="date_used" table="wr_other"/>
+		<field name="units_used" table="wr_other" dataType="text" size="32"/>
+		<field name="qty_used1"  dataType="text" size="32" />
+		<field name="status"  dataType="text" size="3" />
+		<field name="qty_est1"  dataType="text" size="32" />
+		<field name="cost_estimated1" dataType="text" size="32"/>
+		<field name="description" table="wr_other"/>
+		<field name="wr_id" table="wr_other"/>
+		<field name="cost_total1" dataType="text" size="32" />
+		
+		<field name="seq1" dataType="number"/>
+		<field name="seq2" dataType="number"/>
+		<parameter name="wrID" dataType="verbatim" value="0"/>
+		<parameter name="woID" dataType="verbatim" value="0"/>
+		
+	</dataSource>
+	
+	
+	<panel type="grid" id="wr_other_grid" dataSource="ds_wr_other" showOnLoad="true">
+		<title>Costs</title>
+		<sortField name="seq1" />
+		<sortField name="seq2" />
+		
+		<field name="units_used" table="wr_other" >
+			<title>Type</title>
+	    </field>
+		<field name="qty_est1"  dataType="text" size="32" >
+			<title>Estim. Qty</title>
+	    </field>
+		<field name="cost_estimated1" dataType="text" size="32" >
+			<title>Estim. Cost</title>
+	    </field>
+		<field name="qty_used1"  dataType="text" size="32" >
+			<title>Actual. Qty</title>
+	    </field>
+		<field name="cost_total1" dataType="text" size="32" >
+			<title>Actual Cost</title>
+	    </field>
+				
+		<field name="description" table="wr_other" >
+			<title>Description</title>
+	    </field>
+		<field name="other_rs_type" table="wr_other" hidden="true"/>
+		<field name="wr_id" table="wr_other" hidden="true"/>
+		<field name="date_used" table="wr_other" hidden="true"/>
+		<field name="status" hidden="true"/>
+	</panel>
+	
+	
+	
+	<!-- subwork panel -->
+    <dataSource id="ds_wr_subwork">
+		<table name="wr" role="main"/>
+		<field name="wr_id" table="wr"/>
+	    <field name="wo_id" table="wr"/>
+		<field name="pmp_id" table="wr"/>
+		<field name="description" table="wr"/>
+		<field name="status" table="wr"/>
+		<field name="pu" dataType="text" size="36">
+			<sql dialect="generic">
+				left(rtrim(wr.date_pickup),12) +
+				case when wr.time_pickup ='-' then '' else (select e.edesc  from afm.brg_enum('wr','time_pickup') e where e.eid=wr.time_pickup) end
+			</sql>
+		</field>
+		
+		<field name="do" dataType="text" size="36">
+			<sql dialect="generic">
+				 left(rtrim(wr.date_dropoff),12) + 
+				case when wr.time_dropoff ='-' then '' else (select + e.edesc  from afm.brg_enum('wr','time_dropoff') e where e.eid=wr.time_dropoff) end
+			</sql>
+		</field>
+		<field name="cost_total" table="wr" showTotals="true"/>
+		<field name="cost_est_total" table="wr" showTotals="true"/>
+		<!--restriction type="sql" sql="1=2"/-->
+	</dataSource>
+	
+    <panel type="grid" id="wr_subwork_grid" dataSource="ds_wr_subwork" showOnLoad="true">
+		<title>Sub work</title>
+		<!--action id="add" >
+            <title translatable="true">Add</title>
+        </action-->
+		<field controlType="button" id="view">
+          <title translatable="true">View</title>
+        </field>
+	    <!--field controlType="button" id="cancel">
+          <title translatable="true">Cancel</title>
+        </field-->
+		<field name="wr_id" table="wr" hidden="false"/>
+	    <field name="wo_id" table="wr" hidden="true"/>
+		<field name="pu"><title>Pickup</title></field>
+		<field name="do"><title>Dropoff</title></field>
+		<field name="status" table="wr" hidden="false"/>
+		<field name="pmp_id" table="wr"/>
+		<field name="cost_est_total" table="wr" hidden="false" showTotals="true"/>
+		<field name="cost_total" table="wr" showTotals="true"/>
+		<field name="description" table="wr" hidden="false"/>
+	</panel>
+</view>

@@ -1,0 +1,168 @@
+<view version="2.0">
+    <designInfo type="paginated" pattern="ab-viewdef-paginated" isAlterable="true"/>
+    <title translatable="true">Scores by Category</title>
+    <report orientation="landscape"/>
+    
+
+     <dataSource id="abGbRptCertScoresCatPaginatedDS">
+        <table name="gb_cert_proj" role="main"/>
+        <table name="gb_cert_cat" role="standard"/>
+        <table name="bl" role="standard"/>
+		<table name="gb_cert_std" role="standard"/>
+        <field table="bl" name="site_id"/>
+        <field table="gb_cert_proj" name="bl_id"/>
+        <field table="gb_cert_proj" name="fl_id"/>
+        <field table="gb_cert_proj" name="project_name"/>
+        <field table="gb_cert_cat" name="cert_cat"/>
+        <field table="gb_cert_cat" name="cat_name"/>
+        <field table="gb_cert_cat" name="weight_factor"/>
+        <field name="totalSelfScore" dataType="number" decimals="0">
+            <title translatable="true">Self Score</title>
+            <sql dialect="generic">
+               case when not exists(select 1 from gb_cert_scores where gb_cert_proj.project_name=gb_cert_scores.project_name 
+				    AND gb_cert_proj.bl_id=gb_cert_scores.bl_id  AND gb_cert_scores.cert_std=gb_cert_proj.cert_std 
+					AND gb_cert_scores.cert_cat=gb_cert_cat.cert_cat AND gb_cert_scores.credit_type = 'C')
+					OR exists(select 1 from gb_cert_credits a  
+                    where a.cert_std=gb_cert_proj.cert_std AND a.cert_cat=gb_cert_cat.cert_cat 
+                    and a.credit_type = 'P' and (
+					(select gb_cert_scores.self_score from gb_cert_scores			
+		            where gb_cert_proj.project_name=gb_cert_scores.project_name AND gb_cert_proj.bl_id=gb_cert_scores.bl_id	              
+                    AND gb_cert_scores.cert_std=gb_cert_proj.cert_std AND gb_cert_scores.cert_cat=gb_cert_cat.cert_cat			
+		            and gb_cert_scores.cert_std =a.cert_std and gb_cert_scores.credit_num=a.credit_num	   
+                    and gb_cert_scores.credit_type=a.credit_type and gb_cert_scores.subcredit_num=a.subcredit_num ) is null 
+					or 
+					(select gb_cert_scores.self_score from gb_cert_scores			
+		            where gb_cert_proj.project_name=gb_cert_scores.project_name AND gb_cert_proj.bl_id=gb_cert_scores.bl_id	              
+                    AND gb_cert_scores.cert_std=gb_cert_proj.cert_std AND gb_cert_scores.cert_cat=gb_cert_cat.cert_cat			
+		            and gb_cert_scores.cert_std =a.cert_std and gb_cert_scores.credit_num=a.credit_num	   
+                    and gb_cert_scores.credit_type=a.credit_type and gb_cert_scores.subcredit_num=a.subcredit_num ) !=1) ) then 0
+				when gb_cert_std.scoring_type='pnt_tot' then (select sum(gb_cert_scores.self_score) from gb_cert_scores where
+				    gb_cert_scores.project_name = gb_cert_proj.project_name
+					AND gb_cert_scores.bl_id = gb_cert_proj.bl_id
+					AND gb_cert_scores.cert_std= gb_cert_proj.cert_std
+					AND gb_cert_scores.cert_cat= gb_cert_cat.cert_cat
+					AND gb_cert_scores.credit_type = 'C')			
+	            when gb_cert_std.scoring_type='w_pnt_tot' then
+	                round((select sum(gb_cert_scores.self_score*1.000) from gb_cert_scores where
+				    gb_cert_scores.project_name = gb_cert_proj.project_name
+					AND gb_cert_scores.bl_id = gb_cert_proj.bl_id
+					AND gb_cert_scores.cert_std= gb_cert_proj.cert_std
+					AND gb_cert_scores.cert_cat=gb_cert_cat.cert_cat
+					AND gb_cert_scores.credit_type = 'C') * gb_cert_cat.weight_factor ,0)
+	            when gb_cert_std.scoring_type='w_cat_pct_tot' then
+	                round((select sum(gb_cert_scores.self_score*1.000) from gb_cert_scores where
+				    gb_cert_scores.project_name = gb_cert_proj.project_name
+					AND gb_cert_scores.bl_id = gb_cert_proj.bl_id
+					AND gb_cert_scores.cert_std= gb_cert_proj.cert_std
+					AND gb_cert_scores.cert_cat=gb_cert_cat.cert_cat
+					AND gb_cert_scores.credit_type = 'C')*100*gb_cert_cat.weight_factor/
+					(select sum(gb_cert_credits.max_points*1.000) from gb_cert_credits where
+				    gb_cert_credits.cert_std= gb_cert_proj.cert_std
+					AND gb_cert_credits.cert_cat=gb_cert_cat.cert_cat
+					AND gb_cert_credits.credit_type = 'C') ,0)
+	             end
+            </sql>
+        </field>
+        <field name="totalFinalScore" dataType="number" decimals="0">
+            <title translatable="true">Official Score</title>
+            <sql dialect="generic">
+                 case when not exists(select 1 from gb_cert_scores where gb_cert_proj.project_name=gb_cert_scores.project_name 
+				    AND gb_cert_proj.bl_id=gb_cert_scores.bl_id  AND gb_cert_scores.cert_std=gb_cert_proj.cert_std 
+					AND gb_cert_scores.cert_cat=gb_cert_cat.cert_cat AND gb_cert_scores.credit_type = 'C')
+					OR exists(select 1 from gb_cert_credits a  
+                    where a.cert_std=gb_cert_proj.cert_std AND a.cert_cat=gb_cert_cat.cert_cat 
+                    and a.credit_type = 'P' and (
+					(select gb_cert_scores.final_score from gb_cert_scores			
+		            where gb_cert_proj.project_name=gb_cert_scores.project_name AND gb_cert_proj.bl_id=gb_cert_scores.bl_id	              
+                    AND gb_cert_scores.cert_std=gb_cert_proj.cert_std AND gb_cert_scores.cert_cat=gb_cert_cat.cert_cat			
+		            and gb_cert_scores.cert_std =a.cert_std and gb_cert_scores.credit_num=a.credit_num	   
+                    and gb_cert_scores.credit_type=a.credit_type and gb_cert_scores.subcredit_num=a.subcredit_num ) is null 
+					or 
+					(select gb_cert_scores.final_score from gb_cert_scores			
+		            where gb_cert_proj.project_name=gb_cert_scores.project_name AND gb_cert_proj.bl_id=gb_cert_scores.bl_id	              
+                    AND gb_cert_scores.cert_std=gb_cert_proj.cert_std AND gb_cert_scores.cert_cat=gb_cert_cat.cert_cat			
+		            and gb_cert_scores.cert_std =a.cert_std and gb_cert_scores.credit_num=a.credit_num	   
+                    and gb_cert_scores.credit_type=a.credit_type and gb_cert_scores.subcredit_num=a.subcredit_num ) !=1) ) then 0
+				when gb_cert_std.scoring_type='pnt_tot' then (select sum(gb_cert_scores.final_score) from gb_cert_scores where
+				    gb_cert_scores.project_name = gb_cert_proj.project_name
+					AND gb_cert_scores.bl_id = gb_cert_proj.bl_id
+					AND gb_cert_scores.cert_std= gb_cert_proj.cert_std
+					AND gb_cert_scores.cert_cat= gb_cert_cat.cert_cat
+					AND gb_cert_scores.credit_type = 'C')			
+	            when gb_cert_std.scoring_type='w_pnt_tot' then
+	                round((select sum(gb_cert_scores.final_score*1.000) from gb_cert_scores where
+				    gb_cert_scores.project_name = gb_cert_proj.project_name
+					AND gb_cert_scores.bl_id = gb_cert_proj.bl_id
+					AND gb_cert_scores.cert_std= gb_cert_proj.cert_std
+					AND gb_cert_scores.cert_cat=gb_cert_cat.cert_cat
+					AND gb_cert_scores.credit_type = 'C') * gb_cert_cat.weight_factor ,0)
+	            when gb_cert_std.scoring_type='w_cat_pct_tot' then
+	                round((select sum(gb_cert_scores.final_score*1.000) from gb_cert_scores where
+				    gb_cert_scores.project_name = gb_cert_proj.project_name
+					AND gb_cert_scores.bl_id = gb_cert_proj.bl_id
+					AND gb_cert_scores.cert_std= gb_cert_proj.cert_std
+					AND gb_cert_scores.cert_cat=gb_cert_cat.cert_cat
+					AND gb_cert_scores.credit_type = 'C')*100*gb_cert_cat.weight_factor/
+					(select sum(gb_cert_credits.max_points*1.000) from gb_cert_credits where
+				    gb_cert_credits.cert_std= gb_cert_proj.cert_std
+					AND gb_cert_credits.cert_cat=gb_cert_cat.cert_cat
+					AND gb_cert_credits.credit_type = 'C') ,0)
+	             end
+            </sql>
+        </field>
+         <field name="paybackPeriod" dataType="number" decimals="1">
+            <title translatable="true">Payback Period</title>
+            <sql dialect="generic">
+                (select case when sum(gb_cert_scores.annual_savings) = 0 then 0 else
+                sum(gb_cert_scores.capital_cost)*1.00/sum(gb_cert_scores.annual_savings*1.00)
+                end
+                from gb_cert_scores
+                where gb_cert_proj.project_name=gb_cert_scores.project_name
+                AND
+                gb_cert_proj.bl_id=gb_cert_scores.bl_id
+                AND
+                gb_cert_scores.cert_std=gb_cert_proj.cert_std  
+                AND 
+                gb_cert_scores.cert_cat=gb_cert_cat.cert_cat
+                )
+            </sql>
+        </field>
+        <field name="capitalCost" dataType="integer">
+            <title translatable="true">Capital Cost</title>
+            <sql dialect="generic">
+                (select sum(gb_cert_scores.capital_cost)
+                from gb_cert_scores
+                where gb_cert_proj.project_name=gb_cert_scores.project_name
+                AND
+                gb_cert_proj.bl_id=gb_cert_scores.bl_id
+                AND
+                gb_cert_scores.cert_std=gb_cert_proj.cert_std
+                AND 
+                 gb_cert_scores.cert_cat=gb_cert_cat.cert_cat
+                )
+            </sql>
+        </field>
+        <field name="annualSavings" dataType="integer">
+            <title translatable="true">Annual Savings</title>
+            <sql dialect="generic">
+                (select sum(gb_cert_scores.annual_savings)
+                from gb_cert_scores
+                where gb_cert_proj.project_name=gb_cert_scores.project_name
+                AND
+                gb_cert_proj.bl_id=gb_cert_scores.bl_id
+                AND
+                gb_cert_scores.cert_std=gb_cert_proj.cert_std
+                AND 
+                gb_cert_scores.cert_cat=gb_cert_cat.cert_cat 
+                )
+          </sql>
+        </field>
+		<field table="gb_cert_std" name="cert_std"/>
+		
+		<sortField table="gb_cert_proj" name="bl_id" ascending="true"/>
+		<sortField table="gb_cert_proj" name="cert_std" ascending="true"/>
+		<sortField table="gb_cert_proj" name="project_name" ascending="true"/>
+		<sortField table="gb_cert_cat" name="cat_order" ascending="true"/>
+    </dataSource>
+    <panel type="paginatedReport" id="abGbRptCertScoresCatPaginated" format="column" columns="2" role="data" dataSource="abGbRptCertScoresCatPaginatedDS"></panel>
+</view>

@@ -1,0 +1,54 @@
+<view version="2.0">
+
+	<dataSource id="env_AssessmentsSustainabilityRatingAvg" type="grouping">
+             <sql dialect="generic">
+							SELECT 
+		    					bl_id,
+		    					activity_log.cond_value * activity_log.sust_priority ${sql.as} cond_rating
+							FROM activity_log
+							WHERE activity_type LIKE 'ASSESSMENT' 
+							AND activity_log.project_id IN (SELECT project.project_id FROM project WHERE project_type = 'ASSESSMENT - ENVIRONMENTAL')
+                            GROUP BY bl_id, activity_log.cond_value * activity_log.sust_priority
+			 </sql>	
+			 <table name="activity_log" role="main"/>
+             <field table="activity_log" name="bl_id" groupBy="true"/>
+             <field table="activity_log" name="avg_cond_rating" formula="avg"  baseField="activity_log.cond_rating" dataType="number" size="12" decimals="1"/> 
+             <sortField table="activity_log" name="avg_cond_rating" ascending="false"/>
+    </dataSource>
+
+	<dataSource id="risk_ComplianceViolations" type="grouping">
+    		 <table name="regviolation" role="main"/>
+             <field table="regviolation" name="regulation" groupBy="true"/>
+             <field table="regviolation" name="sum_cost_total" formula="sum"  baseField="regviolation.cost_total" dataType="number" size="12" decimals="1"/> 
+             <sortField table="regviolation" name="sum_cost_total" ascending="false"/>
+             <restriction type="sql" sql="getdate() - (365 * 1) &lt; date_assessed AND date_assessed &lt; getdate()"/>
+    </dataSource>
+
+	<dataSource id="risk_CertPaybackPeriodByBuilding" type="grouping">
+                <table name="gb_cert_proj" role="main"/>
+                <table name="bl" role="standard"/>
+                <field table="bl" name="site_id"/>
+                <field table="gb_cert_proj" name="groupBy" dataType="text" groupBy="true">
+                    <sql dialect="generic">
+                        (bl.bl_id ${sql.concat}'-'${sql.concat} gb_cert_proj.project_name ${sql.concat}'-'${sql.concat}
+                        gb_cert_proj.cert_std)
+                    </sql>
+                </field>
+                <field table="gb_cert_proj" name="paybackPeriod" formula="sum" baseField="gb_cert_proj.tot_payback_period"
+                    dataType="number" decimals="1"/>
+                <sortField table="gb_cert_proj" name="paybackPeriod" ascending="true"/>
+    </dataSource>
+
+	<dataSource id="ehs_HazardAssessments-Hazardous" type="grouping">
+             <sql dialect="generic">
+  				SELECT bl_id, activity_log_id
+  				FROM activity_log 
+  				WHERE activity_type = 'ASSESSMENT - HAZMAT' 
+  				AND hcm_is_hazard IN ('Presumed','Yes')
+			 </sql>	
+			 <table name="activity_log" role="main"/>
+             <field table="activity_log" name="bl_id" groupBy="true"/>
+             <field table="activity_log" name="num_hazard" formula="count" baseField="activity_log.activity_log_id" dataType="number" size="12" decimals="0"/>
+             <sortField table="activity_log" name="num_hazard" ascending="false"/>
+    </dataSource>
+</view>

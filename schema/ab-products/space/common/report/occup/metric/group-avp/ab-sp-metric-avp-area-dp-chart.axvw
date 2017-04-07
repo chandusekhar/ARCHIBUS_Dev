@@ -1,0 +1,77 @@
+<view version="2.0">	 
+
+	<panel id="abSpMetricAvpDpChart" 
+		type="chart"
+		showOnLoad="false"
+		controlType="columnLineChart"
+    	dataSource="abSpMetricAverageOpAreaDpChartDataDS" 
+		showLegendOnLoad="false"
+		showLegendAsPopUp="false"
+		legendLocation="right"
+		showDataTips="true"
+		fillType="solid">
+		<title>Average Area Per Occupant By Department</title>
+
+		<action id="exportDOCX">
+			<title translatable="true">DOC</title>
+			<command type="exportPanel" outputType="docx" panelId="abSpMetricAvpDpChart"/>
+		</action>
+		
+		<event type="onClickItem">                 
+			<command type="callFunction" functionName="onPlanChartClick"/>
+		</event>
+		
+		<groupingAxis table="rm" field="dv_dp" />
+		<dataAxis  table="rm"  field="avpArea"/>
+		<dataAxis  table="rm" type="line" field="bench_line">
+		   <title>Average Area Per Occupant Benchmark Line</title>
+		</dataAxis>
+	</panel>
+
+	<dataSource id="abSpMetricAverageOpAreaDpChartDataDS" type="grouping"  applyVpaRestrictions="false">
+
+		<sql dialect="generic">
+				SELECT rm.dv_id, rm.dp_id, rm.bl_id,rm.fl_id,rm.rm_id,rm.cap_em,rm.area,
+							 (select count (1) from em where em.bl_id=rm.bl_id and em.fl_id=rm.fl_id and em.rm_id=rm.rm_id ) ${sql.as} emCount 
+				FROM rm LEFT OUTER JOIN bl ON rm.bl_id=bl.bl_id 
+				LEFT OUTER JOIN rmcat ON rm.rm_cat=rmcat.rm_cat 
+				WHERE   ( rmcat.used_in_calcs !='no_totals' OR rm.rm_cat IS NULL ) 
+								and ${parameters['consoleRes']} 	 	 and  exists ( select 1 from em where em.bl_id=rm.bl_id and em.fl_id=rm.fl_id and em.rm_id=rm.rm_id )   AND ${sql.vpaRestriction}  
+		</sql>
+		<table name="rm" role="main"/>
+
+		<field table="rm"  name="dv_dp"  dataType="text" groupBy="true">
+			<sql dialect="generic">
+				RTRIM(rm.dv_id)${sql.concat}' - '${sql.concat}RTRIM(rm.dp_id)
+			</sql>
+		</field>
+
+		<field  name="avpArea"   dataType="number" numericFormat="area" decimals="2" >
+			<sql dialect="generic">
+					case when sum(rm.cap_em)>sum(emCount) 
+							then sum(rm.area) /sum(rm.cap_em)  
+					else
+							case when  sum(emCount)=0 then 0
+							else sum(rm.area) /  sum(emCount) 
+							end 
+					end
+			</sql>
+		</field>
+		<field  name="bench_line"   dataType="number" numericFormat="area" decimals="2" >
+			<sql dialect="generic">
+						CAST ( CASE WHEN ( select afm_activity_params.param_value from afm_activity_params 
+																where afm_activity_params.activity_id='AbSpaceRoomInventoryBAR' and afm_activity_params.param_id='AverageAreaPerOccupant')  
+															IS not NULL 
+												         THEN ( select afm_activity_params.param_value from afm_activity_params 
+																where afm_activity_params.activity_id='AbSpaceRoomInventoryBAR' and afm_activity_params.param_id='AverageAreaPerOccupant')  
+												END 
+						AS decimal(8,2) ) 
+			</sql>
+		</field>
+
+		<parameter name="consoleRes" dataType="verbatim" value=" 1=1 "/>
+       </dataSource>
+
+	<js file="ab-sp-alloc-trend-metric-chart-common.js"/>
+	<js file="ab-sp-metric-avp-area-dp-chart.js"/>
+</view>

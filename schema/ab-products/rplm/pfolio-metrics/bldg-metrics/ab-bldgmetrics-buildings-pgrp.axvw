@@ -1,0 +1,136 @@
+<view version="2.0">
+	<report orientation="landscape"/>
+	<title translatable="true">Building Metrics</title>
+	
+	<dataSource id="dsTableMetricBuildingsList_parent">
+		
+		<table name="bl" role="main"/>
+		<field table="bl" name="bl_id"/>
+		<field table="bl" name="use1"/>
+		<field table="bl" name="ctry_id"/>
+		<field table="bl" name="state_id"/>
+		<field table="bl" name="city_id"/>
+	</dataSource>	
+	
+	<panel type="paginatedReport" id="tableMetricBuildingsList_parent" dataSource="dsTableMetricBuildingsList_parent" format="column" columns="1" role="parent">
+		<title translatable="true">Building</title>
+		<field table="bl" name="bl_id" restrictionParameterName="bl_id"/>
+		<field table="bl" name="use1"/>
+		<field table="bl" name="ctry_id"/>
+		<field table="bl" name="state_id"/>
+		<field table="bl" name="city_id"/>				
+	</panel>	
+	
+	
+	
+	<dataSource id="dsTableMetricBuildingsList_data">
+		
+		<table name="bl" role="main"/>
+		<field table="bl" name="bl_id"/>
+		<field table="bl" name="cost_sqft"/>
+		<field table="bl" name="area_avg_em"  dataType="number" decimals="2">
+            <sql dialect="generic">
+                (bl.area_usable / (CASE WHEN (SELECT COUNT(em.em_id) FROM EM WHERE em.bl_id = bl.bl_id) = 0 THEN 9999999999 ELSE (SELECT COUNT(em.em_id) FROM EM WHERE em.bl_id = bl.bl_id) END ))
+            </sql>
+        </field>
+		<field table="bl" name="ratio_ru"/>
+		<field table="bl" name="area_usable"/>
+		<field table="bl" name="value_book"/>
+		<field table="bl" name="value_market"/>
+		<field table="bl" name="fci" dataType="number" decimals="2">
+			<sql dialect="generic">
+				(SELECT AVG(${sql.getFormula('AbCapitalPlanningCA-FacilityConditionIndex')}) FROM activity_log WHERE  cost_to_replace > 0 AND activity_type = 'ASSESSMENT' AND activity_log.bl_id = bl.bl_id)
+			</sql>
+		</field>		
+		<field table="bl" name="operating_costs" dataType="number" decimals="2">
+			<sql dialect="generic">
+				(SELECT SUM(  amount_expense ) FROM cost_tran, cost_cat WHERE cost_tran.cost_cat_id = cost_cat.cost_cat_id AND cost_tran.bl_id = bl.bl_id
+				AND cost_cat.cost_type = 'OPERATING EXP.' )
+			</sql>
+		</field>		
+		<field table="bl" name="active_capital_cost" dataType="number" decimals="2">
+			<sql dialect="generic">
+				(SELECT  SUM(cost_est_design_exp) + SUM(cost_est_design_cap)  FROM activity_log, project WHERE project.bl_id = bl.bl_id and activity_log.project_id = project.project_id
+				AND ( project.status LIKE 'Approved%' OR project.status LIKE 'Issued%' ))
+			</sql>
+		</field>		
+		<field table="bl" name="area_estimated" dataType="number" decimals="0">
+			<sql dialect="generic">
+				(SELECT SUM(CASE WHEN su.area_usable = 0 THEN su.area_manual ELSE su.area_usable END)
+				FROM su   WHERE su.bl_id = bl.bl_id)
+			</sql>
+		</field>
+		<field name="chargeable_cost" table="bl" dataType="number" decimals="0">
+			<sql dialect="generic">
+				(select sum (rm.cost) from rm where rm.bl_id = bl.bl_id)
+			</sql>
+		</field>	
+		<field name="ratio_ur" table="bl"/>		
+		<field name="area_gross_int" table="bl"/>		
+		<field name="area_ls_negotiated" table="bl"/>		
+		<field name="area_ocup" table="bl"/>		
+		<field name="area_rentable" table="bl"/>		
+		<field name="area_rm" table="bl"/>		
+		<field name="count_em" table="bl"/>		
+		<field name="count_max_occup" table="bl"/>		
+		<field name="count_occup" table="bl"/>		
+		<field table="bl" name="vacancy_percent" dataType="number" decimals="0">
+			<sql dialect="generic">
+				( ( bl.count_max_occup / ${sql.replaceZero('bl.count_occup')} ) - 1 ) * 100
+			</sql>
+		</field>
+		<parameter name="bl_id" dataType="verbatim" value="" />
+		<restriction type="parsed">
+			<clause relop="AND" op="=" table="bl" name="bl_id"
+				value="${parameters['bl_id']}" />
+		</restriction>
+	</dataSource>
+	
+	
+	<panel type="paginatedReport" id="tableMetricBuildingsList_data1" dataSource="dsTableMetricBuildingsList_data" format="table" role="data">
+		<field table="bl" name="area_estimated">
+	        <title translatable="true">Area Estimated</title>
+	    </field>
+		<field name="area_gross_int" table="bl"/>		
+		<field name="area_rentable" table="bl"/>		
+		<field name="area_ls_negotiated" table="bl"/>		
+		<field name="area_ocup" table="bl"/>		
+		<field name="area_rm" table="bl"/>		
+		<field table="bl" name="area_usable"/>
+	</panel>
+	
+	<panel type="paginatedReport" id="tableMetricBuildingsList_data2" dataSource="dsTableMetricBuildingsList_data" format="table" role="data">
+		<field table="bl" name="active_capital_cost">
+			<title translatable="true">Active Capital Projects Cost</title>
+		</field>		
+		<field name="chargeable_cost" table="bl">
+	        <title translatable="true">Chargeable Cost</title>
+	    </field>
+		<field table="bl" name="operating_costs">
+			<title translatable="true">Operating Costs</title>
+		</field>		
+		<field table="bl" name="value_book"/>
+		<field table="bl" name="value_market"/>
+	</panel>
+	
+	<panel type="paginatedReport" id="tableMetricBuildingsList_data3" dataSource="dsTableMetricBuildingsList_data" format="table" role="data">
+		<field name="count_occup" table="bl"/>
+		<field name="count_em" table="bl"/>		
+		<field name="count_max_occup" table="bl"/>		
+		<field table="bl" name="vacancy_percent">
+			<title translatable="true">Vacancy Percent</title>
+		</field>
+	</panel>
+	
+	<panel type="paginatedReport" id="tableMetricBuildingsList_data4" dataSource="dsTableMetricBuildingsList_data" format="table" role="data">
+		<field table="bl" name="area_avg_em">
+			<title translatable="true">Average Usable Area per Employee</title>
+		</field>		
+		<field table="bl" name="cost_sqft"/>
+		<field name="ratio_ur" table="bl"/>		
+		<field table="bl" name="fci">
+			<title translatable="true">FCI</title>
+		</field>		
+		<field table="bl" name="ratio_ru"/>
+	</panel>
+</view>

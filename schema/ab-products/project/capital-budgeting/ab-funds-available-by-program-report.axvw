@@ -1,0 +1,72 @@
+<view version="2.0">
+    <title>Unallocated Program Funds</title>
+    
+    <dataSource id="fundsAvailableDs0" applyVpaRestrictions="false">
+        <table name="funding" role="main"/>
+        <table name="projfunds" role="standard"/>
+        <table name="project" role="standard"/>
+        <sql dialect="generic">
+            SELECT funding.program_id, funding.fund_id, funding.fund_type, funding.source_type, 
+                        funding.date_avail, funding.date_avail_end, funding.description, funding.amt_total,
+                       funding.amt_total-(SELECT CASE WHEN SUM(amount_cap+amount_exp) IS NULL THEN 0 
+                          ELSE SUM(amount_cap+amount_exp) END
+                          FROM projfunds, project
+                          WHERE projfunds.fund_id = funding.fund_id
+                          AND projfunds.project_id=project.project_id 
+                          AND (project.program_id=funding.program_id OR project.program_id IS NULL OR funding.program_id IS NULL)) ${sql.as} avail_funds
+            FROM funding
+            
+        </sql>
+        <field name="fund_id" table="funding"/>
+        <field name="fund_type" table="funding"/>
+        <field name="source_type" table="funding"/>
+        <field name="program_id" table="funding"/>
+        <field name="date_avail" table="funding"/>
+        <field name="date_avail_end" table="funding"/>
+        <field name="amt_total" table="funding"/>
+        <field name="avail_funds" dataType="number" decimals="2"/>
+        <restriction type="sql" sql="funding.amt_total &gt; 0"/>
+        <sortField name="fund_id" ascending="true"/>
+        <sortField name="program_id" ascending="true"/>
+    </dataSource>
+    
+    <panel type="grid" id="fundsAvailableReport" dataSource="fundsAvailableDs0">
+        <title>Unallocated Program Funds</title>
+        <action id="exportDOCX">
+            <title>DOC</title>
+            <command type="exportPanel" outputType="docx" panelId="fundsAvailableReport"/>
+        </action>
+		<action id="exportXLS">
+			<title>XLS</title>
+			<command type="exportPanel" outputType="xls" panelId="fundsAvailableReport"/>
+		</action>       
+        <field name="fund_id" controlType="link">
+            <command type="openDialog" panelId="fundsAvailableReportDrillDownGrid"/>
+        </field>
+        <field name="fund_type"/>
+        <field name="source_type"/>
+        <field name="program_id"/>
+        <field name="date_avail"/>
+        <field name="date_avail_end"/>
+        <field name="amt_total"/>
+        <field name="avail_funds">
+            <title>Available Funds</title>
+        </field>
+    </panel>
+    
+    <dataSource id="fundsAvailableReportDrillDownDs">
+        <table name="funding"/>
+        <field name="fund_id" table="funding"/>
+        <field name="fund_type" table="funding"/>
+        <field name="source_type" table="funding"/>
+        <field name="program_id" table="funding"/>
+        <field name="date_avail" table="funding"/>
+        <field name="date_avail_end" table="funding"/>
+        <field name="description" table="funding"/>
+        <field name="amt_total" table="funding"/>
+    </dataSource>
+    
+    <panel type="columnReport" id="fundsAvailableReportDrillDownGrid" dataSource="fundsAvailableReportDrillDownDs" showOnLoad="false">
+        <title>Funding Source</title>
+    </panel>
+</view>

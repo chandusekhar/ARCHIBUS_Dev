@@ -1,0 +1,145 @@
+<afmXmlView>
+	<preferences>
+          <viewTitleBar show="false"/>
+    </preferences>
+	 <title translatable="true">View Work Packages Scorecard</title>
+
+	 <afmTableGroup type="form" format="table" defaultActions="true">
+		<title translatable="true">Work Packages Scorecard</title> 
+		<afmAction type="render" state="brg-proj-work-pkgs-report.axvw" response="true" />
+		<dataSource>
+			<database>
+				<tables>
+					<table name="brg_project_view" role="main"/>
+					<table name="bl" role="standard"/>
+					<table name="program" role="standard"/>
+				</tables>
+				<fields>
+					<field name="project_id" table="brg_project_view"/>
+					<field name="description" table="brg_project_view"/>
+					<field name="status" table="brg_project_view"/>
+				</fields>
+			</database>
+			<mdx>
+				<preferences dimensions="1" format="table">
+					<query>
+						<sql dialect="generic">					
+						SELECT work_pkgs.project_id, work_pkgs.work_pkg_id, 
+										bl.city_id, bl.state_id, project.site_id, project.bl_id, project.dv_id, project.dp_id,
+										program.program_type, program.program_id, project.project_type, project.is_template,
+										project.proj_mgr, project.status, 
+										Cost_performance_index.budgeted_cost_of_work_performed,
+										Cost_performance_index.actual_cost_of_work_performed,
+										(CASE 
+											WHEN (Cost_performance_index.budgeted_cost_of_work_performed/Cost_performance_index.actual_cost_of_work_performed) &gt; 2 THEN 2 
+											WHEN (Cost_performance_index.budgeted_cost_of_work_performed/Cost_performance_index.actual_cost_of_work_performed) IS NULL THEN 1 
+											ELSE (Cost_performance_index.budgeted_cost_of_work_performed/Cost_performance_index.actual_cost_of_work_performed) 
+										END) AS cost_perf_index_value,
+										(CASE 
+											WHEN (Cost_performance_index.budgeted_cost_of_work_performed/Scheduled_performance_index.budgeted_cost_for_work_scheduled) &gt; 2 THEN 2 
+											WHEN (Cost_performance_index.budgeted_cost_of_work_performed/Scheduled_performance_index.budgeted_cost_for_work_scheduled) IS NULL THEN 1 
+											ELSE (Cost_performance_index.budgeted_cost_of_work_performed/Scheduled_performance_index.budgeted_cost_for_work_scheduled) 
+										END ) AS sched_perf_index_value
+						FROM work_pkgs
+						JOIN project ON work_pkgs.project_id = project.project_id AND project.status != 'Closed' 
+						LEFT OUTER JOIN
+							(SELECT project_id, work_pkg_id,
+	  									( CASE WHEN SUM(cost_est_design_cap + cost_est_design_exp) = 0 THEN 1 
+												ELSE SUM(cost_est_design_cap + cost_est_design_exp) END ) AS budgeted_cost_of_work_performed, 
+	  									( CASE WHEN SUM(cost_act_cap + cost_actual) = 0 THEN 1 
+												ELSE SUM(cost_act_cap + cost_actual) END ) AS actual_cost_of_work_performed
+							FROM activity_log 
+							WHERE work_pkg_id IS NOT NULL
+									AND activity_log.status IN ('COMPLETED', 'COMPLETED-V', 'CLOSED')
+							GROUP BY project_id, work_pkg_id
+							) AS Cost_performance_index 
+						ON Cost_performance_index.project_id = work_pkgs.project_id
+      					AND Cost_performance_index.work_pkg_id = work_pkgs.work_pkg_id		
+						LEFT OUTER JOIN
+							(SELECT project_id, work_pkg_id,
+								( CASE WHEN SUM(cost_est_design_cap + cost_est_design_exp) = 0 THEN 1
+		  							ELSE SUM(cost_est_design_cap + cost_est_design_exp) END )  AS budgeted_cost_for_work_scheduled
+	 						FROM activity_log 
+	 						WHERE work_pkg_id IS NOT NULL
+	 									AND activity_log.status IN ('PLANNED','SCHEDULED','IN PROGRESS')
+	 									AND activity_log.date_scheduled_end &lt;= GETDATE()
+	 						GROUP BY project_id, work_pkg_id
+							) AS Scheduled_performance_index 
+						ON work_pkgs.project_id = Scheduled_performance_index.project_id 
+       	AND work_pkgs.work_pkg_id = Scheduled_performance_index.work_pkg_id
+				LEFT OUTER JOIN program ON program.program_id = project.program_id
+				LEFT OUTER JOIN bl ON project.bl_id = bl.bl_id
+						</sql>
+												<!-- Oracle -->
+						<sql dialect="oracle">
+							SELECT work_pkgs.project_id, bl.city_id, bl.state_id, project.site_id, project.bl_id,
+								project.dv_id, project.dp_id, work_pkgs.work_pkg_id, 
+								program.program_type, program.program_id, project.project_type, project.is_template,
+								project.proj_mgr, project.status, 
+								cost_perf_index.budg_cost_of_work_perf,
+								cost_perf_index.act_cost_of_work_perf,
+								(CASE
+									WHEN (cost_perf_index.budg_cost_of_work_perf/cost_perf_index.act_cost_of_work_perf) &gt; 2 THEN 2
+									WHEN (cost_perf_index.budg_cost_of_work_perf/cost_perf_index.act_cost_of_work_perf) IS NULL THEN 1 
+									ELSE (cost_perf_index.budg_cost_of_work_perf/cost_perf_index.act_cost_of_work_perf)
+								END) AS cost_perf_index_value,
+								(CASE
+									WHEN (cost_perf_index.budg_cost_of_work_perf/sched_perf_index.budg_cost_for_work_sched) &gt; 2 THEN 2
+									WHEN (cost_perf_index.budg_cost_of_work_perf/sched_perf_index.budg_cost_for_work_sched) IS NULL THEN 1 
+									ELSE (cost_perf_index.budg_cost_of_work_perf/sched_perf_index.budg_cost_for_work_sched)
+								END ) AS sched_perf_index_value
+							FROM project, work_pkgs, 
+								(SELECT project_id, work_pkg_id,
+									( CASE WHEN SUM(cost_est_design_cap + cost_est_design_exp) = 0 THEN 1 
+										ELSE SUM(cost_est_design_cap + cost_est_design_exp) END ) AS budg_cost_of_work_perf, 
+									( CASE WHEN SUM(cost_act_cap + cost_actual) = 0 THEN 1
+										ELSE SUM(cost_act_cap + cost_actual) END ) AS act_cost_of_work_perf
+										FROM activity_log 
+										WHERE project_id IS NOT NULL
+									AND activity_log.status IN ('COMPLETED', 'COMPLETED-V', 'CLOSED')
+									GROUP BY project_id, work_pkg_id
+									) cost_perf_index,
+								(SELECT project_id, work_pkg_id,
+									(CASE WHEN SUM(cost_est_design_cap + cost_est_design_exp) = 0 THEN 1
+									ELSE SUM(cost_est_design_cap + cost_est_design_exp) END ) AS budg_cost_for_work_sched
+									FROM activity_log 
+									WHERE project_id IS NOT NULL
+									AND activity_log.status IN ('PLANNED','SCHEDULED','IN PROGRESS')
+									AND activity_log.date_scheduled_end &lt;= SYSDATE
+									GROUP BY project_id, work_pkg_id
+									) sched_perf_index, program, bl
+							WHERE project.status != 'Closed' AND work_pkgs.project_id = project.project_id
+								AND work_pkgs.project_id = cost_perf_index.project_id(+)
+								AND work_pkgs.work_pkg_id = cost_perf_index.work_pkg_id(+)
+								AND work_pkgs.project_id = sched_perf_index.project_id(+)
+								AND work_pkgs.work_pkg_id = sched_perf_index.work_pkg_id(+)
+								AND project.program_id = program.program_id(+)
+								AND project.bl_id = bl.bl_id(+)
+						</sql>
+					</query>
+					<dimensions>
+						<dimension name="Work Package" column="work_pkg_id">
+							<title translatable="true">Work Package</title>
+							<allMemberTitle translatable="true">Work Packages</allMemberTitle>
+						</dimension>
+					</dimensions>
+					<measures>
+						<measure name="Cost Score" aggregator="min" column="cost_perf_index_value" type="calculated" decimals="2" size="9">
+							<title translatable="true">Cost Score</title>
+						</measure>
+						<measure name="Schedule Score" aggregator="min" column="sched_perf_index_value" type="calculated" decimals="2" size="9">
+							<title translatable="true">Schedule Score</title>
+						</measure>
+						<measure name="Project Name" aggregator="min" column="project_id" type="calculated" datatype="string">
+							<title translatable="true">Project Name</title>
+						</measure>
+					</measures>
+				</preferences>
+			</mdx>
+		</dataSource>
+	</afmTableGroup>
+	<message name="ActivityType" translatable="false">work-pkgs</message>
+	<formatting>
+		<xsl file="brg-proj-scorecard.xsl" />
+	</formatting>
+</afmXmlView>

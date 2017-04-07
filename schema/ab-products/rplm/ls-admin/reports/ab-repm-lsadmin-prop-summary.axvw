@@ -1,0 +1,151 @@
+
+<view version="2.0">
+	<layout type="borderLayout" id="mainLayout">
+	    <west autoScroll="true" split="true" initialSize="20%"/>
+    	<center autoScroll="true"/>
+	</layout>
+	<title translatable="true">All Properties Yearly Financial Summary by Country</title>
+	
+	<dataSource id="abRplmPfadminPrSummary_countriesDs">
+        <table name="ctry" role="main"/>
+        <field table="ctry" name="ctry_id"/>
+		<field table="ctry" name="name"/>
+		<restriction type="sql" sql="exists (select 1 from property where property.ctry_id = ctry.ctry_id)"/>
+    </dataSource>
+	
+
+	<panel type="grid" id="abRplmPfadminPrSummary_countries" dataSource="abRplmPfadminPrSummary_countriesDs" layout="mainLayout" region="west">
+		<title translatable="true">Countries</title>
+		<action id="report">
+			<title translatable="true">Report</title>
+			<command type="callFunction" functionName="View.openPaginatedReportDialog('ab-repm-lsadmin-prop-summary-pgrp.axvw')"/>
+		</action>
+		<sortField table="ctry" name="ctry_id"/>
+		<field table="ctry" name="ctry_id" controlType="link">
+			<command type="showPanel" panelId="abRplmPfadminPrSummary_detailsRep"/>
+		</field>	
+		<field table="ctry" name="name" controlType="link">
+			<command type="showPanel" panelId="abRplmPfadminPrSummary_detailsRep"/>
+		</field>	
+	</panel>		
+   	
+	<dataSource id="abRplmPfadminPrSummary_detailsDs">
+        
+		<sql dialect="sqlserver">
+        select ctry_id, pr_id , name, street, city_id, zoning, status, 
+        value_market * ${sql.exchangeRateFromBudgetToUserForDate('Budget', 'property.date_market_val')} ${sql.as} value_market, 
+        value_book * ${sql.exchangeRateFromBudgetToUserForDate('Budget', 'property.date_book_val')} ${sql.as} value_book, qty_occupancy, 
+		(((property.income_total * ${sql.exchangeRateFromBudgetToUser('Budget')})/${sql.replaceZero('property. qty_occupancy')})*( 365.25/datediff(d,date_costs_start,date_costs_end + 1 ))) ${sql.as} yrly_income_occ,
+		(((property.cost_operating_total  * ${sql.exchangeRateFromBudgetToUser('Budget')})/${sql.replaceZero('property. area_bl_rentable')} )*( 365.25/datediff(d, date_costs_start ,date_costs_end+ 1 )))${sql.as} yrly_op_cost_rentarea,
+		(((property.income_total * ${sql.exchangeRateFromBudgetToUser('Budget')})/${sql.replaceZero('property. area_bl_rentable')} )*( 365.25/datediff(d , date_costs_start ,date_costs_end+ 1)))${sql.as} yrly_rent_income_rentarea,
+		((property.cost_operating_total  * ${sql.exchangeRateFromBudgetToUser('Budget')}) *( 365.25/datediff(d, date_costs_start,date_costs_end  + 1)))${sql.as} yrly_op_cost,
+		((property.cost_utility_total * ${sql.exchangeRateFromBudgetToUser('Budget')}) *( 365.25/datediff(d, date_costs_start,date_costs_end  + 1)))${sql.as} yrly_util_cost,
+		((property.cost_tax_total * ${sql.exchangeRateFromBudgetToUser('Budget')})*( 365.25/datediff(d , date_costs_start,date_costs_end + 1)))${sql.as} yrly_tax_cost,
+		((property.cost_other_total * ${sql.exchangeRateFromBudgetToUser('Budget')})*( 365.25/datediff(d , date_costs_start,date_costs_end + 1)))${sql.as} yrly_other_cost,
+		((property.income_total * ${sql.exchangeRateFromBudgetToUser('Budget')})*( 365.25/datediff(d, date_costs_start,date_costs_end  + 1)))${sql.as} yrly_rent_income,
+		(((property. cost_operating_total + property. cost_tax_total + property. cost_utility_total + property. cost_other_total + property. income_total ) * ${sql.exchangeRateFromBudgetToUser('Budget')})*( 365.25/datediff(d, date_costs_start,date_costs_end  + 1)))${sql.as} yrly_tot_cost,
+		date_costs_start, date_costs_end, date_costs_last_calcd,
+        site_id, date_market_val, date_book_val
+
+		from property
+        </sql>	
+		
+		
+		
+		<sql dialect="generic">
+        select ctry_id, pr_id , name, street, city_id, zoning, status, 
+        value_market * ${sql.exchangeRateFromBudgetToUserForDate('Budget', 'property.date_market_val')} ${sql.as} value_market, 
+        value_book * ${sql.exchangeRateFromBudgetToUserForDate('Budget', 'property.date_book_val')} ${sql.as} value_book, qty_occupancy, 
+		(((property.income_total * ${sql.exchangeRateFromBudgetToUser('Budget')})/${sql.replaceZero('property. qty_occupancy')})*( 365.25/(date_costs_end - date_costs_start + 1)))${sql.as} yrly_income_occ,
+		(((property.cost_operating_total * ${sql.exchangeRateFromBudgetToUser('Budget')})/${sql.replaceZero('property. area_bl_rentable')} )*( 365.25/(date_costs_end - date_costs_start + 1)))${sql.as} yrly_op_cost_rentarea,
+		(((property.income_total * ${sql.exchangeRateFromBudgetToUser('Budget')})/${sql.replaceZero('property. area_bl_rentable')} )*( 365.25/(date_costs_end - date_costs_start + 1)))${sql.as} yrly_rent_income_rentarea,
+		((property.cost_operating_total  * ${sql.exchangeRateFromBudgetToUser('Budget')}) *( 365.25/(date_costs_end - date_costs_start + 1)))${sql.as} yrly_op_cost,
+		((property.cost_utility_total  * ${sql.exchangeRateFromBudgetToUser('Budget')}) *( 365.25/(date_costs_end - date_costs_start + 1)))${sql.as} yrly_util_cost,
+		((property.cost_tax_total  * ${sql.exchangeRateFromBudgetToUser('Budget')}) *( 365.25/(date_costs_end - date_costs_start + 1)))${sql.as} yrly_tax_cost,
+		((property.cost_other_total  * ${sql.exchangeRateFromBudgetToUser('Budget')}) *( 365.25/(date_costs_end - date_costs_start + 1)))${sql.as} yrly_other_cost,
+		((property.income_total  * ${sql.exchangeRateFromBudgetToUser('Budget')}) *( 365.25/(date_costs_end - date_costs_start + 1)))${sql.as} yrly_rent_income,
+		(((property. cost_operating_total + property. cost_tax_total + property. cost_utility_total + property. cost_other_total + property. income_total ) * ${sql.exchangeRateFromBudgetToUser('Budget')}) *( 365.25/(date_costs_end - date_costs_start + 1)))${sql.as} yrly_tot_cost,
+		date_costs_start, date_costs_end, date_costs_last_calcd,
+        site_id, date_market_val, date_book_val
+
+		from property
+        </sql>	
+		
+		
+		<table name="property" role="main"/>
+		<field table="property" name="pr_id" />
+        <field table="property" name="name" />
+		<field table="property" name="street" />
+		<field table="property" name="city_id" />
+		<field table="property" name="zoning" />
+		<field table="property" name="status" />
+		<field table="property" name="value_market" currency="${user.userCurrency.code}"/>
+		<field table="property" name="value_book" currency="${user.userCurrency.code}"/>
+		<field table="property" name="qty_occupancy" />
+		<field table="property" name="yrly_income_occ" dataType="number" decimals="2" currency="${user.userCurrency.code}"/>
+		<field table="property" name="date_costs_start" />
+		<field table="property" name="date_costs_end" />
+		<field table="property" name="date_costs_last_calcd" />
+		<field table="property" name="yrly_op_cost_rentarea" dataType="number" decimals="2" currency="${user.userCurrency.code}"/>
+		<field table="property" name="yrly_rent_income_rentarea" dataType="number" decimals="2" currency="${user.userCurrency.code}"/>
+		<field table="property" name="yrly_op_cost" dataType="number" decimals="2" currency="${user.userCurrency.code}"/>
+		<field table="property" name="yrly_util_cost" dataType="number" decimals="2" currency="${user.userCurrency.code}"/>
+		<field table="property" name="yrly_tax_cost" dataType="number" decimals="2" currency="${user.userCurrency.code}"/>
+		<field table="property" name="yrly_other_cost" dataType="number" decimals="2" currency="${user.userCurrency.code}"/>
+		<field table="property" name="yrly_rent_income" dataType="number" decimals="2" currency="${user.userCurrency.code}"/>
+		<field table="property" name="yrly_tot_cost" dataType="number" decimals="2" currency="${user.userCurrency.code}"/>
+    </dataSource>
+
+	<panel type="grid" id="abRplmPfadminPrSummary_detailsRep" dataSource="abRplmPfadminPrSummary_detailsDs" showOnLoad="false" layout="mainLayout" region="center">
+		<title translatable="true">Properties Summary</title>
+		<instructions>The costs were calculated on the Date Costs Calculated. These costs use Recurring, Scheduled, or Actual costs depending on the selections made for the Property Abstract report when it was most recently generated. To update these costs use the Property Abstract report.</instructions>
+		<field table="property" name="pr_id" />
+        <field table="property" name="name" />
+		<field table="property" name="street" />
+		<field table="property" name="city_id" />
+		<field table="property" name="zoning" />
+		<field table="property" name="status" />
+        <field table="property" name="value_market"/>
+        <field table="property" name="value_book"/>
+		<field table="property" name="qty_occupancy" />
+		<field table="property" name="yrly_income_occ" dataType="number" decimals="2">
+            <title translatable="true">Yearly Income/Occupant</title>
+		</field>	
+
+		<field table="property" name="date_costs_start" />
+		<field table="property" name="date_costs_end" />
+		<field table="property" name="date_costs_last_calcd" />
+        <field table="property" name="yrly_op_cost_rentarea" dataType="number" decimals="2">
+            <title translatable="true">Yrly Op. Cost/Rent. Area</title>
+        </field>    
+
+        <field table="property" name="yrly_rent_income_rentarea" dataType="number" decimals="2">
+            <title translatable="true">Yrly Income/Rent. Area</title>
+        </field>    
+
+        <field table="property" name="yrly_op_cost" dataType="number" decimals="2">
+            <title translatable="true">Yearly Op. Cost</title>
+        </field>    
+
+        <field table="property" name="yrly_util_cost" dataType="number" decimals="2">
+            <title translatable="true">Yearly Utility Cost</title>
+        </field>    
+
+        <field table="property" name="yrly_tax_cost" dataType="number" decimals="2">
+            <title translatable="true">Yearly Tax Cost</title>
+        </field>    
+
+        <field table="property" name="yrly_other_cost" dataType="number" decimals="2">
+            <title translatable="true">Yearly Other Cost</title>
+        </field>    
+
+        <field table="property" name="yrly_rent_income" dataType="number" decimals="2">
+            <title translatable="true">Yearly Income</title>
+        </field>    
+
+        <field table="property" name="yrly_tot_cost" dataType="number" decimals="2">
+            <title translatable="true">Yearly Total Cost</title>
+        </field>    
+	</panel>		
+	
+</view>

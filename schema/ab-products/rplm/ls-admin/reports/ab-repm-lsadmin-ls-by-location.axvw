@@ -1,0 +1,264 @@
+<view version="2.0">
+    <title>Leases by Location</title>
+    <js file="ab-repm-lsadmin-ls-by-location.js"/>
+    
+    <!-- Translatable -->
+    <message name="status_pipeline_landlord" translatable="true">Pipeline (Landlord)</message>
+    <message name="status_pipeline_tenant" translatable="true">Pipeline (Tenant)</message>
+    <message name="status_landlord" translatable="true">Landlord</message>
+    <message name="status_tenant" translatable="true">Tenant</message>
+    
+    
+    <!-- Layout -->
+    <layout id="mainLayout" type="borderlayout">
+        <north id="filterPos" initialSize="20%" split="true"/>
+        <center id="groupingPos" autoScroll="true"/>
+        <south id="itemsPos" initialSize="35%" split="true"/>
+    </layout>
+    
+    <!-- Filter console -->
+    <dataSource id="abRepmLsadminLsByLocFilter_ds">
+        <table name="bl" role="main"/>
+        <table name="ctry" role="standard"/>
+        <field table="ctry" name="geo_region_id"/>
+        <field table="bl" name="ctry_id"/>
+        <field table="bl" name="regn_id"/>
+        <field table="bl" name="state_id"/>
+        <field table="bl" name="city_id"/>
+        <field table="bl" name="site_id"/>
+        <field table="bl" name="pr_id"/>
+        <field table="bl" name="bl_id"/>
+    </dataSource>
+        
+    <panel type="console" id="abRepmLsadminLsByLocFilter" dataSource="abRepmLsadminLsByLocFilter_ds" layoutRegion="filterPos" columns="3">
+        <title>Filter</title>
+        <action id="filter">
+            <title>Show</title>
+        </action>
+        <action id="cancel">
+            <title>Cancel</title>
+        </action>
+        <field id="ls_for">
+            <title>Leases Associated With</title>
+            <html>
+                <input type="radio" name="ls_for" id="ls_for_building" value="building" checked="true" onclick="onShowLsForType(this.value);">&#160;<span id="label_item_type_building" translatable="true">Buildings</span></input>&#160;&#160;&#160;
+                <input type="radio" name="ls_for" id="ls_for_structure" value="structure" onclick="onShowLsForType(this.value);">&#160;<span id="label_item_type_structure" translatable="true">Structures</span></input>&#160;&#160;&#160;
+                <input type="radio" name="ls_for" id="ls_for_land" value="land" onclick="onShowLsForType(this.value);">&#160;<span id="label_item_type_land" translatable="true">Land</span></input>
+            </html>
+        </field>
+        <field id="fld_group_by">
+            <title>Leases Grouped By</title>
+            <html>
+                <select class="inputField_box" name="group_by" id="group_by">
+                    <option id="group_by_geo_region" value="geo_region"><span id="label_group_by_geo_region" translatable="true">Geo-Region</span></option>
+                    <option id="group_by_ctry" value="ctry"><span id="label_group_by_ctry" translatable="true">Country</span></option>
+                    <option id="group_by_regn" value="regn"><span id="label_group_by_regn" translatable="true">Region</span></option>
+                    <option id="group_by_state" value="state"><span id="label_group_by_state" translatable="true">State</span></option>
+                    <option id="group_by_city" value="city"><span id="label_group_by_city" translatable="true">City</span></option>
+                    <option id="group_by_site" value="site"><span id="label_group_by_site" translatable="true">Site</span></option>
+                    <option id="group_by_pr" value="property"><span id="label_group_by_pr" translatable="true">Property</span></option>
+                    <option id="group_by_bl" value="bl"><span id="label_group_by_bl" translatable="true">Building</span></option>
+                </select>
+            </html>
+        </field>
+        <field id="ls_expired">
+            <title>Include Expired Leases</title>
+            <html>
+                <input type="checkbox" name="chk_ls_expired" id="chk_ls_expired"/>
+            </html>
+        </field>
+        
+        <field table="ctry" name="geo_region_id">
+            <title>Geo-Region Code</title>
+            <action>
+                <title translatable="false">...</title>
+                <tooltip>Select Value</tooltip>
+                <command type="selectValue"
+                    selectValueType="multiple"
+                    fieldNames="ctry.geo_region_id"
+                    selectFieldNames="geo_region.geo_region_id"
+                    visibleFieldNames="geo_region.geo_region_id,geo_region.geo_region_name"/>
+            </action>
+        </field>
+        <field table="bl" name="state_id" selectValueType="multiple"/>
+        <field table="bl" name="pr_id" selectValueType="multiple"/>
+        
+        
+        <field table="bl" name="ctry_id" selectValueType="multiple"/>
+        <field table="bl" name="city_id" selectValueType="multiple"/>
+        <field table="bl" name="bl_id" selectValueType="multiple"/>
+        
+        <field table="bl" name="regn_id" selectValueType="multiple"/>
+        <field table="bl" name="site_id" selectValueType="multiple"/>
+    </panel>
+
+    <panel type="view" id="groupBy_list" file="ab-repm-lsadmin-ls-by-location-groupby.axvw" layoutRegion="groupingPos"/>
+    
+    <!-- Leases -->
+    <dataSource id="abRepmLsadminLsByLocLease_ds">
+        <table name="ls" role="main"/>
+        <table name="bl" role="standard"/>
+        <table name="property" role="standard"/>
+        
+        <field table="ls" name="ls_id"/>
+        <field table="bl" name="bl_id"/>
+        <field table="property" name="pr_id"/>
+        <field name="geo_region_id" dataType="text">
+            <title>Geo-Region Code</title>
+            <sql dialect="generic">
+                (SELECT ctry.geo_region_id FROM ctry WHERE ctry.ctry_id = (CASE WHEN ls.bl_id IS NOT NULL THEN bl.ctry_id ELSE property.ctry_id END))
+            </sql>
+        </field>
+        <field table="ls" name="description"/>
+        <field table="ls" name="vf_status" dataType="text">
+            <sql dialect="generic">
+                (CASE 
+                    WHEN ls.signed = 0 AND ls.landlord_tenant = 'LANDLORD'
+                        THEN ${parameters['pipeline_landlord']}
+                    WHEN ls.signed = 0 AND ls.landlord_tenant = 'TENANT'
+                        THEN ${parameters['pipeline_tenant']}
+                    WHEN ls.signed = 1 AND ls.landlord_tenant = 'LANDLORD'
+                        THEN ${parameters['landlord']}
+                    WHEN ls.signed = 1 AND ls.landlord_tenant = 'TENANT'
+                        THEN ${parameters['tenant']} 
+                END)
+            </sql>
+        </field>
+        <field table="ls" name="ls_parent_id"/>
+        <field table="ls" name="date_start"/>
+        <field table="ls" name="date_move"/>
+        <field table="ls" name="date_end"/>
+        <field table="ls" name="signed"/>
+        <field table="ls" name="landlord_tenant"/>
+        <field table="ls" name="vf_color" dataType="text">
+            <sql dialect="generic">
+                (CASE 
+                    WHEN ls.signed = 0 AND ls.landlord_tenant = 'LANDLORD'
+                        THEN '#FFFF00'
+                    WHEN ls.signed = 0 AND ls.landlord_tenant = 'TENANT'
+                        THEN '#FF0000'
+                    WHEN ls.signed = 1 AND ls.landlord_tenant = 'LANDLORD'
+                        THEN '#00FF7F'
+                    WHEN ls.signed = 1 AND ls.landlord_tenant = 'TENANT'
+                        THEN '#ADD8E6' 
+                END)
+            </sql>
+        </field>
+        <field table="ls" name="area_common"/>
+        <field table="ls" name="area_negotiated"/>
+        <field table="ls" name="area_rentable"/>
+        <field table="ls" name="area_usable"/>
+        <field table="ls" name="lease_sublease"/>
+        <field table="ls" name="automatic_renewal"/>
+        <field table="ls" name="comments"/>
+        <field table="ls" name="signed"/>
+        <field table="ls" name="ld_name"/>
+        <field table="ls" name="ld_contact"/>
+        <field table="ls" name="tn_name"/>
+        <field table="ls" name="tn_contact"/>
+        <field table="ls" name="amount_security" dataType="number" size="20" decimals="2" currency="${user.userCurrency.code}">
+            <sql dialect="generic">
+                 (ls.amount_security * ${sql.exchangeRateFromBudgetToUser('Budget')})
+            </sql>
+        </field>
+        <field table="ls" name="qty_occupancy"/>
+        <field table="ls" name="floors"/>
+        <field table="ls" name="ac_id"/>
+        <field table="ls" name="lease_type"/>
+        <field table="ls" name="space_use"/>
+        <field table="ls" name="vat_exclude"/>
+        
+        <parameter name="pipeline_landlord" dataType="text" value=""/>
+        <parameter name="pipeline_tenant" dataType="text" value=""/>
+        <parameter name="landlord" dataType="text" value=""/>
+        <parameter name="tenant" dataType="text" value=""/>
+        <restriction type="sql" sql="ls.use_as_template = 0"/>S
+    </dataSource>
+    
+    <panel type="grid" controlType="reportGrid" id="abRepmLsadminLsByLocLeases" dataSource="abRepmLsadminLsByLocLease_ds" afterRefresh="setColorForLeaseStatus" layoutRegion="itemsPos" showOnLoad="false">
+        <sortField table="ls" name="ls_id" ascending="true"/>
+        <title>Leases</title>
+        <action id="export_DOCX">
+            <title>DOCX</title>
+            <command type="callFunction" functionName="exportToDocx"/>
+        </action>
+        <action id="export_XLS" hidden="false">
+            <title>XLS</title>
+            <command type="exportPanel" outputType="xls" panelId="abRepmLsadminLsByLocLeases"/>
+        </action>
+        <field table="ls" name="ls_id" controlType="link">
+            <command type="openDialog" panelId="abRepmLsadminLsByLocLeaseDetails" width="1024" height="600"/>
+        </field>
+        <field table="bl" name="bl_id"/>
+        <field table="property" name="pr_id"/>
+        <field table="ls" name="description"/>
+        <field table="ls" name="vf_status" dataType="text">
+            <title>Status</title>
+        </field>
+        <field table="ls" name="ls_parent_id"/>
+        <field table="ls" name="date_start"/>
+        <field table="ls" name="date_move"/>
+        <field table="ls" name="date_end"/>
+        
+        <field table="ls" name="area_common"/>
+        <field table="ls" name="area_negotiated"/>
+        <field table="ls" name="area_rentable"/>
+        <field table="ls" name="area_usable"/>
+        <field table="ls" name="vf_color" dataType="text" hidden="true"/>
+    </panel>
+    
+    <panel type="form" id="abRepmLsadminLsByLocLeaseDetails" dataSource="abRepmLsadminLsByLocLease_ds" afterRefresh="formatCurrency" useParentRestriction="false" columns="3" hidden="true" showOnLoad="false">
+        <title translatable="true">Lease Details</title>
+        <action id="export_DOCX">
+            <title>DOCX</title>
+            <command type="callFunction" functionName="exportToDocx"/>
+        </action>
+    <!-- First row -->
+        <field table="ls" name="ls_id" readOnly="true"/>
+        <field table="bl" name="bl_id" readOnly="true"/>
+        <field table="property" name="pr_id" readOnly="true"/>
+    <!-- Second row -->
+        <field table="ls" name="description" readOnly="true"/>
+        <field table="ls" name="signed" readOnly="true"/>
+        <field table="ls" name="amount_security" dataType="number" readOnly="true" currency="${user.userCurrency.code}"/>
+
+    <!-- third row -->
+        <field table="ls" name="date_start" readOnly="true"/>
+        <field table="ls" name="ld_name" readOnly="true"/>
+        <field table="ls" name="qty_occupancy" readOnly="true"/>
+    <!-- fourth row -->
+        <field table="ls" name="date_move" readOnly="true"/>
+        <field table="ls" name="ld_contact" readOnly="true"/>
+        <field table="ls" name="floors" readOnly="true"/>
+    <!-- fifth row -->
+        <field table="ls" name="date_end" readOnly="true"/>
+        <field table="ls" name="tn_name" readOnly="true"/>
+        <field table="ls" name="landlord_tenant" readOnly="true"/>
+    <!-- sixth row -->
+        <field table="ls" name="lease_type" readOnly="true"/>
+        <field table="ls" name="tn_contact" readOnly="true"/>
+        
+        <field table="ls" name="lease_sublease" readOnly="true"/>
+        
+    <!-- seventh row -->
+        <field table="ls" name="automatic_renewal" readOnly="true">
+            <title>Assume Renewal for KPI Calculations</title>
+        </field>
+        <field table="ls" name="space_use" readOnly="true"/>
+        <field table="ls" name="ls_parent_id" readOnly="true"/>
+
+    <!-- eight row -->
+        
+        <field table="ls" name="ac_id" readOnly="true"/>
+        <field table="ls" name="area_negotiated" readOnly="true"/>
+        <field table="ls" name="area_common"/>
+
+        <field table="ls" name="vat_exclude"  hidden="${activityParameters['AbCommonResources-EnableVatAndMultiCurrency'] == 0}" readOnly="true"/>
+        <field table="ls" name="area_rentable"/>
+        <field table="ls" name="area_usable"/>
+
+
+        <field table="ls" name="comments" colspan="3"/>
+    </panel>
+    
+</view>

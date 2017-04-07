@@ -1,0 +1,113 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<afmXmlView>
+    <title translatable="false">Review an Equipment Item's Maintenance History</title>
+
+    <!-- The first table group is a list of equipment items to select.  This eq_id restricts
+    the analysis of historical work requests. -->
+    <afmTableGroup type="form" format="table" defaultActions="true" frame="primaryKeyFrame">
+        <title translatable="false">Equipment Items</title>
+        <dataSource>
+            <database>
+                <tables>
+                    <table name="eq" role="main"/>
+                </tables>
+                <fields>
+                    <field name="eq_id" table="eq"/>
+                    <field name="bl_id" table="eq"/>
+                </fields>
+                <restrictions>
+                    <restriction type="sql"
+                        sql="EXISTS (SELECT 1 FROM hwr WHERE hwr.eq_id = eq.eq_id)">
+                        <title translatable="false">Equipment with Historical Work Requests</title>
+                        <field table="eq"/>
+                    </restriction>
+                </restrictions>
+                <sort>
+                    <order>
+                        <field name="eq_id" table="eq" ascending="true"/>
+                    </order>
+                </sort>
+            </database>
+        </dataSource>
+
+	   <!-- The second table-group is a chart of historical work requests completed for that selected
+	   equipment item. -->
+        <afmTableGroup type="report" format="table" defaultActions="false" frame="detailsFrame">
+            <title translatable="false">Historical Work Requests</title>
+            <dataSource>
+                <database>
+                    <tables>
+                        <table name="hwr" role="main"/>
+                    </tables>
+                    <fields>
+                        <field name="wr_id" table="hwr"/>
+                        <field name="prob_type" table="hwr"/>
+                        <field name="repair_type" table="hwr"/>
+                    </fields>
+                    <sort>
+                        <order>
+                            <field name="prob_type" table="hwr" ascending="true"/>
+                            <field name="repair_type" table="hwr" ascending="true"/>
+                        </order>
+                    </sort>
+                </database>
+                <mdx>
+				<!-- Since this parent view is a framed view, it doesn't suit as a drill-down view.
+				Supply a more appropriate view for the drill-down details. -->
+				<afmAction type="render" newWindow="true" response="true"
+					name="ab-ex-mdx-eq-hwr-2d-details.axvw">
+				</afmAction>
+
+                    <preferences dimensions="2" maxDimensions="2" format="table">
+
+					<!-- Count the number of historical work requests of each problem and repair type. -->
+                        <measures>
+                            <measure name="Count" aggregator="count" column="wr_id">
+				<title translatable="false">Count</title>
+			    </measure>
+                        </measures>
+
+				    <!-- Show a table of the problem and repair types on each axis.  Notice that this
+				    chart is dynamically created and only the problem or repair types that were used for
+				    the selected equipment item show up in the chart.
+
+				    It is essential to include the eq_id in each dimension; otherwise, you will get a
+				    count of all records for that problem type, not just the ones for that
+				    problem type and selected equipment item.
+
+				    It is also essential to include hasAll="false" in order to disable the total row.
+				    The total row isn't restricted by the dimensions and will get the totals for
+				    all equipment.  In a view like this, this information would be misleading.
+				    -->
+                        <dimensions>
+                            <dimension name="Problem Type" table="hwr" column="prob_type"  hasAll="false">
+                                <title translatable="false">Problem Type</title>
+				<allMemberTitle translatable="false">Problem Types</allMemberTitle>
+				<fields>
+					<field name="eq_id" table="hwr"/>
+					<field name="prob_type" table="hwr"/>
+				</fields>
+                            </dimension>
+
+                            <dimension name="Repair Type" table="hwr" column="repair_type"  hasAll="false">
+                                <title translatable="false">Repair Type</title>
+				<allMemberTitle translatable="false">Repair Types</allMemberTitle>
+				<fields>
+					<field name="eq_id" table="hwr"/>
+					<field name="repair_type" table="hwr"/>
+				</fields>
+			    </dimension>
+                        </dimensions>
+                    </preferences>
+                </mdx>
+            </dataSource>
+        </afmTableGroup>
+    </afmTableGroup>
+
+  <!-- It's important to use a frameset for this view.  The view will render both table groups to
+  the same frame; however, it isn't clear to the user in that case to which equipment
+  item the selection restriction is currently being applied.  -->
+
+  <fileCategory extension="frms" fileName="pkey.frms" />
+
+</afmXmlView>

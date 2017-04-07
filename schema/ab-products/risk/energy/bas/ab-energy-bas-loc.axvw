@@ -1,0 +1,265 @@
+<view version="2.0" showLoadProgress="true">
+    <title translatable="true">Meter Analytics by Location</title>
+    <layout id="mainLayout">
+        <north initialSize="120" split="true" id="console"/>
+        <center />
+  	</layout>
+  	<layout id="nestedLayout_1" containingLayout="mainLayout" region="center">
+        <west initialSize="400" split="true" id="tree"/>
+        <center id="chart"/>
+  	</layout>
+  	<js file="ab-energy-bas-loc.js"/>
+    
+    <style type="text/css">
+        span.ygtvlabel_pk, span.ygtvlabel {padding:0 0 0 5px;}
+    </style>
+  	
+    <!-- Note on Area Normalization: First group time_norm data by data_point and get area for each data point.  
+    Then group data points by locDtl, summing areas to get total area for the locDtl grouping.
+    Use this total locDtl area for normalization of the location's consumption/demand value. -->
+    
+    <dataSource id="energyBasLoc_ds" applyVpaRestrictions="false">
+        <table name="bas_data_time_norm_num" />
+        <sql dialect="generic">
+        SELECT locDtl,
+            (CASE WHEN (${parameters['selectedNormByArea']} = '1') 
+             THEN (CASE WHEN SUM(bas_data_time_norm_num.area) = 0 
+                   THEN 0 
+                   ELSE (${parameters['sum.max']}(bas_data_time_norm_num.value_common)) / (SUM(bas_data_time_norm_num.area)) 
+                   END) 
+             ELSE ${parameters['sum.max']}(bas_data_time_norm_num.value_common) 
+             END) / ${parameters['conversion.factor']} ${sql.as} value_common
+        FROM 
+        (   SELECT MIN(${parameters['locDtl']}) ${sql.as} locDtl,
+            ${parameters['sum.max']}(bas_data_time_norm_num.value_common) ${sql.as} value_common,
+            MIN(CASE WHEN bas_data_point.area=0 THEN bas_data_point.area_manual ELSE bas_data_point.area END) ${sql.as} area
+            FROM bas_data_time_norm_num
+            LEFT OUTER JOIN bas_data_point ON bas_data_time_norm_num.data_point_id = bas_data_point.data_point_id
+            LEFT OUTER JOIN bill_unit ON (bill_unit.bill_unit_id = bas_data_point.bill_unit_id AND bill_unit.bill_type_id = bas_data_point.bill_type_id) 
+            LEFT OUTER JOIN bas_measurement_scope ON bas_measurement_scope.data_point_id = bas_data_time_norm_num.data_point_id
+            LEFT OUTER JOIN bl ON bas_measurement_scope.bl_id = bl.bl_id 
+            LEFT OUTER JOIN site ON bas_measurement_scope.site_id = site.site_id       
+            WHERE ${parameters['consoleRestriction']} AND bas_data_time_norm_num.interval=
+                (CASE   WHEN bas_data_point.sampling_interval &gt;= 31536000 THEN 'YEAR'
+                        WHEN bas_data_point.sampling_interval &gt;= 7776000 THEN 'QUARTER'
+                        WHEN bas_data_point.sampling_interval &gt;= 2592000 THEN 'MONTH'
+                        WHEN bas_data_point.sampling_interval &gt;= 604800 THEN 'WEEK'
+                        ELSE 'DAY' END)
+            GROUP BY bas_data_time_norm_num.data_point_id
+        ) ${sql.as} bas_data_time_norm_num        
+        GROUP BY locDtl
+        </sql>
+        <field table="bas_data_time_norm_num" name="value_common" dataType="number" decimals="3"/>
+        <field table="bas_data_time_norm_num" name="locDtl" dataType="text" />
+        <sortField table="bas_data_time_norm_num" name="locDtl" />
+        <parameter name="consoleRestriction" dataType="verbatim" value=" 1=1 "/>
+        <parameter name="sum.max" dataType="verbatim" value=" SUM "/>
+        <parameter name="conversion.factor" dataType="verbatim" value="1"/>
+        <parameter name="selectedNormByArea" dataType="text" value="1"/>
+        <parameter name="locDtl" dataType="verbatim" value=" (CASE WHEN (bas_measurement_scope.site_id IS NULL AND bas_measurement_scope.bl_id IS NULL) 
+		  THEN ${parameters['noSite']} ${sql.concat} '-' ${sql.concat} ${parameters['noBuilding']}
+		  WHEN (bas_measurement_scope.site_id IS NOT NULL AND bas_measurement_scope.bl_id IS NULL) 
+		  THEN RTRIM(bas_measurement_scope.site_id) ${sql.concat} '-' ${sql.concat} ${parameters['noBuilding']}
+		  ELSE RTRIM(bl.site_id) ${sql.concat} '-' ${sql.concat} RTRIM(bl.bl_id) END) "/>
+        <parameter name="noCity" dataType="text" value="None"/>
+        <parameter name="noSite" dataType="text" value="None"/>
+		<parameter name="noBuilding" dataType="text" value="None"/>
+    </dataSource>
+    
+    <dataSource id="energyBasLoc_dsConsole" applyVpaRestrictions="false">
+        <table name="bl" />
+        <field table="bl" name="bl_id" />
+        <field name="date_start" dataType="date">
+        		<sql dialect="generic">2014-01-01</sql>
+        </field>
+        <field name="date_end" dataType="date">
+        		<sql dialect="generic">2014-01-01</sql>
+        </field>
+        <field name="construction_type"/>
+        <field name="use1"/>
+    </dataSource>
+    
+    <panel type="tree" id="energyBasLoc_ctryTree" dataSource="energyBasCommon_dsCtry" layoutRegion="tree">
+      <title>Meter by Location</title>
+      <action type="menu" id="energyBasLoc_selectOptionsMenu">
+        	<title>Select Options</title>
+        	<action id="expandAll">
+		      		<title>Expand All</title>
+		      		<command type="callFunction" functionName="onTreeExpandAll('energyBasLoc_ctryTree', true)"/>
+		      </action>
+		      <action id="collapseAll">
+		      		<title>Collapse All</title>
+		      		<command type="callFunction" functionName="onTreeExpandAll('energyBasLoc_ctryTree', false)"/>
+		      </action>
+		      <action id="selectAll">
+		      		<title>Select All</title>
+		      		<command type="callFunction" functionName="onTreeSelectAll('energyBasLoc_ctryTree', true)"/>
+		      </action>
+		      <action id="unselectAll">
+		      		<title>Unselect All</title>
+		      		<command type="callFunction" functionName="onTreeSelectAll('energyBasLoc_ctryTree', false)"/>
+		      </action>
+		  </action>
+		  <action id="showSelected">
+		      		<title>Show Selected</title>
+		      </action>
+	    <panel type="tree" id="energyBasLoc_cityTree" dataSource="energyBasCommon_dsCity">
+	        <title>Cities</title>
+	    </panel>
+	    <panel type="tree" id="energyBasLoc_siteTree" dataSource="energyBasCommon_dsSite">
+	        <title>Sites</title>
+	    </panel>
+	    <panel type="tree" id="energyBasLoc_blTree" dataSource="energyBasCommon_dsBl">
+	        <title>Buildings</title>
+	    </panel>
+	    <panel type="tree" id="energyBasLoc_meterTree" dataSource="energyBasCommon_dsMeter">
+	        <title>Meter</title>
+	        <event type="onClickNode">
+			        <command type="callFunction" functionName="onClickTreeNode('energyBasLoc_ctryTree')"/>
+			    </event>
+	    </panel>
+    </panel>
+    
+    <panel id="energyBasLoc_console" layoutRegion="console" type="console" dataSource="energyBasLoc_dsConsole" columns="4">
+    		<title>Filter</title>
+    		<action id="show">
+    				<title>Show</title>
+    		</action>
+    		<action id="clear">
+    				<title>Clear</title>
+    		</action>
+            <field>
+                <title>Bill Type</title>    
+                <html>
+                    <select id="energyBasLoc_billTypeSelect" class="inputField_box" onchange="changeUnits();">
+                                <option id="energyBasLoc_billTypeSelect_electricConsumption" value="electricC" selected ="1">
+                                    <span translatable="true">Electric Consumption</span>
+                                </option>
+                                    <option id="energyBasLoc_billTypeSelect_electricDemand" value="electricD">
+                                    <span translatable="true">Electric Demand</span>
+                                </option>
+                                    <option id="energyBasLoc_billTypeSelect_gasNatural" value="gasNatural">
+                                    <span translatable="true">Gas - Natural</span>
+                                </option>
+                                    <option id="energyBasLoc_billTypeSelect_gasPropane" value="gasPropane">
+                                    <span translatable="true">Gas - Propane</span>
+                                </option>
+                                <option id="energyBasLoc_billTypeSelect_oil" value="oil">
+                                    <span translatable="true">Fuel Oil 1</span>
+                                </option>
+                                <option id="energyBasLoc_billTypeSelect_oil2" value="oil2">
+                                    <span translatable="true">Fuel Oil 2</span>
+                                </option>
+                                <option id="energyBasLoc_billTypeSelect_water" value="water" >
+                                    <span translatable="true">Water</span>
+                                </option>
+                                <option id="energyBasLoc_billTypeSelect_sewer" value="sewer" >
+                                    <span translatable="true">Sewer</span>
+                                </option>
+                    </select>
+                </html>
+            </field>
+            <field name="construction_type" onchange="setTreeRefresh();"/>
+            <field name="use1" onchange="setTreeRefresh();"/>
+            <field id="energyBasLoc_locDtl">
+		    		<title>Location Detail</title>
+		        		<html>
+		                    <select id="energyBasLoc_locDtlSelect" class="inputField_box">
+		                    		<option id="energyBasLoc_locDtlSelect_city" value="byCity">
+		                            <span translatable="true">City</span>
+		                        </option>
+		                    		<option id="energyBasLoc_locDtlSelect_site" value="bySite">
+		                            <span translatable="true">Site</span>
+		                        </option>
+		                        <option id="energyBasLoc_locDtlSelect_bl" value="byBuilding" selected="1">
+		                            <span translatable="true">Building</span>
+		                        </option>
+		                        <option id="energyBasLoc_locDtlSelect_meter" value="byMeter">
+		                            <span translatable="true">Meter</span>
+		                        </option>
+		                    </select>
+		             </html>
+		    </field>
+            <field>
+	          	<title>Date Range - Last</title>	
+	            <html>
+	              	<select id="energyBasLoc_dateRangeSelect" class="inputField_box" onblur="setDates('energyBasLoc_console', $('energyBasLoc_dateRangeSelect').value)" onchange="setDates('energyBasLoc_console', $('energyBasLoc_dateRangeSelect').value)">
+		                    	<option id="energyBasLoc_dateRangeSelect_none" value="none">
+		                            <span translatable="true"></span>
+		                        </option>
+		                    		<option id="energyBasLoc_dateRangeSelect_5year" value="5year">
+		                            <span translatable="true">5 Years</span>
+		                        </option>
+		                    		<option id="energyBasLoc_dateRangeSelect_year" value="year" selected="1">
+		                            <span translatable="true">Year</span>
+		                        </option>
+		                    		<option id="energyBasLoc_dateRangeSelect_qtr" value="qtr">
+		                            <span translatable="true">Quarter</span>
+		                        </option>
+		                        <option id="energyBasLoc_dateRangeSelect_month" value="month">
+		                            <span translatable="true">Month</span>
+		                        </option>
+		                        <option id="energyBasLoc_dateRangeSelect_week" value="week" >
+		                            <span translatable="true">Week</span>
+		                        </option>
+		                        <option id="energyBasLoc_dateRangeSelect_day" value="day" >
+		                            <span translatable="true">Day</span>
+		                        </option>
+		            </select>
+                </html>
+            </field>
+		    <field name="date_start" dataType="date" required="true" >
+                <title>From Date</title>
+            </field>
+            <field name="date_end" dataType="date" required="true" >
+                <title>To Date</title>
+            </field>
+            <field/>		
+            <field>
+                <title>Display Units</title>    
+                    <html>
+                        <select id="energyBasLoc_billUnitsSelect" class="inputField_box">
+                        </select>
+                    </html>
+            </field>
+            <field id="energyBasLoc_normArea">
+                  <title>Normalize by Area</title>
+                  <html>
+                        <input id="energyBasLoc_normAreaCheck" type="checkbox" value="" checked="true" name="energyBasLoc_normAreaCheck"/>
+                  </html>
+            </field>             
+    </panel>
+    
+    <panel 	id="energyBasLoc_chart" 
+    		type="chart"
+    		layoutRegion="chart" 
+    		controlType="columnChart" 
+    		dataSource="energyBasLoc_ds" 
+    		showOnLoad="false"
+    		showLegendOnLoad="true"
+    		showLegendAsPopUp="false" 
+    		legendLocation="right"
+    		showDataTips="true">
+        <title translatable="true">Metered Usage</title>
+        <action type="menu" id="energyBasLoc_toolsMenu" imageName="/schema/ab-core/graphics/icons/view/export.png">
+            <title translatable="true">Export</title>
+            <tooltip>Export</tooltip>
+            <action id="exportDOCX">
+                <title>Export to DOCX</title>
+                <command type="exportPanel" outputType="docx" orientation="landscape" panelId="energyBasLoc_chart"/>
+            </action>
+            <action id="exportPDF">
+                <title>Export to PDF</title>
+                <command type="exportPanel" outputType="pdf" panelId="energyBasLoc_chart"/>
+            </action>
+        </action>
+        <groupingAxis dataSource="energyBasLoc_ds" table="bas_data_time_norm_num" field="locDtl" showLabel="true" showTitle="false" labelRotation="45">
+            <title translatable="true">Location</title>
+        </groupingAxis>
+        <dataAxis dataSource="energyBasLoc_ds" table="bas_data_time_norm_num" field="value_common" showLabel="true" showTitle="false" >
+            <title translatable="true">Metered Usage</title>
+        </dataAxis>
+    </panel>
+
+		<panel type="view" file="ab-energy-bas-common.axvw" id="energyBasTime_commonView"/>
+</view>

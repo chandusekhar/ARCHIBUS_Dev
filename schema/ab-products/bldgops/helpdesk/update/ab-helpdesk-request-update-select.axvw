@@ -1,0 +1,161 @@
+
+<view version="2.0">
+    
+  <layout id="main">
+        <north id="console" initialSize="20%" split="true"/>
+        <center/>
+    </layout>
+    <layout id="nested_center" containingLayout="main" region="center">
+        <north id="row1col2" initialSize="40%" split="true"/>
+        <center id="row2col2"/>
+    </layout>
+      
+  <message name="selectTitle" translatable="true">-select-</message>
+  <message name="requestType" translatable="true">Service Desk Request Type</message>
+  <message name="error_date_range" translatable="true">Given dates are invalid.</message>
+  <message name="substituteLegend" translatable="true">Service Requests assigned to you as substitute</message>	
+		
+  <js file="ab-helpdesk-request-update-select.js" />
+  <js file="ab-helpdesk-common-v2.js"/>
+  	
+  <dataSource id="selectDS_1">
+    <table name="activity_log" role="main"/>
+    <field table="activity_log" name="activity_log_id"/>
+    <field table="activity_log" name="requestor"/>
+    <field table="activity_log" name="date_requested"/>
+    <field table="activity_log" name="date_required"/>
+    <field table="activity_log" name="status"/>
+    <field table="activity_log" name="activity_type"/>
+    <field name="date_escalation_response" table="activity_log"/>
+    <field name="time_escalation_response" table="activity_log"/>
+    <field name="date_escalation_completion" table="activity_log"/>
+    <field name="time_escalation_completion" table="activity_log"/>
+    <field name="assigned_to" table="activity_log"/>
+    
+    <parameter name="emWorkflowSubstitutes" dataType="verbatim" value="''"/>
+    
+    <restriction type="sql" 
+        sql="((activity_type in ('SERVICE DESK - DEPARTMENT SPACE','SERVICE DESK - GROUP MOVE','SERVICE DESK - 
+INDIVIDUAL MOVE') AND activity_log.status='APPROVED' 
+             AND NOT exists (select 1 from mo where activity_log.activity_log_id=mo.activity_log_id) AND ( 
+NOT exists (select 1 from rmpct where  rmpct.activity_log_id=activity_log.activity_log_id) or exists( 
+select 1 from rmpct where rmpct.activity_log_id = activity_log.activity_log_id AND (rmpct.bl_id IS NULL OR 
+rmpct.fl_id IS NULL OR rmpct.rm_id IS NULL)))
+            or (activity_type not in ('SERVICE DESK - DEPARTMENT SPACE','SERVICE DESK - GROUP 
+MOVE','SERVICE DESK - INDIVIDUAL MOVE') and activity_type LIKE 'SERVICE DESK%' AND status IN 
+('APPROVED','IN PROGRESS') 
+            AND (step_status IS NULL OR step_status = 'none') ) )
+            AND (assigned_to = ${sql.literal(user.employee.id)}
+            OR vn_id IN (SELECT vn_id FROM vn WHERE email = ${sql.literal(user.email)}) OR assigned_to ${sql.concat}  'acceptance' IN 
+(${parameters['emWorkflowSubstitutes']})))"
+
+    />
+						
+  </dataSource>
+  
+  <panel type="console" columns="4" labelsPosition="top" id="requestConsole" dataSource="selectDS_1" layoutRegion="console">
+    <action id="filter">
+      <title translatable="true">Filter</title>
+    </action>
+    
+    <action id="clear">
+      <title translatable="true">Clear</title>
+    </action>
+    
+    <field table="activity_log" name="activity_type" value="">
+      <title translatable="true">Request Type</title>
+      <action id="selectRequestType">
+        <title>...</title>
+      </action>
+    </field>
+    
+    <field table="activity_log" name="status"/>
+    
+    <field table="activity_log" name="date_requested" alias="activity_log.date_requested.from">
+      <title translatable="true">Date Requested From</title>
+    </field>
+    
+    <field table="activity_log" name="date_requested" alias="activity_log.date_requested.to">
+      <title translatable="true">Date Requested To</title>
+    </field>
+  
+  </panel>
+  
+
+  <panel type="grid" id="requestReportGrid" controlType="reportGrid" useParentRestriction="false" dataSource="selectDS_1" layoutRegion="row1col2">
+    <title translatable="true">Requests Requiring Service</title>
+    <field controlType="button" id="update">
+      <!-- <command type="selectTabPage" tabPageName="update"/> -->
+      <title translatable="true">Select</title>
+    </field>
+    
+    <field table="activity_log" name="activity_log_id">
+      <title translatable="true">Service Request ID</title>
+    </field>
+    <field table="activity_log" name="requestor"/>
+    <field table="activity_log" name="activity_type">
+      <title translatable="true">Request Type</title>
+    </field>
+    <field table="activity_log" name="status"/>
+    <field table="activity_log" name="date_requested"/>
+    <field table="activity_log" name="date_required"/>
+    <field name="date_escalation_response" table="activity_log" readOnly="true"/>
+    <field name="date_escalation_completion" table="activity_log" readOnly="true"/>
+  	
+  	<sortField table="activity_log" name="activity_log_id" ascending="false"/>
+    <sortField table="activity_log" name="date_requested" ascending="false"/>
+    
+  </panel>
+  
+  <dataSource id="selectDS_21">
+    <table name="activity_log" role="main"/>
+    <field table="activity_log" name="activity_log_id"/>
+    <field table="activity_log" name="requestor"/>
+    <field table="activity_log" name="date_requested"/>
+    <field table="activity_log" name="date_required"/>
+    <field table="activity_log" name="status"/>
+    <field table="activity_log" name="activity_type"/>
+    <field table="activity_log" name="assigned_to"/>
+    <field name="date_escalation_response" table="activity_log"/>
+    <field name="time_escalation_response" table="activity_log"/>
+    <field name="date_escalation_completion" table="activity_log"/>
+    <field name="time_escalation_completion" table="activity_log"/>
+    <parameter name="emWorkflowSubstitutes" dataType="verbatim" value="''"/>
+    
+    <restriction type="sql" 
+        sql="  exists (select 1 from rmpct where rmpct.activity_log_id = activity_log.activity_log_id ) 
+        and activity_type in ('SERVICE DESK - DEPARTMENT SPACE','SERVICE DESK - GROUP MOVE','SERVICE DESK - INDIVIDUAL MOVE') 
+        AND NOT exists (select 1 from rmpct where rmpct.activity_log_id= activity_log.activity_log_id  AND rmpct.bl_id is  null AND rmpct.fl_id is  null 
+        AND rmpct.rm_id is  null)  
+        AND activity_log.status='APPROVED' AND NOT exists (select 1 from mo where activity_log.activity_log_id=mo.activity_log_id) AND (assigned_to = ${sql.literal(user.employee.id)}
+            OR vn_id IN (SELECT vn_id FROM vn WHERE email = ${sql.literal(user.email)}) OR assigned_to ${sql.concat}  'acceptance' IN 
+(${parameters['emWorkflowSubstitutes']}))"
+    />
+                        
+  </dataSource>
+  <panel type="grid" id="requestReportGrid2" controlType="reportGrid" useParentRestriction="false" dataSource="selectDS_21" layoutRegion="row2col2">
+    <title translatable="true">Requests Not Requiring Service</title>
+    <field controlType="button" id="update">
+      <!-- <command type="selectTabPage" tabPageName="update"/> -->
+      <title translatable="true">Select</title>
+    </field>
+    
+    <field table="activity_log" name="activity_log_id">
+      <title translatable="true">Service Request ID</title>
+    </field>
+    <field table="activity_log" name="requestor"/>
+    <field table="activity_log" name="activity_type">
+      <title translatable="true">Request Type</title>
+    </field>
+    <field table="activity_log" name="status"/>
+    <field table="activity_log" name="date_requested"/>
+    <field table="activity_log" name="date_required"/>
+    <field name="date_escalation_response" table="activity_log" readOnly="true"/>
+    <field name="date_escalation_completion" table="activity_log" readOnly="true"/>
+    
+    <sortField table="activity_log" name="activity_log_id" ascending="false"/>
+    <sortField table="activity_log" name="date_requested" ascending="false"/>
+    
+  </panel>
+  
+</view>

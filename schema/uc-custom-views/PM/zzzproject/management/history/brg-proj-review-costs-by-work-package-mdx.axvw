@@ -1,0 +1,157 @@
+<!-- CHANGE LOG -->
+<!-- 2010/09/16 - EWONG - ISSUE 322 - Provided workaround for the sql so that the MAX function isn't used for -->
+<!--                      aggregating since it was causing totals to not be summed. -->
+<afmXmlView>
+    <preferences>
+		<viewTitleBar show="false"/>
+	</preferences>
+
+  <title translatable="true">Review Costs by Work Package</title>
+
+    <afmTableGroup type="report" format="table" defaultActions="false">
+      <title translatable="true">Review Costs by Work Package</title>
+		<dataSource>
+		  <database>
+			 <tables>
+				 <table name="work_pkgs" role="main"/>
+				 <table name="activity_log" role="standard"/>
+				 <table name="invoice" role="standard"/>
+				 <table name="project" role="standard"/>
+			</tables>
+			<!--sort>
+				<order>
+					<field name="work_pkg_id" table="work_pkg_bids" ascending="true"/>
+				</order>
+			</sort-->
+			<fields>
+				<field name="activity_log_id" table="activity_log"/>
+				<field name="cost_est_cap" table="activity_log"/>
+				<field name="cost_estimated" table="activity_log"/>
+				<field name="cost_est_design_cap" table="activity_log"/>
+				<field name="cost_est_design_exp" table="activity_log"/>
+				<field name="cost_act_cap" table="activity_log"/>
+				<field name="cost_actual" table="activity_log"/>
+				<field name="work_pkg_id" table="activity_log"/>
+			</fields>
+		</database>
+      <mdx>
+   <afmAction type="render" newWindow="true" response="true" name="brg-proj-work-pkgs-report.axvw"></afmAction>
+    <preferences dimensions="1" format="table">
+	<query>
+	<sql dialect="generic">
+			SELECT activity_log.work_pkg_id, activity_log_id, activity_log.project_id,bl.city_id, bl.state_id, project.program_id, program.program_type, project.project_type, project.status, project.site_id, project.dp_id, project.bl_id, project.dv_id, project.proj_mgr, project.is_template,
+			(cost_est_cap + cost_estimated) AS baseline_costs,
+			(cost_est_design_cap + cost_est_design_exp) AS design_estimated_costs,
+			(cost_act_cap + cost_actual) AS actual_costs,
+			(SELECT ISNULL(SUM(cost_est_cap + cost_estimated),0.0) from activity_log AS actlog_inner WHERE actlog_inner.activity_type = 'PROJECT - CHANGE ORDER' AND actlog_inner.project_id = activity_log.project_id AND actlog_inner.work_pkg_id = activity_log.work_pkg_id) 
+				/ (SELECT NULLIF(COUNT(1),0) FROM activity_log alog WHERE activity_log.project_id = alog.project_id AND activity_log.work_pkg_id = alog.work_pkg_id) AS change_costs,
+			((SELECT ISNULL(SUM(cost_contract),0.0) FROM work_pkg_bids WHERE work_pkg_bids.project_id = activity_log.project_id AND work_pkg_bids.work_pkg_id = activity_log.work_pkg_id AND work_pkg_bids.status IN ('Approved', 'Contract Signed','In Process','In   Process-On Hold', 'Completed','Completed and Verified' , 'Paid in Full')) 
+				+ (SELECT ISNULL(SUM(cost_est_cap + cost_estimated),0.0) from activity_log AS actlog_inner WHERE actlog_inner.activity_type = 'PROJECT - CHANGE ORDER' AND actlog_inner.project_id = activity_log.project_id AND actlog_inner.work_pkg_id = activity_log.work_pkg_id)) 
+				/ (SELECT NULLIF(COUNT(1),0) FROM activity_log alog WHERE activity_log.project_id = alog.project_id AND activity_log.work_pkg_id = alog.work_pkg_id) AS total_costs,
+			(cost_est_design_cap + cost_est_design_exp - cost_est_cap - cost_estimated) AS variance_design_baseline,
+			(cost_act_cap + cost_actual - cost_est_design_cap - cost_est_design_exp) AS variance_actual_design,
+			(cost_est_design_cap + cost_est_design_exp - ((SELECT ISNULL(SUM(cost_contract),0) FROM work_pkg_bids WHERE work_pkg_bids.project_id = activity_log.project_id AND work_pkg_bids.work_pkg_id = activity_log.work_pkg_id AND work_pkg_bids.status IN ('Approved', 'Contract Signed','In Process','In   Process-On Hold', 'Completed','Completed and Verified' , 'Paid in Full')) 
+				+ (SELECT ISNULL(SUM(cost_est_cap + cost_estimated),0.0) from activity_log AS actlog_inner WHERE actlog_inner.activity_type = 'PROJECT - CHANGE ORDER' AND actlog_inner.project_id = activity_log.project_id AND actlog_inner.work_pkg_id = activity_log.work_pkg_id))
+				/(SELECT NULLIF(COUNT(1),0) FROM activity_log actlog_inner WHERE actlog_inner.project_id = activity_log.project_id AND actlog_inner.work_pkg_id = activity_log.work_pkg_id)) AS variance_design_total,
+			(SELECT ISNULL(SUM(amount_tot_invoice),0.0) FROM invoice WHERE invoice.project_id = activity_log.project_id AND invoice.work_pkg_id = activity_log.work_pkg_id) 
+				/ (SELECT NULLIF(COUNT(1),0) FROM activity_log alog WHERE activity_log.project_id = alog.project_id AND activity_log.work_pkg_id = alog.work_pkg_id) AS cost_invoice,
+			(SELECT ISNULL(SUM(cost_contract),0.0) FROM work_pkg_bids WHERE work_pkg_bids.project_id = activity_log.project_id AND work_pkg_bids.work_pkg_id = activity_log.work_pkg_id AND work_pkg_bids.status IN ('Approved', 'Contract Signed','In Process','In   Process-On Hold', 'Completed','Completed and Verified' , 'Paid in Full')) 
+				/ (SELECT NULLIF(COUNT(1),0) FROM activity_log alog WHERE activity_log.project_id = alog.project_id AND activity_log.work_pkg_id = alog.work_pkg_id) AS contracted_cost,
+			(SELECT COUNT(*) from activity_log AS actlog_inner WHERE actlog_inner.activity_type = 'PROJECT - CHANGE ORDER' AND actlog_inner.requestor_type = 'Owner' AND actlog_inner.project_id = activity_log.project_id AND actlog_inner.work_pkg_id = activity_log.work_pkg_id) 
+				/ (SELECT CAST(NULLIF(COUNT(1),0) AS NUMERIC) FROM activity_log alog WHERE activity_log.project_id = alog.project_id AND activity_log.work_pkg_id = alog.work_pkg_id) AS owner_count,
+			(SELECT COUNT(*) from activity_log AS actlog_inner WHERE actlog_inner.activity_type = 'PROJECT - CHANGE ORDER' AND actlog_inner.requestor_type = 'Vendor' AND actlog_inner.project_id = activity_log.project_id AND actlog_inner.work_pkg_id = activity_log.work_pkg_id) 
+				/ (SELECT CAST(NULLIF(COUNT(1),0) AS NUMERIC) FROM activity_log alog WHERE activity_log.project_id = alog.project_id AND activity_log.work_pkg_id = alog.work_pkg_id) AS vendor_count,
+			(SELECT ISNULL(SUM(wr.cost_actual),0.0) from activity_log AS actlog_inner, activity_log AS wr WHERE actlog_inner.activity_log_id = wr.assessment_id  AND actlog_inner.project_id = activity_log.project_id AND actlog_inner.work_pkg_id = activity_log.work_pkg_id) 
+				/ (SELECT NULLIF(COUNT(1),0) FROM activity_log alog WHERE activity_log.project_id = alog.project_id AND activity_log.work_pkg_id = alog.work_pkg_id) AS wr_costs,
+			(SELECT COUNT(*) from activity_log AS actlog_inner, activity_log a, wr WHERE actlog_inner.activity_log_id = a.assessment_id  and a.activity_log_id = wr.activity_log_id AND actlog_inner.project_id = activity_log.project_id AND actlog_inner.work_pkg_id = activity_log.work_pkg_id) 
+				/ (SELECT CAST(NULLIF(COUNT(1),0) AS NUMERIC) FROM activity_log alog WHERE activity_log.project_id = alog.project_id AND activity_log.work_pkg_id = alog.work_pkg_id) AS wr_count
+				
+			FROM activity_log
+			JOIN project ON activity_log.project_id = project.project_id
+			LEFT OUTER JOIN program ON project.program_id = program.program_id
+			LEFT OUTER JOIN bl ON project.bl_id = bl.bl_id
+		</sql>
+	<sql dialect="oracle">
+			SELECT activity_log.work_pkg_id, activity_log_id, activity_log.project_id,
+bl.city_id, bl.state_id, project.program_id, program.program_type, project.project_type, project.status, project.site_id, project.dp_id, project.bl_id, project.dv_id, project.proj_mgr, project.is_template,
+			(cost_est_cap + cost_estimated) AS baseline_costs,
+			(cost_est_design_cap + cost_est_design_exp) AS design_estimated_costs,
+			(cost_act_cap + cost_actual) AS actual_costs,
+			(SELECT SUM(cost_est_cap + cost_estimated) from activity_log AS actlog_inner WHERE actlog_inner.activity_type = 'PROJECT - CHANGE ORDER' AND actlog_inner.project_id = activity_log.project_id AND actlog_inner.work_pkg_id = activity_log.work_pkg_id) AS change_costs,
+			((SELECT SUM(cost_contract) FROM work_pkg_bids WHERE work_pkg_bids.project_id = activity_log.project_id AND work_pkg_bids.work_pkg_id = activity_log.work_pkg_id AND work_pkg_bids.status IN ('Approved', 'Contract Signed','In Process','In   Process-On Hold', 'Completed','Completed and Verified' , 'Paid in Full')) + (SELECT SUM(cost_est_cap + cost_estimated) from activity_log AS actlog_inner WHERE actlog_inner.activity_type = 'PROJECT - CHANGE ORDER' AND actlog_inner.project_id = activity_log.project_id AND actlog_inner.work_pkg_id = activity_log.work_pkg_id)) AS total_costs,
+			(cost_est_design_cap + cost_est_design_exp - cost_est_cap - cost_estimated) AS variance_design_baseline,
+			(cost_act_cap + cost_actual - cost_est_design_cap - cost_est_design_exp) AS variance_actual_design,
+			(cost_est_design_cap + cost_est_design_exp - ((SELECT SUM(cost_contract) FROM work_pkg_bids WHERE work_pkg_bids.project_id = activity_log.project_id AND work_pkg_bids.work_pkg_id = activity_log.work_pkg_id AND work_pkg_bids.status IN ('Approved', 'Contract Signed','In Process','In   Process-On Hold', 'Completed','Completed and Verified' , 'Paid in Full')) + (SELECT SUM(cost_est_cap + cost_estimated) from activity_log AS actlog_inner WHERE actlog_inner.activity_type = 'PROJECT - CHANGE ORDER' AND actlog_inner.project_id = activity_log.project_id AND actlog_inner.work_pkg_id = activity_log.work_pkg_id))/(SELECT COUNT(1) FROM activity_log actlog_inner WHERE actlog_inner.project_id = activity_log.project_id AND actlog_inner.work_pkg_id = activity_log.work_pkg_id)) AS variance_design_total,
+			(SELECT SUM(amount_tot_invoice) FROM invoice WHERE invoice.project_id = activity_log.project_id AND invoice.work_pkg_id = activity_log.work_pkg_id) AS cost_invoice,
+			(SELECT SUM(cost_contract) FROM work_pkg_bids WHERE work_pkg_bids.project_id = activity_log.project_id AND work_pkg_bids.work_pkg_id = activity_log.work_pkg_id AND work_pkg_bids.status IN ('Approved', 'Contract Signed','In Process','In   Process-On Hold', 'Completed','Completed and Verified' , 'Paid in Full')) AS contracted_cost,
+			(SELECT COUNT(*) from activity_log actlog_inner WHERE actlog_inner.activity_type = 'PROJECT - CHANGE ORDER' AND actlog_inner.requestor_type = 'Owner' AND actlog_inner.project_id = activity_log.project_id AND actlog_inner.work_pkg_id = activity_log.work_pkg_id) / (SELECT COUNT(1) FROM activity_log alog WHERE activity_log.project_id = alog.project_id AND activity_log.work_pkg_id = alog.work_pkg_id) AS owner_count,
+			(SELECT COUNT(*) from activity_log actlog_inner WHERE actlog_inner.activity_type = 'PROJECT - CHANGE ORDER' AND actlog_inner.requestor_type = 'Vendor' AND actlog_inner.project_id = activity_log.project_id AND actlog_inner.work_pkg_id = activity_log.work_pkg_id) / (SELECT COUNT(1) FROM activity_log alog WHERE activity_log.project_id = alog.project_id AND activity_log.work_pkg_id = alog.work_pkg_id) AS vendor_count
+			FROM activity_log, project, program, bl
+			WHERE activity_log.project_id = project.project_id
+			  AND project.program_id = program.program_id (+)
+			  AND project.bl_id = bl.bl_id (+)
+		</sql>
+	</query>
+
+     <dimensions>
+      	 <dimension name="Work Package ID" column="work_pkg_id" table="work_pkgs" hasAll="true">
+		<title translatable="true">Work Package ID</title>
+		<allMemberTitle translatable="true">Work Package IDs</allMemberTitle>
+	 </dimension>
+     </dimensions>
+     <measures>
+      	<measure name="Baseline Costs" column="baseline_costs" aggregator="sum" type="calculated" size="9">
+		<title translatable="true">Baseline Estimated Costs</title>
+	</measure>
+      	<measure name="Design Estimated Costs" column="design_estimated_costs" aggregator="sum" type="calculated" size="9">
+		<title translatable="true">Design Estimated Costs</title>
+	</measure>
+    <measure name="Contracted Cost" column="contracted_cost" aggregator="sum" type="calculated" size="9">
+		<title translatable="true">Contracted Cost</title>
+	</measure>
+	<!--measure name="Actual Costs" column="actual_costs" aggregator="sum" type="calculated" size="9">
+		<title translatable="true">Actual Costs</title>
+	</measure-->
+    <measure name="Total Commited" column="total_costs" aggregator="sum" type="calculated" size="9">
+		<title translatable="true">Total Commited Costs</title>
+	</measure>
+	
+    <measure name="Cost of Change Orders by Owner" column="change_costs" aggregator="sum" type="calculated" size="9">
+		<title translatable="true">Change Order Estimated Costs</title>
+	</measure>
+   
+	<measure name="Work Request Cost" column="wr_costs" aggregator="sum" type="calculated" size="9">
+		<title translatable="true">Work Request Costs</title>
+	</measure>
+	
+    <measure name="Costs Invoices to Date" column="cost_invoice" aggregator="sum" type="calculated" size="9">
+		<title translatable="true">Costs Invoices to Date</title>
+	</measure>
+	
+    <measure name="Count of Work Requests" column="wr_count" aggregator="sum" type="calculated" size="4" decimals="0">
+		<title translatable="true">Count of Work Requests</title>
+	</measure>
+	
+    <measure name="Count of Change Orders by Owner" column="owner_count" aggregator="sum" type="calculated" size="4" decimals="0">
+		<title translatable="true">Count of Change Orders by Owner</title>
+	</measure>
+    <measure name="Count of Change Orders by Vendor" column="vendor_count" aggregator="sum" type="calculated" size="4" decimals="0">
+		<title translatable="true">Count of Change Orders by Vendor</title>
+	</measure>
+
+    <measure name="Variance: Design to Baseline:" column="variance_design_baseline" aggregator="sum" type="calculated" size="9">
+		<title translatable="true">Variance: Design to Baseline</title>
+	</measure>
+    <measure name="Variance: Design to Total" column="variance_design_total" aggregator="sum" type="calculated" size="9">
+		<title translatable="true">Variance: Design to Total</title>
+	</measure>
+     </measures>
+
+    </preferences>
+
+  </mdx>
+
+  </dataSource>
+  </afmTableGroup>
+
+</afmXmlView>

@@ -1,0 +1,43 @@
+<view version="2.0">
+    <js file="ab-proj-mng-rpt-commit-ant-costs.js"/>
+    
+    <dataSource id="projCommittedAnticipatedDs0" type="grouping" applyVpaRestrictions="false">
+        <table name="work_pkg_bids" role="main"/>
+        <field name="work_pkg_id" table="work_pkg_bids" groupBy="true"/>
+        <field name="committed_costs" dataType="number" decimals="0">
+            <title>Committed Costs</title>
+            <sql dialect="generic">SUM(committed_costs)</sql>
+        </field>
+        <field name="anticipated_costs" dataType="number" decimals="0">
+            <title>Anticipated Costs</title>
+            <sql dialect="generic">SUM(anticipated_costs)</sql>
+        </field>
+        <sql dialect="generic">
+			SELECT work_pkg_bids.work_pkg_id, work_pkg_bids.project_id,
+			(work_pkg_bids.cost_contract + ${sql.isNull('change_order_costs', 0)}) ${sql.as} committed_costs,		
+			(work_pkg_bids.cost_contract + ${sql.isNull('change_order_costs', 0)} - ${sql.isNull('closed_costs', 0)}) ${sql.as} anticipated_costs 
+			FROM work_pkg_bids
+			LEFT OUTER JOIN
+			(SELECT project_id, work_pkg_id, SUM(cost_est_design_cap + cost_est_design_exp) ${sql.as} change_order_costs FROM activity_log WHERE activity_log.activity_type = 'PROJECT - CHANGE ORDER'
+				AND activity_log.status NOT IN('CREATED','REQUESTED','REJECTED','CANCELLED') GROUP BY project_id, work_pkg_id) ${sql.as} change_orders
+		  ON change_orders.project_id = work_pkg_bids.project_id AND change_orders.work_pkg_id = work_pkg_bids.work_pkg_id
+		  LEFT OUTER JOIN 
+		  (SELECT project_id, work_pkg_id, vn_id, SUM(amount_closed) ${sql.as} closed_costs FROM invoice GROUP BY project_id, work_pkg_id, vn_id) ${sql.as} invoices
+		  ON invoices.project_id = work_pkg_bids.project_id AND invoices.work_pkg_id = work_pkg_bids.work_pkg_id AND invoices.vn_id = work_pkg_bids.vn_id
+			WHERE status IN ('Contract Signed', 'In Process', 'In Process-On Hold', 'Completed', 'Completed and Verified', 'Paid In Full')
+			AND ${sql.vpaRestriction}
+        </sql>
+        <sortField name="work_pkg_id" table="work_pkg_bids" ascending="true"/>
+    </dataSource>
+    
+    <panel type="crossTable" id="projCommittedAnticipatedCrossTable" dataSource="projCommittedAnticipatedDs0" showOnLoad="false">
+        <title>Committed and Anticipated Costs</title>
+        <action id="exportXLS">
+            <title>XLS</title>
+            <command type="exportPanel" outputType="xls" panelId="projCommittedAnticipatedCrossTable"/>
+        </action>
+        <event type="onClickItem">
+            <command type="callFunction" functionName="projCommittedAnticipatedCrossTable_onclick"/>
+        </event>
+    </panel>
+</view>

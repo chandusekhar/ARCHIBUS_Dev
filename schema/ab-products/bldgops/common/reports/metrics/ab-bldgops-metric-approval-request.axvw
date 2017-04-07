@@ -1,0 +1,31 @@
+<view version="2.0">	 
+	<title>Ops Metric - Requests Requiring Approval</title>
+
+	<dataSource id="abSpTopMetricsDataDS">
+		<sql dialect="generic">
+		  		SELECT  TOP 1
+					'requests_requiring_approval'	 ${sql.as} metricName,  
+					( select count(1) from activity_log,activity_log_step_waiting where activity_log.status = activity_log_step_waiting.status 
+              		AND (activity_log_step_waiting.user_name = ${sql.literal(user.name)}
+                    OR activity_log_step_waiting.em_id IN (SELECT em_id FROM workflow_substitutes WHERE workflow_substitutes.em_id = activity_log_step_waiting.em_id
+                        AND workflow_substitutes.substitute_em_id = ${sql.literal(user.employee.id)} AND workflow_substitutes.steptype_or_role = activity_log_step_waiting.step_type
+                        AND (workflow_substitutes.start_date_unavailable IS NULL OR workflow_substitutes.start_date_unavailable &lt;= ${sql.currentDate})
+                        AND (workflow_substitutes.end_date_unavailable IS NULL OR workflow_substitutes.end_date_unavailable &gt;= ${sql.currentDate}))) 
+              		AND activity_log_step_waiting.step_type IN ('approval','review')  )
+					${sql.as} currentMonth
+				FROM bl 
+		</sql>
+		<table name="afm_metric_definitions" role="main"/>
+		<field  name="metricName"   dataType="text">
+			<title translatable="true">Metric Name</title>
+		</field>
+		<field  name="currentMonth"   dataType="number" decimals="2">
+			<title translatable="true">Current Month</title>
+		</field>
+		<parameter name="thisMonth" dataType="text" value="2013-06"/>  
+    </dataSource>
+
+	<panel id="abSpTopMetricsGrid" type="grid" controlType="reportGrid"  dataSource="abSpTopMetricsDataDS">		
+		   <title>Requests Requiring Approval</title>
+	</panel>
+</view>

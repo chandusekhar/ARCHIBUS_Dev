@@ -1,0 +1,273 @@
+<view version="2.0">
+	<js file="ab-cb-rpt-hl-fl.js"/>
+    <js file="ab-cb-rpt-common.js"/>
+	
+    <title translatable="true">Floor Plans with Hazard Assessments</title>
+
+    <message name="noDrawing" translatable="true">No Floor Drawing</message>
+    <message name="floors" translatable="true">Floors</message>
+
+    <layout type="borderLayout" id="mainLayout">
+        <north autoScroll="true" split="true" initialSize="155px"/>
+        <west autoScroll="true" split="true" initialSize="25%"/>
+        <center autoScroll="true"/>
+    </layout>
+    <layout type="borderLayout" id="centerLayout" containingLayout="mainLayout" region="center">
+        <north split="true" initialSize="65%"/>
+        <center autoScroll="true"/>
+    </layout>
+    <layout id="nestedLayout_drawing" containingLayout="centerLayout" region="north">
+        <center id="mapPosition"/>
+        <east initialSize="15%" split="true" id="legendPosition"/>
+    </layout>
+	
+    <!--Filter Console Panel-->
+    <panel type="view" id="abCbRptHlFl_filterPanel" file="ab-cb-rpt-common-filter.axvw" layout="mainLayout" region="north"/>   
+
+    <dataSource id="abCbRptHlFl_dsFloor" applyVpaRestrictions="false">
+        <sql dialect="generic">
+            SELECT DISTINCT
+                bl.site_id ${sql.as} site_id,
+                rm.bl_id ${sql.as} bl_id,
+                rm.fl_id ${sql.as} fl_id,
+                (CASE WHEN rm.dwgname IS NULL THEN ${parameters['noDrawing']} ELSE rm.dwgname END) ${sql.as} dwgname,
+                rm.dwgname ${sql.as} raw_dwgname
+            FROM activity_log, project, rm, bl
+            WHERE activity_log.activity_type = 'ASSESSMENT - HAZMAT'
+                AND activity_log.project_id IS NOT NULL AND project.project_id = activity_log.project_id AND project.project_type='ASSESSMENT - HAZMAT'
+                AND activity_log.bl_id IS NOT NULL AND activity_log.fl_id IS NOT NULL AND activity_log.rm_id IS NOT NULL
+                AND rm.bl_id = activity_log.bl_id AND rm.fl_id = activity_log.fl_id
+                AND bl.bl_id = activity_log.bl_id
+                AND ${parameters['consoleRestriction']}
+        </sql>
+        
+        <table name="rm" role="main"/>
+        <field table="rm" name="site_id" dataType="text">
+            <title translatable="true">Site</title>
+        </field>
+        <field table="rm" name="bl_id" dataType="text">
+            <title translatable="true">Building</title>
+        </field>
+        <field table="rm" name="fl_id" dataType="text">
+            <title translatable="true">Floor</title>
+        </field>
+        <field table="rm" name="dwgname" dataType="text">
+            <title translatable="true">Drawing</title>
+        </field>
+        <field table="rm" name="raw_dwgname" dataType="text" hidden="true">
+            <title translatable="true">Drawing</title>
+        </field>
+        <parameter name="consoleRestriction" dataType="verbatim" value="1=1"/>
+        <parameter name="noDrawing" dataType="text" value=""/>
+    </dataSource>
+
+    <panel type="grid" id="abCbRptHlFl_gridFloor" dataSource="abCbRptHlFl_dsFloor" multipleSelectionEnabled="true" layout="mainLayout" region="west">
+        <title translatable="true">Floors</title>
+        <sortField name="site_id" table="rm" ascending="true"/>
+        <sortField name="bl_id" table="rm" ascending="true"/>
+        <sortField name="fl_id" table="rm" ascending="true"/>
+    </panel>
+    
+    <!-- Drawing panel -->
+    <!-- Include a list of commonly used CB Drawing highlight styles -->
+    <panel type="view" id="CBhighlightStylesView" file="ab-cb-rpt-hl-ds.axvw"/>
+
+    <!-- Include a list of commonly used highlight styles -->
+    <panel type="view" id="highlightStylesView" file="ab-datasource-highlights.axvw"/>
+      
+    <!-- Include a list of commonly used label styles -->
+    <panel type="view" id="labelStylesView" file="ab-datasource-labels.axvw"/>
+    
+    <panel type="drawing" id="abCbRptHlFl_drawingPanel" highlightDataSource="abCbRptHazBlMapDrilldown_highlightDs" 
+        labelsDataSource="labelDetailsDs" assignMode="2" bordersHighlightSelector="true" legendPanel="abCbRptHazBlMapDrilldown_legendGrid"
+        borderHighlightLegendPanel="abCbRptHazBlMapDrilldown_borderLegendGrid" layoutRegion="mapPosition" multipleSelectionEnabled="true">
+        <title translatable="true">[]</title>
+         <action id="paginatedReport">
+            <title translatable="true">DOC</title>            
+        </action>
+    </panel>
+
+    <dataSource id="abCbRptHazBlMapDrilldown_legendDs" distinct="true">
+        <table name="rm" role="main"/>
+    </dataSource>
+    
+    <panel type="grid" controlType="reportGrid" id="abCbRptHazBlMapDrilldown_legendGrid" dataSource="abCbRptHazBlMapDrilldown_legendDs" layoutRegion="legendPosition" showOnLoad="false">
+        <title translatable="true">Rooms with Assessments</title>
+        <field table="legend" name="color" controlType="color">
+            <title translatable="true"> </title>
+        </field>
+        <field table="legend" name="value" width="80%">
+            <title translatable="true">Value</title>
+        </field>
+    </panel>
+    
+    <panel type="grid" controlType="reportGrid" id="abCbRptHazBlMapDrilldown_borderLegendGrid" dataSource="abCbRptHazBlMapDrilldown_legendDs" layoutRegion="legendPosition" showOnLoad="false">
+        <title translatable="true">Borders</title>
+        <field table="legend" name="color" controlType="color">
+            <title translatable="true"> </title>
+        </field>
+        <field table="legend" name="value" width="80%">
+            <title translatable="true">Value</title>
+        </field>
+    </panel>    
+    
+    
+    <!-- report panel -->
+    <dataSource id="abCbRptHlFl_dsRep">
+        <table name="activity_log" role="main"/>
+        <table name="project" role="standard"/>
+        <table name="bl" role="standard"/>
+        <table name="rm" role="standard"/>
+        
+        <field name="activity_log_id">
+            <title translatable="true">Item ID</title>
+        </field>
+        <field name="site_id">
+            <title translatable="true">Site</title>
+        </field>
+        <field name="bl_id" table="rm">
+            <title translatable="true">Building</title>
+        </field>
+        <field name="fl_id" table="rm">
+            <title translatable="true">Floor</title>
+        </field>
+        <field name="rm_id" table="rm">
+            <title translatable="true">Room</title>
+        </field>
+        <field name="hcm_loc_typ_id">
+            <title translatable="true">Location of Material</title>
+        </field>
+        <field name="project_id" table="project">
+            <title translatable="true">Project</title>
+        </field>
+        <field name="hcm_is_hazard">
+            <title translatable="true">Contains Hazard?</title>
+        </field>
+        <field name="hcm_haz_status_id">
+            <title translatable="true">Hazard Status</title>
+        </field>
+        <field name="prob_type">
+            <title translatable="true">Substance</title>
+        </field>
+        <field name="date_assessed"/>
+        <field name="repair_type">
+            <title translatable="true">Hazard Response</title>
+        </field>
+        <field name="hcm_id"/>
+        <field name="hcm_cond_id">
+            <title translatable="true">Material Condition</title>
+        </field>
+        <field name="hcm_friable"/>
+        <field name="hcm_qty">
+            <title translatable="true">Quantity</title>
+        </field>
+        <field name="cb_units_id">
+            <title translatable="true">Units</title>
+        </field>
+        <field name="action_title">
+            <title translatable="true">Material Description</title>
+        </field>
+        <field name="hcm_haz_rank_id">
+            <title translatable="true">Hazard Rank</title>
+        </field>
+        <field name="hcm_haz_rating_id">
+            <title translatable="true">Hazard Rating</title>
+        </field>
+        <field name="vf_samples" dataType="number" size="12" decimals="0">
+            <title translatable="true">Samples Count</title>
+            <sql dialect="generic">
+                (SELECT COUNT(a.activity_log_id) FROM cb_samples ${sql.as} a WHERE a.activity_log_id = activity_log.activity_log_id)
+            </sql>
+        </field>
+        <field name="location">
+            <title translatable="true">Location Detail</title>
+        </field>
+        <field name="hcm_harea_id"/>
+        <field name="rec_action"/>
+        <field name="hcm_pending_act"/>
+        <field name="assessed_by"/>
+        <field name="assigned_to">
+            <title translatable="true">Inspector/ Assigned To</title>
+        </field>
+        <field name="hcm_abate_by"/>
+        <field name="hcm_class1_id">
+            <title translatable="true">Classification I</title>
+        </field>
+        <field name="hcm_class2_id">
+            <title translatable="true">Classification II</title>
+        </field>
+        <field name="hcm_class3_id">
+            <title translatable="true">Classification III</title>
+        </field>
+        <field name="date_required"/>
+        <field name="date_review">
+            <title translatable="true">Date Inspected</title>
+        </field>
+        <field name="date_installed">
+            <title translatable="true">Date Abated</title>
+        </field>
+        <field name="date_completed"/>
+        <field name="date_closed"/>
+        <field name="hcm_pipe_cnt">
+            <title translatable="true">Pipes Count</title>
+        </field>
+        <field name="hcm_fittings_num">
+            <title translatable="true">Fittings Count</title>
+        </field>
+        <field name="hcm_labeled"/>
+        <field name="cause_type">
+            <title translatable="true">Abatement Reason</title>
+        </field>
+        <field name="assessment_id">
+            <title translatable="true">Initial Item ID</title>
+        </field>
+        <field name="cost_estimated"/>
+        <field name="cost_est_cap"/>
+        <field name="vf_costEstBase" dataType="number" size="12" decimals="2" showTotals="true">
+            <title translatable="true">Cost-Est Baseline</title>
+            <sql dialect="generic">
+                (cost_est_cap + cost_estimated)
+            </sql>
+        </field>
+        <field name="cost_actual"/>
+        <field name="cost_act_cap"/>
+        <field name="vf_costActual" dataType="number" size="12" decimals="2" showTotals="true">
+            <title translatable="true">Cost-Actual</title>
+            <sql dialect="generic">
+                (cost_actual + cost_act_cap)
+            </sql>
+        </field>
+        <field name="name" table="bl" hidden="true"/>
+        
+        <restriction type="sql"
+            sql="activity_log.activity_type = 'ASSESSMENT - HAZMAT'
+                AND activity_log.project_id IS NOT NULL AND project.project_type='ASSESSMENT - HAZMAT'
+                AND bl.ctry_id IS NOT NULL AND bl.regn_id IS NOT NULL AND bl.state_id IS NOT NULL AND bl.city_id IS NOT NULL AND bl.site_id IS NOT NULL
+                AND activity_log.bl_id IS NOT NULL AND activity_log.fl_id IS NOT NULL AND activity_log.rm_id IS NOT NULL
+                AND ${parameters['consoleRestriction']}"/>
+        <parameter name="consoleRestriction" dataType="verbatim" value="1=1"/>
+    </dataSource>
+    <panel type="grid" id="abCbRptHlFl_gridRep" dataSource="abCbRptHlFl_dsRep" multipleSelectionEnabled="true" showOnLoad="false" layout="centerLayout" region="center">
+        <title translatable="true">Hazard Assessment Items</title>
+
+        <action id="exportDOCX">
+            <title>DOC</title>
+            <command type="callFunction" functionName="onExportDocxReport(this,'ab-cb-assess-list-pgrpt.axvw')"/>
+        </action>
+        <action id="exportXLS">
+            <title>XLS</title>
+            <command type="exportPanel" outputType="xls" panelId="abCbRptHlFl_gridRep"/>
+        </action>
+        
+        <sortField table="activity_log" name="date_assessed" ascending="false"/>
+		<sortField table="activity_log" name="hcm_is_hazard" ascending="false"/>
+        <sortField table="activity_log" name="prob_type" ascending="true"/>
+        <sortField table="project" name="project_id" ascending="true"/>
+        <sortField table="activity_log" name="site_id" ascending="true"/>
+        <sortField table="activity_log" name="bl_id" ascending="true"/>
+        <sortField table="activity_log" name="hcm_harea_id" ascending="true"/>
+        <sortField table="activity_log" name="fl_id" ascending="true"/>
+        <sortField table="activity_log" name="rm_id" ascending="true"/>
+        <sortField table="activity_log" name="hcm_loc_typ_id" ascending="true"/>
+    </panel>
+</view>

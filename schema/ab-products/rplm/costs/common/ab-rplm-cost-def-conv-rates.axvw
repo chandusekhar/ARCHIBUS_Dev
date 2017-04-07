@@ -1,0 +1,198 @@
+<view version="2.0">
+    <title translatable="true">Define Exchange Rates</title>
+    <js file="ab-rplm-cost-def-conv-rates.js"/>
+    <!-- Messages -->
+    <message name="err_source_dest_equal" translatable="true">Destination Currency and Source Currency must be different.</message>
+    <message name="msg_confirm_delete" translatable="true">Current conversion rate will be deleted.</message>
+    <message name="msg_field_mandatory" translatable="true">You must select {0}.</message>
+    <message name="msg_optUpdate_all" translatable="true">Update converted amounts for all recurring and scheduled costs</message>
+    <message name="msg_optUpdate_date" translatable="true">Update converted amounts only for recurring and scheduled costs with due date larger than the following due date</message>
+    <message name="msg_optConvert_all" translatable="true">Convert New Cost Transactions for all recurring and scheduled costs</message>
+    <message name="msg_optConvert_date" translatable="true">Convert New Cost Transactions for recurring and scheduled costs with due date larger than the following due date</message>
+    <message name="msg_job_run" translatable="true">Updating costs..</message>
+    <message name="conversionRateExists" translatable="true">Conversion rate already exists for this date. Update conversion factor?</message>
+    <message name="msg_update_success" translatable="true">Conversion rate was successfully updated.</message>
+    <message name="confirm_job_run" translatable="true">This action could take a long time to run as it updates all existing Cost records that do not yet include budget and payment currencies. Do you want to continue?</message>
+    <message name="convFactorTooSmall" translatable="true">Conversion Factor must be a number greater than 0.</message>
+    <message name="invalidCurrency" translatable="true">The value must exist in the validating table.</message>
+        
+    <!-- Layout -->
+    <layout id="mainLayout">
+        <west initialSize="40%" split="true"/>
+        <center id="centerPos" autoScroll="true"/>
+    </layout>
+    <layout id="nestedWest" containingLayout="mainLayout" region="west">
+        <north id="northWestPos" initialSize="30%" split="true"/>
+        <center id="southWestPos" autoScroll="true"/>
+    </layout>
+    
+    <!-- Source Units - North West Panel -->
+    <dataSource id="abCurrencyDefConvRatesSource_ds" distinct="true">
+        <table name="afm_conversions"/>
+        <field name="source_units"/>
+        <restriction type="parsed">
+            <clause table="afm_conversions" name="is_currency" value="YES" op="=" relop="AND"/>
+        </restriction>
+        <field name="description" dataType="text">
+            <sql dialect="generic">
+                (SELECT description FROM afm_currencies 
+                WHERE afm_currencies.currency_id = afm_conversions.source_units)
+            </sql>
+        </field>
+    </dataSource>
+    
+    <panel type="grid" id="abCurrencyDefConvRatesSource" dataSource="abCurrencyDefConvRatesSource_ds" layoutRegion="northWestPos">
+        <sortField table="afm_conversions" name="source_units" ascending="true"/>
+        <title translatable="true">Currencies</title>
+        <field name="source_units" controlType="link" onclick="showDestinationCurrencies">
+            <title translatable="true">Currency Code</title>
+        </field>
+        <field name="description">
+            <title translatable="true">Currency Name</title>
+        </field>
+    </panel>
+    
+    <!-- Destination Currency - South West panel -->
+    <dataSource id="abCurrencyDefConvRates_ds">
+        <table name="afm_conversions"/>
+        <field name="auto_number"/>
+        <field name="source_units"/>
+        <field name="is_currency"/>
+        <field name="destin_units"/>
+        <field name="exchange_rate_type"/>
+        <field name="date_conversion"/>
+        <field name="factor"/>
+        <field name="date_last_update"/>
+        <restriction type="parsed">
+            <clause table="afm_conversions" name="is_currency" value="YES" op="=" relop="AND"/>
+        </restriction>
+    </dataSource>
+    
+    <panel type="grid" id="abCurrencyDefConvRatesDest" dataSource="abCurrencyDefConvRates_ds" layoutRegion="southWestPos" showOnLoad="false">
+        <sortField table="afm_conversions" name="destin_units" ascending="true"/>
+        <sortField table="afm_conversions" name="date_conversion" ascending="false"/>
+        <title translatable="true">Conversion Rates</title>
+        <action id="new">
+            <title translatable="true">Add New</title>
+        </action>
+        <field name="destin_units" controlType="link">
+            <title translatable="true">Currency</title>
+            <!-- command type="callFunction" functionName="abCurrencyDefConvRatesCtrl.isNewCurrency = false;"/-->
+            <command type="showPanel" panelId="abCurrencyDefConvRatesEdit"/>
+        </field>
+        <field name="date_conversion" controlType="link">
+            <!-- command type="callFunction" functionName="abCurrencyDefConvRatesCtrl.isNewCurrency = false;"/-->
+            <command type="showPanel" panelId="abCurrencyDefConvRatesEdit"/>
+        </field>
+        <field name="exchange_rate_type" controlType="link">
+            <!-- command type="callFunction" functionName="abCurrencyDefConvRatesCtrl.isNewCurrency = false;"/-->
+            <command type="showPanel" panelId="abCurrencyDefConvRatesEdit"/>
+        </field>
+        <field name="factor" controlType="link">
+            <!-- command type="callFunction" functionName="abCurrencyDefConvRatesCtrl.isNewCurrency = false;"/-->
+            <command type="showPanel" panelId="abCurrencyDefConvRatesEdit"/>
+        </field>
+        <field name="auto_number" hidden="true"/>
+        <field name="source_units" hidden="true"/>
+    </panel>
+    
+    <!--  Edit form -->
+    <panel type="form" id="abCurrencyDefConvRatesEdit" columns="1" dataSource="abCurrencyDefConvRates_ds" layoutRegion="centerPos" showOnLoad="false">
+        <title >Conversion Rate</title>
+        <action id="updateLegacyData">
+            <title translatable="true">Updates to Legacy Costs</title>
+        </action>
+        <action id="update">
+            <title translatable="true">Update Converted Amounts</title>
+            <command type="callFunction" functionName="setRadioValue('radioUpdate', 'all')"/>
+            <command type="openDialog" panelId="abCurrencyDefConvRatesUpdate" width="800" height="400" applyParentRestriction="false"/>
+        </action>
+        <action id="convert">
+            <title translatable="true">Update New Costs to Budget</title>
+             <command type="callFunction" functionName="setRadioValue('radioConvert', 'all')"/>
+            <command type="openDialog" panelId="abCurrencyDefConvRatesConvert" width="800" height="400" applyParentRestriction="false"/>
+        </action>
+        
+        <action id="save">
+            <title translatable="true">Save</title>
+        </action>
+        <action id="delete" enabled="${!panel.newRecord}">
+            <title translatable="true">Delete</title>
+        </action>
+        <action id="cancel">
+            <title translatable="true">Cancel</title>
+            <command type="showPanel" panelId="abCurrencyDefConvRatesEdit" show="false" includeHeader="true"/>
+        </action>
+        <field name="source_units">
+            <title translatable="true">Source Currency</title>
+        </field>
+        <field name="destin_units" value="${project.budgetCurrency.code}">
+            <title translatable="true">Destination Currency</title>
+        </field>
+        <field name="date_conversion"/>
+        <field name="exchange_rate_type"/>
+        <field name="factor"/>
+        <field name="auto_number" hidden="true"/>
+        <field name="is_currency" hidden="true" value="YES"/>
+    </panel>
+    
+    <!--  Hidden panel - Update Converted Amounts -->
+    <dataSource id="abCurrencyDefConvRatesUpdate_ds">
+        <table name="afm_conversions"/>
+        <field name="source_units"/>
+        <field name="auto_number"/>
+        <restriction type="parsed">
+            <clause table="afm_conversions" name="is_currency" value="YES" op="=" relop="AND"/>
+        </restriction>
+    </dataSource>
+    <panel type="console" id="abCurrencyDefConvRatesUpdate" dataSource="abCurrencyDefConvRatesUpdate_ds" afterRefresh="radioUpdate_onClick" columns="1" showOnLoad="false" hidden="true">
+        <title translatable="true">Update CONVERTED Amounts</title>
+        <action id="update">
+            <title translatable="true">OK</title>
+        </action>
+        <action id="cancel">
+            <title translatable="true">Cancel</title>
+            <command type="closeDialog"/>
+        </action>
+        <field id="vf_opt_update">
+            <html>
+                <input type="radio" name="radioUpdate" id="optUpdate_all" value="all" checked="true" onclick="radioUpdate_onClick();"/>&#32;<span id="label_optUpdate_all"></span><br/>
+                <input type="radio" name="radioUpdate" id="optUpdate_date" value="date" onclick="radioUpdate_onClick();"/>&#32;<span id="label_optUpdate_date"></span>
+            </html>
+        </field>
+        <field id="vf_update_date" dataType="date">
+            <title translatable="true">Date</title>
+        </field>
+        <field name="source_units" hidden="true"/>
+        <field name="auto_number" hidden="true"/>
+     </panel>
+
+    <panel type="console" id="abCurrencyDefConvRatesConvert" dataSource="abCurrencyDefConvRatesUpdate_ds" afterRefresh="radioConvert_onClick" columns="1" showOnLoad="false" hidden="true">
+        <title translatable="true">Convert New Cost Transactions From Payment Currency To Budget Currency</title>
+        <action id="update">
+            <title translatable="true">OK</title>
+        </action>
+        <action id="cancel">
+            <title translatable="true">Cancel</title>
+            <command type="closeDialog"/>
+        </action>
+        <field id="vf_opt_convert">
+            <html>
+                <input type="radio" name="radioConvert" id="optConvert_all" value="all" checked="true" onclick="radioConvert_onClick();"/>&#32;<span id="label_optConvert_all"></span><br/>
+                <input type="radio" name="radioConvert" id="optConvert_date" value="date" onclick="radioConvert_onClick();"/>&#32;<span id="label_optConvert_date"></span>
+            </html>
+        </field>
+        <field id="vf_convert_date" dataType="date">
+            <title translatable="true">Date</title>
+        </field>
+        <field name="source_units" hidden="true"/>
+        <field name="auto_number" hidden="true"/>
+     </panel>
+
+    <!-- used for validating form before save -->
+    <dataSource id="abCurrencyDefConvRatesCurrencies">
+        <table name="afm_currencies"/>
+        <field name="currency_id"/>
+    </dataSource>
+
+</view>

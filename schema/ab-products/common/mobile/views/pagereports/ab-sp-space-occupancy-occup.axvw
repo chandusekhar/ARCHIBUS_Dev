@@ -1,0 +1,228 @@
+<view version="2.0">
+		
+	<!-- The highlight data source: highlight un-occupied rooms -->
+	<dataSource id="unOccupiedRmDs">
+        <table name="rm" role="main"/>
+        <field table="rm" name="bl_id"/>
+        <field table="rm" name="fl_id"/>
+        <field table="rm" name="rm_id"/>
+        <!-- Number of em records for current room -->
+        <field table="rm" name="count_em1" dataType="number">
+           <!--  <sql dialect="generic">
+                (SELECT COUNT(em_id) FROM em 
+                WHERE em.bl_id=rm.bl_id AND em.fl_id=rm.fl_id AND em.rm_id=rm.rm_id)
+            </sql> -->
+        </field>
+        <!-- Number of active rmpct records with em_id for current room -->
+        <field table="rm" name="count_em2" dataType="number">
+            <!-- <sql dialect="generic">
+                (SELECT COUNT(em_id) FROM rmpct 
+                WHERE rmpct.bl_id=rm.bl_id AND rmpct.fl_id=rm.fl_id AND rmpct.rm_id=rm.rm_id AND
+                    rmpct.status='1' AND (rmpct.date_start IS NULL OR rmpct.date_start &lt;= ${sql.currentDate}) AND 
+                    (rmpct.date_end IS NULL OR rmpct.date_end &gt;= ${sql.currentDate}) AND 
+                    (rmpct.activity_log_id IS NULL OR rmpct.activity_log_id NOT IN 
+                        (SELECT activity_log_id FROM activity_log WHERE activity_type = 'SERVICE DESK - HOTELING')) 
+                    AND rmpct.primary_em = 0)
+            </sql> -->
+            
+        </field>
+        <!-- light grey 14 0 9 12632256 -->
+        <!-- dark grey 14 0 8 8421504 -->
+        <!-- yellow 14 0 4 16776960 -->
+        <field table="rm" name="hpattern_acad" dataType="text">
+            <!-- <sql dialect="generic">
+                '14 0 8 8421504'
+            </sql> -->
+        </field>
+        <sql dialect="generic">
+            SELECT bl_id,
+                fl_id,
+                rm_id,
+                (SELECT COUNT(em_id) FROM em 
+                    WHERE em.bl_id=rm.bl_id AND em.fl_id=rm.fl_id AND em.rm_id=rm.rm_id) ${sql.as} count_em1,
+                (SELECT COUNT(em_id) FROM rmpct 
+                    WHERE rmpct.bl_id=rm.bl_id AND rmpct.fl_id=rm.fl_id AND rmpct.rm_id=rm.rm_id AND
+                        rmpct.status='1' AND (rmpct.date_start IS NULL OR rmpct.date_start &lt;= ${sql.currentDate}) AND 
+                        (rmpct.date_end IS NULL OR rmpct.date_end &gt;= ${sql.currentDate}) AND 
+                        (rmpct.activity_log_id IS NULL OR rmpct.activity_log_id NOT IN 
+                            (SELECT activity_log_id FROM activity_log WHERE activity_type = 'SERVICE DESK - HOTELING')) 
+                        AND rmpct.primary_em = 0) ${sql.as} count_em2,
+                '14 0 8 8421504' ${sql.as} hpattern_acad,
+                dwgname,
+                rm_cat
+            FROM rm
+        </sql>
+        <restriction type="sql" sql="count_em1 = 0 AND count_em2 = 0 AND 
+            EXISTS (SELECT 1 FROM  rmcat WHERE rmcat.rm_cat= rm.rm_cat AND rmcat.occupiable=1 AND 
+                rmcat.used_in_calcs IN('all_totals', 'dp_comn_ocup_totals'))"/>
+	</dataSource>
+
+	<!-- The label data source -->
+	<dataSource id="unOccupiedRmLabelDs">
+		<table name="rm" role="main"/>
+		
+		<!-- rm.bl_id, rm.fl_id, rm.rm_id fields must be defined to match with PK fields of highlight dataSource -->
+		<field table="rm" name="bl_id" hidden="true"/>
+		<field table="rm" name="fl_id" hidden="true"/>
+		<field table="rm" name="rm_id"/>
+        <field table="rm" name="area"/>
+		
+		<restriction type="sql" sql="NOT EXISTS (SELECT 1 FROM em 
+		 	    WHERE em.bl_id = rm.bl_id AND em.fl_id = rm.fl_id AND em.rm_id = rm.rm_id) AND
+            NOT EXISTS (SELECT 1 FROM rmpct WHERE rmpct.bl_id = rm.bl_id AND rmpct.fl_id = rm.fl_id AND rmpct.rm_id = rm.rm_id
+                AND rmpct.status='1' AND (rmpct.date_start IS NULL OR rmpct.date_start &lt;= ${sql.currentDate}) AND 
+                    (rmpct.date_end IS NULL OR rmpct.date_end &gt;= ${sql.currentDate}) AND 
+                    (rmpct.activity_log_id IS NULL OR rmpct.activity_log_id NOT IN 
+                        (SELECT activity_log_id FROM activity_log WHERE activity_type = 'SERVICE DESK - HOTELING'))
+                AND rmpct.em_id IS NOT NULL AND primary_em = 0)">
+		</restriction>
+	</dataSource>
+
+    <!-- The highlight data source: highlight just rooms containing employees -->
+    <dataSource id="occupiedRmDs">
+        <table name="rm" role="main" />
+        <field table="rm" name="bl_id" />
+        <field table="rm" name="fl_id" />
+        <field table="rm" name="rm_id" />
+        <restriction type="sql" sql="EXISTS (SELECT 1 FROM em 
+            WHERE em.bl_id = rm.bl_id AND em.fl_id = rm.fl_id AND em.rm_id = rm.rm_id) OR
+            EXISTS (SELECT 1 FROM rmpct WHERE rmpct.bl_id = rm.bl_id AND rmpct.fl_id = rm.fl_id AND rmpct.rm_id = rm.rm_id
+                AND rmpct.status='1' AND (rmpct.date_start IS NULL OR rmpct.date_start &lt;= ${sql.currentDate}) AND 
+                    (rmpct.date_end IS NULL OR rmpct.date_end &gt;= ${sql.currentDate}) AND 
+                    (rmpct.activity_log_id IS NULL OR rmpct.activity_log_id NOT IN 
+                        (SELECT activity_log_id FROM activity_log WHERE activity_type = 'SERVICE DESK - HOTELING'))
+                AND rmpct.em_id IS NOT NULL AND primary_em = 0)">
+        </restriction>
+    </dataSource>
+
+    <!-- The label data source -->
+    <dataSource id="occupiedRmLabelDs">
+    <sql dialect="generic">
+        SELECT  bl_id, fl_id, rm_id, dwgname, dv_id, dp_id,
+        (SELECT MAX(em.em_id) FROM(SELECT em.em_id, bl_id, fl_id, rm_id FROM em
+        UNION
+        SELECT rmpct.em_id, bl_id, fl_id, rm_id FROM rmpct
+        WHERE rmpct.status ='1'
+        AND (rmpct.date_start IS NULL
+        OR rmpct.date_start   &lt;= ${sql.currentDate})
+        AND (rmpct.date_end IS NULL
+        OR rmpct.date_end &gt;= ${sql.currentDate})
+        AND (rmpct.activity_log_id   IS NULL
+        OR rmpct.activity_log_id NOT IN
+        (SELECT activity_log_id FROM activity_log WHERE activity_type = 'SERVICE DESK - HOTELING'))
+        AND rmpct.em_id IS NOT NULL AND primary_em = 0) ${sql.as} em
+        WHERE em.bl_id = rm.bl_id AND em.fl_id = rm.fl_id AND em.rm_id = rm.rm_id
+        ) ${sql.as} rm_cat,
+    
+        (SELECT MAX(em_id) FROM (SELECT em_id, bl_id, fl_id, rm_id FROM em
+        UNION
+        SELECT rmpct.em_id, bl_id, fl_id, rm_id FROM rmpct
+        WHERE rmpct.status = '1' 
+        AND (rmpct.date_start IS NULL OR rmpct.date_start &lt;= ${sql.currentDate})
+        AND (rmpct.date_end IS NULL OR rmpct.date_end &gt;= ${sql.currentDate})
+        AND (rmpct.activity_log_id IS NULL OR rmpct.activity_log_id NOT IN
+        (SELECT activity_log_id FROM activity_log WHERE activity_type = 'SERVICE DESK - HOTELING'))
+        AND rmpct.em_id IS NOT NULL AND primary_em = 0) ${sql.as} em
+        WHERE em.bl_id = rm.bl_id AND em.fl_id = rm.fl_id AND em.rm_id = rm.rm_id
+        
+        AND em_id !=
+        (SELECT MAX(em_id)FROM (SELECT em_id, bl_id, fl_id, rm_id FROM em      
+        UNION
+        SELECT rmpct.em_id, bl_id, fl_id, rm_id
+        FROM rmpct
+        WHERE rmpct.status ='1'
+        AND (rmpct.date_start IS NULL OR rmpct.date_start &lt;= ${sql.currentDate})
+        AND (rmpct.date_end IS NULL OR rmpct.date_end &gt;= ${sql.currentDate})
+        AND (rmpct.activity_log_id   IS NULL OR rmpct.activity_log_id NOT IN
+       (SELECT activity_log_id FROM activity_log WHERE activity_type = 'SERVICE DESK - HOTELING'))
+        AND rmpct.em_id IS NOT NULL AND primary_em = 0) ${sql.as} em
+        WHERE em.bl_id = rm.bl_id AND em.fl_id = rm.fl_id AND em.rm_id = rm.rm_id
+        ))${sql.as} rm_type,
+    
+        (SELECT MAX(em_id) FROM
+        (SELECT em_id, bl_id, fl_id, rm_id from em
+        UNION
+        SELECT rmpct.em_id, bl_id, fl_id, rm_id FROM rmpct
+        WHERE rmpct.status = '1'
+        AND (rmpct.date_start IS NULL OR rmpct.date_start &lt;= ${sql.currentDate})
+        AND (rmpct.date_end IS NULL OR rmpct.date_end &gt;= ${sql.currentDate})
+        AND (rmpct.activity_log_id IS NULL
+        OR rmpct.activity_log_id NOT IN (SELECT activity_log_id FROM activity_log WHERE activity_type = 'SERVICE DESK - HOTELING'))
+        AND rmpct.em_id IS NOT NULL AND primary_em = 0) ${sql.as} em
+        WHERE em.bl_id = rm.bl_id AND em.fl_id = rm.fl_id AND em.rm_id = rm.rm_id
+        AND em_id !=(SELECT MAX(em_id) FROM
+        (SELECT em_id, bl_id, fl_id, rm_id from em
+        UNION
+        SELECT rmpct.em_id, bl_id, fl_id, rm_id FROM rmpct
+        WHERE rmpct.status ='1'
+        AND (rmpct.date_start IS NULL OR rmpct.date_start &lt;= ${sql.currentDate})
+        AND (rmpct.date_end IS NULL OR rmpct.date_end &gt;= ${sql.currentDate})
+        AND (rmpct.activity_log_id IS NULL OR rmpct.activity_log_id NOT IN
+       (SELECT activity_log_id FROM activity_log WHERE activity_type = 'SERVICE DESK - HOTELING'))
+        AND rmpct.em_id IS NOT NULL AND primary_em = 0) ${sql.as} em
+        WHERE em.bl_id = rm.bl_id AND em.fl_id = rm.fl_id AND em.rm_id = rm.rm_id)
+        AND em_id != (SELECT MAX(em_id) FROM
+        (SELECT em_id, bl_id, fl_id, rm_id from em
+        UNION
+        SELECT rmpct.em_id, bl_id, fl_id, rm_id
+        FROM rmpct WHERE rmpct.status ='1'
+        AND (rmpct.date_start IS NULL OR rmpct.date_start &lt;= ${sql.currentDate})
+        AND (rmpct.date_end IS NULL OR rmpct.date_end &gt;= ${sql.currentDate})
+        AND (rmpct.activity_log_id IS NULL OR rmpct.activity_log_id NOT IN
+        (SELECT activity_log_id FROM activity_log WHERE activity_type = 'SERVICE DESK - HOTELING'))
+        AND rmpct.em_id IS NOT NULL AND primary_em = 0) ${sql.as} em
+        WHERE em.bl_id = rm.bl_id AND em.fl_id = rm.fl_id AND em.rm_id = rm.rm_id
+        AND em_id !=(SELECT MAX(em_id) FROM
+        (SELECT em_id, bl_id, fl_id, rm_id from em
+        UNION
+        SELECT rmpct.em_id, bl_id, fl_id, rm_id FROM rmpct
+        WHERE rmpct.status = '1'
+        AND (rmpct.date_start IS NULL OR rmpct.date_start &lt;= ${sql.currentDate})
+        AND (rmpct.date_end IS NULL OR rmpct.date_end &gt;= ${sql.currentDate})
+        AND (rmpct.activity_log_id IS NULL OR rmpct.activity_log_id NOT IN
+       (SELECT activity_log_id FROM activity_log WHERE activity_type = 'SERVICE DESK - HOTELING'))
+        AND rmpct.em_id IS NOT NULL AND primary_em = 0) ${sql.as} em
+        WHERE em.bl_id = rm.bl_id AND em.fl_id = rm.fl_id AND em.rm_id = rm.rm_id ))) ${sql.as} rm_std,
+        
+        CASE WHEN (SELECT COUNT(em.em_id) FROM(SELECT em.em_id, bl_id, fl_id, rm_id FROM em
+        UNION
+        SELECT rmpct.em_id, bl_id, fl_id, rm_id FROM rmpct
+        WHERE rmpct.status ='1'
+        AND (rmpct.date_start IS NULL
+        OR rmpct.date_start   &lt;= ${sql.currentDate})
+        AND (rmpct.date_end IS NULL
+        OR rmpct.date_end &gt;= ${sql.currentDate})
+        AND (rmpct.activity_log_id   IS NULL
+        OR rmpct.activity_log_id NOT IN
+        (SELECT activity_log_id FROM activity_log WHERE activity_type = 'SERVICE DESK - HOTELING'))
+        AND rmpct.em_id IS NOT NULL AND primary_em = 0) ${sql.as} em
+        WHERE em.bl_id = rm.bl_id AND em.fl_id = rm.fl_id AND em.rm_id = rm.rm_id
+        ) > 3 THEN '(...)' ELSE '' END ${sql.as} rm_use
+        FROM rm 
+    </sql>
+        <table name="rm" role="main"/>
+        
+        <!-- rm.bl_id, rm.fl_id, rm.rm_id fields must be defined to match with PK fields of highlight dataSource -->
+        <!-- hidden="true" not working -->
+        <field table="rm" name="bl_id" hidden="true"/>
+        <field table="rm" name="fl_id" hidden="true"/>
+        <field table="rm" name="rm_id"/>
+        
+        <!--  em_id values -->
+        <field table="rm" name="rm_cat"/>
+        <field table="rm" name="rm_type"/>
+        <field table="rm" name="rm_std"/>
+        <field table="rm" name="rm_use"/>
+        
+        <restriction type="sql" sql="EXISTS (SELECT 1 FROM em 
+                WHERE em.bl_id = rm.bl_id AND em.fl_id = rm.fl_id AND em.rm_id = rm.rm_id) OR
+            EXISTS (SELECT 1 FROM rmpct WHERE rmpct.bl_id = rm.bl_id AND rmpct.fl_id = rm.fl_id AND rmpct.rm_id = rm.rm_id
+                AND rmpct.status='1' AND (rmpct.date_start IS NULL OR rmpct.date_start &lt;= ${sql.currentDate}) AND 
+                    (rmpct.date_end IS NULL OR rmpct.date_end &gt;= ${sql.currentDate}) AND 
+                    (rmpct.activity_log_id IS NULL OR rmpct.activity_log_id NOT IN 
+                        (SELECT activity_log_id FROM activity_log WHERE activity_type = 'SERVICE DESK - HOTELING'))
+                AND rmpct.em_id IS NOT NULL AND primary_em = 0)">
+        </restriction>
+    </dataSource>
+
+</view>

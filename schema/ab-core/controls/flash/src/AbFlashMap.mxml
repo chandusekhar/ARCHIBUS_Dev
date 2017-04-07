@@ -1,0 +1,295 @@
+<?xml version="1.0" encoding="utf-8"?>
+<mx:Application xmlns:mx="http://www.adobe.com/2006/mxml" layout="absolute"
+	xmlns:ilog="http://www.ilog.com/2007/ilog/flex" width="100%" height="100%"
+	initialize="myInitialize()" resize="onResize()">
+
+<mx:Script>
+	<![CDATA[
+		import mx.core.IToolTip;
+		import mx.managers.ToolTipManager;
+		import ilog.maps.MapEvent;
+		import mx.events.FlexEvent;
+		import ilog.maps.MapFeature;
+		import mx.graphics.SolidColor;
+		import mx.controls.Alert;
+		import mx.controls.Label;
+		import mx.containers.VBox;
+		import mx.controls.Image;
+		import ilog.maps.MapSymbol;
+		import ilog.maps.AsiaPacificMap;
+		import ilog.maps.EuropeMiddleEastAfricaMap;
+		import ilog.maps.AmericasMap;
+		import ilog.maps.ContinentalEuropeMap;
+		import ilog.maps.USStatesMap;
+		import ilog.maps.WorldCountriesMap;
+		import ilog.maps.MapBase;
+		import com.adobe.serialization.json.JSON;
+		
+		private var map:MapBase;
+		private var mapType:String = "world";
+		private var panelId:String;
+		private var showLabels:Boolean = false;
+		
+		private var world:Rectangle = null;
+    	private var northamerica:Rectangle = new Rectangle(-172, 20, 122, 49);
+    	private var southamerica:Rectangle = new Rectangle(-119.7, -56.7, 86.7, 89.5);
+	    private var europe:Rectangle = new Rectangle(-14.2, 32.1, 56.7, 33);
+	    private var africa:Rectangle = new Rectangle(-20.1, -33.0, 102.5, 70);
+	    private var asia:Rectangle = new Rectangle(52.9, 6.2, 100, 50);
+	    private var australia:Rectangle = new Rectangle(108.6, -45.5, 73.6, 56.6);
+	    private var currentArea:Rectangle;
+	    
+	    private var mapLabels:Object;
+	    [Bindable]
+		private var tt:IToolTip;
+		
+		private function myInitialize():void{			
+			ExternalInterface.addCallback("RefreshData", RefreshData);
+			ExternalInterface.addCallback("addPins", addPins);
+			ExternalInterface.addCallback("clearPins",clearPins);
+			ExternalInterface.addCallback("setControlProperty",setControlProperty);
+			ExternalInterface.addCallback("setStyleProperty",setStyleProperty);	
+			
+			worldBtn.label = ExternalInterface.call("getLocalizedString_map_JS", "world");
+			northamericaBtn.label = ExternalInterface.call("getLocalizedString_map_JS", "northamerica");
+			southamericaBtn.label = ExternalInterface.call("getLocalizedString_map_JS", "southamerica");
+			africaBtn.label = ExternalInterface.call("getLocalizedString_map_JS", "africa");
+			asiaBtn.label = ExternalInterface.call("getLocalizedString_map_JS", "asia");
+			europeBtn.label = ExternalInterface.call("getLocalizedString_map_JS", "europe");
+			australiaBtn.label = ExternalInterface.call("getLocalizedString_map_JS", "australia");
+			clearPinsBtn.label = ExternalInterface.call("getLocalizedString_map_JS", "clearpins");
+				
+			panelId = Application.application.parameters.panelId;
+			
+			if(Application.application.parameters.showLabels != null){
+				this.showLabels = Application.application.parameters.showLabels;
+			}
+			if(Application.application.parameters.mapType != null){
+				this.mapType = Application.application.parameters.mapType;
+			}
+			switch(this.mapType){
+				case("WorldCountries"):
+				case("world"):
+					map = new WorldCountriesMap();
+					buttons.visible = true;
+					buttons.includeInLayout = true;
+					break;
+				case("USStates"):
+				case("us"):
+					map = new USStatesMap();
+					break;
+				case ("ContinentalEurope"):
+				case ("europe"):
+					map = new ContinentalEuropeMap();
+					break;
+				case "America":
+				case "america":
+					map = new AmericasMap();
+					break;
+				case "EuropeMiddleEastAfrica":
+				case "middleEast":
+				case "africa":
+					map = new EuropeMiddleEastAfricaMap();
+					break;
+				case "AsiaPacific":
+				case "asia":
+					map = new AsiaPacificMap();
+					break; 
+				default:
+					map = new WorldCountriesMap();
+					buttons.visible = true;
+					buttons.includeInLayout = true;
+			}
+			//the map should take the whole width and height of the application
+      		map.width = this.width;
+      		map.height = this.height - 16;
+      		
+      		map.zoomableSymbols = false;	
+      		map.addEventListener(MapEvent.ITEM_CLICK,onMapItemClick);
+      		map.addEventListener(MapEvent.ITEM_ROLL_OVER,mouseRollOver);
+      		map.addEventListener(MapEvent.ITEM_ROLL_OUT,mouseRollOut);
+      		panel.addChild(map);
+      		
+ 			RefreshData();
+			ExternalInterface.call("getPinData_JS",panelId);
+			
+			
+		}
+		
+		public function onResize():void{
+			if(this.map != null){
+				//resize the map together with the application
+				this.map.width = this.width;
+      			this.map.height = this.height - 16;
+   			}
+		}
+		
+		/**
+         * Sets control property specified by name.
+         * Can be called from JS code to set properties not supported in AXVW format.
+         */     
+        public function setControlProperty(propertyName:String, propertyValue:Object):void {
+            this.map[propertyName] = propertyValue;
+        }
+        
+         /**
+         * Sets style property specified by name.
+         * Can be called from JS code to set properties not supported in AXVW format.
+         */  
+        public function setStyleProperty(propertyName:String, propertyValue:Object):void {
+        	this.map.setStyle(propertyName,propertyValue);
+        }
+		
+		public function RefreshData():void{
+			try {
+				// get data from JavaScript
+				var data:String = ExternalInterface.call("getMapData_JS", panelId);
+					
+				// sanity check
+				if (data==null || data=="null" || data=="") {
+					return;
+				}
+					
+				// loop through data to refresh
+				var arrData:Array = (JSON.decode(data) as Array);
+				
+				for (var i:int=0; i<arrData.length; ++i) {
+					var key:String = arrData[i]['primaryKey'];
+				
+					var mf:MapFeature = map.getFeature(key);
+					if(mf != null){
+						mf.setStyle('fill', new SolidColor(uint(arrData[i]['color'])));
+						
+						if(mapLabels == null) mapLabels = new Object();
+						mapLabels[key] = arrData[i]['label'];
+						
+						if(showLabels){
+							var ms:MapSymbol = new MapSymbol();
+					        var lb:Label = new Label();
+							lb.text = arrData[i]['label'];
+							ms.key = key
+							ms.component = lb;
+							map.addSymbol(ms);
+						}
+					}
+				}
+			 	map.selectedFeatures = [];
+
+			} catch (e: Error) {
+				Alert.show( "[RefreshData (" + data + ")] " + e.toString(), "ERROR" );
+			}
+		}
+		
+		public function addPins(pinData:String,pinIcon:String,showLabels:Boolean):void{
+			
+			var iconSrc:String = "/archibus/schema/ab-core/graphics/icons/asterisk_green.png";
+			if(pinIcon != null){
+				iconSrc = "/archibus/schema/ab-core/graphics/" + pinIcon;
+			}
+
+			var arrData:Array = (JSON.decode(pinData) as Array);
+			for(var i:int = 0;i<arrData.length;i++){
+				var ms:MapSymbol = new MapSymbol();
+				ms.latitude = Number(arrData[i]['lat']);
+				ms.longitude = Number(arrData[i]['lon']);
+				var img:Image = new Image();
+				img.source = iconSrc;
+				if(showLabels){
+					var lb:Label = new Label();
+          			lb.setStyle('color', 0xFFFFFF);
+          			lb.setStyle('fontWeight', 'bold');
+          			lb.text = arrData[i]['label'];
+          			
+          			var vbox:VBox = new VBox();
+          			vbox.addChild(img);
+          			vbox.addChild(lb);
+          			
+          			ms.component = vbox;
+				} else {
+					ms.component = img;
+				}
+				map.addSymbol(ms);
+			}
+		}
+		
+		public function clearPins():void{
+			map.symbols = [];
+		}
+		
+		public function zoomMap(attr:String):void {
+	      var r:Rectangle = this[attr];
+	      map.fitToArea(r);
+	
+	      currentArea = r;
+	    }
+	    
+	    public function onMapItemClick(event:MapEvent):void{
+	    	if(event.mapFeature != null && event.mapFeature.key != null){
+	    		ExternalInterface.call("mapItemClick_JS",event.mapFeature.key);
+	    	}	    	
+	    }
+	    
+	    private function mouseRollOver(e:MapEvent):void {
+			if (e.mapFeature==null) {
+				return;
+			}
+			var mf:MapFeature=e.mapFeature;
+			mf.highlighted=true;
+
+			var p:Point = mf.barycenter;
+			p = map.latLongToCanvas(p);
+			p = map.drawingCanvas.localToGlobal(p);
+			
+ 
+			var ttText:String= mf.key;
+			if(mapLabels != null && mapLabels[mf.key] != null){
+				ttText += " :: " + mapLabels[mf.key];
+			}			
+
+			tt=ToolTipManager.createToolTip(ttText, p.x, p.y);
+		}
+
+		/**
+		* This method is called when the mouse leaves a country, so that the tooltip is destroyed
+		* @param MapEvent
+		*/
+		private function mouseRollOut(e:MapEvent):void {
+			if (e.mapFeature==null) {
+				return;
+			}
+			e.mapFeature.highlighted=false;
+			if (tt!=null) {
+				ToolTipManager.destroyToolTip(tt);
+				tt=null;
+			}
+		}
+	    
+	]]>
+</mx:Script>
+	
+	<mx:VBox width="100%" height="100%" id="vbox">
+		<mx:HBox width="100%" height="16">			
+			<mx:ToggleButtonBar id="buttons" color="0x000000"
+	                            height="16"
+	                            alpha="0.5"
+	                            left="2"
+	                            top="2"
+	                            itemClick="zoomMap(event.item.data)" visible="false" includeInLayout="false">
+	          <mx:dataProvider>
+	            <mx:Array>
+	              <mx:Object id="worldBtn" label="world" data="world"/>
+	              <mx:Object id="northamericaBtn" label="northamerica" data="northamerica"/>
+	              <mx:Object id="southamericaBtn" label="southamerica" data="southamerica"/>
+	              <mx:Object id="asiaBtn" label="asia" data="asia"/>
+	              <mx:Object id="europeBtn" label="europe" data="europe"/>
+	              <mx:Object id="africaBtn" label="Africa" data="africa"/>
+	              <mx:Object id="australiaBtn" label="Oceania" data="australia"/>
+	            </mx:Array>
+	          </mx:dataProvider>
+	        </mx:ToggleButtonBar>
+	
+	        <mx:Button id="clearPinsBtn" label="Clear Pins" y="0" right="0" click="clearPins()"/>
+        </mx:HBox>
+		<mx:Canvas id="panel" y="21" width="100%" height="100%"/>		
+	</mx:VBox>
+</mx:Application>

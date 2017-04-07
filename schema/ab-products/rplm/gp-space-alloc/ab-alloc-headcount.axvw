@@ -1,0 +1,91 @@
+<view version="2.0">    
+	<js file="ab-alloc-chart-monthly.js"/>
+	<js file="ab-alloc-common.js"/>
+
+    <title translatable="true">Headcount Projection Chart</title>
+
+	<message name="portfolioScenarioTitle" translatable="true">Scenario:</message>
+	<message name="fromDateTitle" translatable="true">From Date:</message>
+	<message name="toDateTitle" translatable="true">To Date:</message>
+	<message name="error_portfolio_scenario_id" translatable="true">Please set the Portfolio Scenario.</message>
+	<message name="error_from_date" translatable="true">Please set the From Date.</message>
+	<message name="error_to_date" translatable="true">Please set the To Date.</message>
+
+	<dataSource id="consoleDs">
+		<table name="gp" role="main"/>
+		<field table="gp" name="date_start"/>
+		<field table="gp" name="date_end"/>
+		<field table="gp" name="portfolio_scenario_id"/>
+	</dataSource>
+
+	<panel type="console" columns="3" id="allocGroupConsole" dataSource="consoleDs">
+		<action id="filter" mainAction="true">
+			<title>Filter</title>
+			<tooltip translatable="true">Refreshes the chart with the latest console parameters.  The chart applies to all buildings and it is based on the Employee Headcount that is entered for each group in the Portfolio Forecast.</tooltip>
+		</action>
+		<action type="menu" id="allocHeadcount_toolsMenu" imageName="/schema/ab-core/graphics/icons/view/export.png">
+	            <tooltip>Tools</tooltip>
+	            <action id="exportDOCX">
+	                <title>Export to DOCX</title>
+	                <command type="exportPanel" outputType="docx" orientation="landscape" panelId="chart"/>
+	            </action>
+	            <action id="exportPDF">
+	                <title>Export to PDF</title>
+	                <command type="exportPanel" outputType="pdf" orientation="landscape" panelId="chart"/>
+	            </action>
+	      </action>
+		<field name="portfolio_scenario_id">
+				<title>Scenario</title>
+		</field>
+		<field name="date_start" style="width:125px" >
+			<title translatable="true">From Date</title>
+		</field>
+		<field name="date_end" style="width:125px" >
+			<title translatable="true">To Date</title>
+		</field>
+	</panel>
+
+    <dataSource id="ds_chartGroupingAxis" type="grouping" >
+	    <table name="afm_cal_dates"/>        
+
+        <field name="month" groupBy="true" dataType="text" baseField="afm_cal_dates.cal_date">
+            <title translatable="true">Month</title> 
+            <sql dialect="generic">${sql.yearMonthOf('cal_date')}</sql> 
+        </field>
+
+		<parameter name="monthStart" dataType="text" value=""/>
+        <parameter name="monthEnd" dataType="text" value=""/>
+		<parameter name="portfolio_scenario_id" dataType="text" value=""/>
+		
+		<restriction type="sql" 
+             sql="${sql.yearMonthOf('cal_date')} &gt;= ${parameters['monthStart']} AND ${sql.yearMonthOf('cal_date')} &lt;= ${parameters['monthEnd']}" /> 
+       
+        <sortField table="afm_cal_dates" name="cal_date" ascending="true"/>
+	</dataSource>
+	
+  	<dataSource id="ds_dataAxis1" type="grouping">
+		<table name="gp" role="main"/>
+        <field table="gp" name="date_start"/>
+        <field table="gp" name="date_end"/>
+
+		<field name="count_em" dataType="number" size="8" decimals="0"> 
+         	<title translatable="true">Headcount</title>
+        	<sql dialect="generic">SUM( gp.count_em )</sql>
+    	</field>
+		<parameter name="portfolio_scenario_id" dataType="text" value=""/>
+		<parameter name="summaryValueForThisGroup" dataType="text" value=""/> 	 	  
+		<restriction type="sql"  sql="portfolio_scenario_id = ${parameters['portfolio_scenario_id']} AND ${sql.yearMonthOf('gp.date_start')} &lt;= ${parameters['summaryValueForThisGroup']} AND (${sql.yearMonthOf('gp.date_end')} &gt;= ${parameters['summaryValueForThisGroup']} OR gp.date_end IS NULL)"/>
+	</dataSource>   
+
+	<panel id="chart" type="chart" controlType="lineChart" dataSource="ds_dataAxis1" legendLocation="left" showLegendAsPopUp="false">
+		<title>Headcount Projection</title>
+        <groupingAxis table="afm_cal_dates" field="month"  dataSource="ds_chartGroupingAxis">
+            <title translatable="true">Month</title> 
+        </groupingAxis>
+        <dataAxis dataSource="ds_dataAxis1" table="gp" field="count_em">
+             <title translatable="true">Headcount</title>
+        </dataAxis>
+    </panel>
+    
+    <panel type="view" id="allocHeadcount_commonView" file="ab-alloc-common.axvw" showOnLoad="false"/>
+</view>

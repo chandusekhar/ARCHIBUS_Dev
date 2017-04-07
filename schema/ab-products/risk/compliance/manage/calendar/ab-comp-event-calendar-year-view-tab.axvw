@@ -1,0 +1,87 @@
+<view version="2.0">
+
+	<js file="ab-comp-common.js"/>	
+	<js file="ab-comp-event-calendar-year-view-tab.js"/>
+	
+	<message name="noEvent" translatable="true">No Event</message>
+	<message name="selectYear" translatable="true">Select Year</message>
+	
+	<message name="colorByTitle" translatable="true">Color By</message>
+	<message name="eventStatus" translatable="true">Event Status</message>
+	<message name="requirmentPriority" translatable="true">Requirement Priority</message>
+	<message name="requirementType" translatable="true">Requirement Type</message>
+    
+    <message name="editEvent" translatable="true">Edit Compliance Event</message>
+    <message name="viewEvent" translatable="true">View Compliance Event</message>
+	
+	<panel type="view" id="colorLegendView" file="ab-comp-event-calendar-calendar-color.axvw"/>
+
+ 	<dataSource id="abCompEventCalendarYearViewTabDS">
+ 	 	<table name="activity_log" role="main" />
+        <table name="regulation" role="standard"/>
+        <table name="regprogram" role="standard"/>
+		<table name="regrequirement" role="standard"/>
+		<table name="compliance_locations" role="standard"/>
+        <field name="regulation" table="regulation"/>
+        <field name="reg_program" table="regprogram"/>
+		<field name="regreq_type" table="regrequirement"/>
+		<field name="priority" table="regrequirement"/>
+		<field name="activity_log_id" table="activity_log"/>
+		<field name="status" table="activity_log"/>
+		<field name="date_scheduled" table="activity_log"/>
+		<field name="date_scheduled_end" table="activity_log"/>
+		<field table="activity_log" name="action_title"/>
+		<field table="compliance_locations" name="location_id" />
+		<field name="startMonthNumber" dataType="number" decimals="0">
+			<sql dialect="generic">
+				case when ${sql.yearOf('activity_log.date_scheduled')} &lt; ${parameters['year']} then 1 else DATEPART(month, activity_log.date_scheduled) end
+			</sql>
+            <sql dialect="oracle">
+                case when ${sql.yearOf('activity_log.date_scheduled')} &lt; ${parameters['year']} then 1 else TO_NUMBER(to_char(activity_log.date_scheduled, 'MM')) end
+            </sql>
+		</field>
+		<field name="endMonthNumber" dataType="number" decimals="0">
+			<sql dialect="generic">
+				case when ${sql.yearOf('activity_log.date_scheduled_end')} &gt; ${parameters['year']} then 12 else DATEPART(month, activity_log.date_scheduled_end) end
+			</sql>
+            <sql dialect="oracle">
+                case when ${sql.yearOf('activity_log.date_scheduled_end')} &gt; ${parameters['year']} then 12 else TO_NUMBER(to_char(activity_log.date_scheduled_end, 'MM'))  end
+            </sql>
+		</field>
+		<field name="isOverdue" dataType="text">
+			<sql dialect="generic">
+                case when 
+                activity_log.status NOT IN ('CANCELLED','COMPLETED', 'COMPLETED-V', 'CLOSED')                   
+                AND ( activity_log.date_scheduled_end &lt;${sql.currentDate} OR  (activity_log.date_scheduled &lt;${sql.currentDate} AND activity_log.status != 'IN PROGRESS') )
+                then 'true' 
+                else 'false' end
+			</sql>
+		</field>
+        <parameter name="consoleRestriction" dataType="verbatim" value=" 1=1 "/>
+        <parameter name="year" dataType="verbatim" value="2011"/>
+        <parameter name="currentUserParameter" dataType="verbatim" value="1=1"/>
+        <restriction type="sql" sql="${parameters['currentUserParameter']} and  activity_log.activity_type='COMPLIANCE - EVENT'  and ${parameters['consoleRestriction']} 
+        and ((${sql.yearOf('activity_log.date_scheduled')} =  ${parameters['year']} or ${sql.yearOf('activity_log.date_scheduled_end')} =  ${parameters['year']}) 
+        or (${sql.yearOf('activity_log.date_scheduled')} &lt; ${parameters['year']} and ${sql.yearOf('activity_log.date_scheduled_end')} &gt; ${parameters['year']}))"/>
+	</dataSource>
+
+	<panel type="html" id="panelHtml" dataSource="abCompEventCalendarYearViewTabDS">
+		<title translatable="true">Compliance Event Yearly Calendar</title>
+        <action id="exportDOCX">
+            <title translatable="true">DOC</title>
+        </action> 
+
+		<html>
+ 			<div id="calendarByYear_div">
+ 			</div>
+     	</html>
+	</panel>
+	
+	<dataSource type="grouping" id="dsYears">
+		<table name="afm_cal_dates" />
+		<field name="year" groupBy="true" dataType="text" formula="year" baseField="afm_cal_dates.cal_date">
+			<title translatable="true">Year</title>
+		</field>
+		<sortField name="year" ascending="false" />
+	</dataSource>
+</view>

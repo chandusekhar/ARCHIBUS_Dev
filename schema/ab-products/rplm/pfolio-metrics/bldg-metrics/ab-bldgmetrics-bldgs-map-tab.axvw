@@ -1,0 +1,128 @@
+<view version="2.0">
+
+    <!-- esri js library (required) -->
+    <js url="//js.arcgis.com/3.9/"/>
+    <css url="//js.arcgis.com/3.9/js/esri/css/esri.css" />
+    <!-- ab core map control (required) -->
+    <js file="ab-arcgis-map.js"/>
+    <css file="ab-arcgis-map.css"/>
+    <js file="colorbrewer.js"/>
+
+	<js file="ab-bldgmetrics-bldgs-map-tab.js"/>
+	
+	<message name="area_estimated" translatable="true">Area - Area Estimated</message>
+	<message name="int_gross_area" translatable="true">Area - Int. Gross Area</message>
+	<message name="rentable_area" translatable="true">Area - Rentable Area</message>
+	<message name="total_lease_neg_area" translatable="true">Area - Total Lease Negotiated Area</message>
+	<message name="total_occup_area" translatable="true">Area - Total Occup. Area</message>
+	<message name="total_room_area" translatable="true">Area - Total Room Area</message>
+	<message name="usable_area" translatable="true">Area - Usable Area</message>
+	<message name="capital_project_cost" translatable="true">Cost - Active Capital Projects Cost</message>
+	<message name="chargeable_cost" translatable="true">Cost - Chargeable Cost</message>
+	<message name="operating_costs" translatable="true">Cost - Operating Costs</message>
+	<message name="value_book" translatable="true">Cost - Value-Book</message>
+	<message name="value_market" translatable="true">Cost - Value-Market</message>
+	<message name="building_occupancy" translatable="true">Occupancy - Building Occupancy</message>
+	<message name="employee_headcount" translatable="true">Occupancy - Employee Headcount</message>
+	<message name="max_bldg_occup" translatable="true">Occupancy - Max. Bldg. Occupancy</message>
+	<message name="vacancy_percent" translatable="true">Occupancy - Vacancy Percent</message>
+	<message name="avg_area_em" translatable="true">KPI - Avg. Area per Emp.</message>
+	<message name="cost_per_area" translatable="true">KPI - Cost per Area</message>	
+	<message name="efficency_rate" translatable="true">KPI - Efficency Rate (U/R)</message>
+	<message name="fci" translatable="true">KPI - FCI</message>
+	<message name="ru_ratio" translatable="true">KPI - RU Ratio(R/U)</message>
+    
+    <message name="labelShowDetails" translatable="true">Show Details</message>
+	
+	<dataSource id="abBldgMetricsBldgsMap_ds">
+		<table name="bl"/>
+		<field table="bl" name="bl_id"/>
+		<field table="bl" name="pr_id"/>
+		<field table="bl" name="name"/>
+		<field name="address" dataType="text">
+			<title translatable="true">Address</title>
+			<sql dialect="generic">
+                ((CASE WHEN address1 IS NULL THEN '' ELSE address1 END)
+                    ${sql.concat}(CASE WHEN address1 IS NULL OR address2 IS NULL THEN '' ELSE ', ' END)
+                    ${sql.concat}(CASE WHEN address2 IS NULL THEN '' ELSE address2 END))
+            </sql>
+		</field>
+		<field table="bl" name="cost_sqft"/>
+		<field table="bl" name="area_avg_em"  dataType="number" decimals="2">
+            <title translatable="true">Average Usable Area per Employee</title>
+            <sql dialect="generic">
+                (ROUND( (bl.area_usable / (CASE WHEN (SELECT COUNT(em.em_id) FROM EM WHERE em.bl_id = bl.bl_id) = 0 THEN 9999999999 ELSE (SELECT COUNT(em.em_id) FROM EM WHERE em.bl_id = bl.bl_id) END) ),2))
+            </sql>
+        </field>
+		<field table="bl" name="ratio_ru"/>
+		<field table="bl" name="area_usable"/>
+		<field table="bl" name="value_book"/>
+		<field table="bl" name="value_market"/>
+		<field table="bl" name="fci" dataType="number" decimals="2">
+			<sql dialect="generic">
+				(SELECT AVG(${sql.getFormula('AbCapitalPlanningCA-FacilityConditionIndex')}) FROM activity_log WHERE  cost_to_replace > 0 AND activity_type = 'ASSESSMENT' AND activity_log.bl_id = bl.bl_id)
+			</sql>
+		</field>		
+		<field table="bl" name="operating_costs" dataType="number" decimals="2">
+			<sql dialect="generic">
+				(SELECT SUM(  amount_expense ) FROM cost_tran, cost_cat WHERE cost_tran.cost_cat_id = cost_cat.cost_cat_id AND cost_tran.bl_id = bl.bl_id
+				AND cost_cat.cost_type = 'OPERATING EXP.' )
+			</sql>
+		</field>		
+		<field table="bl" name="active_capital_cost" dataType="number" decimals="2">
+			<sql dialect="generic">
+				(SELECT  SUM(cost_est_design_exp) + SUM(cost_est_design_cap)  FROM activity_log, project WHERE project.bl_id = bl.bl_id and activity_log.project_id = project.project_id
+				AND ( project.status LIKE 'Approved%' OR project.status LIKE 'Issued%' ))
+			</sql>
+		</field>		
+		<field table="bl" name="area_estimated" dataType="number" decimals="0">
+			<sql dialect="generic">
+				(SELECT SUM(CASE WHEN su.area_usable = 0 THEN su.area_manual ELSE su.area_usable END)
+				FROM su   WHERE su.bl_id = bl.bl_id)
+			</sql>
+		</field>
+		<field name="chargeable_cost" table="bl" dataType="number" decimals="0">
+			<sql dialect="generic">
+				(select sum (rm.cost) from rm where rm.bl_id = bl.bl_id)
+			</sql>
+		</field>
+		<field name="ratio_ur" table="bl"/>		
+		<field name="area_gross_int" table="bl"/>		
+		<field name="area_ls_negotiated" table="bl"/>		
+		<field name="area_ocup" table="bl"/>		
+		<field name="area_rentable" table="bl"/>		
+		<field name="area_rm" table="bl"/>		
+		<field name="count_em" table="bl"/>		
+		<field name="count_max_occup" table="bl"/>		
+		<field name="count_occup" table="bl"/>		
+		<field table="bl" name="vacancy_percent" dataType="number" decimals="0">
+			<sql dialect="generic">
+				( ( bl.count_max_occup / ${sql.replaceZero('bl.count_occup')} ) - 1 ) * 100
+			</sql>
+		</field>
+		
+		<field table="bl" name="lat"/>
+		<field table="bl" name="lon"/>
+		<field table="bl" name="zip"/>
+		<field table="bl" name="city_id"/>
+		<field table="bl" name="ctry_id"/>
+		<field table="bl" name="regn_id"/>
+		<field table="bl" name="state_id"/>
+        <field table="bl" name="site_id"/>
+	</dataSource>
+	
+	
+	
+	<panel type="html" id="htmlBldgsMap">
+		<action id="highlightByMetric">
+			<title translatable="true">Highlight by Metric</title>
+		</action>	
+        <action id="basemapLayerMenu" type="menu" imageName="/schema/ab-core/graphics/icons/view/ab-arcgis-basemap-16.png">
+	        <title translatable="true"></title>
+	        <tooltip translatable="true">Basemaps</tooltip>
+        </action> 	    
+	    <html>    
+	      	<div id="objBldgsMap"></div>
+	    </html>
+	</panel>
+</view>

@@ -1,0 +1,209 @@
+<view version="2.0">
+
+	<title translatable="true">Work Team Performance Charts</title>
+
+	<dataSource id="hwrDS" type="grouping">
+		<sql dialect="generic">
+			(SELECT hwr.wr_id, 
+					hwr.work_team_id,
+					hwr.status,
+			    ( select case when count(a.wr_id)=0 then 0 else sum(b.satisfaction*20)/count(a.wr_id)  end
+			    FROM hwr ${sql.as}  a  JOIN hwo  ${sql.as} c ON c.wo_id=a.wo_id  LEFT JOIN hactivity_log  ${sql.as} b ON  b.wo_id=c.wo_id OR  b.wr_id=a.wr_id 
+			    WHERE a.status NOT IN ('Rej','Can') AND a.work_team_id=hwr.work_team_id   AND  ${sql.yearMonthOf('hwr.date_completed')} =${sql.yearMonthOf('a.date_completed')}  
+				AND  ${parameters['surveyRes']}  AND b.satisfaction>0 ) ${sql.as} satisfaction,
+					hwr.date_requested,
+					hwr.cost_est_total,
+					hwr.cost_total,
+					hwr.escalated_response,
+					hwr.escalated_completion,
+					case when hwr.escalated_response = 0 then 1
+						else null
+					end as responseOnTime,
+					case when hwr.escalated_completion = 0 then 1 
+						else null
+					end as completionOnTime,
+					case when hwr.cost_est_total >= hwr.cost_total then 1
+						else null
+					end as completeEstCost,
+					case when hwr.cost_est_total >= hwr.cost_total and hwr.escalated_response = 0 then 1
+						else null
+					end as responseOnTimeEstCost,
+					case when hwr.cost_est_total >= hwr.cost_total and hwr.escalated_completion = 0 then 1
+						else null
+					end as completeOnTimeEstCost,
+					
+					datediff(minute,  ${sql.timestamp('hwr.date_requested', 'hwr.time_requested')} ,${sql.timestamp('hwr.date_completed', 'hwr.time_completed')} )  ${sql.as} realCompletedTime, 
+					
+					case when hwr.date_escalation_completion is null 
+						then datediff(minute,  ${sql.timestamp('hwr.date_requested', 'hwr.time_requested')} ,${sql.timestamp('hwr.date_completed',	 'hwr.time_completed')} ) 
+						else datediff(minute, ${sql.timestamp('hwr.date_requested', 'hwr.time_requested')}, ${sql.timestamp('hwr.date_escalation_completion', 'hwr.time_escalation_completion')}  )
+					end ${sql.as} requiredCompletedTime
+			    FROM hwr JOIN hwo ON hwo.wo_id=hwr.wo_id JOIN hactivity_log ON  hactivity_log.wo_id=hwo.wo_id  OR hactivity_log.wr_id=hwr.wr_id 
+			    WHERE hwr.status NOT IN ('Rej','Can') AND hwr.work_team_id is NOT NULL AND  ${parameters['otherRes']} 
+			    )
+			    UNION
+			    (SELECT hwr.wr_id,  hwr.supervisor ${sql.as}  work_team_id ,hwr.status,
+
+			    ( select case when count(a.wr_id)=0 then 0 else sum(b.satisfaction*20)/count(a.wr_id)  end
+			    FROM hwr ${sql.as}  a  JOIN hwo  ${sql.as} c ON c.wo_id=a.wo_id  LEFT JOIN hactivity_log  ${sql.as} b ON  b.wo_id=c.wo_id OR  b.wr_id=a.wr_id 
+			    WHERE a.status NOT IN ('Rej','Can') AND a.supervisor=hwr.supervisor   AND  ${sql.yearMonthOf('hwr.date_completed')} =${sql.yearMonthOf('a.date_completed')}  
+				AND  ${parameters['surveyRes']}  AND b.satisfaction>0 ) ${sql.as} satisfaction,
+			
+					hwr.date_requested,hwr.cost_est_total,hwr.cost_total,
+					hwr.escalated_response,hwr.escalated_completion,
+					case when hwr.escalated_response = 0 then 1
+						else null
+					end as responseOnTime,
+					case when hwr.escalated_completion = 0 then 1 
+						else null
+					end as completionOnTime,
+					case when hwr.cost_est_total >= hwr.cost_total then 1
+						else null
+					end as completeEstCost,
+					case when hwr.cost_est_total >= hwr.cost_total and hwr.escalated_response = 0 then 1
+						else null
+					end as responseOnTimeEstCost,
+					case when hwr.cost_est_total >= hwr.cost_total and hwr.escalated_completion = 0 then 1
+						else null
+					end as completeOnTimeEstCost,
+
+					datediff(minute,  ${sql.timestamp('hwr.date_requested', 'hwr.time_requested')} ,${sql.timestamp('hwr.date_completed', 'hwr.time_completed')} )  ${sql.as} realCompletedTime, 
+					
+					case when hwr.date_escalation_completion is null 
+						then datediff(minute,  ${sql.timestamp('hwr.date_requested', 'hwr.time_requested')} ,${sql.timestamp('hwr.date_completed',	 'hwr.time_completed')} ) 
+						else datediff(minute, ${sql.timestamp('hwr.date_requested', 'hwr.time_requested')}, ${sql.timestamp('hwr.date_escalation_completion', 'hwr.time_escalation_completion')}  )
+					end ${sql.as} requiredCompletedTime
+			    FROM hwr JOIN hwo ON hwo.wo_id=hwr.wo_id JOIN hactivity_log ON  hactivity_log.wo_id=hwo.wo_id OR hactivity_log.wr_id=hwr.wr_id 
+			    WHERE hwr.status NOT IN ('Rej','Can') AND hwr.supervisor is NOT NULL AND hwr.work_team_id IS NULL AND  ${parameters['otherRes']} 
+			    )
+		</sql>
+
+		<sql dialect="oracle">
+			(SELECT hwr.wr_id, 
+					hwr.work_team_id,
+					hwr.status,
+			    ( select case when count(a.wr_id)=0 then 0 else sum(b.satisfaction*20)/count(a.wr_id)  end
+			    FROM hwr ${sql.as}  a  JOIN hwo  ${sql.as} c ON c.wo_id=a.wo_id  LEFT JOIN hactivity_log  ${sql.as} b ON  b.wo_id=c.wo_id OR  b.wr_id=a.wr_id 
+			    WHERE a.status NOT IN ('Rej','Can') AND a.work_team_id=hwr.work_team_id   AND  ${sql.yearMonthOf('hwr.date_completed')} =${sql.yearMonthOf('a.date_completed')}  
+				AND  ${parameters['surveyRes']}  AND b.satisfaction>0 ) ${sql.as} satisfaction,
+					hwr.date_requested,
+					hwr.cost_est_total,
+					hwr.cost_total,
+					hwr.escalated_response,
+					hwr.escalated_completion,
+					case when hwr.escalated_response = 0 then 1
+						else null
+					end as responseOnTime,
+					case when hwr.escalated_completion = 0 then 1 
+						else null
+					end as completionOnTime,
+					case when hwr.cost_est_total >= hwr.cost_total then 1
+						else null
+					end as completeEstCost,
+					case when hwr.cost_est_total >= hwr.cost_total and hwr.escalated_response = 0 then 1
+						else null
+					end as responseOnTimeEstCost,
+					case when hwr.cost_est_total >= hwr.cost_total and hwr.escalated_completion = 0 then 1
+						else null
+					end as completeOnTimeEstCost,
+					
+					${sql.timestamp('hwr.date_completed', 'hwr.time_completed')} -  ${sql.timestamp('hwr.date_requested', 'hwr.time_requested')} ${sql.as} realCompletedTime, 
+					
+					case when hwr.date_escalation_completion is null 
+						then ( ${sql.timestamp('hwr.date_completed', 'hwr.time_completed')} - ${sql.timestamp('hwr.date_requested', 'hwr.time_requested')} ) 
+						else ( ${sql.timestamp('hwr.date_escalation_completion', 'hwr.time_escalation_completion')} - ${sql.timestamp('hwr.date_requested', 'hwr.time_requested')})
+					end ${sql.as} requiredCompletedTime
+
+			    FROM hwr JOIN hwo ON hwo.wo_id=hwr.wo_id JOIN hactivity_log ON  hactivity_log.wo_id=hwo.wo_id  OR hactivity_log.wr_id=hwr.wr_id 
+			    WHERE hwr.status NOT IN ('Rej','Can') AND hwr.work_team_id is NOT NULL AND  ${parameters['otherRes']} 
+			    )
+			    UNION
+			    (SELECT hwr.wr_id,  hwr.supervisor ${sql.as}  work_team_id ,hwr.status,
+			    ( select case when count(a.wr_id)=0 then 0 else sum(b.satisfaction*20)/count(a.wr_id)  end
+			    FROM hwr ${sql.as}  a  JOIN hwo  ${sql.as} c ON c.wo_id=a.wo_id  LEFT JOIN hactivity_log  ${sql.as} b ON  b.wo_id=c.wo_id OR  b.wr_id=a.wr_id 
+			    WHERE a.status NOT IN ('Rej','Can') AND a.supervisor=hwr.supervisor   AND  ${sql.yearMonthOf('hwr.date_completed')} =${sql.yearMonthOf('a.date_completed')}  
+				AND  ${parameters['surveyRes']}  AND b.satisfaction>0 ) ${sql.as} satisfaction,
+					hwr.date_requested,hwr.cost_est_total,hwr.cost_total,
+					hwr.escalated_response,hwr.escalated_completion,
+					case when hwr.escalated_response = 0 then 1
+						else null
+					end as responseOnTime,
+					case when hwr.escalated_completion = 0 then 1 
+						else null
+					end as completionOnTime,
+					case when hwr.cost_est_total >= hwr.cost_total then 1
+						else null
+					end as completeEstCost,
+					case when hwr.cost_est_total >= hwr.cost_total and hwr.escalated_response = 0 then 1
+						else null
+					end as responseOnTimeEstCost,
+					case when hwr.cost_est_total >= hwr.cost_total and hwr.escalated_completion = 0 then 1
+						else null
+					end as completeOnTimeEstCost,
+
+					${sql.timestamp('hwr.date_completed', 'hwr.time_completed')} -  ${sql.timestamp('hwr.date_requested', 'hwr.time_requested')} ${sql.as} realCompletedTime, 
+					
+					case when hwr.date_escalation_completion is null 
+						then ( ${sql.timestamp('hwr.date_completed', 'hwr.time_completed')} - ${sql.timestamp('hwr.date_requested', 'hwr.time_requested')} ) 
+						else ( ${sql.timestamp('hwr.date_escalation_completion', 'hwr.time_escalation_completion')} - ${sql.timestamp('hwr.date_requested', 'hwr.time_requested')})
+					end ${sql.as} requiredCompletedTime
+
+			    FROM hwr JOIN hwo ON hwo.wo_id=hwr.wo_id JOIN hactivity_log ON  hactivity_log.wo_id=hwo.wo_id  OR hactivity_log.wr_id=hwr.wr_id 
+			    WHERE hwr.status NOT IN ('Rej','Can') AND hwr.supervisor is NOT NULL AND hwr.work_team_id IS NULL AND  ${parameters['otherRes']} 
+			    )
+		</sql>
+
+		<table name="hwr" role="main" />
+		<sortField name="work_team_id" ascending="true" />
+		
+		<field name="work_team_id" dataType="text" groupBy="true">
+			<title translatable="true">Work Team</title>
+		</field>
+		
+		<field name="pctCompleteOnTimeEstCost" baseField="hwr.Count" dataType="number" decimals="0">
+			<title translatable="true">% Completed On Time within Estimated Cost</title>
+		    <sql dialect="generic">CASE WHEN count(hwr.wr_id)=0 THEN 0 ELSE 100*count(hwr.completeOnTimeEstCost) /count(hwr.wr_id) END</sql>
+		</field>
+		<field name="completedWithinRequiredTime" baseField="hwr.realCompletedTime" dataType="number" decimals="0">
+			<title translatable="true">% of Allotted Time Completed Within</title>
+			    <sql dialect="generic">
+				   CASE WHEN sum(${sql.isNull('hwr.requiredCompletedTime','0')})=0 THEN NULL ELSE  100* sum(${sql.isNull('hwr.realCompletedTime','0')})/sum(${sql.isNull('hwr.requiredCompletedTime','0')} )  END 
+			    </sql>
+		</field>
+		<field name="satisfactionAverage" baseField="hwr.satisfaction" formula="avg" dataType="number" decimals="0">
+			<title translatable="true">Satisfaction Survey Average</title>
+		</field>
+		<parameter name="otherRes" dataType="verbatim" value=" 1=1 "/>
+		<parameter name="surveyRes" dataType="verbatim" value=" 1=1 "/>
+	</dataSource>
+	
+  <panel 	id="workTeamPeformanceChart" 
+    		type="chart" 
+    		showOnLoad="true" 
+    		controlType="columnChart" 
+    		dataSource="hwrDS" 
+    		showLegendOnLoad="true"
+    		showLegendAsPopUp="false" 
+    		legendLocation="right"
+    		showDataTips="true" 
+    		backgroundColor="0xc6e2ff" 
+    		fillType="solid">
+        <title translatable="true">Work Team Performance Bar Chart</title>
+       <groupingAxis table="hwr" field="work_team_id" dataSource="hwrDS" showLabel="true" labelRotation="45">
+            <title translatable="true">Work Teams</title>
+        </groupingAxis>
+         <dataAxis table="hwr" field="pctCompleteOnTimeEstCost" dataSource="hwrDS" showLabel="true">
+			<title translatable="true">
+				% Completed On Time within Estimated Cost
+			</title>
+        </dataAxis>
+        <dataAxis table="hwr" field="completedWithinRequiredTime" dataSource="hwrDS" showLabel="true">
+			<title translatable="true">% of Allotted Time Completed Within</title>
+        </dataAxis>
+        <dataAxis table="hwr" field="satisfactionAverage" dataSource="hwrDS" showLabel="true">
+			<title translatable="true">Satisfaction Survey Average</title>
+        </dataAxis>
+    </panel>
+    
+    <js file="ab-ondemand-workteam-all-report-chart.js" />
+</view>

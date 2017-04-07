@@ -1,0 +1,135 @@
+<view version="2.0">
+    <layout file="ab-proj-console-details.axvw"/>
+    <title>Review Variances - Design to Baseline</title>
+    <js file="ab-proj-variances-design-to-baseline.js"/> 
+
+    <panel type="view" id="projVariancesDesignToBaselineConsole" file="ab-proj-restriction-console-actions.axvw" layout="mainLayout" region="north"/>
+      
+  	<dataSource id="projVariancesDesignToBaselineDs0" type="grouping" applyVpaRestrictions="false">
+        <table name="activity_log" role="main"/>
+        <field table="activity_log" name="project_id" groupBy="true"/>
+        <field name="design_cap_est" dataType="number" decimals="2" >
+            <title>Design Capital Estimate</title>
+            <sql dialect="generic">SUM(design_cap_est)</sql>
+        </field>
+        <field name="baseline_cap_est" dataType="number" decimals="2" >
+            <title>Baseline Capital Estimate</title>
+            <sql dialect="generic">SUM(baseline_cap_est)</sql>
+        </field>
+        <field name="cap_cost_variance" dataType="number" decimals="2" >
+            <title>Capital Cost Variance</title>
+            <sql dialect="generic">SUM(cap_cost_variance)</sql>
+        </field>
+        <field name="design_exp_est" dataType="number" decimals="2" >
+            <title>Design Expense Estimate</title>
+            <sql dialect="generic">SUM(design_exp_est)</sql>
+        </field>
+        <field name="baseline_exp_est" dataType="number" decimals="2" >
+            <title>Baseline Expense Estimate</title>
+            <sql dialect="generic">SUM(baseline_exp_est)</sql>
+        </field>
+        <field name="exp_cost_variance" dataType="number" decimals="2" >
+            <title>Expense Cost Variance</title>
+            <sql dialect="generic">SUM(exp_cost_variance)</sql>
+        </field>
+        <field name="design_tot_est" dataType="number" decimals="2" >
+            <title>Design Total Estimate</title>
+            <sql dialect="generic">SUM(design_tot_est)</sql>
+        </field>
+        <field name="baseline_tot_est" dataType="number" decimals="2" >
+            <title>Baseline Total Estimate</title>
+            <sql dialect="generic">SUM(baseline_tot_est)</sql>
+        </field>
+        <field name="tot_cost_variance" dataType="number" decimals="2" >
+            <title>Total Cost Variance</title>
+            <sql dialect="generic">SUM(tot_cost_variance)</sql>
+        </field>
+        <field name="design_duration" dataType="number" decimals="2" >
+            <title>Design Duration</title>
+            <sql dialect="generic">SUM(design_duration)</sql>
+        </field>
+        <field name="baseline_duration" dataType="number" decimals="2" >
+            <title>Baseline Duration</title>
+            <sql dialect="generic">SUM(baseline_duration)</sql>
+        </field>
+        <field name="schedule_variance" dataType="number" decimals="2" >
+            <title>Schedule Variance</title>
+            <sql dialect="generic">SUM(schedule_variance)</sql>
+        </field>
+        <sortField table="activity_log" name="project_id" ascending="true"/>
+        <sql dialect="generic">
+              SELECT bl.city_id, bl.state_id, project.site_id, project.bl_id, project.dv_id, project.dp_id, project.is_template,
+                      program.program_type, program.program_id, project.project_type, project.project_id,
+                      project.proj_mgr, project.status,
+                      design_cap_est, baseline_cap_est, cap_cost_variance, design_exp_est,
+                      baseline_exp_est,exp_cost_variance, design_tot_est, baseline_tot_est, tot_cost_variance,
+                      design_duration,baseline_duration,schedule_variance
+              FROM (SELECT project_id,
+                      SUM(cost_est_design_cap) ${sql.as} design_cap_est,
+                      SUM(cost_est_cap) ${sql.as} baseline_cap_est,
+                      (SUM(cost_est_design_cap) - SUM(cost_est_cap)) ${sql.as} cap_cost_variance,
+                      SUM(cost_est_design_exp) ${sql.as} design_exp_est,
+                      SUM(cost_estimated) ${sql.as} baseline_exp_est,
+                      (SUM(cost_est_design_exp) - SUM(cost_estimated)) ${sql.as} exp_cost_variance,
+                      (SUM(cost_est_design_exp) + SUM(cost_est_design_cap)) ${sql.as} design_tot_est,
+                      (SUM(cost_est_cap) + SUM(cost_estimated)) ${sql.as} baseline_tot_est,
+                      (SUM(cost_est_design_cap) - SUM(cost_est_cap) + SUM(cost_est_design_exp) - SUM(cost_estimated)) ${sql.as} tot_cost_variance,
+                      SUM(duration) ${sql.as} design_duration,
+                      SUM(duration_est_baseline) ${sql.as} baseline_duration,
+                      (SUM(duration) - SUM(duration_est_baseline)) ${sql.as} schedule_variance
+                    FROM activity_log WHERE ${sql.vpaRestriction} GROUP BY project_id ) ${sql.as} activity_aggs
+              JOIN project ON activity_aggs.project_id = project.project_id
+              LEFT OUTER JOIN program ON program.program_id = project.program_id
+              LEFT OUTER JOIN bl ON project.bl_id = bl.bl_id
+              WHERE project.is_template = 0
+            </sql>
+            
+            <sql dialect="oracle">
+              SELECT  bl.city_id, bl.state_id, project.site_id, project.bl_id, project.dv_id, project.dp_id, project.is_template,
+				  program.program_type, program.program_id, project.project_type, project.project_id,
+				  project.proj_mgr, project.status,
+				  design_cap_est, baseline_cap_est, cap_cost_variance, design_exp_est,
+				  baseline_exp_est,exp_cost_variance, design_tot_est, baseline_tot_est, tot_cost_variance,
+				  design_duration,baseline_duration,schedule_variance
+			  FROM (
+				  SELECT  project_id,
+				    SUM(cost_est_design_cap) ${sql.as} design_cap_est,
+				    SUM(cost_est_cap) ${sql.as} baseline_cap_est,
+				    (SUM(cost_est_design_cap) - SUM(cost_est_cap)) ${sql.as} cap_cost_variance,
+				    SUM(cost_est_design_exp) ${sql.as} design_exp_est,
+				    SUM(cost_estimated) ${sql.as} baseline_exp_est,
+				    (SUM(cost_est_design_exp) - SUM(cost_estimated)) ${sql.as} exp_cost_variance,
+				    (SUM(cost_est_design_exp) + SUM(cost_est_design_cap)) ${sql.as} design_tot_est,
+				    (SUM(cost_est_cap) + SUM(cost_estimated)) ${sql.as} baseline_tot_est,
+				    (SUM(cost_est_design_cap) - SUM(cost_est_cap) + SUM(cost_est_design_exp) - SUM(cost_estimated)) ${sql.as} tot_cost_variance,
+				    SUM(duration) ${sql.as} design_duration,
+				    SUM(duration_est_baseline) ${sql.as} baseline_duration,
+				    (SUM(duration) - SUM(duration_est_baseline)) ${sql.as} schedule_variance
+				  FROM activity_log WHERE ${sql.vpaRestriction} GROUP BY project_id ) ${sql.as} activity_aggs, project, program, bl 
+			  WHERE   activity_aggs.project_id = project.project_id AND
+				  program.program_id(+) = project.program_id AND
+				  project.bl_id = bl.bl_id(+) AND
+                  project.is_template = 0
+         </sql>
+    </dataSource>
+
+    <panel type="crossTable" id="selectProjectReport" dataSource="projVariancesDesignToBaselineDs0" layout="mainLayout" region="center">
+        <title>Review Variances - Design to Baseline</title>
+        <action id="exportXLS">
+            <title>XLS</title>
+            <command type="exportPanel" outputType="xls" panelId="selectProjectReport"/>
+        </action>
+        <action>
+            <title>Refresh</title>
+            <command type="showPanel" panelId="selectProjectReport"/>
+        </action>     
+        <event type="onClickItem">
+            <command type="openDialog" viewName="ab-work-pkg-variances.axvw"/>
+        </event>               
+    </panel>
+</view>
+    
+ 
+ 
+ 
+ 

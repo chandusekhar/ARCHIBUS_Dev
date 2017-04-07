@@ -1,0 +1,511 @@
+
+<!-- This view fragment defines the Locations filter and grid. -->
+
+<view version="2.0">
+    <js file="ab-sp-console-locations.js"/> 
+    <message name="addBuilding" translatable="true">Add Building</message>
+    <message name="addFloor" translatable="true">Add Floor</message>
+    <message name="editBl" translatable="true">Edit Building</message>
+    <message name="editFloor" translatable="true">Edit Floor</message>
+    <message name="teamFloorNotInLocationList" translatable="true">This floor plan cannot be displayed because it does not satisfy the filter. Please change or clear the filter and try again.</message>
+    <message name="teamSchemaUnavailable" translatable="true">You must update your schema to include the tables and fields used to handle Team Space before continuing. To do this, add new tables 'rm_team', 'team_assoc', and 'team_properties'. Also add new fields to the 'team' table.</message>
+    <message name="teamUnavailableInSpaceMode" translatable="true">The Teams tab is available only in occupancy mode.</message>
+    <message name="roomStandardUnavailable" translatable="true">Room standard tab is only available in space mode.</message>
+    <!-- Location filter and list. -->
+
+    <dataSource id="locationFilterDS">
+        <table name="rm"/>
+        <table name="em" role="standard"/>
+        <field name="bl_id" table="rm"/>
+        <field name="fl_id" table="rm"/>
+        <field name="rm_id" table="rm"/>
+        <field name="dv_id" table="rm"/>
+        <field name="dp_id" table="rm"/>
+        <field name="rm_type" table="rm"/>
+        <field name="rm_cat" table="rm"/>
+        <field name="em_id" table="em"/>
+        <field name="date_last_surveyed" table="rm"/>
+    </dataSource>
+
+    <dataSource id="locationsDS" applyVpaRestrictions="false">
+        <sql dialect="generic">
+          SELECT  * FROM (
+			  SELECT  
+				 wraped_rm.bl_id,
+				 wraped_rm.fl_id,
+				 wraped_rm.dwgname,
+				 ( SELECT
+					SUM(rm.area)
+					FROM rm
+					LEFT OUTER JOIN rmcat ON rm.rm_cat = rmcat.rm_cat
+					WHERE ${parameters['commonParameters']}
+					AND ${parameters['emRestriction']}
+					AND rm.dwgname IS NOT NULL
+					AND (rm.rm_cat IS NULL OR EXISTS (SELECT 1 FROM rmcat WHERE
+					rm.rm_cat= rmcat.rm_cat AND rmcat.used_in_calcs !='no_totals'))
+					AND rm.bl_id = wraped_rm.bl_id AND rm.fl_id = wraped_rm.fl_id AND rm.dwgname = wraped_rm.dwgname 
+					GROUP BY rm.bl_id, rm.fl_id, rm.dwgname
+				 ) ${sql.as} total_area,
+					 
+				  (	SELECT  SUM(rm.cap_em)  
+					FROM rm  
+					LEFT OUTER JOIN rmcat ON rm.rm_cat = rmcat.rm_cat
+					WHERE ${parameters['commonParameters']}
+					AND ${parameters['emRestriction']}
+					AND rm.dwgname IS NOT NULL 
+					AND rm.bl_id = wraped_rm.bl_id AND rm.fl_id = wraped_rm.fl_id AND rm.dwgname = wraped_rm.dwgname 
+					GROUP BY rm.bl_id, rm.fl_id, rm.dwgname 
+				  ) ${sql.as} cap_em,				 
+				 wraped_rm.count_em,
+				 wraped_rm.total_count, 
+				 fl.area_gross_ext ${sql.as} area_gross_ext,
+				 fl.area_gross_int ${sql.as} area_gross_int,
+				 fl.area_rentable ${sql.as} area_rentable,
+				 fl.area_usable ${sql.as} area_usable 
+			  FROM 
+					(	SELECT
+							rm.bl_id ${sql.as} bl_id,
+							rm.fl_id ${sql.as} fl_id,
+							rm.dwgname ${sql.as} dwgname,
+							COUNT(em.em_id) ${sql.as} count_em,
+							COUNT(distinct rm.bl_id ${sql.concat} rm.fl_id ${sql.concat} rm.rm_id) ${sql.as} total_count
+							FROM rm
+							LEFT OUTER JOIN rmcat ON rm.rm_cat = rmcat.rm_cat
+							LEFT OUTER JOIN em ON rm.rm_id = em.rm_id AND rm.fl_id = em.fl_id AND rm.bl_id = em.bl_id
+							LEFT OUTER JOIN bl on rm.bl_id=bl.bl_id 
+							WHERE ${sql.getVpaRestrictionForTable('bl')} and ${sql.vpaRestriction} 
+							and ${parameters['commonParameters']} 
+							AND ${parameters['emRestriction']} 
+							AND rm.dwgname IS NOT NULL 
+							GROUP BY rm.bl_id, rm.fl_id, rm.dwgname
+					)  ${sql.as}  wraped_rm LEFT OUTER JOIN fl ON wraped_rm.fl_id = fl.fl_id and wraped_rm.bl_id = fl.bl_id  
+		  ) ${sql.as} wraped_rm_for_oracleDb  WHERE ${parameters['totalArea']} 
+        </sql>
+
+        <table name="rm" role="main"/>
+        <table name="em" role="standard"/>
+        <table name="bl" role="standard"/>
+
+        <field table="rm" name="bl_id" dataType="text"/>
+        <field table="rm" name="fl_id" dataType="text"/>
+        <field table="rm" name="dwgname" dataType="text"/>
+        <field table="rm" name="total_area" dataType="number" size="8" decimals="2" showTotals="true" numericFormat="area"/>
+        <field table="rm" name="cap_em" dataType="integer" showTotals="true">
+            <sql dialect="generic">cap_em</sql>
+        </field>
+        <field table="rm" name="count_em" dataType="integer" showTotals="true">
+            <sql dialect="generic">count_em</sql>
+        </field>
+        <field table="rm" name="total_count" dataType="number" decimals="0" showTotals="true"/>
+        <field table="rm" name="area_gross_ext" dataType="number" decimals="2" showTotals="true" numericFormat="area"/>
+        <field table="rm" name="area_gross_int" dataType="number" decimals="2" showTotals="true" numericFormat="area"/>
+        <field table="rm" name="area_rentable" dataType="number" decimals="2" showTotals="true" numericFormat="area"/>
+        <field table="rm" name="area_usable" dataType="number" decimals="2" showTotals="true" numericFormat="area"/>
+        
+        <sortField table="rm" name="bl_id"/>
+        <sortField table="rm" name="fl_id"/>
+        <sortField table="rm" name="dwgname"/>
+
+        <parameter name="commonParameters" dataType="verbatim" value="2=2"/>
+        <parameter name="dv_id" dataType="verbatim" value="1=1"/>
+        <parameter name="dp_id" dataType="verbatim" value="1=1"/>
+        <parameter name="bl_id" dataType="verbatim" value="1=1"/>
+        <parameter name="fl_id" dataType="verbatim" value="1=1"/>
+        <parameter name="rm_id" dataType="verbatim" value="1=1"/>
+        <parameter name="rm_cat" dataType="verbatim" value="1=1"/>
+        <parameter name="rm_type" dataType="verbatim" value="1=1"/>
+        <parameter name="occupancy" dataType="verbatim" value="1=1"/>
+        <parameter name="emRestriction" dataType="verbatim" value="1=1"/>
+        <parameter name="organizationUnassigned" dataType="verbatim" value="1=1"/>
+        <parameter name="typeUnassigned" dataType="verbatim" value="1=1"/>
+        <parameter name="totalArea" dataType="verbatim" value="1=1"/>
+        <parameter name="excludedHotalableRm" dataType="verbatim" value="5=5"/>
+    </dataSource>
+
+    <panel type="console" id="locationFilter" dataSource="locationFilterDS" layoutRegion="location" collapsed="false"
+           bodyCssClass="panel-light">
+        <title>Locations</title>
+
+        <action type="menu" id="recentSearchMenu">
+            <title>Recent</title>
+        </action>
+        <action type="menu" id="addNew" enabled="${user.isMemberOfGroup('SPACE-CONSOLE-ALL-ACCESS')}">
+            <title>Add New</title>
+            <action id="addBl">
+                <title>Building</title>
+                <command type="openDialog" panelId="editBuildingForm" width="1150" height="700" newRecord="true" closeButton="false">
+                     <title>Add Building</title>
+                </command>
+            </action>
+            <action id="addFl">
+                <title>Floor</title>
+                <command type="openDialog" panelId="editFloorForm" width="800" height="500" newRecord="true" closeButton="false">
+                     <title>Add Floor</title>
+                </command>
+            </action>
+        </action>
+        <action type="menu" id="exportMenu" imageName="/schema/ab-core/graphics/icons/view/export.png">
+            <title></title>
+            <action id="doc">
+                <title>Export to DOCX</title>
+                <command type="callFunction" functionName="exportLocationToDOCX()"/>
+            </action>
+            <action id="xls">
+                <title>Export to XLS</title>
+                <command type="callFunction" functionName="exportLocationToXLS()"/>
+            </action>
+        </action>
+        <action type="menu" id="toolsMenu" imageName="/schema/ab-core/graphics/icons/view/gear.png">
+            <title></title>
+            <action id="selectFieldsLocation">
+                <title>Select Fields</title>
+                <command type="selectFields" panelId="locationsGrid"/>
+            </action>
+            <action id="openRoomStandard" checked="false">
+                <title>Show Room Standards</title>
+                <command type="callFunction" functionName="openRoomStandardTab"/>
+            </action>
+        </action>
+        <fieldset layout="fluid">
+            <!-- Following fields do not display titles, but do display placeholders. -->
+            <field name="bl_id" cssClass="shortField" showLabel="false">
+                <title>Building</title>
+                <action id="locationSelectBuilding">
+                    <title>...</title>
+                    <command
+                            type="selectValue"
+                            selectValueType="multiple"
+                            autoComplete="true"
+                            fieldNames="rm.bl_id"
+                            selectFieldNames="bl.bl_id"
+                            visibleFieldNames="bl.site_id,bl.bl_id,bl.name"/>
+                </action>
+            </field>
+            <field name="fl_id" cssClass="shortField" showLabel="false" selectValueType="multiple">
+                <title>Floor</title>
+            </field>
+            <field name="rm_id" cssClass="shortField" showLabel="false" selectValueType="multiple">
+                <title>Room</title>
+            </field>
+        </fieldset>
+
+        <fieldset layout="fluid">
+            <field name="dv_id" cssClass="shortField" showLabel="false" selectValueType="multiple">
+                <title>Division</title>
+            </field>
+            <field name="dp_id" cssClass="shortField" showLabel="false" selectValueType="multiple">
+                <title>Department</title>
+            </field>
+            <field>
+                <html>
+                    <div class="checkbox-container"><input type="checkbox" id="organizationUnassigned"/><span translatable="true">Unassigned</span></div>
+                </html>
+            </field>
+        </fieldset>
+
+        <fieldset layout="fluid">
+            <field name="em_id" table="em" cssClass="shortField" showLabel="false" readOnly="false" selectValueType="multiple">
+                <title>Employee</title>
+            </field>
+            <field>
+                <html>
+                    <div>
+                        <div class="checkbox-container"><input type="checkbox" id="occupancyVacantOnly"/><span translatable="true" id="vacantOnlyTitle">Vacant only</span></div>
+                    </div>
+                </html>
+            </field>
+        </fieldset>
+
+       <fieldset layout="fluid">
+            <field name="date_last_surveyed" table="rm" cssClass="shortField" showLabel="true">
+                <title>As Of:</title>
+            </field>
+            <!-- Action buttons on the right (using CSS class). First action button is right-most. -->
+            <action id="filterLocations" mainAction="true" cssClass="fieldButtonRight">
+                <title>Filter</title>
+            </action>
+            <action id="clearLocations" cssClass="fieldButtonRight">
+                <title>Clear</title>
+            </action>
+            <action id="moreOptions" cssClass="fieldButtonRight">
+                <title>More</title>
+            </action>
+        </fieldset>
+    </panel>
+
+    <panel type="console" id="locationFilterOptions" dataSource="locationFilterDS" showOnLoad="false" collapsed="true" layoutRegion="location"
+           bodyCssClass="panel-light panel-behind">
+
+        <fieldset layout="fluid"></fieldset>
+        <fieldset layout="fluid">
+            <field name="rm_cat" cssClass="shortField" showLabel="false" selectValueType="multiple">
+                <title>Category</title>
+            </field>
+            <field name="rm_type" cssClass="shortField" showLabel="false" selectValueType="multiple">
+                <title>Type</title>
+            </field>
+            <field>
+                <html>
+                    <div class="checkbox-container"><input type="checkbox" id="typeUnassigned"/><span translatable="true">Unassigned</span></div>
+                </html>
+            </field>
+        </fieldset>
+
+        <fieldset layout="fluid">
+            <field>
+                <html>
+                   <div>
+                    <div style="float: left" id="div_checkbox_control">
+                        <div class="checkbox-container"><span translatable="true">Occupancy options:</span></div>
+                        <div class="checkbox-container"><input type="checkbox" id="occupancyVacant"/><span translatable="true">Vacant</span></div>
+                        <div class="checkbox-container"><input type="checkbox" id="occupancyAvailable"/><span translatable="true">Available</span></div>
+                        <div class="checkbox-container"><input type="checkbox" id="occupancyAtCapacity"/><span translatable="true">At capacity</span></div>
+                        <div class="checkbox-container"><input type="checkbox" id="occupancyExceedsCapacity"/><span translatable="true">Exceeds capacity</span></div>
+                        <div style="checkbox-container"><input type="checkbox" id="excludedHotalableRm"/><span translatable="true">Exclude Hotelable Rooms</span></div>
+                    </div>
+                    <div style="float: left; margin-left: 20px;">
+                        <div class="checkbox-container"><span translatable="true">Other options:</span></div>
+                        <div>
+                            <div class="checkbox-container">
+                                <input type="checkbox" id="occupancyWithTotalArea"/>
+                                <span translatable="true" style="margin-left: 3px">With total area</span>
+                            </div>
+                            <div class="checkbox-container" style="margin-left: 24px">
+                                <select class="inputField_box" id="totalAreaOp" name="totalAreaOp" style="width: 50px;">
+                                    <option value="&gt;"><span translatable="true">&gt;</span></option>
+                                    <option value="&gt;="><span translatable="true">&gt;=</span></option>
+                                    <option value="="><span translatable="true">=</span></option>
+                                    <option value="&lt;="><span translatable="true">&lt;=</span></option>
+                                    <option value="&lt;"><span translatable="true">&lt;</span></option>
+                                </select>
+                                <input id="totalArea" name="totalArea" class="inputField" style="width: 75px;" size="10" maxSize="10"></input>
+                                <span></span>
+                            </div>
+                        </div>
+                        <div>
+                            <div class="checkbox-container">
+                                <input type="checkbox" id="occupancyWithTotalRooms"/>
+                                <span translatable="true">With total room count</span>
+                            </div>
+                            <div class="checkbox-container" style="margin-left: 24px">
+                                <select class="inputField_box" id="totalRoomsOp" name="totalRoomsOp" style="width: 50px;">
+                                    <option value="&gt;"><span translatable="true">&gt;</span></option>
+                                    <option value="&gt;="><span translatable="true">&gt;=</span></option>
+                                    <option value="="><span translatable="true">=</span></option>
+                                    <option value="&lt;="><span translatable="true">&lt;=</span></option>
+                                    <option value="&lt;"><span translatable="true">&lt;</span></option>
+                                </select>
+                                <input id="totalRooms" name="totalRooms" class="inputField" style="width: 75px;" size="10" maxSize="10"></input>
+                            </div>
+                        </div>
+                      </div>
+                    </div>
+                </html>
+            </field>
+        </fieldset>
+    </panel>
+
+    <panel type="grid" controlType="reportGrid" id="locationsGrid" dataSource="locationsDS" showOnLoad="false" 
+           sortEnabled="false" multipleSelectionEnabled="true" layoutRegion="location">       
+           
+        <title hidden="true">Locations Report</title>
+        <sortField table="rm" name="bl_id" ascending="true"/>
+        <sortField table="rm" name="fl_id" ascending="true"/>
+        <field table="rm" name="bl_id" controlType="link">
+            <title>Building</title>
+            <command type="openDialog" panelId="editBuildingForm" width="1150" height="700" newRecord="false" closeButton="false"><title>Edit Building</title></command>
+        </field>
+        <field table="rm" name="fl_id" controlType="link">
+            <title>Floor</title>
+            <command type="openDialog" panelId="editFloorForm" width="600" height="300" newRecord="false" closeButton="false"><title>Edit Floor</title></command>
+        </field>
+        <field table="rm" name="dwgname" controlType="link" hidden="true">
+            <title>Drawing</title>
+            <command type="openDialog" panelId="editFloorForm" width="600" height="300" newRecord="false" closeButton="false"><title>Edit Floor</title></command>
+        </field>
+        <field table="rm" name="total_area" dataType="number" baseField="rm.area" size="8" decimals="2" showTotals="true">
+            <title>Room Area ${user.areaUnits.title}</title>
+            <command type="openDialog" panelId="editFloorForm" width="600" height="300" newRecord="false" closeButton="false"><title>Edit Floor</title></command>
+        </field>
+        <field table="rm" name="cap_em" dataType="integer" showTotals="true" controlType="link">
+            <title>Capacity</title>
+            <command type="openDialog" panelId="editFloorForm" width="600" height="300" newRecord="false" closeButton="false"><title>Edit Floor</title></command>
+        </field>
+        <field table="rm" name="count_em" dataType="integer" showTotals="true" controlType="link">
+            <title>Occupancy</title>
+            <command type="openDialog" panelId="editFloorForm" width="600" height="300" newRecord="false" closeButton="false"><title>Edit Floor</title></command>
+        </field>
+        <field table="rm" name="total_count" dataType="integer" showTotals="true" controlType="link">
+           <title>Room Count</title>
+           <command type="openDialog" panelId="editFloorForm" width="600" height="300" newRecord="false" closeButton="false"><title>Edit Floor</title></command>
+        </field>
+        <field table="rm" name="area_gross_ext" dataType="number" decimals="2" hidden="true" showTotals="true">
+            <title>Ext. Gross Area</title>
+        </field>
+        <field table="rm" name="area_gross_int" dataType="number" decimals="2" hidden="true" showTotals="true">
+            <title>Int. Gross Area</title>
+        </field>
+        <field table="rm" name="area_rentable" dataType="number" decimals="2" hidden="true" showTotals="true">
+            <title>Rentable Area</title>
+        </field>
+        <field table="rm" name="area_usable" dataType="number" decimals="2" hidden="true" showTotals="true">
+            <title>Usable Area</title>
+        </field>
+    </panel>
+
+    <dataSource id="drawingsPerFloorDS" type="grouping" applyVpaRestrictions="false">
+        <sql dialect="generic">SELECT DISTINCT rm.bl_id, rm.fl_id, rm.dwgname FROM rm LEFT OUTER JOIN bl on rm.bl_id=bl.bl_id  WHERE ${sql.getVpaRestrictionForTable('bl')} and ${sql.vpaRestriction}</sql>
+         <table name="rm"/>
+        <field name="bl_id" groupBy="true"/>
+        <field name="fl_id" groupBy="true"/>
+        <field name="count_dwg" table="rm" baseField="rm.dwgname" formula="count" dataType="integer"/>
+    </dataSource>
+
+<!-- below were pop-up panel or datasource when you click 'add new' or 'edit' row -->
+
+
+    <dataSource id="editBuildingDS">
+        <table name="bl" role="main"/>
+        <field table="bl" name="bl_id"/>
+        <field table="bl" name="name"/>
+        <field table="bl" name="bldg_photo"/>
+        <field table="bl" name="address1"/>
+        <field table="bl" name="address2"/>
+        <field table="bl" name="ctry_id"/>
+        <field table="bl" name="state_id"/>
+        <field table="bl" name="zip"/>
+        <field table="bl" name="site_id"/>
+        <field table="bl" name="regn_id"/>
+        <field table="bl" name="city_id"/>
+        <field table="bl" name="pr_id"/>
+        <field table="bl" name="ac_id"/>
+        <field table="bl" name="contact_name"/>
+        <field table="bl" name="contact_phone"/>
+        <field table="bl" name="use1"/>
+        <field table="bl" name="date_bl"/>
+        <field table="bl" name="construction_type"/>
+        <field table="bl" name="count_occup"/>
+        <field table="bl" name="count_fl"/>
+        <field table="bl" name="comments"/>
+        <field table="bl" name="cost_sqft" dataType="number" baseField="bl.cost_sqft">
+             <sql dialect="generic">
+                 bl.cost_sqft * ${sql.exchangeRateFromBudgetToUser('Budget')}
+             </sql>
+        </field>
+        <field table="bl" name="area_gross_ext"/>
+        <field table="bl" name="area_gross_int"/>
+        <field table="bl" name="area_ext_wall"/>
+        <field table="bl" name="count_max_occup"/>
+        <field table="bl" name="date_rehab"/>
+    </dataSource>
+
+    <dataSource id="editFloorDS">
+        <table name="fl" role="main"/>
+        <field table="fl" name="bl_id"/>
+        <field table="fl" name="fl_id"/>
+        <field table="fl" name="name"/>
+        <field table="fl" name="cost_sqft"/>
+        <field table="fl" name="cost_sqft" dataType="number" baseField="fl.cost_sqft">
+             <sql dialect="generic">
+                 fl.cost_sqft * ${sql.exchangeRateFromBudgetToUser('Budget')}
+             </sql>
+        </field>
+        <field table="fl" name="area_gross_ext"/>
+        <field table="fl" name="area_gross_int"/>
+        <field table="fl" name="area_ext_wall"/>
+    </dataSource>
+
+    <panel type="form" id="editBuildingForm" dataSource="editBuildingDS" showOnLoad="false" columns="2" buttonsPosition="footer">
+        <action id="saveBuilding">
+            <title>Save</title>
+        </action>
+        <action id="deleteBuilding" enabled="${user.isMemberOfGroup('SPACE-CONSOLE-ALL-ACCESS') &amp;&amp; !panel.newRecord}">
+            <title>Delete</title>
+            <command type="deleteRecord"/>
+            <command type="closeDialog"/>
+            <command type="callFunction" functionName="spaceExpressConsoleLocations.locationFilter_onFilterLocations()"/>
+        </action>
+        <action id="cancel">
+            <title translatable="true">Cancel</title>
+            <command type="closeDialog"/>
+        </action>
+
+        <fieldset>
+            <title>Building</title>
+            <field table="bl" name="site_id"/>
+            <field table="bl" name="bl_id"/>
+            <field table="bl" name="name"/>
+            <field table="bl" name="pr_id"/>
+            <field table="bl" name="ac_id"/>
+            <field table="bl" name="comments"/>
+        </fieldset>
+
+        <fieldset>
+            <title>Location</title>
+            <field table="bl" name="address1"/>
+            <field table="bl" name="address2"/>
+            <field table="bl" name="city_id"/>
+            <field table="bl" name="state_id"/>
+            <field table="bl" name="zip"/>
+            <field table="bl" name="ctry_id"/>
+            <field table="bl" name="regn_id"/>
+        </fieldset>
+
+        <fieldset>
+            <title>Area and Occupancy</title>
+            <field table="bl" name="count_max_occup"/>
+            <field table="bl" name="count_occup"/>
+            <field table="bl" name="count_fl"/>
+            <field table="bl" name="area_gross_ext"/>
+            <field table="bl" name="area_gross_int"/>
+            <field table="bl" name="cost_sqft" readOnly="${View.project.budgetCurrency.code != View.user.userCurrency.code}">
+                <title translatable="true">Cost per. Area, ${View.user.userCurrency.code}</title>
+            </field>
+            <field table="bl" name="area_ext_wall"/>
+        </fieldset>
+
+        <fieldset>
+            <title>Other Information</title>
+            <field table="bl" name="contact_name"/>
+            <field table="bl" name="contact_phone"/>
+            <field table="bl" name="use1"/>
+            <field table="bl" name="date_bl"/>
+            <field table="bl" name="construction_type"/>
+            <field table="bl" name="date_rehab"/>
+        </fieldset>
+    </panel>
+
+     <panel type="form" id="editFloorForm" dataSource="editFloorDS" showOnLoad="false" buttonsPosition="footer">
+        <action id="saveFloor" enabled="${user.isMemberOfGroup('SPACE-CONSOLE-ALL-ACCESS')}">
+            <title>Save</title>
+        </action>
+        <action id="deleteFloor" enabled="${user.isMemberOfGroup('SPACE-CONSOLE-ALL-ACCESS') &amp;&amp; !panel.newRecord}">
+            <title>Delete</title>
+            <command type="deleteRecord"/>
+            <command type="closeDialog"/>
+            <command type="callFunction" functionName="spaceExpressConsoleLocations.locationFilter_onFilterLocations()"/>
+        </action>
+        <action id="cancel">
+            <title translatable="true">Cancel</title>
+            <command type="closeDialog"/>
+        </action>
+
+        <field table="fl" name="bl_id" readOnly="${!record.isNew}"/>
+        <field table="fl" name="fl_id"/>
+        <field table="fl" name="name"/>
+        <field table="fl" name="cost_sqft" readOnly="${View.project.budgetCurrency.code != View.user.userCurrency.code}">
+            <title>Cost per Area, ${View.user.userCurrency.code}</title>
+        </field>
+        <field table="fl" name="area_gross_ext"/>
+        <field table="fl" name="area_gross_int"/>
+        <field table="fl" name="area_ext_wall"/>
+    </panel>
+    
+    <dataSource id="teamSchemaDs">
+        <table name="afm_tbls" role="main"/>
+        <field table="afm_tbls" name="table_name"/>
+        <restriction type="parsed">
+            <clause table="afm_tbls" name="table_name" op="=" value="team_properties"/>
+        </restriction>
+    </dataSource>
+</view>

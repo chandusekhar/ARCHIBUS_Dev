@@ -1,0 +1,92 @@
+<view version="2.0">
+	<title>Work Request by Department AND Work Unit</title>
+	<preferences>
+		<viewTitleBar show="false" />
+	</preferences>
+
+	<layout file="console-small.axvw" />
+	<js file="ab-ondemand-common.js" />
+	<js file="ab-ondemand-report-common.js" />
+	<js file="uc-report-wr-by-dept-tr.js" />
+	<js file="uc-common-functions-data.js"/>
+
+	<message name="selectTitle" translatable="true">-select-</message>
+
+	<dataSource id="consoleDS1">
+		<table name="wrhwr" role="main" />
+		<field table="wrhwr" name="wr_id" />
+		<field table="wrhwr" name="date_requested" />
+	</dataSource>
+
+
+	<dataSource id="crossTableDS1" type="grouping">
+		<table name="wrhwr" role="main" />
+
+		<field name="dept" table="wrhwr" groupBy="true" dataType="text">
+			<title translatable="true">Department</title>
+			<sql dialect="sqlserver">SUBSTRING(ac_id, CHARINDEX('-', ac_id, CHARINDEX('-', ac_id, 0)+1)+1 , 5)</sql>
+		</field>
+
+		<field name="tr_id" table="wrhwr" groupBy="true" baseField="wrhwr.tr_id">
+			<title translatable="true">Work Unit</title>
+		</field>
+
+		<field name="wr_id" table="wrhwr" formula="count" dataType="number" baseField="wrhwr.wr_id">
+			<title translatable="true"># of Requests</title>
+		</field>
+
+		<field name="cost_total_total" table="wrhwr" formula="sum" dataType="number" baseField="wrhwr.cost_total">
+			<title translatable="true">Total Cost</title>
+		</field>
+
+		<field name="cost_total_avg" table="wrhwr" formula="avg" dataType="number" baseField="wrhwr.cost_total">
+			<title translatable="true">Average Cost</title>
+		</field>
+
+		<field name="separate" table="wrhwr" formula="max" dataType="text" size="1">
+			<title translatable="true"></title>
+			<sql dialect="sqlserver">' '</sql>
+		</field>
+		<sortField name="dept" ascending="true" />
+		<!--sortField name="tr_id" table="wrhwr"/-->
+		<restrictions>
+			<restriction type="sql" sql=" charge_type = 'Single Funding' AND ac_id NOT LIKE 'FHOBO-%'"/>
+		</restrictions>
+	</dataSource>
+
+	<panel type="console" columns="2" id="requestConsole"
+		dataSource="consoleDS1" region="north">
+		<title translatable="true">Filter</title>
+		<action id="filter">
+			<title translatable="true">Show</title>
+			<command type="callFunction"
+				functionName="apply_console_restriction()" />
+		</action>
+		<action id="clear">
+			<title translatable="true">Clear</title>
+			<command type="clearForm"
+				panelId="reportPanel" />
+		</action>
+		<field table="wrhwr" name="date_requested" alias="wrhwr.date_requested.from" >
+			<title>Date From</title>
+		</field>
+		<field table="wrhwr" name="date_requested" alias="wrhwr.date_requested.to" >
+			<title>To</title>
+		</field>
+	</panel>
+
+	<panel id="reportPanel" type="crossTable"
+		dataSource="crossTableDS1"
+		region="center" showOnLoad="false">
+		<title translatable="true">
+			Work Requests
+		</title>
+		<action id="exportXLS">
+            <title>XLS</title>
+            <command type="exportPanel" outputType="xls" panelId="reportPanel"/>
+        </action>
+		<event type="onClickItem">
+		    <command type="callFunction" functionName="onCrossTableClick"/>
+		</event>
+	</panel>
+</view>

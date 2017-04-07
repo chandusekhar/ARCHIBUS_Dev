@@ -1,0 +1,73 @@
+<view version="2.0">
+		<message name="expandAll">Expand All</message>
+		<message name="collapseAll">Collapse All</message>
+    <js file="ab-proj-mng-projs-alert-inv.js"/>
+    
+    <dataSource id="projMngProjsAlertInv_dsProj" applyVpaRestrictions="false">
+    		<table name="project" role="main"/>
+    		<sql dialect="generic">
+    		SELECT project.project_id, 
+    		CASE WHEN (project.date_commence_work IS NULL OR project.date_target_end IS NULL) 
+    				THEN project.date_start ELSE project.date_commence_work END ${sql.as} start_date,
+    		CASE WHEN (project.date_commence_work IS NULL OR project.date_target_end IS NULL) 
+            THEN project.date_end ELSE project.date_target_end END ${sql.as} end_date,
+        project.project_name, project.project_type, project.summary, project.proj_mgr
+        FROM project
+        LEFT OUTER JOIN program ON program.program_id = project.program_id
+        LEFT OUTER JOIN bl ON bl.bl_id = project.bl_id
+        LEFT OUTER JOIN site on site.site_id = project.site_id
+        LEFT OUTER JOIN ctry ON ctry.ctry_id = bl.ctry_id
+        WHERE ${parameters['projRestriction']} AND ${sql.vpaRestriction}
+    		</sql>
+    		<field table="project" name="project_id" dataType="text"/>
+    		<field table="project" name="start_date" dataType="date"/>
+    		<field table="project" name="end_date" dataType="date"/>
+        <field table="project" name="project_name" dataType="text"/>
+        <field table="project" name="project_type" dataType="text"/>
+        <field table="project" name="summary" dataType="text"/>
+        <field table="project" name="proj_mgr" dataType="text"/>
+        <restriction type="sql" sql="EXISTS (SELECT 1 FROM invoice WHERE invoice.status IN ('ISSUED') AND invoice.project_id = project.project_id)"/>
+        <parameter name="projRestriction" dataType="verbatim" value=" 1=1 "/>
+    </dataSource>
+    
+    <dataSource id="projMngProjsAlertInv_dsInv" applyVpaRestrictions="false">
+        <table name="invoice" role="main"/>
+        <table name="project" role="standard"/>
+        <field table="invoice" name="project_id"/>
+        <field table="project" name="project_name" />
+        <field table="invoice" name="work_pkg_id"/>
+        <field table="invoice" name="vn_id"/>
+        <field table="invoice" name="status"/>
+        <field table="invoice" name="date_sent"/>
+        <field name="date_expected_rec" table="invoice" />
+        <field table="invoice" name="amount_tot_invoice" showTotals="true"/>
+        <field table="invoice" name="amount_closed" showTotals="true"/>
+        <restriction type="sql" sql="invoice.status IN ('ISSUED') AND invoice.project_id IS NOT NULL"/>
+    </dataSource>
+    
+    <panel type="tree" controlType="table" id="projMngProjsAlertInv_projTree" dataSource="projMngProjsAlertInv_dsProj">
+        <title>Invoices Pending Approval</title>
+        <action id="collapse">
+        		<title>Collapse All</title>
+        </action>
+        <field table="project" name="project_id"/>
+        <field table="project" name="project_name"/>
+
+        <panel type="tree" controlType="table" id="projMngProjsAlertInv_invTree" dataSource="projMngProjsAlertInv_dsInv" showLabels="true">
+            <sortField table="invoice" name="vn_id" ascending="true"/>
+		        <sortField table="invoice" name="work_pkg_id" ascending="true"/>
+		        <sortField table="invoice" name="date_sent" ascending="false"/>
+            <field table="invoice" name="project_id" hidden="true"/>
+            <field table="invoice" name="vn_id"/>
+		        <field table="invoice" name="work_pkg_id"/>
+		        <field table="invoice" name="date_sent"/>
+		        <field name="date_expected_rec" table="invoice" />
+		        <field table="invoice" name="amount_tot_invoice" showTotals="true"/>
+		        <field table="invoice" name="amount_closed" showTotals="true"/>
+		        <field table="invoice" name="status"/>
+            <event type="onClickNode">
+                <command type="callFunction" functionName="projMngProjsAlertInv_invTree_select"/>
+            </event>
+        </panel>
+    </panel> 
+</view>

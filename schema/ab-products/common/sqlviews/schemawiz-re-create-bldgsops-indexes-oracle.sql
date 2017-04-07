@@ -1,0 +1,3 @@
+BEGIN EXECUTE IMMEDIATE 'DROP INDEX HELPDESK_STEP_LOG_PKEY_VALUE'; EXCEPTION WHEN OTHERS THEN null;END;;
+CREATE INDEX helpdesk_step_log_pkey_value ON helpdesk_step_log (pkey_value);
+

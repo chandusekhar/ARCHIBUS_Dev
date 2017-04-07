@@ -1,0 +1,180 @@
+<view version="2.0">
+    <title translatable="true">Employee Training, PPE Types and Medical Monitoring</title>
+    
+    <layout type="borderLayout" id="mainLayout">
+        <north initialSize="65" split="true"/>
+        <center autoScroll="true"/>
+      </layout>
+    
+    <js file="ab-ehs-rpt-em-training-ppe-types-medical-monitoring.js"/>
+    <js file="ab-ehs-rpt-common.js"/>
+    
+    <message name="noEmSelectedDOCX" translatable="true">You must select an employee before pressing the 'DOCX' button</message>
+    
+    <dataSource id="abEhsRptEmTrainingPPEMedMon_emDs">
+        <table name="em" role="main"/>
+        <field table="em" name="em_id"/>
+    </dataSource>
+    
+    <panel type="console" id="abEhsRptEmTrainingPPEMedMon_console" dataSource="abEhsRptEmTrainingPPEMedMon_emDs" region="north">
+        <title translatable="true">Filter</title>
+        
+        <action id="filter">
+            <title translatable="true">Show</title>
+            <command type="callFunction" functionName="abEhsRptEmTrainingPPEMedMonCtrl.onFilter()"/>
+        </action>
+        <action id="clear">
+            <title translatable="true">Clear</title>
+            <command type="callFunction" functionName="abEhsRptEmTrainingPPEMedMonCtrl.clearForm()"/>
+        </action>
+        <action id="exportDOCX">
+            <title translatable="true">DOCX</title>
+        </action>
+        
+        <field table="em" name="em_id" required="true" readOnly="${abEhsRptEmTrainingPPEMedMonCtrl.userRestricted}">
+            <action>
+                <title translatable="false">...</title>
+                <tooltip translatable="true">Select Value</tooltip>
+                <command type="selectValue"
+                    fieldNames="em.em_id"
+                    selectFieldNames="em.em_id"
+                    visibleFieldNames="em.em_id,em.em_std"/>
+            </action>
+        </field>
+    </panel>
+    
+    <tabs id="abEhsRptEmTrainingPPEMedMon_tabs" workflow="free" tabRefreshPolicy="refreshOnLoad" region="center">
+        <title translatable="true">Employee associated Training, PPE and Medical Monitoring</title>
+        <tab name="abEhsRptEmTrainingPPEMedMon_tabTraining" selected="true">
+            <title translatable="true">Training</title>
+            <dataSource id="abEhsRptEmTrainingPPEMedMon_trainingDs">
+                <table name="ehs_training_results" role="main"/>
+                <table name="ehs_training" role="standard"/>
+                <field table="ehs_training" name="training_id"/>
+                <field table="ehs_training" name="training_name"/>
+                <field table="ehs_training" name="training_type_id"/>
+                <field table="ehs_training_results" name="date_actual"/>
+                <field table="ehs_training_results" name="status"/>
+                <field table="ehs_training_results" name="hours_training"/>
+                <field table="ehs_training_results" name="description"/>
+                <field table="ehs_training_results" name="incident_id"/>
+                <field name="vf_incident_type" dataType="text">
+                    <title translatable="true">Incident Type</title>
+                    <sql dialect="generic">
+                        (SELECT incident_type FROM ehs_incidents WHERE incident_id = ehs_training_results.incident_id)
+                    </sql>
+                </field>
+                <field table="ehs_training_results" name="training_id" hidden="true"/>
+                <field table="ehs_training_results" name="doc" hidden="true"/>
+                <field table="ehs_training_results" name="em_id" hidden="true"/>
+            </dataSource>
+            
+            <panel type="grid" id="abEhsRptEmTrainingPPEMedMon_trainingPanel" dataSource="abEhsRptEmTrainingPPEMedMon_trainingDs" showOnLoad="false">
+                <title translatable="true">Employee Training</title>
+                <sortField table="ehs_training_results" name="status"/>
+                <sortField table="ehs_training_results" name="date_actual"/>
+                <sortField table="ehs_training" name="training_type_id"/>
+                <sortField table="ehs_training" name="training_id"/>
+                <sortField table="ehs_training" name="training_name"/>
+                <action id="exportDOCX">
+                    <title translatable="true">DOCX</title>
+                    <command type="exportPanel" outputType="docx" panelId="abEhsRptEmTrainingPPEMedMon_trainingPanel" printRestriction="true" orientation="landscape"/>
+                </action>
+                <action id="exportXLS">
+                    <title translatable="true">XLS</title>
+                    <command type="exportPanel" outputType="xls" panelId="abEhsRptEmTrainingPPEMedMon_trainingPanel"/>
+                </action>
+                <field id="view" controlType="button" enabled="${(record['ehs_training_results.doc']!='')}" onclick="showEmployeeTrainingDoc">
+                    <title translatable="true">View</title>
+                    <tooltip translatable="true">View Document</tooltip>
+                </field>
+            </panel>
+        </tab>
+        <tab name="abEhsRptEmTrainingPPEMedMon_tabPPE">
+            <title translatable="true">Personal Protective Equipment</title>
+            <dataSource id="abEhsRptEmTrainingPPEMedMon_ppeDs">
+                <table name="ehs_em_ppe_types" role="main"/>
+                <table name="ehs_ppe_types" role="standard"/>
+                <field table="ehs_ppe_types" name="ppe_type_id"/>
+                <field table="ehs_em_ppe_types" name="date_delivered"/>
+                <field table="ehs_em_ppe_types" name="date_use"/>
+                <field table="ehs_em_ppe_types" name="bl_id"/>
+                <field table="ehs_em_ppe_types" name="fl_id"/>
+                <field table="ehs_em_ppe_types" name="rm_id"/>
+                <field name="vf_sort" dataType="text">
+                    <sql dialect="generic">
+                        (CAST(ehs_em_ppe_types.date_delivered ${sql.as} VARCHAR) ${sql.concat} 
+                            (CASE WHEN ehs_em_ppe_types.date_delivered IS NOT NULL THEN '' 
+                                ELSE ' ' ${sql.concat} CAST(ehs_em_ppe_types.date_use ${sql.as} VARCHAR) END))
+                    </sql>
+                    
+                    <sql dialect="oracle">
+                        (TO_CHAR(ehs_em_ppe_types.date_delivered) ${sql.concat} 
+                            (CASE WHEN ehs_em_ppe_types.date_delivered IS NOT NULL THEN '' 
+                                ELSE ' ' ${sql.concat} TO_CHAR(ehs_em_ppe_types.date_use) END))
+                    </sql>
+                </field>
+            </dataSource>
+            
+            <panel type="grid" id="abEhsRptEmTrainingPPEMedMon_ppePanel" dataSource="abEhsRptEmTrainingPPEMedMon_ppeDs" showOnLoad="false">
+                <title translatable="true">Employee Personal Protective Equipment</title>
+                <sortField name="vf_sort" ascending="false"/>
+                <sortField table="ehs_ppe_types" name="ppe_type_id" ascending="true"/>
+                <action id="exportDOCX">
+                    <title translatable="true">DOCX</title>
+                    <command type="exportPanel" outputType="docx" panelId="abEhsRptEmTrainingPPEMedMon_ppePanel" printRestriction="true" orientation="landscape"/>
+                </action>
+                <action id="exportXLS">
+                    <title translatable="true">XLS</title>
+                    <command type="exportPanel" outputType="xls" panelId="abEhsRptEmTrainingPPEMedMon_ppePanel"/>
+                </action>
+                <field table="ehs_ppe_types" name="ppe_type_id"/>
+                <field table="ehs_em_ppe_types" name="date_delivered"/>
+                <field table="ehs_em_ppe_types" name="date_use"/>
+                <field table="ehs_em_ppe_types" name="bl_id"/>
+                <field table="ehs_em_ppe_types" name="fl_id"/>
+                <field table="ehs_em_ppe_types" name="rm_id"/>
+            </panel>
+        </tab>
+        <tab name="abEhsRptEmTrainingPPEMedMon_tabMedMon">
+            <title translatable="true">Medical Monitoring</title>
+            <dataSource id="abEhsRptEmTrainingPPEMedMon_medMonDs">
+                <table name="ehs_medical_mon_results" role="main"/>
+                <table name="ehs_medical_monitoring" role="standard"/>
+                <field table="ehs_medical_mon_results" name="medical_monitoring_id"/>
+                <field table="ehs_medical_mon_results" name="monitoring_type"/>
+                <field table="ehs_medical_mon_results" name="date_actual"/>
+                <field table="ehs_medical_monitoring" name="description"/>
+                <field table="ehs_medical_mon_results" name="status"/>
+                <field table="ehs_medical_mon_results" name="tracking_number"/>
+                <field table="ehs_medical_mon_results" name="resulting_actions"/>
+                <field table="ehs_medical_mon_results" name="comments"/>
+                <field table="ehs_medical_mon_results" name="incident_id"/>
+                <field name="vf_incident_type" dataType="text">
+                    <title translatable="true">Incident Type</title>
+                    <sql dialect="generic">
+                        (SELECT incident_type FROM ehs_incidents WHERE incident_id = ehs_medical_mon_results.incident_id)
+                    </sql>
+                </field>
+            </dataSource>
+            
+            <panel type="grid" id="abEhsRptEmTrainingPPEMedMon_medMonPanel" dataSource="abEhsRptEmTrainingPPEMedMon_medMonDs" showOnLoad="false">
+                <title translatable="true">Employee Medical Monitoring</title>
+                <sortField table="ehs_medical_mon_results" name="status"/>
+                <sortField table="ehs_medical_mon_results" name="date_actual"/>
+                <sortField table="ehs_medical_mon_results" name="medical_monitoring_id"/>
+                <action id="exportDOCX">
+                    <title translatable="true">DOCX</title>
+                    <command type="exportPanel" outputType="docx" panelId="abEhsRptEmTrainingPPEMedMon_medMonPanel" printRestriction="true" orientation="landscape"/>
+                </action>
+                <action id="exportXLS">
+                    <title translatable="true">XLS</title>
+                    <command type="exportPanel" outputType="xls" panelId="abEhsRptEmTrainingPPEMedMon_medMonPanel"/>
+                </action>
+            </panel>
+        </tab>
+    </tabs>
+
+    <panel type="view" id="abEhsCommonView" file="ab-ehs-common.axvw"/>
+
+</view>

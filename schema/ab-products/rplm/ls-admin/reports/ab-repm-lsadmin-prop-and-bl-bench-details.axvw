@@ -1,0 +1,274 @@
+<view version="2.0">
+	<title translatable="true">Details</title>
+	
+	<js file="ab-repm-lsadmin-prop-and-bl-bench-details.js"/>
+	
+	<message name="text_no_image" translatable="true">No Image Available</message>
+	<message name="owned" translatable="true">Owned</message>
+	<message name="leased" translatable="true">Leased</message>
+	<message name="neither" translatable="true">Neither</message>
+    <message name="exchangeRateInstructions" translatable="true">Note: For Lease Costs reporting consistency Lease Costs displayed are based on Total Cost values converted from the budget currency to the display currency using the Exchange Rate Type: Budget Rate. These values may differ from the original cost values displayed on the overview panel depending on user currency and conversion selections.</message>
+    <message name="Budget" translatable="true">Budget Rate</message>
+    <message name="Payment" translatable="true">Payment Rate</message>
+    <message name="total" translatable="true">Total Cost</message>
+    <message name="vat" translatable="true">VAT Only</message>
+    <message name="base" translatable="true">Base Cost</message>
+
+	<dataSource id="abRepmLsadminPropAndBlBenchDetails_dsProp">
+		<table name="property" role="main"/>
+		
+		<field table="property" name="prop_photo"/>
+		<field table="property" name="pr_id"/>
+		<field table="property" name="ctry_id"/>
+		<field table="property" name="name"/>
+		<field table="property" name="city_id"/>
+		<field name="status" dataType="text">
+			<sql dialect="generic">
+				(CASE
+					WHEN EXISTS (SELECT 1 FROM ot WHERE ot.pr_id = property.pr_id AND ot.status = 'Owned') THEN ${(parameters['owned'])}
+ 					WHEN EXISTS (SELECT 1 FROM ls WHERE ls.use_as_template = 0 AND ls.pr_id = property.pr_id AND ls.signed = 1 AND (ls.date_end &gt;= ${sql.currentDate} OR ls.date_end IS NULL) AND ls.date_start &lt;= ${sql.currentDate}) THEN ${(parameters['leased'])}
+					ELSE ${(parameters['neither'])}
+				END)
+			</sql>
+		</field>
+		<field table="property" name="use1"/>
+		<field table="property" name="pct_own"/>
+		<field table="property" name="zoning"/>
+        <field name="vf_date_purchase" dataType="date">
+            <sql dialect="generic">
+                (SELECT ot.date_purchase
+                    FROM ot WHERE 
+                    ot.ot_id = (SELECT MAX(x.ot_id) FROM ot x WHERE x.pr_id = property.pr_id AND x.status = 'Owned'))
+            </sql>
+        </field>
+        <field name="vf_date_sold" dataType="date">
+            <sql dialect="generic">
+                (SELECT ot.date_sold FROM ot
+                WHERE ot.ot_id =
+                    (SELECT MAX(ot_int.ot_id) FROM ot ${sql.as} ot_int
+                    WHERE ot_int.pr_id = property.pr_id AND ot_int.status = 'Disposed' AND ot_int.date_sold IS NOT NULL))
+            </sql>
+        </field>
+
+		<field table="property" name="area_land_acres"/>
+		<field table="property" name="area_bl_est_rentable"/>
+		<field table="property" name="area_cad"/>
+		<field table="property" name="area_bl_gross_int"/>
+		<field table="property" name="area_bl_rentable"/>
+		<field table="property" name="area_lease_neg"/>
+		<field table="property" name="area_bl_usable"/>
+		<field table="property" name="area_lease_meas"/>
+
+        <field table="property" name="cost_operating_total" dataType="number" decimals="2" currency="${project.budgetCurrency.code}">
+            <sql dialect="generic">
+                (cost_operating_total * ${parameters['exchange_rate']})
+            </sql>
+        </field>
+		<field table="property" name="qty_no_bldgs_calc"/>
+        <field table="property" name="cost_tax_total" dataType="number" decimals="2" currency="${project.budgetCurrency.code}">
+            <sql dialect="generic">
+                (cost_tax_total * ${parameters['exchange_rate']})
+            </sql>
+        </field>
+		<field table="property" name="qty_occupancy"/>
+        <field table="property" name="cost_utility_total" dataType="number" decimals="2" currency="${project.budgetCurrency.code}">
+            <sql dialect="generic">
+                (cost_utility_total * ${parameters['exchange_rate']})
+            </sql>
+        </field>
+		<field table="property" name="date_costs_last_calcd"/>
+        <field table="property" name="cost_other_total" dataType="number" decimals="2" currency="${project.budgetCurrency.code}">
+            <sql dialect="generic">
+                (cost_other_total * ${parameters['exchange_rate']})
+            </sql>
+        </field>
+		<field table="property" name="date_costs_start"/>
+        <field table="property" name="income_total" dataType="number" decimals="2" currency="${project.budgetCurrency.code}">
+            <sql dialect="generic">
+                (income_total * ${parameters['exchange_rate']})
+            </sql>
+        </field>
+		<field table="property" name="date_costs_end"/>
+
+		<field name="yearly_op_cost_rentarea" dataType="number" decimals="2" currency="${project.budgetCurrency.code}">
+			<sql dialect="generic">(cost_operating_total / (${sql.replaceZero('area_bl_rentable')} * ${parameters['conversionFactor']}) * (365.25 / (date_costs_end - date_costs_start + 1)))</sql>
+			<sql dialect="sqlserver">(cost_operating_total / (${sql.replaceZero('area_bl_rentable')} * ${parameters['conversionFactor']}) * (365.25 / (CONVERT(INT,date_costs_end) - CONVERT(INT,date_costs_start) + 1)))</sql>
+		</field>
+		<field name="yearly_rent_income_rentarea" dataType="number" decimals="2" currency="${project.budgetCurrency.code}">
+			<title translatable="true">Yearly Income per Rentable Area</title>
+			<sql dialect="generic">(income_total / (${sql.replaceZero('area_bl_rentable')} * ${parameters['conversionFactor']}) * (365.25 / (date_costs_end - date_costs_start + 1)))</sql>
+			<sql dialect="sqlserver">(income_total / (${sql.replaceZero('area_bl_rentable')} * ${parameters['conversionFactor']}) * (365.25 / (CONVERT(INT,date_costs_end) - CONVERT(INT,date_costs_start) + 1)))</sql>
+		</field>
+		<field name="yearly_tot_cost_rentarea" dataType="number" decimals="2" currency="${project.budgetCurrency.code}">
+			<title translatable="true">Yearly Total Cost per Rentable Area</title>
+			<sql dialect="generic">((cost_operating_total + cost_tax_total + cost_utility_total + cost_other_total + income_total) / (${sql.replaceZero('area_bl_rentable')} * ${parameters['conversionFactor']}) * (365.25 / (date_costs_end - date_costs_start + 1)))</sql>
+			<sql dialect="sqlserver">((cost_operating_total + cost_tax_total + cost_utility_total + cost_other_total + income_total) / (${sql.replaceZero('area_bl_rentable')} * ${parameters['conversionFactor']}) * (365.25 / (CONVERT(INT,date_costs_end) - CONVERT(INT,date_costs_start) + 1)))</sql>
+		</field>
+		<field name="yearly_income_occ" dataType="number" decimals="2" currency="${project.budgetCurrency.code}">
+			<title translatable="true">Yearly Income per Occupant</title>
+			<sql dialect="generic">(income_total / ${sql.replaceZero('qty_occupancy')} * (365.25 / (date_costs_end - date_costs_start + 1)))</sql>
+			<sql dialect="sqlserver">(income_total / ${sql.replaceZero('qty_occupancy')} * (365.25 / (CONVERT(INT,date_costs_end) - CONVERT(INT,date_costs_start) + 1)))</sql>
+		</field>
+		<field name="yearly_tot_cost_occ" dataType="number" decimals="2" currency="${project.budgetCurrency.code}">
+			<title translatable="true">Yearly Total Cost per Occupant</title>
+			<sql dialect="generic">((cost_operating_total + cost_tax_total + cost_utility_total + cost_other_total + income_total) / ${sql.replaceZero('qty_occupancy')} * (365.25 / (date_costs_end - date_costs_start + 1)))</sql>
+			<sql dialect="sqlserver">((cost_operating_total + cost_tax_total + cost_utility_total + cost_other_total + income_total) / ${sql.replaceZero('qty_occupancy')} * (365.25 / (CONVERT(INT,date_costs_end) - CONVERT(INT,date_costs_start) + 1)))</sql>
+		</field>
+		
+		<parameter name="owned" dataType="text" value="Owned"/>
+		<parameter name="leased" dataType="text" value="Leased"/>
+		<parameter name="neither" dataType="text" value="Neither"/>
+        <parameter name="exchange_rate" dataType="verbatim" value="1"/>
+        <parameter name="conversionFactor" dataType="verbatim" value="1"/>
+	</dataSource>
+
+	<dataSource id="abRepmLsadminPropAndBlBenchDetails_dsBldgs">
+		<table name="bl" role="main"/>
+		<table name="property" role="standard"/>
+		<field table="property" name="pr_id"/>
+		<field table="bl" name="bl_id"/>
+		<field table="bl" name="name"/>
+		<field table="bl" name="address1"/>
+		<field table="bl" name="address2"/>
+		<field table="bl" name="site_id"/>
+		<field table="bl" name="date_bl"/>
+		<field table="bl" name="count_fl"/>
+		<field table="bl" name="count_occup"/>
+		<field table="bl" name="count_max_occup"/>
+        <field table="bl" name="cost_sqft" dataType="number" decimals="2" currency="${project.budgetCurrency.code}">
+            <sql dialect="generic">
+                (cost_sqft * ${parameters['exchange_rate']})
+            </sql>
+        </field>
+		<field table="bl" name="area_gross_int"/>
+		<field table="bl" name="area_gross_ext"/>
+		<field table="bl" name="area_rentable"/>
+		<field table="bl" name="area_usable"/>
+		<field table="bl" name="ratio_ru"/>
+		<field table="bl" name="ratio_ur"/>
+		<field name="gu_ratio" dataType="number" decimals="2">
+			<sql dialect="generic">bl.area_gross_int / ${sql.replaceZero('bl.area_usable')}</sql>
+		</field>
+		<field table="bl" name="area_ls_negotiated"/>
+        <parameter name="exchange_rate" dataType="verbatim" value="1"/>
+	</dataSource>
+	
+	<panel type="form" id="abRepmLsadminPropAndBlBenchDetails_propPanel" dataSource="abRepmLsadminPropAndBlBenchDetails_dsProp"
+			columns="3" showOnLoad="false">
+		<title translatable="true">Property Details</title>
+		
+		<action id="paginatedReport">
+			<title translatable="true">Report</title>
+			<command type="callFunction" functionName="onReport(this,'ab-repm-lsadmin-prop-and-bl-bench-details-rpt.axvw')"/>
+		</action>
+
+		<field table="property" name="prop_photo" hidden="true" displayField="image_field"/>
+		<field id="image_field" controlType="image" rowspan="5" width="250px"/>
+		<field table="property" name="pr_id" readOnly="true" required="false"/>
+		<field table="property" name="ctry_id" readOnly="true"/>
+		<field table="property" name="name" readOnly="true"/>
+		<field table="property" name="city_id" readOnly="true"/>
+		<field name="status" dataType="text" readOnly="true">
+			<title translatable="true">Status</title>
+		</field>
+		<field table="property" name="use1" readOnly="true"/>
+		<field table="property" name="pct_own" readOnly="true"/>
+		<field table="property" name="zoning" readOnly="true"/>
+        <field name="vf_date_purchase" dataType="date" readOnly="true">
+            <title translatable="true">Date Purchased</title>
+        </field>
+        <field name="vf_date_sold" dataType="date" readOnly="true">
+            <title translatable="true">Date Sold</title>
+        </field>
+	</panel>
+
+	<panel type="form" id="abRepmLsadminPropAndBlBenchDetails_areasPanel" dataSource="abRepmLsadminPropAndBlBenchDetails_dsProp"
+			columns="2" showOnLoad="false">
+		<title translatable="true">Areas</title>
+		<field table="property" name="area_land_acres" readOnly="true"/>
+		<field table="property" name="area_bl_est_rentable" readOnly="true"/>
+		<field table="property" name="area_cad" readOnly="true"/>
+		<field table="property" name="area_bl_gross_int" readOnly="true"/>
+		<field table="property" name="area_lease_neg" readOnly="true"/>
+		<field table="property" name="area_bl_rentable" readOnly="true"/>
+        <field table="property" name="area_lease_meas" readOnly="true"/>
+		<field table="property" name="area_bl_usable" readOnly="true"/>
+	</panel>
+
+	<panel type="form" id="abRepmLsadminPropAndBlBenchDetails_costsPanel" dataSource="abRepmLsadminPropAndBlBenchDetails_dsProp"
+			columns="2" showOnLoad="false" afterRefresh="formatCurrency">
+		<title translatable="true">Costs</title>
+        <field name="cost_operating_total" dataType="number" decimals="2" readOnly="true">
+            <title translatable="true">Expense - Oper. Total</title>
+        </field>
+		<field table="property" name="qty_no_bldgs_calc" readOnly="true"/>
+        <field name="cost_tax_total" dataType="number" decimals="2" readOnly="true">
+            <title translatable="true">Expense - Tax Total</title>
+        </field>
+		<field table="property" name="qty_occupancy" readOnly="true"/>
+        <field name="cost_utility_total" dataType="number" decimals="2" readOnly="true">
+            <title translatable="true">Expense - Utility Total</title>
+        </field>
+		<field table="property" name="date_costs_last_calcd" readOnly="true"/>
+        <field name="cost_other_total" dataType="number" decimals="2" readOnly="true">
+            <title translatable="true">Expense - Other Total</title>
+        </field>
+		<field table="property" name="date_costs_start" readOnly="true"/>
+        <field name="income_total" dataType="number" decimals="2" readOnly="true">
+            <title translatable="true">Income - Total</title>
+        </field>
+		<field table="property" name="date_costs_end" readOnly="true"/>
+	</panel>
+
+	<panel type="form" id="abRepmLsadminPropAndBlBenchDetails_benchPanel" dataSource="abRepmLsadminPropAndBlBenchDetails_dsProp"
+			columns="2" showOnLoad="false" afterRefresh="formatCurrency">
+		<title translatable="true">Benchmarks</title>
+		<field name="yearly_op_cost_rentarea" dataType="number" decimals="2" readOnly="true">
+			<title translatable="true">Yearly Oper. Cost per Rentable Area</title>
+		</field>
+		<field name="yearly_rent_income_rentarea" dataType="number" decimals="2" readOnly="true">
+			<title translatable="true">Yearly Income per Rentable Area</title>
+		</field>
+		<field name="yearly_tot_cost_rentarea" dataType="number" decimals="2" readOnly="true">
+			<title translatable="true">Yearly Total Cost per Rentable Area</title>
+		</field>
+		<field name="yearly_income_occ" dataType="number" decimals="2" readOnly="true">
+			<title translatable="true">Yearly Income per Occupant</title>
+		</field>
+		<field name="yearly_tot_cost_occ" dataType="number" decimals="2" readOnly="true">
+			<title translatable="true">Yearly Total Cost per Occupant</title>
+		</field>
+		<field/>
+	</panel>
+
+	<panel type="grid" id="abRepmLsadminPropAndBlBenchDetails_bldgsPanel" dataSource="abRepmLsadminPropAndBlBenchDetails_dsBldgs"
+			 showOnLoad="false">
+		<title translatable="true">Buildings</title>
+		<field table="bl" name="bl_id"/>
+		<field table="bl" name="name"/>
+		<field table="bl" name="address1"/>
+		<field table="bl" name="address2"/>
+		<field table="bl" name="site_id"/>
+		<field table="bl" name="date_bl"/>
+		<field table="bl" name="count_fl"/>
+		<field table="bl" name="count_occup">
+			<title translatable="true">Current Occupancy</title>
+		</field>
+		<field table="bl" name="count_max_occup"/>
+        <field name="cost_sqft" dataType="number" decimals="2" readOnly="true">
+            <title translatable="true">Cost per. Area</title>
+        </field>
+		<field table="bl" name="area_gross_int"/>
+		<field table="bl" name="area_gross_ext"/>
+		<field table="bl" name="area_rentable"/>
+		<field table="bl" name="area_usable"/>
+		<field table="bl" name="ratio_ru"/>
+		<field table="bl" name="ratio_ur"/>
+		<field name="gu_ratio" dataType="number" decimals="2">
+			<title translatable="true">G/U Ratio</title>
+		</field>
+		<field table="bl" name="area_ls_negotiated"/>
+
+    	<sortField table="bl" name="bl_id" ascending="true"/>
+	</panel>
+</view>

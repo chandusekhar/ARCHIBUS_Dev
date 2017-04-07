@@ -1,0 +1,158 @@
+<view version="2.0">
+    <layout file="ab-proj-console-west-north-details.axvw"/>
+    <title>Allocate Funding</title>
+    <message name="fundingExists">Funding Sources have already been selected for this Project.  Delete current Funding Sources for this Project and copy a new Funding Scenario?</message> 
+    <message name="mismatchedProgramId">Program assigned to Project does not match the Funding Source Program Name</message>
+    <message name="insufficientFunds">Selected Funding Source does not contain sufficient funds.</message>
+    <message name="fundsUnavailableByDate">Funding Source is not available for the selected Fiscal Year.</message>
+    <js file="ab-allocate-funding-edit.js"/>        
+    
+    <panel type="view" id="allocateFundingConsole" file="ab-proj-restriction-console.axvw" layout="mainLayout" region="north"/>
+    
+    <dataSource id="allocateFundingDs0">
+        <table name="project" role="main"/>
+        <field table="project" name="project_id"/>
+        <field table="project" name="project_name" />
+        <field table="project" name="program_id" />
+        <restriction type="sql" sql="project.project_id IS NOT NULL"/>
+        <restriction type="sql" sql="project.is_template = 0"/>
+        <restriction type="sql" sql="project.status IN ('Created','Requested','Requested-Estimated','Requested-On Hold','Requested-Routed','Requested-Routed for Approval','Approved','Approved-In Design','Issued-In Process','Issued-On Hold','Completed-Pending','Completed-Actions Pending','Completed-Not Ver','Completed-Not Verified')"/>
+    </dataSource>
+        
+    <dataSource id="allocateFundingDs1">
+        <table name="projfunds" role="main"/>
+        <table name="project" role="standard"/>
+        <field name="fund_id" table="projfunds"/>
+		<field name="fiscal_year" table="projfunds"/>
+		<field name="amount_cap" table="projfunds"/>
+		<field name="amount_exp" table="projfunds"/>
+        <field name="description" table="projfunds"/>
+		<field name="project_id" table="projfunds"/>
+		<restriction type="sql" sql="projfunds.fund_id IS NOT NULL"/>
+    </dataSource>
+    
+    <dataSource id="allocateFundingDs2">
+    	<table name="funding" role="main"/>
+        <field name="fund_id" table="funding"/>
+        <field name="program_id" table="funding"/>
+        <field name="date_avail" table="funding"/>
+        <field name="date_avail_end" table="funding"/>
+    </dataSource>
+    
+    <dataSource id="allocateFundingDs3" applyVpaRestrictions="false">
+    	<table name="funding" role="main"/>
+        <sql dialect="generic">
+              SELECT funding.fund_id, funding.program_id, funding.date_avail, funding.amt_total,
+                (CASE
+                   WHEN used_funds.allocated_total IS NULL THEN
+                     funding.amt_total
+                   ELSE 
+                     (funding.amt_total - used_funds.allocated_total)
+                END) funds_remain
+              FROM funding
+                LEFT OUTER JOIN
+                  (SELECT projfunds.fund_id,
+                    (CASE
+                      WHEN SUM(amount_cap + amount_exp) IS NULL THEN
+                        0
+                      ELSE
+                        SUM(amount_cap + amount_exp)
+                    END) as allocated_total 
+                  FROM projfunds 
+              GROUP BY projfunds.fund_id) used_funds
+                    ON funding.fund_id = used_funds.fund_id 
+        </sql>                    
+        <sql dialect="oracle">
+				SELECT funding.fund_id, funding.program_id, funding.date_avail, funding.amt_total,
+                (CASE
+                   WHEN used_funds.allocated_total IS NULL THEN
+                     funding.amt_total
+                   ELSE 
+                     (funding.amt_total - used_funds.allocated_total)
+                END) funds_remain
+              FROM funding, 
+					(SELECT projfunds.fund_id,
+						(CASE
+							WHEN SUM(amount_cap + amount_exp) IS NULL THEN
+							0
+						ELSE
+							SUM(amount_cap + amount_exp)
+						END) as allocated_total 
+					FROM projfunds 
+					GROUP BY projfunds.fund_id) used_funds
+             WHERE funding.fund_id = used_funds.fund_id(+)  
+        </sql>
+        <field name="fund_id" table="funding"/>
+        <field name="program_id" table="funding"/>
+        <field name="date_avail" table="funding"/>
+        <field name="funds_remain" table="funding" dataType="number"/>
+    </dataSource>    
+    
+    <panel type="grid" id="selectProjectReport" dataSource="allocateFundingDs0" layout="nestedLayout_1" region="west">
+        <title>Select Project</title>
+        <sortField name="project_id" table="project" ascending="true"/>
+        <field table="project" name="project_id" controlType="link" id="selectProjectId">
+            <command type="showPanel" panelId="allocateFundingForm" show="false"/>
+        </field>
+        <field name="project_name" table="project"/>
+    </panel>
+    
+    <panel type="grid" id="allocateFundingGrid" showOnLoad="false" dataSource="allocateFundingDs1" layout="nestedLayout_2" region="north">
+        <title>Select Project Funds</title> 
+        <action id="addNew">
+            <title>Add New</title>
+            <command type="showPanel" panelId="allocateFundingForm" newRecord="true"/>
+        </action>
+        <action id="copyScenario">
+            <title>Copy Scenario</title>
+        </action>
+        <action id="refresh">
+            <title>Refresh</title>
+            <command type="showPanel" panelId="allocateFundingGrid"/>
+        </action>
+        <action id="export:XLS">
+            <title>XLS</title>
+            <command type="exportPanel" outputType="xls" panelId="allocateFundingGrid"/>
+        </action>
+        <sortField name="fund_id" table="projfunds" ascending="true"/>
+        <sortField name="fiscal_year" table="projfunds" ascending="true"/>
+        <field controlType="button">
+            <title>Edit</title>
+            <command type="showPanel" panelId="allocateFundingForm"/>
+         </field>
+        <field name="fund_id" table="projfunds"/>
+        <field name="fiscal_year" table="projfunds"/>
+		<field name="amount_cap" table="projfunds"/>
+		<field name="amount_exp" table="projfunds"/>
+		<field name="project_id" table="projfunds" hidden="true"/>
+    </panel>
+        
+    <panel type="form" id="allocateFundingForm" columns="1" showOnLoad="false" dataSource="allocateFundingDs1" layout="nestedLayout_2" region="center">
+        <title>Project Fund Details</title>               
+        <action id="save">
+            <title>Save</title>
+        </action>
+        <action id="delete">
+            <title>Delete</title>
+            <command type="deleteRecord"/>
+            <command type="showPanel" panelId="allocateFundingForm" show="false"/>
+            <command type="showPanel" panelId="allocateFundingGrid" applyParentRestriction="false"/>
+        </action>
+        <action id="cancel">
+            <title>Cancel</title>
+            <command type="showPanel" panelId="allocateFundingForm" show="false"/>
+        </action>  
+        <field name="project_id" table="projfunds" readOnly="true" required="true"/>
+		<field name="fund_id" table="projfunds" required="true">
+            <action id="selectFundValue">
+				<title>...</title>
+            </action>
+        </field>
+        <field name="fiscal_year" table="projfunds" required="true" />
+        <field name="amount_cap" table="projfunds"  required="true" />
+        <field name="amount_exp" table="projfunds"  required="true" />
+        <field name="description" table="projfunds" required="false" />
+    </panel> 
+</view>
+
+

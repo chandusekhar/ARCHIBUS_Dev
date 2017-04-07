@@ -1,0 +1,138 @@
+<view version="2.0">
+    <designInfo type="paginated" pattern="ab-viewdef-paginated-highlight-thematic" isAlterable="true"/>
+    <title translatable="true">Highlight Rooms by Department Per Floor</title>
+    <report/>
+    
+    <dataSource id="ds_ab-sp-hl-rm-by-dp-per-fl-prnt_grid_rm" type="grouping">
+        <sql dialect="generic">
+			SELECT
+			rmpct.bl_id ${sql.as} bl_id,
+			rmpct.fl_id ${sql.as} fl_id,
+			rmpct.rm_id ${sql.as} rm_id,
+			rmpct.dv_id ${sql.as} dv_id,
+			rmpct.dp_id ${sql.as} dp_id,
+			(case when rmpct.day_part=0 then rmpct.pct_space/100.00*rm.area else rmpct.pct_space/200.00*rm.area end) ${sql.as} area,
+			rm.dwgname ${sql.as} dwgname,
+			dp.hpattern_acad ${sql.as} hpattern_acad
+			FROM (select mo_id, pct_id, activity_log_id, bl_id , fl_id, rm_id, dv_id, dp_id , rm_cat, rm_type, date_start, date_end, status,area_rm , day_part,pct_space from rmpct 
+			         union select mo_id, pct_id, activity_log_id, bl_id , fl_id, rm_id, dv_id, dp_id , rm_cat, rm_type, date_start, date_end, status,area_rm,day_part,pct_space from hrmpct ) 
+			         rmpct left join rm on rmpct.bl_id = rm.bl_id and rmpct.fl_id = rm.fl_id and rmpct.rm_id = rm.rm_id
+			left join dp on rmpct.dv_id = dp.dv_id and rmpct.dp_id = dp.dp_id
+			WHERE  rmpct.dp_id IS NOT NULL AND rm.dwgname IS NOT NULL and ${parameters['rmpctConsoleRes']}
+			AND rmpct.status=1 and (rmpct.date_start IS NULL OR rmpct.date_start &lt;= ${parameters['date']}) 
+			                    and (rmpct.date_end IS NULL OR rmpct.date_end &gt;= ${parameters['date']})
+        </sql>
+        <table name="rm" role="main"/>
+        <field name="dv_id" dataType="text" groupBy="true">
+           <title translatable="true">Division Code</title>
+        </field>
+        <field name="dp_id" dataType="text" groupBy="true">
+           <title translatable="true">Department Code</title>
+        </field>
+        <field name="hpattern_acad" dataType="text" groupBy="true">
+           <title translatable="true">Legend</title>
+        </field>
+        <field name="total_count" dataType="number" decimals="0">
+           <title translatable="true">Total Count</title>
+           <sql dialect="generic">(count(distinct rm.bl_id${sql.concat}rm.fl_id${sql.concat}rm.rm_id))</sql>
+        </field>
+        <field name="total_area"  dataType="number" decimals="2">
+           <title translatable="true">Total Area</title>
+           <sql dialect="generic">(sum(rm.area))</sql>
+        </field>
+        <field name="avg_area" dataType="number" decimals="2">
+           <title translatable="true">Average Area</title>
+           <sql dialect="generic">(case when count(distinct rm.bl_id${sql.concat}rm.fl_id${sql.concat}rm.rm_id) = 0 then 0 
+           else sum(rm.area)/count(distinct rm.bl_id${sql.concat}rm.fl_id${sql.concat}rm.rm_id) end)</sql>
+        </field>
+        <sortField table="rm" name="dv_id" ascending="true"/>
+		<sortField table="rm" name="dp_id" ascending="true"/>
+        <parameter name="rmpctConsoleRes" dataType="verbatim" value="1=1"/>
+        <parameter name="date" dataType="date" value=""/>
+    </dataSource>
+    
+    <dataSource id="ds_ab-sp-hl-rm-by-dp-per-fl-prnt_drawing_rmHighlight">
+        <table name="rm" role="main"/>
+        <table name="dp" role="standard"/>
+        <field table="rm" name="bl_id"/> 
+        <field table="rm" name="fl_id"/> 
+        <field table="rm" name="rm_id"/> 
+        <field table="dp" name="hpattern_acad" dataType="text" legendKey="true">
+			<sql dialect="generic">
+				case when (select count(distinct rmpct.dv_id ${sql.concat}rmpct.dp_id) FROM (select mo_id, pct_id, activity_log_id, bl_id , fl_id, rm_id, dv_id, dp_id , rm_cat, rm_type, date_start, date_end, status from rmpct 
+			         union select mo_id, pct_id, activity_log_id, bl_id , fl_id, rm_id, dv_id, dp_id , rm_cat, rm_type, date_start, date_end, status from hrmpct ) 
+			         rmpct where ${parameters['rmpctConsoleRes']} and rmpct.bl_id = rm.bl_id and rmpct.fl_id = rm.fl_id and rmpct.rm_id = rm.rm_id 
+			         
+			         and (  (0= ${parameters['pendingRequestOnly']} AND rmpct.status=1 and (rmpct.date_start IS NULL OR rmpct.date_start &lt;= ${parameters['date']}) 
+			                    and (rmpct.date_end IS NULL OR rmpct.date_end &gt;= ${parameters['date']})
+			                 )
+			             or(1= ${parameters['pendingRequestOnly']} AND ( rmpct.activity_log_id IS NOT NULL OR rmpct.mo_id IS NOT NULL) and
+			                 (rmpct.status = 0 OR (rmpct.status = 1 AND rmpct.date_start &gt; ${parameters['date']} ))
+			               )
+			         )
+			         
+			         ) > 1
+			    then '14 0 7 6710886'     
+				when (select count(distinct rmpct.dv_id ${sql.concat}rmpct.dp_id) FROM (select mo_id, pct_id, activity_log_id, bl_id , fl_id, rm_id, dv_id, dp_id , rm_cat, rm_type, date_start, date_end, status from rmpct 
+			         union select mo_id, pct_id, activity_log_id, bl_id , fl_id, rm_id, dv_id, dp_id , rm_cat, rm_type, date_start, date_end, status from hrmpct ) 
+			         rmpct where ${parameters['rmpctConsoleRes']} and rmpct.bl_id = rm.bl_id and rmpct.fl_id = rm.fl_id and rmpct.rm_id = rm.rm_id 
+			         
+			         and (  (0= ${parameters['pendingRequestOnly']} AND rmpct.status=1 and (rmpct.date_start IS NULL OR rmpct.date_start &lt;= ${parameters['date']}) 
+			                    and (rmpct.date_end IS NULL OR rmpct.date_end &gt;= ${parameters['date']})
+			                 )
+			             or(1= ${parameters['pendingRequestOnly']} AND ( rmpct.activity_log_id IS NOT NULL OR rmpct.mo_id IS NOT NULL) and
+			                 (rmpct.status = 0 OR (rmpct.status = 1 AND rmpct.date_start &gt; ${parameters['date']}))
+			               )
+			         )
+			         
+			         ) = 1
+				then (select dp.hpattern_acad from dp where dp.dv_id ${sql.concat} dp.dp_id = (select distinct rmpct.dv_id ${sql.concat} rmpct.dp_id FROM (select mo_id, pct_id, activity_log_id, bl_id , fl_id, rm_id, dv_id, dp_id , rm_cat, rm_type, date_start, date_end, status from rmpct 
+			         union select mo_id, pct_id, activity_log_id, bl_id , fl_id, rm_id, dv_id, dp_id , rm_cat, rm_type, date_start, date_end, status from hrmpct ) 
+			         rmpct where ${parameters['rmpctConsoleRes']} and rmpct.bl_id = rm.bl_id and rmpct.fl_id = rm.fl_id and rmpct.rm_id = rm.rm_id 
+			         
+			         and (  (0= ${parameters['pendingRequestOnly']} AND rmpct.status=1 and (rmpct.date_start IS NULL OR rmpct.date_start &lt;= ${parameters['date']}) 
+			                    and (rmpct.date_end IS NULL OR rmpct.date_end &gt;= ${parameters['date']})
+			                 )
+			             or(1= ${parameters['pendingRequestOnly']} AND ( rmpct.activity_log_id IS NOT NULL OR rmpct.mo_id IS NOT NULL) and
+			                 (rmpct.status = 0 OR (rmpct.status = 1 AND rmpct.date_start &gt; ${parameters['date']}))
+			               )
+			         )
+			         
+			         and rmpct.dv_id IS NOT NULL AND rmpct.dp_id IS NOT NULL 
+			         
+			         )
+				    )
+				else null end
+            </sql>
+		 </field>
+		 <restriction type="sql" sql="rm.dwgname IS NOT NULL and rm.bl_id ${sql.concat}rm.fl_id ${sql.concat}rm.rm_id 
+		 IN(select rmpct.bl_id ${sql.concat}rmpct.fl_id ${sql.concat}rmpct.rm_id FROM (select mo_id, pct_id, activity_log_id, bl_id , fl_id, rm_id, dv_id, dp_id , rm_cat, rm_type, date_start, date_end, status from rmpct 
+			         union select mo_id, pct_id, activity_log_id, bl_id , fl_id, rm_id, dv_id, dp_id , rm_cat, rm_type, date_start, date_end, status from hrmpct ) 
+			         rmpct where ${parameters['rmpctConsoleRes']} AND rmpct.status=1 and (rmpct.date_start IS NULL OR rmpct.date_start &lt;= ${parameters['date']}) 
+			                    and (rmpct.date_end IS NULL OR rmpct.date_end &gt;= ${parameters['date']}))"/>
+        <parameter name="date" dataType="date" value=""/>
+		<parameter name="rmpctConsoleRes" dataType="verbatim" value="1=1"/>
+		<parameter name="pendingRequestOnly" dataType="verbatim" value="0"/>
+    </dataSource>
+    
+    <dataSource id="ds_ab-sp-hl-rm-by-dp-per-fl-prnt_drawing_rmLabel">
+        <table name="rm" role="main"/>
+        <!--field name="bl_id" hidden="true"/>
+        <field name="fl_id" hidden="true"/-->
+        <field name="rm_id"/>
+        <!--field name="dv_id"/>
+        <field name="dp_id"/-->
+        <field name="area"/>
+    </dataSource>
+    
+    <panel type="drawing" id="abSpHlRmByDpPerFlPrnt_DrawingPanel"
+     highlightDataSource="ds_ab-sp-hl-rm-by-dp-per-fl-prnt_drawing_rmHighlight"
+     labelsDataSource="ds_ab-sp-hl-rm-by-dp-per-fl-prnt_drawing_rmLabel"
+     highlightType="thematic">
+        <title></title>
+    </panel>
+    
+    <panel type="legend" format="table" id="abSpHlRmByDpPerFlPrnt_legend" dataSource="ds_ab-sp-hl-rm-by-dp-per-fl-prnt_grid_rm" role="legend">
+        <title translatable="true">Legend</title>
+    </panel>
+</view>

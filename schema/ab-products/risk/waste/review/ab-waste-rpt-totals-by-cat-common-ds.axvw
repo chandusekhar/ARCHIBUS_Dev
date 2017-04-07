@@ -1,0 +1,79 @@
+<view version="2.0">
+    <dataSource type="grouping" id="abWasteRptTotalsByCatCommonDs">
+        <sql dialect="generic">
+            SELECT wo.waste_profile, wo.waste_disposition, wo.status, wo.date_start, wo.storage_location, wo.site_id, wo.bl_id, 
+            wp.waste_category ${sql.as} waste_category,
+            CASE WHEN ${parameters["groupByField"]} IS NULL THEN 'N/A' 
+            ELSE ${parameters["groupByField"]} 
+            END ${sql.as} vf_waste_out_group_by_field, 
+             
+            CASE WHEN wo.units_type='MASS' THEN 
+            ${parameters['quantity']} 
+            ELSE 0 
+            END ${sql.as} massQuantity, 
+         
+            CASE WHEN wo.units_type='VOLUME-LIQUID' THEN 
+            ${parameters['quantity']} 
+            ELSE 0 
+            END ${sql.as} liquidQuantity,
+          
+            CASE WHEN wo.units_type='VOLUME-GAS' THEN 
+            ${parameters['quantity']}
+            ELSE 0 
+            END ${sql.as} gasQuantity 
+         
+            FROM waste_out ${sql.as} wo,bill_unit ${sql.as} bu,bill_type ${sql.as} bt,
+            waste_profiles ${sql.as} wp 
+            WHERE wo.units  =  bu.bill_unit_id AND wo.units_type = bt.bill_type_id 
+            AND wo.waste_profile = wp.waste_profile   AND wo.units_type = bu.bill_type_id 
+        </sql>
+        <table name="waste_out" role="main"/>
+        
+        <field name="waste_category" baseField="waste_out.waste_category" groupBy="true">
+            <title translatable="true">Waste Category</title>
+        </field>
+        <field name="vf_waste_out_group_by_field" groupBy="true"/>
+        
+        <field name="sum_mass" dataType="number" numericFormat="Default" formula="sum" baseField="waste_out.massQuantity" decimals="4">
+            <title translatable="true">Total Waste Amount (Mass)</title>
+        </field>
+        <field name="sum_liquid" dataType="number" numericFormat="Default" formula="sum" baseField="waste_out.liquidQuantity" decimals="4">
+            <title translatable="true">Total Waste Amount (Liquid)</title>
+        </field>
+        <field name="sum_gas" dataType="number" numericFormat="Default" formula="sum" baseField="waste_out.gasQuantity" decimals="4">
+            <title translatable="true">Total Waste Amount (Gas)</title>
+        </field>
+        
+        <parameter name="groupByField" dataType="verbatim" value="wp.waste_type"/>
+        <parameter name="defaultConversionFactor" dataType="verbatim"
+            value="(SELECT conversion_factor FROM bill_unit,bill_type 
+                WHERE  bill_type.bill_type_id = bill_unit.bill_type_id  
+                    AND bill_type.bill_type_id LIKE ('REPORTS%'${sql.concat}RTRIM(wo.units_type)) 
+                    AND bill_type.activity_id = 'AbRiskWasteMgmt' AND is_dflt=1)"/>
+        <parameter name="alternativeConversionFactor" dataType="verbatim"
+            value="(SELECT conversion_factor FROM bill_unit 
+                WHERE bill_unit_id =( SELECT min(bill_unit.bill_unit_id)  
+                FROM bill_unit,bill_type 
+                WHERE bill_type.bill_type_id = bill_unit.bill_type_id 
+                    AND bill_type.activity_id = 'AbRiskWasteMgmt'  
+                    AND bill_type.bill_type_id LIKE ('REPORTS%'${sql.concat}RTRIM(wo.units_type)))
+                    AND bill_unit.bill_type_id LIKE ('REPORTS%'${sql.concat}RTRIM(wo.units_type)))"/>
+        <parameter name="quantity" dataType="verbatim"
+            value="(CASE WHEN    
+                    (wo.quantity * bu.conversion_factor / 
+                        (CASE WHEN ${parameters['defaultConversionFactor']} IS NOT NULL 
+                              THEN ${parameters['defaultConversionFactor']} 
+                        ELSE ${parameters['alternativeConversionFactor']}
+                        END)) IS NULL THEN 0 
+                 ELSE
+                    (wo.quantity * bu.conversion_factor / 
+                        (CASE WHEN ${parameters['defaultConversionFactor']} IS NOT NULL 
+                              THEN ${parameters['defaultConversionFactor']} 
+                        ELSE ${parameters['alternativeConversionFactor']}
+                        END)) 
+                 END)"/>
+        
+        <sortField table="waste_out" name="waste_category"  ascending="true"/>
+        <sortField name="vf_waste_out_group_by_field" ascending="true" />
+    </dataSource>
+</view>

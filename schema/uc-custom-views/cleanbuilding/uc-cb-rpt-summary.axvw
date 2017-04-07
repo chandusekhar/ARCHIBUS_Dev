@@ -1,0 +1,839 @@
+<view version="2.0">
+	<js file="uc-cb-rpt-summary.js"/>
+    <js file="ab-cb-rpt-common.js"/>
+	
+    <title>Asbestos Summary Report</title>
+    
+    <message name="title_project" translatable="true">Project</message>
+    <message name="title_substance" translatable="true">Substance</message>
+    <message name="title_site" translatable="true">Site</message>
+    <message name="title_bldg" translatable="true">Building</message>
+    <message name="title_floor" translatable="true">Floor</message>
+    <message name="title_room" translatable="true">Room</message>
+	<message name="noProjectSelectedForXLS" translatable="true">You must select at least one project before pressing the 'XLS' button</message>
+    
+    <layout id="main">
+        <west id="main_west" initialSize="30%" split="true"/>
+        <center id="main_center"/>
+    </layout>
+    <layout id="nested" containingLayout="main" region="center">
+        <north id="nested_north" initialSize="208px" split="true"/>
+        <center id="nested_center"/>
+    </layout>
+    
+        
+    <!--  Projects Panel -->
+    <panel type="view" id="abCbRptSummary_projectsPanel" file="ab-cb-rpt-projects.axvw" layoutRegion="main_west"/>
+	
+    <!--Filter Console Panel-->
+    <panel type="view" id="abCbRptSummary_filterPanel" file="uc-cb-rpt-summary-filter.axvw" layoutRegion="nested_north"/>   
+
+    <tabs id="abCbRptSummary_tabs" workflow="free" tabRefreshPolicy="refreshOnLoad" layoutRegion="nested_center" cssClass="wizard">
+        <tab name="abCbRptSummary_tabSubstance" selected="true">
+            <title translatable="true">Substance</title>
+
+            <dataSource id="abCbRptSummary_dsSubstance" type="grouping">
+                <sql dialect="sqlserver">
+                    SELECT *, (SELECT TOP 1 name FROM uc_env_risk_assess WHERE max_val >= (SELECT SUM(value) FROM uc_env_factor_level lvl INNER JOIN uc_env_assess_factor sel ON sel.factor_id = lvl.factor_id AND sel.level_id = lvl.level_id WHERE sel.activity_log_id = activity_log.activity_log_id) ORDER BY max_val ASC) ${sql.as} vf_assessment
+                    FROM activity_log
+                </sql>
+            
+                <table name="activity_log" role="main"/>
+                
+                <field name="prob_type" groupBy="true">
+                    <title translatable="true">Substance</title>
+                </field>
+                <field name="vf_total" formula="count" baseField="activity_log.activity_log_id" dataType="number" size="12" decimals="0">
+                    <title translatable="true">Total Count</title>
+                </field>
+                <field name="vf_hazardous" dataType="number" size="12" decimals="0">
+                    <title translatable="true">Hazardous</title>
+                    <sql dialect="generic">COUNT(CASE WHEN hcm_is_hazard &lt;&gt; 'No' THEN hcm_is_hazard ELSE NULL END)</sql>
+                </field>
+                <field name="vf_active" dataType="number" size="12" decimals="0">
+                    <title translatable="true">Active</title>
+                    <sql dialect="generic">COUNT(CASE WHEN hcm_is_hazard IN('Yes','Presumed') THEN hcm_is_hazard ELSE NULL END)</sql>
+                </field>
+                <field name="vf_abated" dataType="number" size="12" decimals="0">
+                    <title translatable="true">Abated</title>
+                    <sql dialect="generic">COUNT(CASE WHEN hcm_is_hazard = 'All Abated' THEN hcm_is_hazard ELSE NULL END)</sql>
+                </field>
+                <field name="vf_sites" dataType="number" size="12" decimals="0">
+                    <title translatable="true">Sites</title>
+                    <sql dialect="generic">COUNT(DISTINCT site_id)</sql>
+                </field>
+                <field name="vf_bldgs" dataType="number" size="12" decimals="0">
+                    <title translatable="true">Buildings</title>
+                    <sql dialect="generic">COUNT(DISTINCT bl_id)</sql>
+                </field>
+                <field name="vf_floors" dataType="number" size="12" decimals="0">
+                    <title translatable="true">Floors</title>
+                    <sql dialect="generic">COUNT(DISTINCT fl_id)</sql>
+                </field>
+                <field name="vf_rooms" dataType="number" size="12" decimals="0">
+                    <title translatable="true">Rooms</title>
+                    <sql dialect="generic">COUNT(DISTINCT rm_id)</sql>
+                </field>
+                <field name="vf_costEstBase" dataType="number" size="12" decimals="2">
+                    <title translatable="true">Cost-Est Baseline</title>
+                    <sql dialect="generic">SUM(cost_est_cap + cost_estimated)</sql>
+                </field>
+                <field name="vf_costActual" dataType="number" size="12" decimals="2">
+                    <title translatable="true">Cost-Actual</title>
+                    <sql dialect="generic">SUM(cost_actual + cost_act_cap)</sql>
+                </field>
+                
+                <restriction type="parsed">
+                    <clause table="activity_log" name="activity_type" op="=" value="ASSESSMENT - HAZMAT"/>
+                </restriction>
+        
+                <sortField name="prob_type"/>
+            </dataSource>
+            
+            <panel type="crossTable" id="abCbRptSummary_panelSubstance" dataSource="abCbRptSummary_dsSubstance" showOnLoad="false">
+                <title translatable="true">Substance Summary</title>
+                <instructions>&#160;</instructions>
+                
+                <action id="paginatedReport">
+                    <title translatable="true">DOC</title>
+                    <command type="callFunction" functionName="abCbRptSummaryController.onPaginatedReport(this, 'ab-cb-rpt-summary-subst-pgrp.axvw')"/>
+                </action>
+                <action id="exportXLS">
+                    <title>XLS</title>
+                    <command type="exportPanel" outputType="xls" panelId="abCbRptSummary_panelSubstance"/>
+                </action>
+                <action id="paginatedReportDetails">
+                    <title translatable="true">DOC-Details</title>
+                    <command type="callFunction" functionName="abCbRptSummaryController.onPaginatedReport(this, 'ab-cb-rpt-summary-subst-det-pgrp.axvw')"/>
+                </action>
+                
+                <event type="onClickItem">
+                    <command type="callFunction" functionName="abCbRptSummaryController.onClickItem(this,0)"/>
+                </event>
+            </panel>
+        </tab>
+        
+        <tab name="abCbRptSummary_tabProject">
+            <title translatable="true">Project</title>
+            
+            <dataSource id="abCbRptSummary_dsProject" type="grouping">
+                <sql dialect="sqlserver">
+                    SELECT *, (SELECT TOP 1 name FROM uc_env_risk_assess WHERE max_val >= (SELECT SUM(value) FROM uc_env_factor_level lvl INNER JOIN uc_env_assess_factor sel ON sel.factor_id = lvl.factor_id AND sel.level_id = lvl.level_id WHERE sel.activity_log_id = activity_log.activity_log_id) ORDER BY max_val ASC) ${sql.as} vf_assessment
+                    FROM activity_log
+                </sql>
+                
+                <table name="activity_log" role="main"/>
+                
+                <field name="project_id" groupBy="true"/>
+                <field name="vf_total" formula="count" baseField="activity_log.activity_log_id" dataType="number" size="12" decimals="0">
+                    <title translatable="true">Total Count</title>
+                </field>
+                <field name="vf_hazardous" dataType="number" size="12" decimals="0">
+                    <title translatable="true">Hazardous</title>
+                    <sql dialect="generic">COUNT(CASE WHEN hcm_is_hazard &lt;&gt; 'No' THEN hcm_is_hazard ELSE NULL END)</sql>
+                </field>
+                <field name="vf_active" dataType="number" size="12" decimals="0">
+                    <title translatable="true">Active</title>
+                    <sql dialect="generic">COUNT(CASE WHEN hcm_is_hazard IN('Yes','Presumed') THEN hcm_is_hazard ELSE NULL END)</sql>
+                </field>
+                <field name="vf_abated" dataType="number" size="12" decimals="0">
+                    <title translatable="true">Abated</title>
+                    <sql dialect="generic">COUNT(CASE WHEN hcm_is_hazard = 'All Abated' THEN hcm_is_hazard ELSE NULL END)</sql>
+                </field>
+                <field name="vf_sites" dataType="number" size="12" decimals="0">
+                    <title translatable="true">Sites</title>
+                    <sql dialect="generic">COUNT(DISTINCT site_id)</sql>
+                </field>
+                <field name="vf_bldgs" dataType="number" size="12" decimals="0">
+                    <title translatable="true">Buildings</title>
+                    <sql dialect="generic">COUNT(DISTINCT bl_id)</sql>
+                </field>
+                <field name="vf_floors" dataType="number" size="12" decimals="0">
+                    <title translatable="true">Floors</title>
+                    <sql dialect="generic">COUNT(DISTINCT fl_id)</sql>
+                </field>
+                <field name="vf_rooms" dataType="number" size="12" decimals="0">
+                    <title translatable="true">Rooms</title>
+                    <sql dialect="generic">COUNT(DISTINCT rm_id)</sql>
+                </field>
+                <field name="vf_costEstBase" dataType="number" size="12" decimals="2">
+                    <title translatable="true">Cost-Est Baseline</title>
+                    <sql dialect="generic">SUM(cost_est_cap + cost_estimated)</sql>
+                </field>
+                <field name="vf_costActual" dataType="number" size="12" decimals="2">
+                    <title translatable="true">Cost-Actual</title>
+                    <sql dialect="generic">SUM(cost_actual + cost_act_cap)</sql>
+                </field>
+
+                <restriction type="parsed">
+                    <clause table="activity_log" name="activity_type" op="=" value="ASSESSMENT - HAZMAT"/>
+                </restriction>
+        
+                <sortField name="project_id"/>
+            </dataSource>
+        
+            <panel type="crossTable" id="abCbRptSummary_panelProject" dataSource="abCbRptSummary_dsProject" showOnLoad="false">
+                <title translatable="true">Project Summary</title>
+                <instructions>&#160;</instructions>
+                
+                <action id="paginatedReport">
+                    <title translatable="true">DOC</title>
+                    <command type="callFunction" functionName="abCbRptSummaryController.onPaginatedReport(this, 'ab-cb-rpt-summary-project-pgrp.axvw')"/>
+                </action>
+                <action id="exportXLS">
+                    <title>XLS</title>
+                    <command type="exportPanel" outputType="xls" panelId="abCbRptSummary_panelProject"/>
+                </action>
+                <action id="paginatedReport">
+                    <title translatable="true">DOC-Details</title>
+                    <command type="callFunction" functionName="abCbRptSummaryController.onPaginatedReport(this, 'ab-cb-rpt-summary-project-det-pgrp.axvw')"/>
+                </action>
+                
+                <event type="onClickItem">
+                    <command type="callFunction" functionName="abCbRptSummaryController.onClickItem(this,1)"/>
+                </event>
+            </panel>
+        </tab>
+
+        <tab name="abCbRptSummary_tabSite">
+            <title translatable="true">Site</title>
+            
+            <dataSource id="abCbRptSummary_dsSite" type="grouping">
+                <sql dialect="sqlserver">
+                    SELECT *, (SELECT TOP 1 name FROM uc_env_risk_assess WHERE max_val >= (SELECT SUM(value) FROM uc_env_factor_level lvl INNER JOIN uc_env_assess_factor sel ON sel.factor_id = lvl.factor_id AND sel.level_id = lvl.level_id WHERE sel.activity_log_id = activity_log.activity_log_id) ORDER BY max_val ASC) ${sql.as} vf_assessment
+                    FROM activity_log
+                </sql>
+
+                <table name="activity_log" role="main"/>
+                
+                <field name="site_id" groupBy="true">
+                    <title translatable="true">Site</title>
+                </field>
+                <field name="vf_total" formula="count" baseField="activity_log.activity_log_id" dataType="number" size="12" decimals="0">
+                    <title translatable="true">Total Count</title>
+                </field>
+                <field name="vf_hazardous" dataType="number" size="12" decimals="0">
+                    <title translatable="true">Hazardous</title>
+                    <sql dialect="generic">COUNT(CASE WHEN hcm_is_hazard &lt;&gt; 'No' THEN hcm_is_hazard ELSE NULL END)</sql>
+                </field>
+                <field name="vf_active" dataType="number" size="12" decimals="0">
+                    <title translatable="true">Active</title>
+                    <sql dialect="generic">COUNT(CASE WHEN hcm_is_hazard IN('Yes','Presumed') THEN hcm_is_hazard ELSE NULL END)</sql>
+                </field>
+                <field name="vf_abated" dataType="number" size="12" decimals="0">
+                    <title translatable="true">Abated</title>
+                    <sql dialect="generic">COUNT(CASE WHEN hcm_is_hazard = 'All Abated' THEN hcm_is_hazard ELSE NULL END)</sql>
+                </field>
+                <field name="vf_bldgs" dataType="number" size="12" decimals="0">
+                    <title translatable="true">Buildings</title>
+                    <sql dialect="generic">COUNT(DISTINCT bl_id)</sql>
+                </field>
+                <field name="vf_floors" dataType="number" size="12" decimals="0">
+                    <title translatable="true">Floors</title>
+                    <sql dialect="generic">COUNT(DISTINCT fl_id)</sql>
+                </field>
+                <field name="vf_rooms" dataType="number" size="12" decimals="0">
+                    <title translatable="true">Rooms</title>
+                    <sql dialect="generic">COUNT(DISTINCT rm_id)</sql>
+                </field>
+                <field name="vf_costEstBase" dataType="number" size="12" decimals="2">
+                    <title translatable="true">Cost-Est Baseline</title>
+                    <sql dialect="generic">SUM(cost_est_cap + cost_estimated)</sql>
+                </field>
+                <field name="vf_costActual" dataType="number" size="12" decimals="2">
+                    <title translatable="true">Cost-Actual</title>
+                    <sql dialect="generic">SUM(cost_actual + cost_act_cap)</sql>
+                </field>
+
+                <restriction type="parsed">
+                    <clause table="activity_log" name="activity_type" op="=" value="ASSESSMENT - HAZMAT"/>
+                </restriction>
+        
+                <sortField name="site_id"/>
+            </dataSource>
+            
+            <panel type="crossTable" id="abCbRptSummary_panelSite" dataSource="abCbRptSummary_dsSite" showOnLoad="false">
+                <title translatable="true">Site Summary</title>
+                <instructions>&#160;</instructions>
+                
+                <action id="paginatedReport">
+                    <title translatable="true">DOC</title>
+                    <command type="callFunction" functionName="abCbRptSummaryController.onPaginatedReport(this, 'ab-cb-rpt-summary-site-pgrp.axvw')"/>
+                </action>
+                <action id="exportXLS">
+                    <title>XLS</title>
+                    <command type="exportPanel" outputType="xls" panelId="abCbRptSummary_panelSite"/>
+                </action>
+                <action id="paginatedReport">
+                    <title translatable="true">DOC-Details</title>
+                    <command type="callFunction" functionName="abCbRptSummaryController.onPaginatedReport(this, 'ab-cb-rpt-summary-site-det-pgrp.axvw')"/>
+                </action>
+                
+                <event type="onClickItem">
+                    <command type="callFunction" functionName="abCbRptSummaryController.onClickItem(this,2)"/>
+                </event>
+            </panel>
+        </tab>
+        
+        <tab name="abCbRptSummary_tabBuilding">
+            <title translatable="true">Building</title>
+            
+            <dataSource id="abCbRptSummary_dsBuilding" type="grouping">
+                <sql dialect="sqlserver">
+                    SELECT *, (SELECT TOP 1 name FROM uc_env_risk_assess WHERE max_val >= (SELECT SUM(value) FROM uc_env_factor_level lvl INNER JOIN uc_env_assess_factor sel ON sel.factor_id = lvl.factor_id AND sel.level_id = lvl.level_id WHERE sel.activity_log_id = activity_log.activity_log_id) ORDER BY max_val ASC) ${sql.as} vf_assessment
+                    FROM activity_log
+                </sql>
+
+                <table name="activity_log" role="main"/>
+                
+                <field name="vf_site_bl" dataType="text" groupBy="true">
+                    <title translatable="true">Site / Building</title>
+                    <sql dialect="generic">site_id ${sql.concat} (CASE WHEN bl_id IS NOT NULL THEN ' / ' ELSE '' END) ${sql.concat} bl_id</sql>
+                </field>
+                <field name="vf_total" formula="count" baseField="activity_log.activity_log_id" dataType="number" size="12" decimals="0">
+                    <title translatable="true">Total Count</title>
+                </field>
+                <field name="vf_hazardous" dataType="number" size="12" decimals="0">
+                    <title translatable="true">Hazardous</title>
+                    <sql dialect="generic">COUNT(CASE WHEN hcm_is_hazard &lt;&gt; 'No' THEN hcm_is_hazard ELSE NULL END)</sql>
+                </field>
+                <field name="vf_active" dataType="number" size="12" decimals="0">
+                    <title translatable="true">Active</title>
+                    <sql dialect="generic">COUNT(CASE WHEN hcm_is_hazard IN('Yes','Presumed') THEN hcm_is_hazard ELSE NULL END)</sql>
+                </field>
+                <field name="vf_abated" dataType="number" size="12" decimals="0">
+                    <title translatable="true">Abated</title>
+                    <sql dialect="generic">COUNT(CASE WHEN hcm_is_hazard = 'All Abated' THEN hcm_is_hazard ELSE NULL END)</sql>
+                </field>
+                <field name="vf_floors" dataType="number" size="12" decimals="0">
+                    <title translatable="true">Floors</title>
+                    <sql dialect="generic">COUNT(DISTINCT fl_id)</sql>
+                </field>
+                <field name="vf_rooms" dataType="number" size="12" decimals="0">
+                    <title translatable="true">Rooms</title>
+                    <sql dialect="generic">COUNT(DISTINCT rm_id)</sql>
+                </field>
+                <field name="vf_costEstBase" dataType="number" size="12" decimals="2">
+                    <title translatable="true">Cost-Est Baseline</title>
+                    <sql dialect="generic">SUM(cost_est_cap + cost_estimated)</sql>
+                </field>
+                <field name="vf_costActual" dataType="number" size="12" decimals="2">
+                    <title translatable="true">Cost-Actual</title>
+                    <sql dialect="generic">SUM(cost_actual + cost_act_cap)</sql>
+                </field>
+
+                <restriction type="parsed">
+                    <clause table="activity_log" name="activity_type" op="=" value="ASSESSMENT - HAZMAT"/>
+                </restriction>
+        
+                <sortField name="vf_site_bl"/>
+            </dataSource>
+            
+            <panel type="crossTable" id="abCbRptSummary_panelBuilding" dataSource="abCbRptSummary_dsBuilding" showOnLoad="false">
+                <title translatable="true">Building Summary</title>
+                <instructions>&#160;</instructions>
+                
+                <action id="paginatedReport">
+                    <title translatable="true">DOC</title>
+                    <command type="callFunction" functionName="abCbRptSummaryController.onPaginatedReport(this, 'ab-cb-rpt-summary-bldg-pgrp.axvw')"/>
+                </action>
+                <action id="exportXLS">
+                    <title>XLS</title>
+                    <command type="exportPanel" outputType="xls" panelId="abCbRptSummary_panelBuilding"/>
+                </action>
+                <action id="paginatedReport">
+                    <title translatable="true">DOC-Details</title>
+                    <command type="callFunction" functionName="abCbRptSummaryController.onPaginatedReport(this, 'ab-cb-rpt-summary-bldg-det-pgrp.axvw')"/>
+                </action>
+                
+                <event type="onClickItem">
+                    <command type="callFunction" functionName="abCbRptSummaryController.onClickItem(this,3)"/>
+                </event>
+            </panel>
+        </tab>
+        
+        <tab name="abCbRptSummary_tabBlBySubst">
+            <title translatable="true">Building By Substance</title>
+            
+            <dataSource id="abCbRptSummary_dsBlBySubst" type="grouping">
+                <sql dialect="sqlserver">
+                    SELECT *, (SELECT TOP 1 name FROM uc_env_risk_assess WHERE max_val >= (SELECT SUM(value) FROM uc_env_factor_level lvl INNER JOIN uc_env_assess_factor sel ON sel.factor_id = lvl.factor_id AND sel.level_id = lvl.level_id WHERE sel.activity_log_id = activity_log.activity_log_id) ORDER BY max_val ASC) ${sql.as} vf_assessment
+                    FROM activity_log
+                </sql>
+                
+                <table name="activity_log" role="main"/>
+                
+                <field name="vf_site_bl_subst" dataType="text" groupBy="true">
+                    <title translatable="true">Site / Building / Substance</title>
+                    <sql dialect="generic">
+                        site_id
+                        ${sql.concat} (CASE WHEN (bl_id IS NOT NULL OR prob_type IS NOT NULL) THEN ' / ' ELSE '' END) ${sql.concat} bl_id
+                        ${sql.concat} (CASE WHEN prob_type IS NOT NULL THEN ' / ' ELSE '' END) ${sql.concat} prob_type
+                    </sql>
+                </field>
+                <field name="vf_total" formula="count" baseField="activity_log.activity_log_id" dataType="number" size="12" decimals="0">
+                    <title translatable="true">Total Count</title>
+                </field>
+                <field name="vf_hazardous" dataType="number" size="12" decimals="0">
+                    <title translatable="true">Hazardous</title>
+                    <sql dialect="generic">COUNT(CASE WHEN hcm_is_hazard &lt;&gt; 'No' THEN hcm_is_hazard ELSE NULL END)</sql>
+                </field>
+                <field name="vf_active" dataType="number" size="12" decimals="0">
+                    <title translatable="true">Active</title>
+                    <sql dialect="generic">COUNT(CASE WHEN hcm_is_hazard IN('Yes','Presumed') THEN hcm_is_hazard ELSE NULL END)</sql>
+                </field>
+                <field name="vf_abated" dataType="number" size="12" decimals="0">
+                    <title translatable="true">Abated</title>
+                    <sql dialect="generic">COUNT(CASE WHEN hcm_is_hazard = 'All Abated' THEN hcm_is_hazard ELSE NULL END)</sql>
+                </field>
+                <field name="vf_floors" dataType="number" size="12" decimals="0">
+                    <title translatable="true">Floors</title>
+                    <sql dialect="generic">COUNT(DISTINCT fl_id)</sql>
+                </field>
+                <field name="vf_rooms" dataType="number" size="12" decimals="0">
+                    <title translatable="true">Rooms</title>
+                    <sql dialect="generic">COUNT(DISTINCT rm_id)</sql>
+                </field>
+                <field name="vf_costEstBase" dataType="number" size="12" decimals="2">
+                    <title translatable="true">Cost-Est Baseline</title>
+                    <sql dialect="generic">SUM(cost_est_cap + cost_estimated)</sql>
+                </field>
+                <field name="vf_costActual" dataType="number" size="12" decimals="2">
+                    <title translatable="true">Cost-Actual</title>
+                    <sql dialect="generic">SUM(cost_actual + cost_act_cap)</sql>
+                </field>
+
+                <restriction type="parsed">
+                    <clause table="activity_log" name="activity_type" op="=" value="ASSESSMENT - HAZMAT"/>
+                </restriction>
+        
+                <sortField name="vf_site_bl_subst"/>
+            </dataSource>
+            
+            <panel type="crossTable" id="abCbRptSummary_panelBlBySubst" dataSource="abCbRptSummary_dsBlBySubst" showOnLoad="false">
+                <title translatable="true">Building By Substance Summary</title>
+                <instructions>&#160;</instructions>
+                
+                <action id="paginatedReport">
+                    <title translatable="true">DOC</title>
+                    <command type="callFunction" functionName="abCbRptSummaryController.onPaginatedReport(this, 'ab-cb-rpt-summary-bldg-subst-pgrp.axvw')"/>
+                </action>
+                <action id="exportXLS">
+                    <title>XLS</title>
+                    <command type="exportPanel" outputType="xls" panelId="abCbRptSummary_panelBlBySubst"/>
+                </action>
+                <action id="paginatedReport">
+                    <title translatable="true">DOC-Details</title>
+                    <command type="callFunction" functionName="abCbRptSummaryController.onPaginatedReport(this, 'ab-cb-rpt-summary-bldg-subst-det-pgrp.axvw')"/>
+                </action>
+                
+                <event type="onClickItem">
+                    <command type="callFunction" functionName="abCbRptSummaryController.onClickItem(this,4)"/>
+                </event>
+            </panel>
+        </tab>
+
+        <tab name="abCbRptSummary_tabFloor">
+            <title translatable="true">Floor</title>
+            
+            <dataSource id="abCbRptSummary_dsFloor" type="grouping">
+                <sql dialect="sqlserver">
+                    SELECT *, (SELECT TOP 1 name FROM uc_env_risk_assess WHERE max_val >= (SELECT SUM(value) FROM uc_env_factor_level lvl INNER JOIN uc_env_assess_factor sel ON sel.factor_id = lvl.factor_id AND sel.level_id = lvl.level_id WHERE sel.activity_log_id = activity_log.activity_log_id) ORDER BY max_val ASC) ${sql.as} vf_assessment
+                    FROM activity_log
+                </sql>
+                
+                <table name="activity_log" role="main"/>
+                
+                <field name="vf_site_bl_fl" dataType="text" groupBy="true">
+                    <title translatable="true">Site / Building / Floor</title>
+                    <sql dialect="generic">
+                        site_id
+                        ${sql.concat} (CASE WHEN (bl_id IS NOT NULL OR fl_id IS NOT NULL) THEN ' / ' ELSE '' END) ${sql.concat} bl_id
+                        ${sql.concat} (CASE WHEN fl_id IS NOT NULL THEN ' / ' ELSE '' END) ${sql.concat} fl_id
+                    </sql>
+                </field>
+                <field name="vf_total" formula="count" baseField="activity_log.activity_log_id" dataType="number" size="12" decimals="0">
+                    <title translatable="true">Total Count</title>
+                </field>
+                <field name="vf_hazardous" dataType="number" size="12" decimals="0">
+                    <title translatable="true">Hazardous</title>
+                    <sql dialect="generic">COUNT(CASE WHEN hcm_is_hazard &lt;&gt; 'No' THEN hcm_is_hazard ELSE NULL END)</sql>
+                </field>
+                <field name="vf_active" dataType="number" size="12" decimals="0">
+                    <title translatable="true">Active</title>
+                    <sql dialect="generic">COUNT(CASE WHEN hcm_is_hazard IN('Yes','Presumed') THEN hcm_is_hazard ELSE NULL END)</sql>
+                </field>
+                <field name="vf_abated" dataType="number" size="12" decimals="0">
+                    <title translatable="true">Abated</title>
+                    <sql dialect="generic">COUNT(CASE WHEN hcm_is_hazard = 'All Abated' THEN hcm_is_hazard ELSE NULL END)</sql>
+                </field>
+                <field name="vf_rooms" dataType="number" size="12" decimals="0">
+                    <title translatable="true">Rooms</title>
+                    <sql dialect="generic">COUNT(DISTINCT rm_id)</sql>
+                </field>
+                <field name="vf_costEstBase" dataType="number" size="12" decimals="2">
+                    <title translatable="true">Cost-Est Baseline</title>
+                    <sql dialect="generic">SUM(cost_est_cap + cost_estimated)</sql>
+                </field>
+                <field name="vf_costActual" dataType="number" size="12" decimals="2">
+                    <title translatable="true">Cost-Actual</title>
+                    <sql dialect="generic">SUM(cost_actual + cost_act_cap)</sql>
+                </field>
+
+                <restriction type="parsed">
+                    <clause table="activity_log" name="activity_type" op="=" value="ASSESSMENT - HAZMAT"/>
+                </restriction>
+        
+                <sortField name="vf_site_bl_fl"/>
+            </dataSource>
+            
+            <panel type="crossTable" id="abCbRptSummary_panelFloor" dataSource="abCbRptSummary_dsFloor" showOnLoad="false">
+                <title translatable="true">Floor Summary</title>
+                <instructions>&#160;</instructions>
+                
+                <action id="paginatedReport">
+                    <title translatable="true">DOC</title>
+                    <command type="callFunction" functionName="abCbRptSummaryController.onPaginatedReport(this, 'ab-cb-rpt-summary-floor-pgrp.axvw')"/>
+                </action>
+                <action id="exportXLS">
+                    <title>XLS</title>
+                    <command type="exportPanel" outputType="xls" panelId="abCbRptSummary_panelFloor"/>
+                </action>
+                <action id="paginatedReport">
+                    <title translatable="true">DOC-Details</title>
+                    <command type="callFunction" functionName="abCbRptSummaryController.onPaginatedReport(this, 'ab-cb-rpt-summary-floor-det-pgrp.axvw')"/>
+                </action>
+                
+                <event type="onClickItem">
+                    <command type="callFunction" functionName="abCbRptSummaryController.onClickItem(this,5)"/>
+                </event>
+            </panel>
+        </tab>
+
+        <tab name="abCbRptSummary_tabRoom">
+            <title translatable="true">Room</title>
+            
+            <dataSource id="abCbRptSummary_dsRoom" type="grouping">
+                <sql dialect="sqlserver">
+                    SELECT *, (SELECT TOP 1 name FROM uc_env_risk_assess WHERE max_val >= (SELECT SUM(value) FROM uc_env_factor_level lvl INNER JOIN uc_env_assess_factor sel ON sel.factor_id = lvl.factor_id AND sel.level_id = lvl.level_id WHERE sel.activity_log_id = activity_log.activity_log_id) ORDER BY max_val ASC) ${sql.as} vf_assessment
+                    FROM activity_log
+                </sql>
+                
+                <table name="activity_log" role="main"/>
+                
+                <field name="vf_site_bl_fl_rm" dataType="text" groupBy="true">
+                    <title translatable="true">Site / Building / Floor / Room</title>
+                    <sql dialect="generic">
+                        site_id
+                        ${sql.concat} (CASE WHEN (bl_id IS NOT NULL OR fl_id IS NOT NULL OR rm_id IS NOT NULL) THEN ' / ' ELSE '' END) ${sql.concat} bl_id
+                        ${sql.concat} (CASE WHEN (fl_id IS NOT NULL OR rm_id IS NOT NULL) THEN ' / ' ELSE '' END) ${sql.concat} fl_id
+                        ${sql.concat} (CASE WHEN rm_id IS NOT NULL THEN ' / ' ELSE '' END) ${sql.concat} rm_id
+                    </sql>
+                </field>
+                <field name="vf_total" formula="count" baseField="activity_log.activity_log_id" dataType="number" size="12" decimals="0">
+                    <title translatable="true">Total Count</title>
+                </field>
+                <field name="vf_hazardous" dataType="number" size="12" decimals="0">
+                    <title translatable="true">Hazardous</title>
+                    <sql dialect="generic">COUNT(CASE WHEN hcm_is_hazard &lt;&gt; 'No' THEN hcm_is_hazard ELSE NULL END)</sql>
+                </field>
+                <field name="vf_active" dataType="number" size="12" decimals="0">
+                    <title translatable="true">Active</title>
+                    <sql dialect="generic">COUNT(CASE WHEN hcm_is_hazard IN('Yes','Presumed') THEN hcm_is_hazard ELSE NULL END)</sql>
+                </field>
+                <field name="vf_abated" dataType="number" size="12" decimals="0">
+                    <title translatable="true">Abated</title>
+                    <sql dialect="generic">COUNT(CASE WHEN hcm_is_hazard = 'All Abated' THEN hcm_is_hazard ELSE NULL END)</sql>
+                </field>
+                <field name="vf_costEstBase" dataType="number" size="12" decimals="2">
+                    <title translatable="true">Cost-Est Baseline</title>
+                    <sql dialect="generic">SUM(cost_est_cap + cost_estimated)</sql>
+                </field>
+                <field name="vf_costActual" dataType="number" size="12" decimals="2">
+                    <title translatable="true">Cost-Actual</title>
+                    <sql dialect="generic">SUM(cost_actual + cost_act_cap)</sql>
+                </field>
+
+                <restriction type="parsed">
+                    <clause table="activity_log" name="activity_type" op="=" value="ASSESSMENT - HAZMAT"/>
+                </restriction>
+        
+                <sortField name="vf_site_bl_fl_rm"/>
+            </dataSource>
+            
+            <panel type="crossTable" id="abCbRptSummary_panelRoom" dataSource="abCbRptSummary_dsRoom" showOnLoad="false">
+                <title translatable="true">Room Summary</title>
+                <instructions>&#160;</instructions>
+                
+                <action id="paginatedReport">
+                    <title translatable="true">DOC</title>
+                    <command type="callFunction" functionName="abCbRptSummaryController.onPaginatedReport(this, 'ab-cb-rpt-summary-room-pgrp.axvw')"/>
+                </action>
+                <action id="exportXLS">
+                    <title>XLS</title>
+                    <command type="exportPanel" outputType="xls" panelId="abCbRptSummary_panelRoom"/>
+                </action>
+                <action id="paginatedReport">
+                    <title translatable="true">DOC-Details</title>
+                    <command type="callFunction" functionName="abCbRptSummaryController.onPaginatedReport(this, 'ab-cb-rpt-summary-room-det-pgrp.axvw')"/>
+                </action>
+                
+                <event type="onClickItem">
+                    <command type="callFunction" functionName="abCbRptSummaryController.onClickItem(this,6)"/>
+                </event>
+            </panel>
+        </tab>
+
+        <tab name="abCbRptSummary_tabAssessments">
+            <title translatable="true">Assessments</title>
+            
+            <dataSource id="abCbRptSummary_dsAssessments">
+                <sql dialect="sqlserver">
+                    SELECT activity_log.activity_log_id,activity_log.project_id,activity_log.hcm_is_hazard,activity_log.hcm_haz_status_id,activity_log.prob_type,activity_log.date_assessed,activity_log.repair_type,activity_log.site_id,activity_log.bl_id,activity_log.fl_id,
+                           activity_log.rm_id,activity_log.hcm_loc_typ_id,activity_log.hcm_id,activity_log.hcm_cond_id,activity_log.hcm_friable,activity_log.hcm_qty,activity_log.cb_units_id,activity_log.action_title,activity_log.hcm_haz_rank_id,activity_log.hcm_haz_rating_id,
+                           activity_log.location,activity_log.hcm_harea_id,activity_log.rec_action,activity_log.hcm_pending_act,activity_log.assessed_by,activity_log.assigned_to,activity_log.hcm_abate_by,activity_log.hcm_class1_id,activity_log.hcm_class2_id,activity_log.hcm_class3_id,
+                           activity_log.date_required,activity_log.date_review,activity_log.date_installed,activity_log.date_completed,activity_log.date_closed,activity_log.hcm_pipe_cnt,activity_log.hcm_fittings_num,activity_log.hcm_labeled,activity_log.cause_type,
+                           activity_log.assessment_id,activity_log.cost_estimated,activity_log.cost_est_cap,activity_log.cost_actual,activity_log.cost_act_cap,
+                           (SELECT name FROM uc_env_assess_factor sel INNER JOIN uc_env_factor_level lvl ON sel.factor_id = lvl.factor_id AND sel.level_id = lvl.level_id WHERE sel.activity_log_id = activity_log.activity_log_id AND sel.factor_id = 1) ${sql.as} vf_condExposure,
+                           (SELECT name FROM uc_env_assess_factor sel INNER JOIN uc_env_factor_level lvl ON sel.factor_id = lvl.factor_id AND sel.level_id = lvl.level_id WHERE sel.activity_log_id = activity_log.activity_log_id AND sel.factor_id = 2) ${sql.as} vf_waterDmg,
+                           (SELECT name FROM uc_env_assess_factor sel INNER JOIN uc_env_factor_level lvl ON sel.factor_id = lvl.factor_id AND sel.level_id = lvl.level_id WHERE sel.activity_log_id = activity_log.activity_log_id AND sel.factor_id = 3) ${sql.as} vf_surfExposure,
+                           (SELECT name FROM uc_env_assess_factor sel INNER JOIN uc_env_factor_level lvl ON sel.factor_id = lvl.factor_id AND sel.level_id = lvl.level_id WHERE sel.activity_log_id = activity_log.activity_log_id AND sel.factor_id = 4) ${sql.as} vf_access,
+                           (SELECT name FROM uc_env_assess_factor sel INNER JOIN uc_env_factor_level lvl ON sel.factor_id = lvl.factor_id AND sel.level_id = lvl.level_id WHERE sel.activity_log_id = activity_log.activity_log_id AND sel.factor_id = 5) ${sql.as} vf_activity,
+                           (SELECT name FROM uc_env_assess_factor sel INNER JOIN uc_env_factor_level lvl ON sel.factor_id = lvl.factor_id AND sel.level_id = lvl.level_id WHERE sel.activity_log_id = activity_log.activity_log_id AND sel.factor_id = 6) ${sql.as} vf_directAir,
+                           (SELECT name FROM uc_env_assess_factor sel INNER JOIN uc_env_factor_level lvl ON sel.factor_id = lvl.factor_id AND sel.level_id = lvl.level_id WHERE sel.activity_log_id = activity_log.activity_log_id AND sel.factor_id = 7) ${sql.as} vf_friability,
+                           (SELECT name FROM uc_env_assess_factor sel INNER JOIN uc_env_factor_level lvl ON sel.factor_id = lvl.factor_id AND sel.level_id = lvl.level_id WHERE sel.activity_log_id = activity_log.activity_log_id AND sel.factor_id = 8) ${sql.as} vf_asbestos,
+                           (SELECT TOP 1 name FROM uc_env_risk_assess WHERE max_val >= (SELECT SUM(value) FROM uc_env_factor_level lvl INNER JOIN uc_env_assess_factor sel ON sel.factor_id = lvl.factor_id AND sel.level_id = lvl.level_id WHERE sel.activity_log_id = activity_log.activity_log_id) ORDER BY max_val ASC) ${sql.as} vf_assessment,
+                           (SELECT COUNT(a.activity_log_id) FROM cb_samples ${sql.as} a WHERE a.activity_log_id = activity_log.activity_log_id) ${sql.as} vf_samples,
+                           (cost_est_cap + cost_estimated) ${sql.as} vf_costEstBase,
+                           (cost_actual + cost_act_cap) ${sql.as} vf_costActual
+                    FROM activity_log
+                    WHERE activity_log.activity_type = 'ASSESSMENT - HAZMAT'
+                </sql>
+
+                <table name="activity_log" role="main"/>
+                <field name="activity_log_id"/>
+                <field name="project_id"/>
+                <field name="hcm_is_hazard"/>
+                <field name="hcm_haz_status_id"/>
+                <field name="prob_type"/>
+                <field name="date_assessed"/>
+                <field name="repair_type"/>
+                <field name="vf_condExposure" dataType="text"/>
+                <field name="vf_waterDmg" dataType="text"/>
+                <field name="vf_surfExposure" dataType="text"/>
+                <field name="vf_access" dataType="text"/>
+                <field name="vf_activity" dataType="text"/>
+                <field name="vf_directAir" dataType="text"/>
+                <field name="vf_friability" dataType="text"/>
+                <field name="vf_asbestos" dataType="text"/>
+                <field name="vf_assessment" dataType="text"/>
+                <field name="site_id"/>
+                <field name="bl_id"/>
+                <field name="fl_id"/>
+                <field name="rm_id"/>
+                <field name="hcm_loc_typ_id"/>
+                <field name="hcm_id"/>
+                <field name="hcm_cond_id"/>
+                <field name="hcm_friable"/>
+                <field name="hcm_qty"/>
+                <field name="cb_units_id"/>
+                <field name="action_title"/>
+                <field name="hcm_haz_rank_id"/>
+                <field name="hcm_haz_rating_id"/>
+                <field name="vf_samples" dataType="number" size="12" decimals="0"/>
+                <field name="location"/>
+                <field name="hcm_harea_id"/>
+                <field name="rec_action"/>
+                <field name="hcm_pending_act"/>
+                <field name="assessed_by"/>
+                <field name="assigned_to"/>
+                <field name="hcm_abate_by"/>
+                <field name="hcm_class1_id"/>
+                <field name="hcm_class2_id"/>
+                <field name="hcm_class3_id"/>
+                <field name="date_required"/>
+                <field name="date_review"/>
+                <field name="date_installed"/>
+                <field name="date_completed"/>
+                <field name="date_closed"/>
+                <field name="hcm_pipe_cnt"/>
+                <field name="hcm_fittings_num"/>
+                <field name="hcm_labeled"/>
+                <field name="cause_type"/>
+                <field name="assessment_id"/>
+                <field name="cost_estimated"/>
+                <field name="cost_est_cap"/>
+                <field name="vf_costEstBase" dataType="number" size="12" decimals="2"/>
+                <field name="cost_actual"/>
+                <field name="cost_act_cap"/>
+                <field name="vf_costActual" dataType="number" size="12" decimals="2"/>
+            </dataSource>
+            
+            <panel type="grid" id="abCbRptSummary_panelAssessments" dataSource="abCbRptSummary_dsAssessments" showOnLoad="false">
+                <title translatable="true">Assessments</title>
+                <instructions>&#160;</instructions>
+                
+                <action id="paginatedReport">
+                    <title translatable="true">DOC</title>
+                    <command type="callFunction" functionName="abCbRptSummaryController.onPaginatedReport(this, 'ab-cb-rpt-assess-pgrp.axvw')"/>
+                </action>
+                <action id="exportXLS">
+                    <title>XLS</title>
+                    <command type="exportPanel" outputType="xls" panelId="abCbRptSummary_panelAssessments"/>
+                </action>
+
+                <field id="view" controlType="button"  onclick="showDetails">
+                    <title translatable="true">View</title>
+                    <tooltip translatable="true">View Assessment</tooltip>
+                </field>
+                <field name="activity_log_id">
+                    <title translatable="true">Item ID</title>
+                </field>
+                <field name="project_id">
+                    <title translatable="true">Project</title>
+                </field>
+                <field name="hcm_is_hazard">
+                    <title translatable="true">Contains Hazard?</title>
+                </field>
+                <field name="hcm_haz_status_id">
+                    <title translatable="true">Hazard Status</title>
+                </field>
+                <field name="prob_type">
+                    <title translatable="true">Substance</title>
+                </field>
+                <field name="date_assessed"/>
+                <field name="repair_type">
+                    <title translatable="true">Hazard Response</title>
+                </field>
+                <field name="vf_condExposure" dataType="text">
+                    <title>Condition of Exposure</title>
+                </field>
+                <field name="vf_waterDmg" dataType="text">
+                    <title>Water Damage</title>
+                </field>
+                <field name="vf_surfExposure" dataType="text">
+                    <title>Exposed Surface Area</title>
+                </field>
+                <field name="vf_access" dataType="text">
+                    <title>Accessibility</title>
+                </field>
+                <field name="vf_activity" dataType="text">
+                    <title>Activity and Movement</title>
+                </field>
+                <field name="vf_directAir" dataType="text">
+                    <title>In Direct Air Stream</title>
+                </field>
+                <field name="vf_friability" dataType="text">
+                    <title>Application Method (Friability)</title>
+                </field>
+                <field name="vf_asbestos" dataType="text">
+                    <title>Asbestos Content (Refer to Inventory)</title>
+                </field>
+                <field name="vf_assessment" dataType="text">
+                    <title>Risk Assessment</title>
+                </field>
+                <field name="site_id">
+                    <title translatable="true">Site</title>
+                </field>
+                <field name="bl_id">
+                    <title translatable="true">Building</title>
+                </field>
+                <field name="fl_id">
+                    <title translatable="true">Floor</title>
+                </field>
+                <field name="rm_id">
+                    <title translatable="true">Room</title>
+                </field>
+                <field name="hcm_loc_typ_id">
+                    <title translatable="true">Location of Material</title>
+                </field>
+                <field name="hcm_id"/>
+                <field name="hcm_cond_id">
+                    <title translatable="true">Material Condition</title>
+                </field>
+                <field name="hcm_friable"/>
+                <field name="hcm_qty">
+                    <title translatable="true">Quantity</title>
+                </field>
+                <field name="cb_units_id">
+                    <title translatable="true">Units</title>
+                </field>
+                <field name="action_title">
+                    <title translatable="true">Material Description</title>
+                </field>
+                <field name="hcm_haz_rank_id">
+                    <title translatable="true">Hazard Rank</title>
+                </field>
+                <field name="hcm_haz_rating_id">
+                    <title translatable="true">Hazard Rating</title>
+                </field>
+                <field name="vf_samples" dataType="number" size="12" decimals="0">
+                    <title translatable="true">Samples Count</title>
+                </field>
+                <field name="location">
+                    <title translatable="true">Location Detail</title>
+                </field>
+                <field name="hcm_harea_id"/>
+                <field name="rec_action"/>
+                <field name="hcm_pending_act"/>
+                <field name="assessed_by"/>
+                <field name="assigned_to">
+                    <title translatable="true">Inspector/ Assigned To</title>
+                </field>
+                <field name="hcm_abate_by"/>
+                <field name="hcm_class1_id">
+                    <title translatable="true">Classification I</title>
+                </field>
+                <field name="hcm_class2_id">
+                    <title translatable="true">Classification II</title>
+                </field>
+                <field name="hcm_class3_id">
+                    <title translatable="true">Classification III</title>
+                </field>
+                <field name="date_required"/>
+                <field name="date_review">
+                    <title translatable="true">Date Inspected</title>
+                </field>
+                <field name="date_installed">
+                    <title translatable="true">Date Abated</title>
+                </field>
+                <field name="date_completed"/>
+                <field name="date_closed"/>
+                <field name="hcm_pipe_cnt">
+                    <title translatable="true">Pipes Count</title>
+                </field>
+                <field name="hcm_fittings_num">
+                    <title translatable="true">Fittings Count</title>
+                </field>
+                <field name="hcm_labeled"/>
+                <field name="cause_type">
+                    <title translatable="true">Abatement Reason</title>
+                </field>
+                <field name="assessment_id">
+                    <title translatable="true">Initial Item ID</title>
+                </field>
+                <field name="cost_estimated"/>
+                <field name="cost_est_cap"/>
+                <field name="vf_costEstBase" dataType="number" size="12" decimals="2">
+                    <title translatable="true">Cost-Est Baseline</title>
+                </field>
+                <field name="cost_actual"/>
+                <field name="cost_act_cap"/>
+                <field name="vf_costActual" dataType="number" size="12" decimals="2">
+                    <title translatable="true">Cost-Actual</title>
+                </field>
+                
+                <sortField table="activity_log" name="date_assessed" ascending="false"/>
+                <sortField table="activity_log" name="hcm_is_hazard" ascending="false"/>
+                <sortField table="activity_log" name="prob_type" ascending="true"/>
+                <sortField table="activity_log" name="project_id" ascending="true"/>
+                <sortField table="activity_log" name="site_id" ascending="true"/>
+                <sortField table="activity_log" name="bl_id" ascending="true"/>
+                <sortField table="activity_log" name="hcm_harea_id" ascending="true"/>
+                <sortField table="activity_log" name="fl_id" ascending="true"/>
+                <sortField table="activity_log" name="rm_id" ascending="true"/>
+                <sortField table="activity_log" name="hcm_loc_typ_id" ascending="true"/>
+            </panel>
+        </tab>
+    </tabs>
+</view>

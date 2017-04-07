@@ -1,0 +1,204 @@
+<view version="2.0">
+    <layout file="ab-proj-console-details.axvw"/>
+    <title>Compare Annual Project Costs to Budget</title>    
+    <js file="ab-proj-projects-compare-to-budget-2d.js"/> 
+
+    <panel type="view" id="projProjectsCompareToBudget2dConsole" file="ab-proj-restriction-console.axvw" layout="mainLayout" region="north"/>
+      
+  	<dataSource id="projProjectsCompareToBudget2dDs0" type="grouping" applyVpaRestrictions="false">
+        <table name="project" role="main"/>
+        <field name="project_id" table="project" groupBy="true"/>
+        <field name="all_years" table="project" dataType="text" groupBy="true">
+            <title>Year</title>
+        </field>
+        <field name="baseline_estimate" dataType="number" decimals="2">
+            <title>Baseline Estimate</title>
+            <sql dialect="generic">SUM(baseline_estimate)</sql>
+        </field>
+        <field name="design_estimate" dataType="number" decimals="2">
+            <title>Design Estimate</title>
+            <sql dialect="generic">SUM(design_estimate)</sql>
+        </field>
+        <field name="actual_costs" dataType="number" decimals="2">
+            <title>Actual Costs</title>
+            <sql dialect="generic">SUM(actual_costs)</sql>
+        </field>
+        <field name="funding_allocation" dataType="number" decimals="2">
+            <title>Funding Allocation</title>
+            <sql dialect="generic">SUM(funding_allocation)</sql>
+        </field>
+        <restriction type="sql" sql="project.is_template = 0"/>
+        <sortField name="project_id" table="project" ascending="true"/> 
+        <sortField name="all_years" table="project" ascending="true"/>
+        <sql dialect="generic">
+        SELECT bl.state_id, bl.city_id, project.site_id, project.bl_id,
+        project.dv_id, project.dp_id, program.program_type, program.program_id, 
+        project.project_type, project.project_id, project.proj_mgr, project.status, 
+        project.is_template,          
+        CASE WHEN (baseline_estimate IS NULL) THEN 0 ELSE baseline_estimate END baseline_estimate, 
+        CASE WHEN (design_estimate IS NULL) THEN 0 ELSE design_estimate END design_estimate, 
+        CASE WHEN (actual_costs IS NULL) THEN 0 ELSE actual_costs END actual_costs, 
+        CASE WHEN (funding_allocation IS NULL) THEN 0 ELSE funding_allocation END funding_allocation, 
+        years_and_ids.years AS all_years
+
+        FROM
+        ( SELECT activity_log.project_id, YEAR(date_started) AS years
+          FROM activity_log
+          WHERE YEAR(date_started) IS NOT NULL AND activity_log.status IN ('REQUESTED','BUDGETED','PLANNED','SCHEDULED','IN PROGRESS','IN PROCESS-H','STOPPED','COMPLETED','COMPLETED-V','CLOSED')                                
+          GROUP BY activity_log.project_id, YEAR(date_started) 
+        UNION
+          SELECT activity_log.project_id, YEAR(date_scheduled) AS years
+          FROM activity_log
+          WHERE YEAR(date_scheduled) IS NOT NULL AND activity_log.status IN ('REQUESTED','BUDGETED','PLANNED','SCHEDULED','IN PROGRESS','IN PROCESS-H','STOPPED','COMPLETED','COMPLETED-V','CLOSED')                      
+          GROUP BY activity_log.project_id, YEAR(date_scheduled)
+        UNION
+          SELECT activity_log.project_id, YEAR(date_planned_for) AS years
+          FROM activity_log
+          WHERE YEAR(date_planned_for) IS NOT NULL AND activity_log.status IN ('REQUESTED','BUDGETED','PLANNED','SCHEDULED','IN PROGRESS','IN PROCESS-H','STOPPED','COMPLETED','COMPLETED-V','CLOSED')              
+                GROUP BY activity_log.project_id, YEAR(date_planned_for)
+        UNION
+          SELECT projfunds.project_id, fiscal_year AS years 
+          FROM projfunds
+          WHERE fiscal_year IS NOT NULL
+          GROUP BY projfunds.project_id, fiscal_year
+        ) AS years_and_ids
+                
+        LEFT OUTER JOIN (
+          SELECT activity_log.project_id, SUM(cost_estimated + cost_est_cap) AS baseline_estimate, YEAR(date_planned_for) AS years
+          FROM activity_log
+          WHERE activity_log.status IN ('REQUESTED','BUDGETED','PLANNED','SCHEDULED','IN PROGRESS','IN PROCESS-H','STOPPED','COMPLETED','COMPLETED-V','CLOSED')           
+          GROUP BY activity_log.project_id, YEAR(date_planned_for)                            
+          ) AS alog1
+        ON alog1.project_id = years_and_ids.project_id AND alog1.years = years_and_ids.years  
+
+        LEFT OUTER JOIN (             
+          SELECT activity_log.project_id, SUM(cost_est_design_exp + cost_est_design_cap) AS design_estimate, YEAR(date_scheduled) AS years
+          FROM activity_log
+          WHERE activity_log.status IN ('REQUESTED','BUDGETED','PLANNED','SCHEDULED','IN PROGRESS','IN PROCESS-H','STOPPED','COMPLETED','COMPLETED-V','CLOSED')                     
+          GROUP BY activity_log.project_id, YEAR(date_scheduled)               
+          ) AS alog2
+        ON alog2.project_id = years_and_ids.project_id AND alog2.years = years_and_ids.years 
+ 
+        LEFT OUTER JOIN (             
+          SELECT activity_log.project_id, SUM(cost_act_cap + cost_actual) AS actual_costs, YEAR(date_started) AS years
+          FROM activity_log
+          WHERE activity_log.status IN ('IN PROGRESS','IN PROCESS-H','STOPPED','COMPLETED','COMPLETED-V','CLOSED')                      
+          GROUP BY activity_log.project_id, YEAR(date_started)               
+          ) AS alog3
+        ON alog3.project_id = years_and_ids.project_id AND alog3.years = years_and_ids.years 
+
+        LEFT OUTER JOIN (             
+          SELECT projfunds.project_id, SUM (amount_cap + amount_exp) AS funding_allocation, fiscal_year AS years 
+          FROM projfunds  
+          GROUP BY projfunds.project_id, fiscal_year
+          ) AS alog4
+        ON alog4.project_id = years_and_ids.project_id AND alog4.years = years_and_ids.years
+
+        RIGHT OUTER JOIN 
+          project
+        ON project.project_id = years_and_ids.project_id
+
+        LEFT OUTER JOIN 
+          bl
+        ON bl.bl_id = project.bl_id
+
+        LEFT OUTER JOIN
+          program
+        ON program.program_id = project.program_id
+        
+        WHERE years_and_ids.years IS NOT NULL
+        AND ${sql.vpaRestriction}
+              
+        </sql>
+
+        <sql dialect="oracle">
+              SELECT  bl.state_id, bl.city_id, project.site_id, project.bl_id,
+        project.dv_id, project.dp_id, program.program_type, program.program_id, 
+        project.project_type, project.project_id, project.proj_mgr, project.status, 
+        project.is_template,          
+        CASE WHEN (baseline_estimate IS NULL) THEN 0 ELSE baseline_estimate END baseline_estimate, 
+        CASE WHEN (design_estimate IS NULL) THEN 0 ELSE design_estimate END design_estimate, 
+        CASE WHEN (actual_costs IS NULL) THEN 0 ELSE actual_costs END actual_costs, 
+        CASE WHEN (funding_allocation IS NULL) THEN 0 ELSE funding_allocation END funding_allocation, 
+        CASE WHEN (years_and_ids.this_year = -1 OR years_and_ids.this_year IS NULL) THEN '-' 
+          ELSE TO_CHAR(years_and_ids.this_year) END all_years
+
+            FROM
+                (   SELECT activity_log.project_id, project.bl_id, project.program_id, TO_NUMBER(SUBSTR(TO_CHAR(date_started,'YYYY-MM-DD'),1,4)) AS this_year
+          FROM activity_log, project
+          WHERE activity_log.project_id = project.project_id AND activity_log.status IN ('REQUESTED','BUDGETED','PLANNED','SCHEDULED','IN PROGRESS','IN PROCESS-H','STOPPED','COMPLETED','COMPLETED-V','CLOSED')  
+                UNION
+                    SELECT activity_log.project_id, project.bl_id, project.program_id, TO_NUMBER(SUBSTR(TO_CHAR(date_scheduled,'YYYY-MM-DD'),1,4)) AS this_year
+          FROM activity_log, project
+          WHERE activity_log.project_id = project.project_id AND activity_log.status IN ('REQUESTED','BUDGETED','PLANNED','SCHEDULED','IN PROGRESS','IN PROCESS-H','STOPPED','COMPLETED','COMPLETED-V','CLOSED')                      
+                UNION
+                    SELECT activity_log.project_id, project.bl_id, project.program_id, TO_NUMBER(SUBSTR(TO_CHAR(date_planned_for,'YYYY-MM-DD'),1,4)) AS this_year
+          FROM activity_log, project
+          WHERE activity_log.project_id = project.project_id AND activity_log.status IN ('REQUESTED','BUDGETED','PLANNED','SCHEDULED','IN PROGRESS','IN PROCESS-H','STOPPED','COMPLETED','COMPLETED-V','CLOSED')              
+                UNION
+                    SELECT projfunds.project_id, project.bl_id, project.program_id, fiscal_year AS this_year 
+          FROM projfunds, project
+                                        WHERE projfunds.project_id = project.project_id
+                UNION
+                    SELECT project.project_id, project.bl_id, project.program_id, -1 AS this_year
+                    FROM project
+                ) years_and_ids,
+                
+                (
+                    SELECT activity_log.project_id, SUM(cost_estimated + cost_est_cap) AS baseline_estimate, CASE WHEN TO_NUMBER(SUBSTR(TO_CHAR(date_planned_for,'YYYY-MM-DD'),1,4)) IS NULL THEN -1 ELSE TO_NUMBER(SUBSTR(TO_CHAR(date_planned_for,'YYYY-MM-DD'),1,4)) END AS this_year
+          FROM activity_log
+          WHERE activity_log.status IN ('REQUESTED','BUDGETED','PLANNED','SCHEDULED','IN PROGRESS','IN PROCESS-H','STOPPED','COMPLETED','COMPLETED-V','CLOSED')           
+          GROUP BY activity_log.project_id, SUBSTR(TO_CHAR(date_planned_for,'YYYY-MM-DD'),1,4)                            
+                ) alog1,
+                
+
+                (             
+                    SELECT activity_log.project_id, SUM(cost_est_design_exp + cost_est_design_cap) AS design_estimate, CASE WHEN TO_NUMBER(SUBSTR(TO_CHAR(date_scheduled,'YYYY-MM-DD'),1,4)) IS NULL THEN -1 ELSE TO_NUMBER(SUBSTR(TO_CHAR(date_scheduled,'YYYY-MM-DD'),1,4)) END this_year
+          FROM activity_log
+          WHERE activity_log.status IN ('REQUESTED','BUDGETED','PLANNED','SCHEDULED','IN PROGRESS','IN PROCESS-H','STOPPED','COMPLETED','COMPLETED-V','CLOSED')                     
+          GROUP BY activity_log.project_id, SUBSTR(TO_CHAR(date_scheduled,'YYYY-MM-DD'),1,4)               
+                ) alog2,
+                 
+ 
+                (             
+                    SELECT activity_log.project_id, SUM(cost_act_cap + cost_actual) AS actual_costs, CASE WHEN TO_NUMBER(SUBSTR(TO_CHAR(date_started,'YYYY-MM-DD'),1,4)) IS NULL THEN -1 ELSE TO_NUMBER(SUBSTR(TO_CHAR(date_started,'YYYY-MM-DD'),1,4)) END this_year
+          FROM activity_log
+          WHERE activity_log.status IN ('IN PROGRESS','IN PROCESS-H','STOPPED','COMPLETED','COMPLETED-V','CLOSED')                      
+          GROUP BY activity_log.project_id, SUBSTR(TO_CHAR(date_started,'YYYY-MM-DD'),1,4)               
+                ) alog3,
+                 
+
+                (             
+                    SELECT projfunds.project_id, SUM (amount_cap + amount_exp) AS funding_allocation, CASE WHEN fiscal_year IS NULL THEN -1 ELSE fiscal_year END this_year 
+          FROM projfunds  
+          GROUP BY projfunds.project_id, fiscal_year
+                ) alog4,
+                project,
+                bl,
+                program
+                              
+                WHERE 
+                  alog1.project_id(+) = years_and_ids.project_id AND alog1.this_year(+) = years_and_ids.this_year AND  
+                  alog2.project_id(+) = years_and_ids.project_id AND alog2.this_year(+) = years_and_ids.this_year AND 
+                  alog3.project_id(+) = years_and_ids.project_id AND alog3.this_year(+) = years_and_ids.this_year AND
+                  alog4.project_id(+) = years_and_ids.project_id AND alog4.this_year(+) = years_and_ids.this_year AND
+                  years_and_ids.project_id = project.project_id(+) AND
+                  years_and_ids.bl_id = bl.bl_id(+) AND
+                  years_and_ids.program_id = program.program_id(+) AND
+                  ${sql.vpaRestriction}
+        </sql>
+    </dataSource>
+
+    <panel type="crossTable" id="selectProjectReport" dataSource="projProjectsCompareToBudget2dDs0" layout="mainLayout" region="center">
+        <title>Compare Annual Costs to Budget</title>
+        <action id="exportXLS">
+            <title>XLS</title>
+            <command type="exportPanel" outputType="xls" panelId="selectProjectReport"/>
+        </action>                  
+    </panel>
+</view>
+    
+ 
+ 
+ 
+ 

@@ -1,0 +1,267 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xmlns:aop="http://www.springframework.org/schema/aop"
+    xmlns:p="http://www.springframework.org/schema/p"
+    xmlns:util="http://www.springframework.org/schema/util"
+    xmlns:security="http://www.springframework.org/schema/security"
+    xsi:schemaLocation="
+    http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans.xsd
+    http://www.springframework.org/schema/security http://www.springframework.org/schema/security/spring-security.xsd
+    http://www.springframework.org/schema/aop http://www.springframework.org/schema/aop/spring-aop.xsd
+    http://www.springframework.org/schema/util http://www.springframework.org/schema/util/spring-util.xsd">
+
+    <!-- ========================= Start of SERVICE DEFINITIONS ========================= -->
+
+    <!--
+        Per-activity configuration bean.
+    -->
+    <bean id="AbCommonResources-configuration"
+        class="com.archibus.service.cost.Configuration">
+        <property name="defaultDateStart" value="1980-01-01" />
+        <property name="defaultDateEnd" value="2099-12-31" />
+    </bean>
+
+    <!-- TODO remove this bean: not used anywhere, incorrect definition.
+        Remote version of CostService. This service is not used when the client calls WFRs. 
+        TODO: fix proxyInterfaces="com.archibus.utility.Immutable": define and use ICostService interface.
+    -->
+    <bean id="CostService-remote"
+        class="org.springframework.aop.framework.ProxyFactoryBean"
+        p:proxyInterfaces="com.archibus.utility.Immutable"
+        p:target-ref="CostService">
+        <property name="interceptorNames">
+            <list>
+                <value>securityInterceptor</value>
+                <value>exceptionHandlingInterceptor</value>
+            </list>
+        </property>
+    </bean>
+
+    <!-- 
+        Local version of CostService, used by WFRs. 
+    -->
+    <bean id="CostService"
+        class="com.archibus.service.cost.CostService"
+        scope="prototype"
+        p:configuration-ref="AbCommonResources-configuration">
+    </bean>
+    
+    <bean id="CostReportingService"
+        class="com.archibus.service.cost.CostReportingService"
+        scope="prototype"
+        p:configuration-ref="AbCommonResources-configuration">
+    </bean>
+
+    <!--
+        Cost beans.
+    -->
+    <bean id="actualCost"
+        class="com.archibus.app.common.finance.domain.ActualCost"
+        scope="prototype">
+    </bean>
+    <bean id="scheduledCost"
+        class="com.archibus.app.common.finance.domain.ScheduledCost"
+        scope="prototype">
+    </bean>
+    <bean id="recurringCost"
+        class="com.archibus.app.common.finance.domain.RecurringCost"
+        p:configuration-ref="AbCommonResources-configuration"
+        scope="prototype">
+    </bean>
+    
+    <!-- Cost indexing -->
+    <bean
+        id="costIndexProfile"
+        class="com.archibus.app.common.finance.domain.CostIndexProfile"
+        scope="prototype">
+    </bean>
+    <bean
+        id="costIndexTrans"
+        class="com.archibus.app.common.finance.domain.CostIndexTrans"
+        scope="prototype">
+    </bean>
+    
+    <!-- BIM Service -->
+    <bean
+        id="drawingBimService-remote"
+        class="org.springframework.aop.framework.ProxyFactoryBean"
+        p:proxyInterfaces="com.archibus.app.common.drawing.bim.service.IDrawingBimService"
+        scope="prototype">
+        <property name="target">
+            <ref bean="drawingBimService"/>
+        </property>
+        <property name="interceptorNames">
+            <list>
+                <!-- In production, add securityInterceptor. -->
+                <value>contextInterceptor</value>
+                <value>exceptionHandlingInterceptor</value>
+                <value>eventHandlerContextInterceptor</value>
+            </list>
+        </property>
+    </bean>
+     <bean
+        id="drawingBimService"
+        class="com.archibus.app.common.drawing.bim.service.impl.DrawingBimService"
+        scope="prototype">
+    </bean>
+    
+    <!-- Svg Highlight -->
+    <bean
+        id="drawingSvgService-remote"
+        class="org.springframework.aop.framework.ProxyFactoryBean"
+        p:proxyInterfaces="com.archibus.app.common.drawing.svg.service.IDrawingSvgService"
+        scope="prototype">
+        <property name="target">
+            <ref bean="drawingSvgService"/>
+        </property>
+        <property name="interceptorNames">
+            <list>
+                <!-- In production, add securityInterceptor. -->
+                <value>contextInterceptor</value>
+                <value>exceptionHandlingInterceptor</value>
+                <value>eventHandlerContextInterceptor</value>
+            </list>
+        </property>
+    </bean>
+    <bean
+        id="drawingSvgService"
+        class="com.archibus.app.common.drawing.svg.service.impl.DrawingSvgService"
+        p:highlightParametersDao-ref="highlightParametersDao"
+        p:siteDao-ref="siteDao"
+        p:drawingDao-ref="drawingDao"
+        scope="prototype">
+    </bean>
+    <bean
+        id="svgHighlightParameters"
+        class="com.archibus.app.common.drawing.svg.service.dao.datasource.ActivePlanTypes"
+        scope="prototype">
+    </bean>
+    <bean
+        id="highlightParametersDao"
+        class="com.archibus.app.common.drawing.svg.service.dao.datasource.HighlightParametersDataSource"
+        scope="prototype">
+    </bean>
+     <bean
+        id="svgSite"
+        class="com.archibus.app.common.drawing.svg.service.domain.Site"
+        scope="prototype">
+    </bean>
+     <bean
+        id="siteDao"
+        class="com.archibus.app.common.drawing.svg.service.dao.datasource.SiteDataSource"
+        scope="prototype">
+    </bean>
+    <bean
+        id="svgDrawing"
+        class="com.archibus.app.common.drawing.svg.service.domain.Drawing"
+        scope="prototype">
+    </bean>
+    <bean
+        id="drawingDao"
+        class="com.archibus.app.common.drawing.svg.service.dao.datasource.DrawingDataSource"
+        scope="prototype">
+    </bean>
+    
+    <!-- v21.2 User defined metrics -->
+    <bean 
+        id="metric" 
+        class="com.archibus.app.common.metrics.domain.Metric" 
+        scope="prototype">
+    </bean>
+    <bean 
+        id="granularity" 
+        class="com.archibus.app.common.metrics.domain.Granularity" 
+        scope="prototype">
+    </bean>
+    <bean 
+        id="granularityDef" 
+        class="com.archibus.app.common.metrics.domain.GranularityDef" 
+        scope="prototype">
+    </bean>
+    <bean 
+        id="trendValue" 
+        class="com.archibus.app.common.metrics.domain.MetricTrendValue" 
+        scope="prototype">
+    </bean>
+    <bean 
+        id="scorecard" 
+        class="com.archibus.app.common.metrics.domain.Scorecard" 
+        scope="prototype">
+    </bean>
+
+    <bean 
+        id="metricNotification" 
+        class="com.archibus.app.common.metrics.domain.MetricNotification" 
+        scope="prototype">
+    </bean>
+    
+    <!-- Custom metrics WFR-ules -->
+    <bean 
+        id="areaPerOcupant" 
+        class="com.archibus.app.common.metrics.provider.AreaPerOccupantValuesProvider" 
+        scope="prototype">
+    </bean>
+    <!-- Generic WFR used to import metric values from CSV file -->
+    <bean 
+        id="importMetricValues" 
+        class="com.archibus.app.common.metrics.provider.MetricValuesFileImportProvider" 
+        scope="prototype">
+    </bean>
+    <!-- Used for afm_conversions -->
+    <bean id="afmConversions" class="com.archibus.app.common.finance.domain.Conversion" scope="prototype">
+    </bean>
+    
+    <!-- Risk/Energy Management -->
+    <bean id="utilityBillDiscrepancy"
+        class="com.archibus.eventhandler.energy.BillMeterReconciliationService"
+        scope="prototype">
+    </bean>
+    
+    <!--  WFR used to request ArcGIS Online access token -->
+    <bean id="arcgisClient"
+		class="com.archibus.controls.arcgis.ArcgisOAuthClient"
+		p:appId="$Applications{arcgis.online.appId}"
+		p:appSecret="$Applications{arcgis.online.appSecret}"
+		scope="prototype">
+	</bean>
+	
+	<!-- Depreciation part -->
+	<bean 
+        id="depreciationReport" 
+        class="com.archibus.app.common.depreciation.domain.DepreciationReport" 
+        scope="prototype">
+    </bean>
+
+    <bean 
+        id="depreciableEquipment" 
+        class="com.archibus.app.common.depreciation.domain.Equipment" 
+        scope="prototype">
+    </bean>
+	
+    <bean 
+        id="depreciableFurniture" 
+        class="com.archibus.app.common.depreciation.domain.Furniture" 
+        scope="prototype">
+    </bean>
+
+    <bean 
+        id="equipmentDepreciation" 
+        class="com.archibus.app.common.depreciation.domain.EquipmentDepreciation" 
+        scope="prototype">
+    </bean>
+
+    <bean 
+        id="furnitureDepreciation" 
+        class="com.archibus.app.common.depreciation.domain.FurnitureDepreciation" 
+        scope="prototype">
+    </bean>
+
+    <bean 
+        id="propertyType" 
+        class="com.archibus.app.common.depreciation.domain.PropertyType" 
+        scope="prototype">
+    </bean>
+
+	
+</beans>

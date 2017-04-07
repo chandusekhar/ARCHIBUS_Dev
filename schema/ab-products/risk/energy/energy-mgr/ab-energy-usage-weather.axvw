@@ -1,0 +1,762 @@
+<view version="2.0">
+  <layout type="borderLayout" id="mainLayout">
+    <west initialSize="280" split="true"/>
+    <center autoScroll="true"/>
+  </layout>
+  <layout type="borderLayout" id="nestedLayout" containingLayout="mainLayout" region="center">
+    <north split="true"/>
+    <center autoScroll="true"/>
+  </layout>
+  
+  <message name="gas_title" translatable="true">Gas Consumption with Model</message>
+    <message name="fuel1_title" translatable="true">Fuel 1 Consumption with Model</message>
+    <message name="fuel2_title" translatable="true">Fuel 2 Consumption with Model</message>
+    <message name="propane_title" translatable="true">Propane Consumption with Model</message>
+    <message name="water_title" translatable="true">Water Consumption with Model</message>
+  
+    <js file="ab-energy-usage-weather.js"/>
+    <js file="ab-energy-bill-archive-view-document.js"/>
+    
+    <title translatable="true">Usage with Weather Model</title>
+    
+    <panel type="view" id="commonView" file="ab-energy-bill-common.axvw"/>
+    
+    <!-- Console -->    
+    <dataSource id="ds_measureVerifyConsole">
+        <table name="bill_archive" role="main"/>
+        <field table="bill_archive" name="time_period"/>
+    </dataSource>
+    
+    <panel type="console" columns="3" id="panel_measureVerifyConsole" showOnLoad="true" dataSource="ds_measureVerifyConsole" layout="nestedLayout" region="north">
+        <title translatable="true">Filter</title>
+        <action id="filter">
+            <title>Apply</title>
+        </action>
+        <action id="clear">
+            <title translatable="true">Clear</title>
+        </action>
+         <field id="vf_bill_type">
+            <title translatable="true">Bill Type</title>
+            <html>
+                <select class="inputField_box" name="select_bill_type" id="select_bill_type" onchange="changeUnits();">
+                    <option id="select_bill_type_1" value="ELECTRIC" selected="true">
+                        <span translatable="true">Electric</span>
+                     </option>
+                    <option id="select_bill_type_2" value="GAS - NATURAL">
+                         <span translatable="true">Gas</span>
+                    </option>
+                    <option id="select_bill_type_3" value="FUEL OIL 1">
+                        <span translatable="true">Fuel 1</span>
+                    </option>
+                    <option id="select_bill_type_3" value="FUEL OIL 2">
+                        <span translatable="true">Fuel 2</span>
+                     </option>
+                    <option id="select_bill_type_4" value="GAS - PROPANE"> 
+                        <span translatable="true">Propane</span>
+                    </option>
+                </select>
+            </html>
+        </field>
+        <field id="vf_bill_units">
+            <title translatable="true">Energy Consumption Units</title>
+            <html>
+                <select class="inputField_box" name="select_bill_units" id="select_bill_units">
+                    <option id="select_bill_units_0" value="MMBTU" selected="true">MMBTU</option>
+                </select>
+            </html>
+        </field>
+        <field/>
+        <field table="bill_archive" name="time_period" alias="bill_archive.time_period.from" showSelectValueAction="true">
+	    <title translatable="true">Billing Period From</title>
+		<action>
+		    <title>...</title>
+			<tooltip>Select Value</tooltip>
+			    <command type="selectValue"
+			    fieldNames="bill_archive.time_period.from"
+			    selectFieldNames="energy_time_period.time_period"
+			    visibleFieldNames="energy_time_period.time_period"
+			    sortFieldNames="energy_time_period.time_period"
+			    showIndex="true">
+                    <title>Billing Period From</title>
+			    </command>
+		</action>	    
+        </field>
+        <field table="bill_archive" name="time_period" alias="bill_archive.time_period.to" showSelectValueAction="true">
+            <title translatable="true">Billing Period To</title>
+		<action>
+		    <title>...</title>
+			<tooltip>Select Value</tooltip>
+			    <command type="selectValue"
+			    fieldNames="bill_archive.time_period.to"
+			    selectFieldNames="energy_time_period.time_period"
+			    visibleFieldNames="energy_time_period.time_period"
+			    sortFieldNames="energy_time_period.time_period"
+			    showIndex="true">
+                    <title>Billing Period To</title>
+			    </command>
+		</action>            
+        </field>
+    </panel>
+
+    <!-- Location tree -->
+    <dataSource id="ds_measureVerifyCtry">
+        <table name="ctry"/>
+        <sql dialect="generic">
+        SELECT ctry.name ${sql.as} name, ctry_id ${sql.as} ctry_id
+        FROM ctry
+            WHERE EXISTS (SELECT 1 FROM bill_archive LEFT OUTER JOIN site ON site.site_id = bill_archive.site_id WHERE site.ctry_id = ctry.ctry_id AND EXISTS (SELECT 1 FROM bl WHERE bl.site_id = bill_archive.site_id))
+            OR EXISTS (SELECT 1 FROM bill_archive LEFT OUTER JOIN bl ON bl.bl_id = bill_archive.bl_id WHERE bl.ctry_id = ctry.ctry_id)
+        </sql>
+        <field name="ctry_id"/>
+        <field name="name"/>
+        <sortField table="ctry" name="ctry_id" ascending="true"/>
+        </dataSource>
+
+    <dataSource id="ds_measureVerifyRegn">
+        <table name="regn"/>
+        <sql dialect="generic">
+        SELECT regn.name ${sql.as} name, regn_id ${sql.as} regn_id, ctry_id ${sql.as} ctry_id
+        FROM regn
+           WHERE EXISTS (SELECT 1 FROM bill_archive LEFT OUTER JOIN site ON site.site_id = bill_archive.site_id WHERE site.regn_id = regn.regn_id AND EXISTS (SELECT 1 FROM bl WHERE bl.site_id = bill_archive.site_id))
+            OR EXISTS (SELECT 1 FROM bill_archive LEFT OUTER JOIN bl ON bl.bl_id = bill_archive.bl_id WHERE bl.regn_id = regn.regn_id)
+        </sql>
+        <field name="regn_id"/>
+        <field name="name"/>
+        <sortField table="regn" name="regn_id" ascending="true"/>
+    </dataSource>
+    
+    <dataSource id="ds_measureVerifyState">
+        <table name="state"/>
+        <sql dialect="generic">
+        SELECT state.name ${sql.as} name, state_id ${sql.as} state_id, ctry_id ${sql.as} ctry_id, regn_id ${sql.as} regn_id
+        FROM state
+           WHERE EXISTS (SELECT 1 FROM bill_archive LEFT OUTER JOIN site ON site.site_id = bill_archive.site_id WHERE site.state_id = state.state_id AND EXISTS (SELECT 1 FROM bl WHERE bl.site_id = bill_archive.site_id))
+            OR EXISTS (SELECT 1 FROM bill_archive LEFT OUTER JOIN bl ON bl.bl_id = bill_archive.bl_id WHERE bl.state_id = state.state_id)
+        </sql>
+        <field name="state_id"/>
+        <field name="name"/>
+        <sortField table="state" name="state_id" ascending="true"/>
+    </dataSource>
+
+    <dataSource id="ds_measureVerifyCity">
+        <table name="city"/>
+        <sql dialect="generic">
+        SELECT city.name ${sql.as} name, city_id ${sql.as} city_id, ctry_id ${sql.as} ctry_id, regn_id ${sql.as} regn_id, state_id ${sql.as} state_id
+        FROM city
+           WHERE EXISTS (SELECT 1 FROM bill_archive LEFT OUTER JOIN site ON site.site_id = bill_archive.site_id WHERE site.city_id = city.city_id AND EXISTS (SELECT 1 FROM bl WHERE bl.site_id = bill_archive.site_id))
+            OR EXISTS (SELECT 1 FROM bill_archive LEFT OUTER JOIN bl ON bl.bl_id = bill_archive.bl_id WHERE bl.city_id = city.city_id)
+        </sql>
+        <field name="city_id"/>
+        <field name="name"/>
+        <sortField table="city" name="city_id" ascending="true"/>
+    </dataSource>
+    
+    <dataSource id="ds_measureVerifySite">
+        <table name="site"/>
+        <sql dialect="generic">
+        SELECT site.name ${sql.as} name, site_id ${sql.as} site_id, state_id ${sql.as} state_id, city_id ${sql.as} city_id, ctry_id ${sql.as} ctry_id
+        FROM site
+            WHERE (EXISTS (SELECT 1 FROM bill_archive WHERE bill_archive.site_id = site.site_id AND EXISTS (SELECT 1 FROM bl WHERE bl.bl_id = bill_archive.bl_id ))
+            OR EXISTS (SELECT 1 FROM bill_archive LEFT OUTER JOIN bl ON bl.bl_id = bill_archive.bl_id WHERE bl.site_id = site.site_id ))
+        </sql>
+        <field name="site_id"/>
+        <field name="name"/>
+        <sortField table="site" name="site_id" ascending="true"/>
+    </dataSource>
+    
+    <dataSource id="ds_measureVerifyBuilding">
+        <table name="bl"/>
+        <sql dialect="generic">
+         SELECT name ${sql.as} name, bl_id ${sql.as} bl_id, site_id ${sql.as} site_id
+        FROM bl
+            WHERE EXISTS (SELECT 1 FROM bill_archive WHERE bill_archive.bl_id = bl.bl_id)
+        </sql>
+        <field name="bl_id"/>
+        <field name="name"/>
+        <sortField table="bl" name="bl_id" ascending="true"/>
+    </dataSource>
+    
+    <panel type="tree" id="panel_measureVerifyCtry" dataSource="ds_measureVerifyCtry" layout="mainLayout" region="west">
+        <title translatable="true">Select Location</title>
+
+        <field table="ctry" name="ctry_id"/>
+        <field table="ctry" name="name"/>
+        <event type="onClickNode">
+            <command type="callFunction" functionName="selectLocation"/>
+        </event>
+
+        <panel type="tree" id="panel_measureVerifyRegn" dataSource="ds_measureVerifyRegn">
+            <field table="regn" name="regn_id"/>
+            <field table="regn" name="name"/>
+	        <event type="onClickNode">
+	            <command type="callFunction" functionName="selectLocation"/>
+	        </event>
+        </panel>
+        
+        <panel type="tree" id="panel_measureVerifyState" dataSource="ds_measureVerifyState">
+            <field table="state" name="state_id"/>
+            <field table="state" name="name"/>
+            <event type="onClickNode">
+                <command type="callFunction" functionName="selectLocation"/>
+            </event>
+        </panel>
+        
+        <panel type="tree" id="panel_measureVerifyCity" dataSource="ds_measureVerifyCity">
+            <field table="city" name="city_id"/>
+            <field table="city" name="name"/>
+            <event type="onClickNode">
+                <command type="callFunction" functionName="selectLocation"/>
+            </event>
+        </panel>
+        
+        <panel type="tree" id="panel_measureVerifySite" dataSource="ds_measureVerifySite">
+            <field table="site" name="site_id"/>
+            <field table="site" name="name"/>
+            <event type="onClickNode">
+                <command type="callFunction" functionName="selectLocation"/>
+            </event>
+        </panel>
+        
+        <panel type="tree" id="panel_measureVerifyBuilding" dataSource="ds_measureVerifyBuilding">
+            <field table="bl" name="bl_id"/>
+            <field table="bl" name="name"/>
+            <event type="onClickNode">
+                <command type="callFunction" functionName="selectLocation"/>
+            </event>
+        </panel>
+    </panel>
+     
+    <!-- Chart data sources --> 
+    
+    <dataSource id="ds_elecLoadFactorChart" type="grouping" applyVpaRestrictions="false">
+    	<!-- Define parameters for the custom SQL query -->
+    	<parameter name="locationField" dataType="verbatim" value="ctry_id"/>
+        <parameter name="locationValue" dataType="text" value="USA"/>    
+        <parameter name="billType" dataType="verbatim" value="bill_archive.bill_type_id='ELECTRIC'" />
+            
+        <!-- Define a custom SQL query that can be restricted by various location values -->    
+        <sql dialect="generic">SELECT bill_archive.time_period,				
+				bill_archive.qty_energy / 0.003412 / ${sql.replaceZero('bill_archive.qty_power')} / ${sql.replaceZero('energy_bl_svc_period.num_days')} / 24 * 100 ${sql.as} el_load_factor
+				FROM bill_archive INNER JOIN
+					energy_bl_svc_period ON bill_archive.time_period = energy_bl_svc_period.time_period AND bill_archive.bl_id = energy_bl_svc_period.bl_id
+				WHERE ${parameters['billType']} AND energy_bl_svc_period.bill_type_id = 'ELECTRIC'
+                AND ((bill_archive.prorated_aggregated = 'NO' AND bill_archive.reference_bill_id IS NULL AND NOT EXISTS (SELECT 1 FROM bill_archive b WHERE b.reference_bill_id = bill_archive.bill_id)) OR (bill_archive.prorated_aggregated &lt;&gt; 'NO'))
+				AND bill_archive.vn_id IN
+					(SELECT vn_id FROM vn 
+						WHERE vendor_type = 'Energ')
+        			AND ${sql.vpaRestriction} AND bill_archive.bl_id IN 
+            				(SELECT bl_id FROM bl 
+            					WHERE ${parameters['locationField']} = ${parameters['locationValue']})     					
+       	</sql>        
+        
+        <table name="bill_archive" role="main"/>
+        <field name="time_period" table="bill_archive" groupBy="true"/>
+        <field name="sum_el_load_factor" formula="avg" baseField="bill_archive.el_load_factor" dataType="number" numericFormat="Default" size="12" decimals="2"/>
+        <sortField table="bill_archive" name="time_period" ascending="true"/>
+    </dataSource>   
+    
+    <dataSource id="ds_elecLoadFactorData" applyVpaRestrictions="false">
+        <!-- Define parameters for the custom SQL query -->
+        <parameter name="locationField" dataType="verbatim" value="ctry_id"/>
+        <parameter name="locationValue" dataType="text" value="USA"/>
+        <parameter name="unitsConversionFactor" dataType="verbatim" value=""/>
+        <parameter name="billType" dataType="verbatim" value="bill_archive.bill_type_id='ELECTRIC'" />
+            
+        <!-- Define a custom SQL query that can be restricted by various location values -->
+        <sql dialect="generic">SELECT
+                        bl.use1,
+                        bill_archive.site_id,
+                        bill_archive.bl_id,
+                        bill_archive.vn_id,
+                        bill_archive.bill_id,
+                        bill_archive.vn_ac_id,
+                        bill_archive.bill_type_id,
+                        bill_archive.time_period,
+                        bill_archive.date_service_start,
+                        bill_archive.date_service_end,
+                        bill_archive.amount_expense,
+                        bill_archive.amount_income,
+                        (bill_archive.qty_energy / ${parameters['unitsConversionFactor']}) ${sql.as} qty_energy,
+                        bill_archive.qty_power,
+                        bill_archive.qty_volume,
+                        bill_archive.qty_kwh,
+                        bill_archive.cost_kwh,
+                        bill_archive.cost_mmbtu,
+                        bill_archive.count_lines,
+                        bill_archive.description,
+                        bill_archive.doc
+        			FROM bill_archive 
+        				LEFT OUTER JOIN bl 
+        				ON bill_archive.bl_id=bl.bl_id
+				WHERE ${parameters['billType']}
+                AND ((bill_archive.prorated_aggregated = 'NO' AND bill_archive.reference_bill_id IS NULL AND NOT EXISTS (SELECT 1 FROM bill_archive b WHERE b.reference_bill_id = bill_archive.bill_id)) OR (bill_archive.prorated_aggregated &lt;&gt; 'NO'))
+				AND bill_archive.vn_id IN
+					(SELECT vn_id FROM vn 
+						WHERE vendor_type = 'Energ')
+        			AND ${sql.vpaRestriction} AND bill_archive.bl_id IN 
+            				(SELECT bl_id FROM bl 
+            					WHERE ${parameters['locationField']} = ${parameters['locationValue']})        				
+        </sql>    
+    
+        <table name="bill_archive" role="main" />
+        <field table="bill_archive" name="site_id"/>
+        <field table="bill_archive" name="bl_id"/>
+		<field table="bill_archive" name="use1" dataType="text"/>		
+        <field table="bill_archive" name="vn_id"/>
+        <field table="bill_archive" name="bill_id"/>
+        <field table="bill_archive" name="vn_ac_id"/>
+        <field table="bill_archive" name="bill_type_id"/>        
+		<field table="bill_archive" name="time_period"/>
+        <field table="bill_archive" name="date_service_start"/>
+        <field table="bill_archive" name="date_service_end"/>	
+		<field table="bill_archive" name="amount_expense" showTotals="true"/>
+		<field table="bill_archive" name="amount_income" showTotals="true"/>
+		<field table="bill_archive" name="qty_energy" showTotals="true"/>
+		<field table="bill_archive" name="qty_power" showTotals="true"/>
+		<field table="bill_archive" name="qty_volume" showTotals="true"/>
+		<field table="bill_archive" name="qty_kwh" showTotals="true"/>
+		<field table="bill_archive" name="cost_kwh" showTotals="true"/>
+		<field table="bill_archive" name="cost_mmbtu" showTotals="true"/>
+        <field table="bill_archive" name="count_lines"/>
+        <field table="bill_archive" name="description"/>
+        <field table="bill_archive" name="doc"/>
+    </dataSource>
+    
+    <panel type="grid" id="panel_elecLoadFactorData" dataSource="ds_elecLoadFactorData" hidden="true" showOnLoad="false" showCounts="true">
+    	<title translatable="true">Archived Bills</title>
+    	
+	    <action id="exportXLS">
+	      <title translatable="true">XLS</title>
+	      <command type="exportPanel" outputType="xls" panelId="panel_elecLoadFactorData"/>
+	    </action>
+	    
+	    <action id="exportDOC">
+	      <title translatable="true">DOC</title>
+	      <command type="exportPanel" outputType="docx" panelId="panel_elecLoadFactorData"/>
+	    </action>
+		
+          <field controlType="button" id="viewElecLoadFactor" enabled="${record['bill_archive.doc'] != ''}">
+         	 <title translatable="true">Document</title>
+          </field>
+        <field controlType="button">
+            <command type="openDialog" viewName="ab-energy-archive-bill-line-list.axvw" applySelectionRestriction="true"/>
+            <title translatable="true">Lines</title>
+        </field>
+		<field table="bill_archive" name="site_id"/>
+		<field table="bill_archive" name="bl_id"/>
+		<field table="bill_archive" name="use1" dataType="text">
+			<title translatable="true">Building Use</title>
+		</field>
+		<field table="bill_archive" name="vn_id"/>
+		<field table="bill_archive" name="bill_id"/>
+		<field table="bill_archive" name="vn_ac_id"/>
+		<field table="bill_archive" name="bill_type_id"/>
+		<field table="bill_archive" name="time_period"/>
+		<field table="bill_archive" name="date_service_start"/>
+		<field table="bill_archive" name="date_service_end"/>
+		<field table="bill_archive" name="amount_expense" showTotals="true"/>
+		<field table="bill_archive" name="amount_income" showTotals="true"/>
+		<field table="bill_archive" name="qty_energy" showTotals="true">
+            <title>Energy / Consumption (${view.dataSources.get('abEnergyBillCommon_ds').getRecord().getValue('bill_unit.vf_qty_energy_unit')})</title>
+        </field>
+		<field table="bill_archive" name="qty_power" showTotals="true"/>
+		<field table="bill_archive" name="qty_volume" showTotals="true"/>
+		<field table="bill_archive" name="qty_kwh" showTotals="true"/>
+		<field table="bill_archive" name="cost_kwh" showTotals="true"/>
+		<field table="bill_archive" name="cost_mmbtu" showTotals="true"/>
+		<field table="bill_archive" name="count_lines"/>
+		<field table="bill_archive" name="description"/>
+		<field table="bill_archive" name="doc"/>
+		
+    	<sortField table="bill_archive" name="vn_id" ascending="true"/>
+    	<sortField table="bill_archive" name="bill_id" ascending="true"/>
+    	<indexField table="bill_archive" name="bill_id"/>
+    </panel>
+    
+    <dataSource id="ds_elecWeatherModelChart" type="grouping" applyVpaRestrictions="false">
+    	<!-- Define parameters for the custom SQL query -->
+    	<parameter name="locationField" dataType="verbatim" value="ctry_id"/>
+        <parameter name="locationValue" dataType="text" value="USA"/>
+        <parameter name="unitsConversionFactor" dataType="verbatim" value=""/>
+        <parameter name="billType" dataType="verbatim" value="bill_archive.bill_type_id='ELECTRIC'" />
+            
+        <!-- Define a custom SQL query that can be restricted by various location values -->
+        <!-- EJM: Bali5 / v23.1 - Added restrictions so the weather model values do not include redundant days totals for bills in a month with no consumption value (e.g., T&D invoices).
+                If there are multiple bills of the same utility type for the same building for a given time period and having energy consumption values, then the energy model
+                bars in the chart may not always appear as expected.  It is likely, assuming all bills are of overlapping service dates of approximately 1 month, that the weather model value will
+                be roughly multiplied by the number of included bills with consumption values.  I see no clear programmatic way around this, as various approaches risk misrepresenting
+                the true data.  At least with this case of potentially huge chart values, it should be obvious that something in the underlying source data is not compatible with the 
+                presentation.  An alternative approach, should users wish to reconfigure with the understanding that values might be off by one or several days' worth of base load, would
+                be, e.g., in the case of baseload, to select the max value for a given building within a time period before multiplying and summing.
+                This is the new restriction clause:
+                AND energy_chart_point.vn_id ${sql.concat} energy_chart_point.vn_ac_id 
+                  IN (SELECT vn_id + vn_ac_id FROM energy_bl_svc_period ebsp WHERE ebsp.vn_id = energy_chart_point.vn_id 
+                  AND ebsp.vn_ac_id = energy_chart_point.vn_ac_id AND ebsp.time_period = energy_chart_point.time_period)
+                I have also changed the SUM() operator to MAX() for weather model values, because the chart should only show one per month.  On the other hand, I've added SUM() to the 
+                utility consumption value, because we do want to show the total consumed for any given month. 
+                -->
+        <sql dialect="generic">SELECT energy_chart_point.time_period, MAX(energy_chart_point.value * weather_model.coefficient_base_load) ${sql.as} baseload, 0.00 ${sql.as} cdd, 0.00 ${sql.as} hdd, 
+				0.00 ${sql.as} el_actual_consumption, 0.00 ${sql.as} el_actual_demand
+				FROM energy_chart_point
+					INNER JOIN weather_model
+					ON (energy_chart_point.bl_id = weather_model.bl_id AND energy_chart_point.time_period = weather_model.time_period)
+				WHERE ${sql.vpaRestriction} AND energy_chart_point.value_name = 'el_num_days' AND weather_model.model_type = 'el_regression' AND energy_chart_point.bl_id IN 
+									(SELECT bl_id FROM bl 
+										WHERE ${parameters['locationField']} = ${parameters['locationValue']})
+                  AND energy_chart_point.vn_id ${sql.concat} energy_chart_point.vn_ac_id 
+                  IN (SELECT vn_id ${sql.concat} vn_ac_id FROM energy_bl_svc_period ebsp WHERE ebsp.vn_id = energy_chart_point.vn_id 
+                  AND ebsp.vn_ac_id = energy_chart_point.vn_ac_id AND ebsp.time_period = energy_chart_point.time_period)
+				GROUP BY energy_chart_point.time_period
+				UNION ALL
+				SELECT energy_chart_point.time_period, 0.00 ${sql.as} baseload, MAX(energy_chart_point.value * weather_model.coefficient_cdd) ${sql.as} cdd, 0.00 ${sql.as} hdd, 
+				0.00 ${sql.as} el_actual_consumption, 0.00 ${sql.as} el_actual_demand
+				FROM energy_chart_point
+					INNER JOIN weather_model
+					ON (energy_chart_point.bl_id = weather_model.bl_id AND energy_chart_point.time_period = weather_model.time_period)
+				WHERE ${sql.vpaRestriction} AND energy_chart_point.value_name = 'cdd' AND weather_model.model_type = 'el_regression' AND energy_chart_point.bl_id IN 
+									(SELECT bl_id FROM bl 
+										WHERE ${parameters['locationField']} = ${parameters['locationValue']})
+                  AND energy_chart_point.vn_id ${sql.concat} energy_chart_point.vn_ac_id 
+                  IN (SELECT vn_id ${sql.concat} vn_ac_id FROM energy_bl_svc_period ebsp WHERE ebsp.vn_id = energy_chart_point.vn_id 
+                  AND ebsp.vn_ac_id = energy_chart_point.vn_ac_id AND ebsp.time_period = energy_chart_point.time_period)
+				GROUP BY energy_chart_point.time_period
+				UNION ALL
+				SELECT energy_chart_point.time_period, 0.00 ${sql.as} baseload, 0.00 ${sql.as} cdd, MAX(energy_chart_point.value * weather_model.coefficient_hdd) ${sql.as} hdd, 
+				0.00 ${sql.as} el_actual_consumption, 0.00 ${sql.as} el_actual_demand
+				FROM energy_chart_point
+					INNER JOIN weather_model
+					ON (energy_chart_point.bl_id = weather_model.bl_id AND energy_chart_point.time_period = weather_model.time_period)
+				WHERE ${sql.vpaRestriction} AND energy_chart_point.value_name = 'hdd' AND weather_model.model_type = 'el_regression' AND energy_chart_point.bl_id IN 
+									(SELECT bl_id FROM bl 
+										WHERE ${parameters['locationField']} = ${parameters['locationValue']})
+				  AND energy_chart_point.vn_id ${sql.concat} energy_chart_point.vn_ac_id 
+                  IN (SELECT vn_id ${sql.concat} vn_ac_id FROM energy_bl_svc_period ebsp WHERE ebsp.vn_id = energy_chart_point.vn_id 
+                  AND ebsp.vn_ac_id = energy_chart_point.vn_ac_id AND ebsp.time_period = energy_chart_point.time_period)
+                GROUP BY energy_chart_point.time_period
+				UNION ALL
+				SELECT energy_chart_point.time_period, 0.00 ${sql.as} baseload, 0.00 ${sql.as} cdd, 0.00 ${sql.as} hdd,
+				SUM(energy_chart_point.value) ${sql.as} el_actual_consumption,
+                0.00 ${sql.as} el_actual_demand
+				FROM energy_chart_point
+				WHERE ${sql.vpaRestriction} AND energy_chart_point.value_name = 'el_actual_consumption' AND energy_chart_point.bl_id IN 
+									(SELECT bl_id FROM bl 
+										WHERE ${parameters['locationField']} = ${parameters['locationValue']})
+                  AND energy_chart_point.vn_id ${sql.concat} energy_chart_point.vn_ac_id 
+                  IN (SELECT vn_id ${sql.concat} vn_ac_id FROM energy_bl_svc_period ebsp WHERE ebsp.vn_id = energy_chart_point.vn_id 
+                  AND ebsp.vn_ac_id = energy_chart_point.vn_ac_id AND ebsp.time_period = energy_chart_point.time_period)
+				GROUP BY energy_chart_point.time_period
+                UNION ALL
+				SELECT energy_chart_point.time_period, 0.00 ${sql.as} baseload, 0.00 ${sql.as} cdd, 0.00 ${sql.as} hdd, 
+				0.00 ${sql.as} el_actual_consumption, MAX(energy_chart_point.value) ${sql.as} el_actual_demand
+				FROM energy_chart_point
+				WHERE ${sql.vpaRestriction} AND energy_chart_point.value_name = 'el_actual_demand' AND energy_chart_point.bl_id IN 
+									(SELECT bl_id FROM bl 
+										WHERE ${parameters['locationField']} = ${parameters['locationValue']})
+                  AND energy_chart_point.vn_id ${sql.concat} energy_chart_point.vn_ac_id 
+                  IN (SELECT vn_id ${sql.concat} vn_ac_id FROM energy_bl_svc_period ebsp WHERE ebsp.vn_id = energy_chart_point.vn_id 
+                  AND ebsp.vn_ac_id = energy_chart_point.vn_ac_id AND ebsp.time_period = energy_chart_point.time_period)
+                  GROUP BY energy_chart_point.time_period
+        </sql> 
+        
+        <table name="energy_chart_point" role="main"/>
+        <!--field name="bl_id" table="energy_chart_point"/-->
+        <field name="time_period" table="energy_chart_point" groupBy="true"/>
+		<field name="sum_weather_model_kw" table="energy_chart_point" dataType="number" size="12" decimals="2">
+		<sql dialect="generic">SUM(energy_chart_point.baseload+energy_chart_point.cdd+energy_chart_point.hdd)
+		</sql>
+        </field>
+        <field name="sum_weather_model" table="energy_chart_point" dataType="number" size="12" decimals="2">
+		<sql dialect="generic">SUM(energy_chart_point.baseload+energy_chart_point.cdd+energy_chart_point.hdd) / ${parameters['unitsConversionFactor']}
+		</sql>
+        </field>
+		<field name="sum_el_actual_consumption" table="energy_chart_point" dataType="number" size="12" decimals="2">
+		<sql dialect="generic">SUM(el_actual_consumption) / ${parameters['unitsConversionFactor']}
+		</sql>
+        </field>
+		<field name="sum_el_actual_demand" table="energy_chart_point" dataType="number" size="12" decimals="2">
+		<sql dialect="generic">SUM(el_actual_demand)
+		</sql>
+        </field>        
+        <sortField table="energy_chart_point" name="time_period" ascending="true"/>
+    </dataSource>
+    
+    <panel type="grid" id="panel_elecConsumWeatherModelData" dataSource="ds_elecWeatherModelChart" hidden="true" showOnLoad="false" showCounts="true">
+    	<title translatable="true">Electric Consumption with Model</title>
+    	
+	    <action id="exportXLS">
+	      <title>XLS</title>
+	      <command type="exportPanel" outputType="xls" panelId="panel_elecConsumWeatherModelData"/>
+	    </action>
+		
+	    <action id="exportDOC">
+	      <title translatable="true">DOC</title>
+	      <command type="exportPanel" outputType="docx" panelId="panel_elecConsumWeatherModelData"/>
+	    </action>		
+	    
+        <field name="time_period" table="energy_chart_point"/>
+		<field name="sum_weather_model" table="energy_chart_point">
+		<title translatable="true">Weather Model</title>
+        </field>
+		<field name="sum_el_actual_consumption" table="energy_chart_point">
+            <title>Consumption (${view.dataSources.get('abEnergyBillCommon_ds').getRecord().getValue('bill_unit.vf_qty_energy_unit')})</title>
+        </field>       
+        <sortField table="energy_chart_point" name="time_period" ascending="true"/>   
+        <indexField table="energy_chart_point" name="time_period"/>
+    </panel>
+    
+    <panel type="grid" id="panel_elecDemandWeatherModelData" dataSource="ds_elecWeatherModelChart" hidden="true" showOnLoad="false" showCounts="true">
+    	<title translatable="true">Electric Demand with Model</title>
+    	
+	    <action id="exportXLS">
+	      <title translatable="true">XLS</title>
+	      <command type="exportPanel" outputType="xls" panelId="panel_elecDemandWeatherModelData"/>
+	    </action>
+
+	    <action id="exportDOC">
+	      <title translatable="true">DOC</title>
+	      <command type="exportPanel" outputType="docx" panelId="panel_elecDemandWeatherModelData"/>
+	    </action>		
+	    
+        <field name="time_period" table="energy_chart_point"/>
+		<field name="sum_weather_model_kw" table="energy_chart_point">
+		<title translatable="true">Weather Model</title>
+        </field>
+		<field name="sum_el_actual_demand" table="energy_chart_point">
+		<title translatable="true">Demand (kW)</title>
+        </field>        
+        <sortField table="energy_chart_point" name="time_period" ascending="true"/>   
+        <indexField table="energy_chart_point" name="time_period"/>
+    </panel>     
+    
+    <dataSource id="ds_gasWeatherModelChart" type="grouping" applyVpaRestrictions="false">
+    	<!-- Define parameters for the custom SQL query -->
+    	<parameter name="locationField" dataType="verbatim" value="ctry_id"/>
+        <parameter name="locationValue" dataType="text" value="USA"/>
+        <parameter name="unitsConversionFactor" dataType="verbatim" value=""/>
+        <parameter name="gasReg" dataType="text" value="gas_natural_regression"/>
+        <parameter name="gasCons" dataType="text" value="gas_actual_consumption"/>
+        <parameter name="gasNumDays" dataType="text" value="gas_num_days"/>
+            
+        <!-- Define a custom SQL query that can be restricted by various location values -->
+        <sql dialect="generic">SELECT energy_chart_point.time_period, MAX(energy_chart_point.value * weather_model.coefficient_base_load) ${sql.as} baseload, 0.00 ${sql.as} cdd, 0.00 ${sql.as} hdd, 
+        			0.00 ${sql.as} gas_actual_consumption
+				FROM energy_chart_point
+					INNER JOIN weather_model
+					ON (energy_chart_point.bl_id = weather_model.bl_id AND energy_chart_point.time_period = weather_model.time_period)
+				WHERE ${sql.vpaRestriction} AND energy_chart_point.value_name = ${parameters['gasNumDays']} AND weather_model.model_type = ${parameters['gasReg']} AND energy_chart_point.bl_id IN 
+					(SELECT bl_id FROM bl 
+						WHERE ${parameters['locationField']} = ${parameters['locationValue']})
+                   AND energy_chart_point.vn_id ${sql.concat} energy_chart_point.vn_ac_id 
+                  IN (SELECT vn_id ${sql.concat} vn_ac_id FROM energy_bl_svc_period ebsp WHERE ebsp.vn_id = energy_chart_point.vn_id 
+                  AND ebsp.vn_ac_id = energy_chart_point.vn_ac_id AND ebsp.time_period = energy_chart_point.time_period)
+				GROUP BY energy_chart_point.time_period
+				UNION ALL
+				SELECT energy_chart_point.time_period, 0.00 ${sql.as} baseload, MAX(energy_chart_point.value * weather_model.coefficient_cdd) ${sql.as} cdd, 0.00 ${sql.as} hdd, 
+				0.00 ${sql.as} gas_actual_consumption
+				FROM energy_chart_point
+					INNER JOIN weather_model
+					ON (energy_chart_point.bl_id = weather_model.bl_id AND energy_chart_point.time_period = weather_model.time_period)
+				WHERE ${sql.vpaRestriction} AND energy_chart_point.value_name = 'cdd' AND weather_model.model_type = ${parameters['gasReg']} AND energy_chart_point.bl_id IN 
+					(SELECT bl_id FROM bl 
+						WHERE ${parameters['locationField']} = ${parameters['locationValue']})
+				  AND energy_chart_point.vn_id ${sql.concat} energy_chart_point.vn_ac_id 
+                  IN (SELECT vn_id ${sql.concat} vn_ac_id FROM energy_bl_svc_period ebsp WHERE ebsp.vn_id = energy_chart_point.vn_id 
+                  AND ebsp.vn_ac_id = energy_chart_point.vn_ac_id AND ebsp.time_period = energy_chart_point.time_period)
+                GROUP BY energy_chart_point.time_period
+				UNION ALL
+				SELECT energy_chart_point.time_period, 0.00 ${sql.as} baseload, 0.00 ${sql.as} cdd, MAX(energy_chart_point.value * weather_model.coefficient_hdd) ${sql.as} hdd, 
+				0.00 ${sql.as} gas_actual_consumption
+				FROM energy_chart_point
+					INNER JOIN weather_model
+					ON (energy_chart_point.bl_id = weather_model.bl_id AND energy_chart_point.time_period = weather_model.time_period)
+				WHERE ${sql.vpaRestriction} AND energy_chart_point.value_name = 'hdd' AND weather_model.model_type = ${parameters['gasReg']} AND energy_chart_point.bl_id IN 
+					(SELECT bl_id FROM bl 
+						WHERE ${parameters['locationField']} = ${parameters['locationValue']})
+				   AND energy_chart_point.vn_id ${sql.concat} energy_chart_point.vn_ac_id 
+                  IN (SELECT vn_id ${sql.concat} vn_ac_id FROM energy_bl_svc_period ebsp WHERE ebsp.vn_id = energy_chart_point.vn_id 
+                  AND ebsp.vn_ac_id = energy_chart_point.vn_ac_id AND ebsp.time_period = energy_chart_point.time_period)
+                GROUP BY energy_chart_point.time_period
+				UNION ALL
+				SELECT energy_chart_point.time_period, 0.00 ${sql.as} baseload, 0.00 ${sql.as} cdd, 0.00 ${sql.as} hdd, 
+				SUM(energy_chart_point.value) ${sql.as} gas_actual_consumption
+				FROM energy_chart_point
+				WHERE ${sql.vpaRestriction} AND energy_chart_point.value_name = ${parameters['gasCons']} AND energy_chart_point.bl_id IN 
+									(SELECT bl_id FROM bl 
+										WHERE ${parameters['locationField']} = ${parameters['locationValue']})
+                  AND energy_chart_point.vn_id ${sql.concat} energy_chart_point.vn_ac_id 
+                  IN (SELECT vn_id ${sql.concat} vn_ac_id FROM energy_bl_svc_period ebsp WHERE ebsp.vn_id = energy_chart_point.vn_id 
+                  AND ebsp.vn_ac_id = energy_chart_point.vn_ac_id AND ebsp.time_period = energy_chart_point.time_period)
+                  GROUP BY energy_chart_point.time_period
+        </sql> 
+        
+        <table name="energy_chart_point" role="main"/>
+        <field name="time_period" table="energy_chart_point" groupBy="true"/>
+		<field name="sum_weather_model" table="energy_chart_point" dataType="number" size="12" decimals="2">
+		<sql dialect="generic">
+			CASE WHEN SUM(energy_chart_point.baseload+energy_chart_point.cdd+energy_chart_point.hdd) &lt; 0 THEN 0
+			ELSE SUM(energy_chart_point.baseload+energy_chart_point.cdd+energy_chart_point.hdd) / ${parameters['unitsConversionFactor']} END
+		</sql>
+        </field>
+		<field name="sum_gas_actual_consumption" table="energy_chart_point" dataType="number" size="12" decimals="2">
+		<sql dialect="generic">
+			CASE WHEN SUM(gas_actual_consumption) &lt; 0 THEN 0
+			ELSE SUM(gas_actual_consumption)  / ${parameters['unitsConversionFactor']} END
+		</sql>
+        </field>        
+        <sortField table="energy_chart_point" name="time_period" ascending="true"/>
+    </dataSource>    
+    
+    <panel type="grid" id="panel_gasWeatherModelData" dataSource="ds_gasWeatherModelChart" hidden="true" showOnLoad="false" showCounts="true">
+	<title translatable="true">Gas Consumption with Model</title>
+    	
+	    <action id="exportXLS">
+	      <title translatable="true">XLS</title>
+	      <command type="exportPanel" outputType="xls" panelId="panel_gasWeatherModelData"/>
+	    </action>
+		
+	    <action id="exportDOC">
+	      <title translatable="true">DOC</title>
+	      <command type="exportPanel" outputType="docx" panelId="panel_gasWeatherModelData"/>
+	    </action>			
+	    
+        <field name="time_period" table="energy_chart_point"/>
+		<field name="sum_weather_model" table="energy_chart_point">
+		<title translatable="true">Weather Model</title>
+        </field>
+		<field name="sum_gas_actual_consumption" table="energy_chart_point">
+		<title translatable="true">Consumption (${view.dataSources.get('abEnergyBillCommon_ds').getRecord().getValue('bill_unit.vf_qty_energy_unit')})</title>
+        </field>
+        <sortField table="energy_chart_point" name="time_period" ascending="true"/>   
+        <indexField table="energy_chart_point" name="time_period"/>
+    </panel>
+    
+    <!-- Chart tabs -->
+	<tabs workflow="free" id="tabs" layout="nestedLayout" region="center" tabRefreshPolicy="never">
+		<tab name="elecLoadFactorChart" selected="false" useFrame="false" hidden="true"> 
+			<title translatable="true">Electric Load Factor</title>
+			    <panel type="chart" id="panel_elecLoadFactorChart" controlType="columnChart" dataSource="ds_elecLoadFactorChart" showLegendAsPopUp="false">
+				<title translatable="true">Electric Load Factor</title>			
+				<action id="data">
+				    <title translatable="true">Data</title>
+				    <command type="openDialog" panelId="panel_elecLoadFactorData"/>
+				</action>				
+				<action id="exportDOC">
+				    <title translatable="true">DOC</title>
+				    <command type="exportPanel" outputType="docx" panelId="panel_elecLoadFactorChart"/>
+    			</action>				
+				<action id="panel_elecLoadFactorChart_refresh">
+				    <title translatable="true">Refresh</title>
+				    <command type="showPanel" panelId="panel_elecLoadFactorChart"/>
+				</action>
+				
+				<event type="onClickItem">
+				    <command type="openDialog" panelId="panel_elecLoadFactorData"/>
+				</event>
+				
+				<groupingAxis table="bill_archive" field="time_period" labelRotation="45"> 
+				    <title translatable="true">Billing Period</title> 
+				</groupingAxis>
+				<dataAxis table="bill_archive" field="sum_el_load_factor" displayAxis="true" showLabel="true" labelPosition="inside"> 
+				    <title translatable="true">Load Factor % (avg demand / peak demand)</title> 
+				</dataAxis>
+			    </panel>
+		</tab>
+		<tab name="elecConsumWeatherModelChart" selected="false" useFrame="false" hidden="true"> 
+			<title translatable="true">Electric Consumption with Model</title>
+			    <panel type="chart" id="panel_elecConsumWeatherModelChart" controlType="columnChart" dataSource="ds_elecWeatherModelChart" showLegendAsPopUp="false">
+				<title translatable="true">Electric Consumption with Model</title>
+				<action id="data">
+				    <title translatable="true">Data</title>
+				    <command type="openDialog" panelId="panel_elecConsumWeatherModelData" width="600" height="400"/>
+				</action>				
+				<action id="exportDOC">
+				    <title translatable="true">DOC</title>
+				    <command type="exportPanel" outputType="docx" panelId="panel_elecConsumWeatherModelChart"/>
+    			</action>				
+				<action id="panel_elecConsumWeatherModelChart_refresh">
+				    <title translatable="true">Refresh</title>
+				    <command type="showPanel" panelId="panel_elecConsumWeatherModelChart"/>
+				</action>
+				
+				<event type="onClickItem">
+				    <command type="openDialog" panelId="panel_elecConsumWeatherModelData" width="600" height="400"/>
+				</event>
+				
+				<groupingAxis table="energy_chart_point" field="time_period" showLabel="true" labelRotation="45">
+					<title translatable="true">Billing Period</title>
+				</groupingAxis>
+
+				<dataAxis table="energy_chart_point" field="sum_weather_model" showLabel="true" labelPosition="inside" >
+					<title translatable="true">Weather Model (Sum)</title>
+				</dataAxis> 
+				<dataAxis table="energy_chart_point" field="sum_el_actual_consumption" showLabel="true" labelPosition="inside" >
+					<title translatable="true">Consumption (${view.dataSources.get('abEnergyBillCommon_ds').getRecord().getValue('bill_unit.vf_qty_energy_unit')}) (Sum)</title>
+				</dataAxis>		
+			    </panel>
+		</tab>
+		<tab name="elecDemandWeatherModelChart" selected="false" useFrame="false" hidden="true"> 
+			<title translatable="true">Electric Demand with Model</title>
+			    <panel type="chart" id="panel_elecDemandWeatherModelChart" controlType="columnChart" dataSource="ds_elecWeatherModelChart" showLegendAsPopUp="false">
+				<title translatable="true">Electric Demand with Model</title>
+				<action id="data">
+				    <title translatable="true">Data</title>
+				    <command type="openDialog" panelId="panel_elecDemandWeatherModelData" width="600" height="400"/>
+				</action>				
+				<action id="exportDOC">
+				    <title translatable="true">DOC</title>
+				    <command type="exportPanel" outputType="docx" panelId="panel_elecDemandWeatherModelChart"/>
+    			</action>				
+				<action id="panel_elecDemandWeatherModelChart_refresh">
+				    <title translatable="true">Refresh</title>
+				    <command type="showPanel" panelId="panel_elecDemandWeatherModelChart"/>
+				</action>
+				
+				<event type="onClickItem">
+				    <command type="openDialog" panelId="panel_elecDemandWeatherModelData" width="600" height="400"/>
+				</event>
+				
+				<groupingAxis table="energy_chart_point" field="time_period" showLabel="true" labelRotation="45">
+					<title translatable="true">Billing Period</title>
+				</groupingAxis>
+				<dataAxis table="energy_chart_point" field="sum_weather_model_kw" showLabel="true" labelPosition="inside" >
+					<title translatable="true">Weather Model (Sum)</title>
+				</dataAxis> 
+				<dataAxis table="energy_chart_point" field="sum_el_actual_demand" showLabel="true" labelPosition="inside" >
+					<title translatable="true">Demand (kW) (Sum)</title>
+				</dataAxis>				
+			    </panel>
+		</tab>		
+		<tab name="gasWeatherModelChart" selected="false" useFrame="false" hidden="true"> 
+			<title translatable="true">Gas Consumption with Model</title>
+			    <panel type="chart" id="panel_gasWeatherModelChart" controlType="columnChart" dataSource="ds_gasWeatherModelChart" showLegendAsPopUp="false">
+				<action id="data">
+				    <title translatable="true">Data</title>
+				    <command type="openDialog" panelId="panel_gasWeatherModelData" width="600" height="400"/>
+				</action>				
+				<action id="exportDOC">
+				    <title  translatable="true">DOC</title>
+				    <command type="exportPanel" outputType="docx" panelId="panel_gasWeatherModelChart"/>
+    			</action>				
+				<action id="panel_gasWeatherModelChart_refresh">
+				    <title translatable="true">Refresh</title>
+				    <command type="showPanel" panelId="panel_gasWeatherModelChart"/>
+				</action>
+				
+				<event type="onClickItem">
+				    <command type="openDialog" panelId="panel_gasWeatherModelData" width="600" height="400"/>
+				</event>
+				
+				<groupingAxis table="energy_chart_point" field="time_period" showLabel="true" labelRotation="45">
+					<title translatable="true">Billing Period</title>
+				</groupingAxis>
+				<dataAxis table="energy_chart_point" field="sum_weather_model" showLabel="true" labelPosition="inside">
+					<title translatable="true">Weather Model (Sum)</title>
+				</dataAxis>
+				<dataAxis table="energy_chart_point" field="sum_gas_actual_consumption" showLabel="true" labelPosition="inside">
+					<title translatable="true">Consumption (${view.dataSources.get('abEnergyBillCommon_ds').getRecord().getValue('bill_unit.vf_qty_energy_unit')}) (Sum)</title>
+				</dataAxis>				
+			    </panel>
+		</tab>		
+	</tabs>
+    
+</view>

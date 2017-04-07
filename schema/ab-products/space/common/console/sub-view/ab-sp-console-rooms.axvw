@@ -1,0 +1,192 @@
+<view version="2.0">
+    <js file="ab-sp-console-rooms.js"/> 
+    <message name="addRoom" translatable="true">Add Room</message>
+    <message name="editRoom" translatable="true">Edit Room</message>
+    <dataSource id="roomsDS" applyVpaRestrictions="false">
+        <table name="rm" role="main"/>
+        <table name="dp" role="standard"/>
+        <table name="dv" role="standard"/>
+        <table name="rmcat" role="standard"/>
+        <field name="bl_id"/>
+        <field name="fl_id"/>
+        <field name="rm_id"/>
+        <field name="dv_id"/>
+        <field name="dp_id"/>
+        <field name="rm_cat"/>
+        <field name="rm_type"/>
+        <field name="cap_em" showTotals="true"/>
+        <field name="area" showTotals="true" numericFormat="area"/>
+        <field table="rm" name="dwgname"/>
+        <field table="rm" name="hotelable"/>
+        <field table="rm" name="calcute_count_em" baseField="rm.count_em" dataType="integer">
+            <title>Occupancy Count</title>
+            <sql dialect="generic">
+               (SELECT COUNT(1) 
+                FROM em 
+                WHERE 
+               rm.bl_id = em.bl_id and rm.fl_id = em.fl_id and rm.rm_id = em.rm_id) 
+            </sql>
+        </field>
+        <restriction type="sql" sql="${parameters['commonParameters']} AND ${parameters['teamRmRestriction']}"/> 
+        
+        <sortField table="rm" name="bl_id"/>
+        <sortField table="rm" name="fl_id"/>
+        <sortField table="rm" name="rm_id"/>
+        
+        <parameter name="commonParameters" dataType="verbatim" value="2=2"/>
+        <parameter name="dv_id" dataType="verbatim" value="1=1"/>
+        <parameter name="dp_id" dataType="verbatim" value="1=1"/>
+        <parameter name="bl_id" dataType="verbatim" value="1=1"/>
+        <parameter name="fl_id" dataType="verbatim" value="1=1"/>
+        <parameter name="rm_id" dataType="verbatim" value="1=1"/>
+        <parameter name="rm_cat" dataType="verbatim" value="1=1"/>
+        <parameter name="rm_type" dataType="verbatim" value="1=1"/>
+        <parameter name="occupancy" dataType="verbatim" value="1=1"/>
+        <parameter name="organizationUnassigned" dataType="verbatim" value="1=1"/>
+        <parameter name="typeUnassigned" dataType="verbatim" value="1=1"/>
+        <parameter name="totalArea" dataType="verbatim" value="1=1"/>
+        <parameter name="teamRmRestriction" dataType="verbatim" value="6=6"/>        
+    </dataSource>
+
+    <dataSource id="roomEmployeesDS">
+        <table name="em" role="main"/>
+        <table name="rm" role="standard"/>
+        <table name="dv" role="standard"/>
+        <table name="dp" role="standard"/>
+        <field name="em_id" table="em"/>
+        <field name="bl_id" table="rm"/>
+        <field name="fl_id" table="rm"/>
+        <field name="rm_id" table="rm"/>
+        <field name="em_std" table="em"/>
+        <field name="phone" table="em"/>
+        <field name="dv_id" table="dv"/>
+        <field name="dp_id" table="dp"/>
+    </dataSource>
+    
+    <dataSource id="editRoomDetailsDs">
+        <table name="rm" role="main"/>
+        <field table="rm" name="bl_id"/>
+        <field table="rm" name="fl_id"/>
+        <field table="rm" name="rm_id"/>
+        <field table="rm" name="name"/>
+        <field table="rm" name="rm_cat"/>
+        <field table="rm" name="rm_type"/>
+        <field table="rm" name="rm_std"/>
+        <field table="rm" name="dv_id"/>
+        <field table="rm" name="dp_id"/>
+        <field table="rm" name="area_manual"/>
+        <field table="rm" name="cap_em"/>
+        <field table="rm" name="area"/>
+        <field table="rm" name="prorate"/>
+        <field table="rm" name="hotelable"/>
+        <field table="rm" name="rm_use"/>
+        <field table="rm" name="survey_redline_rm"/>
+        <field table="rm" name="date_last_surveyed"/>
+        <field table="rm" name="survey_photo"/>
+    </dataSource>
+    
+    <panel type="grid" id="roomsGrid" dataSource="roomsDS" showCounts="true" showOnLoad="false">
+        <title>Rooms Report</title>
+        <action id="addNew"  enabled="${user.isMemberOfGroup('SPACE-CONSOLE-ALL-ACCESS')}">
+            <title>Add New</title>
+            <command type="openDialog" panelId="editSingleRoomDetailPanel" newRecord="true" closeButton="false">
+                <title>Add Room</title>
+            </command>
+        </action>
+        
+        <action type="menu" id="exportRoomsMenu"  imageName="/schema/ab-core/graphics/icons/view/export.png">
+            <title></title>
+            <action id="roomsExportDOCX">
+                <title>Export to DOCX</title>
+                <command type="callFunction" functionName="exportRoomToDOCX()"/>
+            </action>
+            <action id="roomsExportXLS">
+                <title>Export to XLS</title>
+                <command type="callFunction" functionName="exportRoomToXLS()"/>
+            </action>
+        </action>
+        
+        <action type="menu" id="roomsMenu" imageName="/schema/ab-core/graphics/icons/view/gear.png">
+            <title></title>
+            <action id="selectFields">
+                <title>Select Fields</title>
+                <command type="selectFields" panelId="roomsGrid"/>
+            </action>
+        </action>
+
+        <field name="bl_id" controlType="link">
+            <title>Building</title>
+            <command type="callFunction" functionName="locateRoom()"/>
+        </field>
+        <field name="fl_id" controlType="link">
+            <title>Floor</title>
+            <command type="callFunction" functionName="locateRoom()"/>
+        </field>
+        <field name="rm_id" controlType="link">
+            <title>Room</title>
+            <command type="callFunction" functionName="locateRoom()"/>
+        </field>
+        <field name="area" showTotals="true" numericFormat="area">
+            <command type="callFunction" functionName="locateRoom()"/>
+        </field>
+        <field table="rm" name="dwgname" hidden="true"/>
+        
+        <field name="cap_em" showTotals="true" hidden="true"/>
+        <field name="calcute_count_em" showTotals="true" baseField="rm.count_em" dataType="integer" decimals="0" hidden="true">
+            <title>Occupancy Count</title>
+        </field>
+        <field table="rm" name="dv_id" hidden="true"/>
+        <field table="rm" name="dp_id" hidden="true"/>
+        <field table="rm" name="rm_cat" hidden="true"/>
+        <field table="rm" name="rm_type" hidden="true"/>
+        <field table="rm" name="hotelable" hidden="true"/>
+        
+        <field name="editRoom" controlType="image" imageName="pencil.png" hidden="${!user.isMemberOfGroup('SPACE-CONSOLE-ALL-ACCESS')}" 
+             enabled="${user.isMemberOfGroup('SPACE-CONSOLE-ALL-ACCESS')}">
+            <command type="openDialog" panelId="editSingleRoomDetailPanel" closeButton="false">
+                <title>Edit Room</title>
+            </command>
+            <title>Edit</title>
+        </field>
+        <indexField table="rm" name="bl_id"/>
+        <indexField table="rm" name="fl_id"/>
+        <indexField table="rm" name="rm_id"/>
+    </panel>
+    
+    <panel id="editSingleRoomDetailPanel" type="form" columns="2" showOnLoad="false" hidden="true" dataSource="editRoomDetailsDs" buttonsPosition="footer">
+        <action id="save">
+            <title translatable="true">Save</title>
+            <command type="saveForm"/>
+            <command type="closeDialog"/>
+            <command type="showPanel" panelId="roomsGrid" applyParentRestriction="false"/>
+        </action>
+        <action id="delete" enabled="${user.isMemberOfGroup('SPACE-CONSOLE-ALL-ACCESS') &amp;&amp; !panel.newRecord}">
+            <title translatable="true">Delete</title>
+            <command type="deleteRecord"/>
+            <command type="closeDialog"/>
+            <command type="showPanel" panelId="roomsGrid" applyParentRestriction="false"/>
+        </action>
+        <action id="cancel">
+            <title translatable="true">Cancel</title>
+            <command type="closeDialog"/>
+        </action>
+        <field table="rm" name="bl_id" readOnly="${!panel.newRecord}"/>
+        <field table="rm" name="fl_id" readOnly="${!panel.newRecord}"/>
+        <field table="rm" name="rm_id"/>
+        <field table="rm" name="name"/>
+        <field table="rm" name="rm_cat"/>
+        <field table="rm" name="rm_type"/>
+        <field table="rm" name="rm_std"/>
+        <field table="rm" name="cap_em"/>
+        <field table="rm" name="dv_id"/>
+        <field table="rm" name="dp_id"/>
+        <field table="rm" name="area_manual"/>
+        <field table="rm" name="area"/>
+        <field table="rm" name="prorate" hidden="${view.taskInfo.activityId == 'AbCapitalPlanningCA' || view.taskInfo.activityId == 'AbRiskES'}"/>
+        <field table="rm" name="hotelable"/>
+        <field table="rm" name="rm_use"/>
+        <field table="rm" name="survey_redline_rm"/>
+        <field table="rm" name="date_last_surveyed"/>
+        <field table="rm" name="survey_photo"/>
+    </panel>
+</view>

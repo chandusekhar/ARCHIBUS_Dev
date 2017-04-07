@@ -1,0 +1,163 @@
+<view version="2.0">
+	<js file="ab-comm-eq-plans.js"/>
+	
+	<layout file="ab-comm-eq-plans-layout.axvw"/>
+	
+	<title translatable="true">View Equipment Plan</title>
+	
+    <dataSource id="ds_abApEqPlans_console">
+		<table name="bl" role="main"/>
+        <field name="site_id"/>
+        <field name="bl_id"/>
+    </dataSource>
+
+    <dataSource id="ds_abApEqPlans_blTree" distinct="true">
+		<table name="bl" role="main"/>
+		<field name="bl_id"/>
+		<field name="name"/>
+        <restriction type="sql" sql="bl.bl_id ${parameters['blId']} AND EXISTS (SELECT 1 FROM eq WHERE eq.bl_id IS NOT NULL AND eq.fl_id IS NOT NULL AND eq.bl_id = bl.bl_id)"/>
+        <parameter name="blId" dataType="verbatim" value="IS NOT NULL"/>
+        <sortField table="bl" name="bl_id" ascending="true"/>
+    </dataSource>
+
+    <dataSource id="ds_abApEqPlans_flTree">
+        <sql dialect="generic">
+            SELECT
+            DISTINCT
+			bl.site_id ${sql.as} site_id, 
+			fl.bl_id   ${sql.as} bl_id,
+            fl.fl_id   ${sql.as} state_id,
+			fl.name    ${sql.as} name,
+            rm.dwgname ${sql.as} dwgname
+            FROM fl 
+			LEFT JOIN bl ON fl.bl_id = bl.bl_id
+			LEFT JOIN rm ON fl.bl_id = rm.bl_id AND fl.fl_id = rm.fl_id
+            WHERE rm.dwgname IS NOT NULL
+            AND EXISTS (SELECT 1 FROM eq WHERE eq.bl_id IS NOT NULL AND eq.fl_id IS NOT NULL AND eq.bl_id = fl.bl_id AND eq.fl_id=fl.fl_id)
+        </sql>
+        <table name="bl" role="main"/>
+        <field name="state_id"/>
+		<field name="name"/>
+        <field name="dwgname"/>
+        <sortField table="bl" name="state_id" ascending="true"/>
+    </dataSource>
+
+    <dataSource id="ds_abApEqPlans_drawing" type="DrawingControlHighlight">
+     	<table name="eq" role="main"/>
+     	<field name="bl_id" table="eq"/>
+     	<field name="fl_id" table="eq"/>
+     	<field name="rm_id" table="eq"/>
+		<field name="eq_id" table="eq" legendKey="true"/>
+    </dataSource>
+
+	<dataSource id="ds_abApEqPlans_drawingLabel">
+		<table name="eq" role="main"/>
+        <field name="eq_id"/>
+		<field name="eq_std"/>
+	</dataSource>    
+
+	  <dataSource id="eqLabels" type="DrawingControlLabels">
+		<table name="eq" role="main"/>
+		<table name="eqstd" role="standard"/>
+		<field name="bl_id" hidden="true"/>
+		<field name="fl_id" hidden="true"/>
+		<field name="eq_id" legendKey="true"/>
+		<field name="eq_std" table="eq"/>
+		<field name="use1" table="eq"/>
+		<field name="description" table="eqstd"/>
+		<field name="category" table="eqstd"/>
+		<field name="mfr" table="eqstd"/>
+		<field name="modelno" table="eqstd"/>
+	  </dataSource>
+
+    <panel type="console" id="panel_abApEqPlans_console" dataSource="ds_abApEqPlans_console" layoutRegion="console" columns="2">
+        <title translatable="true">Filter</title>
+        <action id="show">
+            <title translatable="true">Show</title>
+            <command type="showPanel" panelId="panel_abApEqPlans_blTree"/>
+        </action>
+        <action id="clear">
+            <title translatable="true">Clear</title>
+            <command type="clearForm"/>
+        </action>
+        <action id="paginatedReport">
+            <title translatable="true">Paginated Report</title>
+        </action>
+        <field name="site_id" required="false"/>
+        <field name="bl_id" required="false">
+			<action>
+				<title translatable="false">...</title>
+				<command type="selectValue" 
+					fieldNames="bl.bl_id,bl.site_id"
+					selectFieldNames="bl.bl_id,bl.site_id"
+					visibleFieldNames="bl.bl_id,bl.name,bl.site_id"/>
+			</action>
+		</field>
+    </panel>
+
+    <panel type="tree" id="panel_abApEqPlans_blTree" dataSource="ds_abApEqPlans_blTree" showOnLoad="true" layoutRegion="pkey">
+		<panel type="tree" id="panel_abApEqPlans_flTree" dataSource="ds_abApEqPlans_flTree">
+			<event type="onClickNode">
+				<command type="callFunction" functionName="abApEqPlans_showEquipment"/>
+			</event>
+		</panel>
+    </panel>
+	
+    <panel type="drawing" id="panel_abApEqPlans_drawing" layoutRegion="content" showOnLoad="false"
+		assetTypes="eq"
+		highlightDataSource="ds_abApEqPlans_drawing"
+		labelsDataSource="eqLabels"
+		multiple="false">
+    </panel>
+
+	<dataSource id="ds_abApEqPlans_eqDetails">
+		<table name="eq"/>
+ 		<field name="eq_id"/>
+ 		<field name="eq_std"/>
+        <field name="asset_id" />
+ 		<field name="use1"/>             		
+ 		<field name="bl_id"/>             		
+ 		<field name="fl_id"/>             		
+ 		<field name="rm_id"/>             		
+ 		<field name="dv_id"/>
+ 		<field name="dp_id"/>
+ 		<field name="em_id"/>
+        <field name="csi_id" />
+        <field name="qty_life_expct" />
+        <field name="date_in_service" />      
+        <field name="vf_eq_age" dataType="number" size="12" decimals="1">
+            <sql dialect="generic">(${sql.daysBeforeCurrentDate('eq.date_in_service')}) / 365.0</sql>
+        </field>
+        <field name="vf_remaining_yrs" dataType="number" size="12" decimals="1">
+            <sql dialect="generic">eq.qty_life_expct - ((${sql.daysBeforeCurrentDate('eq.date_in_service')}) / 365.0)</sql>
+        </field>
+        <field name="status" />
+ 		<field name="condition"/>
+	</dataSource>    
+
+	<panel type="grid" id="panel_abApEqPlans_eqDetails" dataSource="ds_abApEqPlans_eqDetails" showOnLoad="false" layoutRegion="details">
+		<sortField table="eq" name="eq_id" ascending="true"/>
+		<title translatable="true">Equipment List Details</title>
+ 		<field name="eq_id"/>
+ 		<field name="eq_std"/>
+        <field name="asset_id" />
+ 		<field name="use1"/>             		
+ 		<field name="bl_id"/>             		
+ 		<field name="fl_id"/>             		
+ 		<field name="rm_id"/>             		
+ 		<field name="dv_id"/>
+ 		<field name="dp_id"/>
+ 		<field name="em_id"/>
+        <field name="csi_id" />
+        <field name="qty_life_expct" />
+        <field name="date_in_service" />      
+        <field name="vf_eq_age" table="eq" dataType="number" size="12" decimals="1">
+            <title translatable="true">Equipment Age (yrs)</title>
+        </field>
+        <field name="vf_remaining_yrs" table="eq" dataType="number" size="12" decimals="1">
+            <title translatable="true">Remaining Life (yrs)</title>
+        </field>
+        <field name="status" />
+        <field name="condition"/>             		
+	</panel>
+</view>

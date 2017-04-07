@@ -1,0 +1,71 @@
+<view version="2.0">	 
+
+	<dataSource id="abSpTrendOrateQuarterPctGroupDS" type="grouping">
+		<table name="afm_cal_dates"/> 
+		<field name="quarter" formula="quarter" groupBy="true" dataType="text" baseField="afm_cal_dates.cal_date">
+			<title translatable="true">Quarter</title>
+		</field>
+		<parameter name="fromYear" dataType="text" value="2011"/>
+		<parameter name="toYear" dataType="text" value="2011"/>
+		<restriction type="sql" 
+			 sql="${sql.yearOf('cal_date')} &lt;= ${parameters['toYear']} and ${sql.yearOf('cal_date')}&gt;= ${parameters['fromYear']}  " />
+		<sortField table="afm_cal_dates" name="quarter"  ascending="true"/>
+	</dataSource>
+
+	<dataSource id="abSpTrendOrateQuarterPctDataDS" type="grouping">
+		<table name="afm_metric_trend_values" role="main"/>
+		<table name="afm_metric_definitions" role="standard"/>
+		<table name="bl" role="standard"/>
+		<field name="pct" dataType="number" decimals="2">
+			<sql dialect="generic">
+					sum(afm_metric_trend_values.metric_value)
+					/
+					(	select sum(m.metric_value) 
+								from afm_metric_trend_values ${sql.as} m 
+								left outer join bl on m.bl_id=bl.bl_id 
+								where m.metric_name='em_capacity_x_bl_x_month' 
+											and  ${parameters['consoleResForM']}  
+											and ${sql.yearQuarterOf('m.metric_date')}=${parameters['summaryValueForThisGroup']}  
+					)
+			</sql>
+		</field>
+		<field table="afm_metric_definitions"  name="metric_name" hidden="true"/>
+		<field table="bl"  name="site_id" hidden="true"/>
+		<restriction type="sql" 
+			 sql="  ${parameters['consoleRes']}   and afm_metric_trend_values.metric_name='occupancy_count_x_bl_x_quarter'  
+						and  ${sql.yearQuarterOf('afm_metric_trend_values.metric_date')}=${parameters['summaryValueForThisGroup']} " />
+        <parameter name="summaryValueForThisGroup" dataType="text" value=""/>   
+		<parameter name="consoleRes" dataType="verbatim" value=" 1=1 "/>
+		<parameter name="consoleResForM" dataType="verbatim" value=" 1=1 "/>
+	</dataSource>
+
+	<panel 	id="abSpTrendOrateQuarterPctChart" 
+		dataSource="abSpTrendOrateQuarterPctDataDS"
+		type="chart" 
+		showOnLoad="false" 
+		controlType="lineChart"  
+		showLegendOnLoad="false" 
+		showLegendAsPopUp="false" 
+		legendLocation="right" 
+		showDataTips="true" 
+		fillType="solid"
+		percentGradientChange="0.5"
+	       percentTransparency = "1.0">
+		<title>Quarterly Occupancy Rate: occupancy count divided by capacity</title>
+		<action id="exportDOCX">
+			<title translatable="true">DOC</title>
+			<command type="exportPanel" outputType="docx" panelId="abSpTrendOrateQuarterPctChart"/>
+		</action>
+		<groupingAxis dataSource="abSpTrendOrateQuarterPctGroupDS" table="afm_cal_dates" field="quarter">
+			<title translatable="true">Quarter</title>
+		</groupingAxis>
+		<dataAxis table="afm_metric_trend_values" field="pct">
+			<title translatable="true">Occupancy Rate</title>
+		</dataAxis>
+	</panel>
+
+	<js file="ab-sp-alloc-trend-metric-chart-common.js"/>
+	<js file="ab-sp-trend-chart-common.js"/>
+	<js file="ab-sp-trend-orate-quarter-pct-chart.js"/>
+
+</view>
